@@ -24,7 +24,11 @@
 | USt-IdNr. | DE316507908 |
 | Aufsichtsbehörde | Arbeitnehmerüberlassung — Agentur für Arbeit Düsseldorf, 40180 Düsseldorf |
 
-**Business**: Vermittlung qualifizierter Pflege- und Fachkräfte (Pflegefachkraft, Arzt, etc.) auf temporärer Basis an Krankenhäuser, Pflegeheime und Kliniken in Bonn, NRW und ganz Deutschland.
+**Business**: Arbeitnehmerüberlassung von qualifizierten **Pflege- und Betreuungskräften ausschließlich im Bereich der Altenpflege / Seniorenpflege** (Versorgung pflegebedürftiger und älterer Menschen) auf temporärer Basis an Pflegeheime, Seniorenheime, Tagespflege, Kurzzeitpflege und ambulante Pflegedienste in Bonn, NRW und ganz Deutschland.
+
+> **Domain focus (binding)**: RheinAhr is an **elderly-care (Altenpflege) staffing** company — NOT general hospital/medical staffing. The platform must always model this domain: workers are **care staff (Pflege-/Betreuungskräfte)**, clients are **care facilities** (Pflegeheim, Seniorenheim, ambulanter Dienst, Tages-/Kurzzeitpflege). Do NOT introduce hospital-only roles (Arzt, OP-/Anästhesie, Intensiv on acute wards) or acute-hospital facility types.
+>
+> **Terminology**: refer to workers as **care staff / Pflegekräfte / كوادر الرعاية (مقدّمو الرعاية)** — never "technicians / Techniker / فنيون".
 
 > **Branding rule**: All user-facing text, legal pages, emails, PDFs (Leistungsnachweis), and the Impressum must use the RheinAhr identity above. Replace any leftover "MedStaff Pro" references from the original plan.
 
@@ -32,9 +36,9 @@
 
 ## 1. What We Are Building
 
-A web application to digitize and automate RheinAhr's Zeitarbeit operations — replacing manual Excel/WhatsApp/phone coordination with an integrated trilingual (DE/EN/AR) platform.
+A web application to digitize and automate RheinAhr's Zeitarbeit operations in **elderly care (Altenpflege)** — replacing manual Excel/WhatsApp/phone coordination with an integrated trilingual (DE/EN/AR) platform.
 
-**Scope**: 200+ medical workers · 50+ client facilities · 3 languages · full lifecycle management.
+**Scope**: 200+ care staff (Pflege-/Betreuungskräfte) · 50+ care facilities (Pflegeheime, Seniorenheime, ambulante Dienste) · 3 languages · full lifecycle management.
 
 **Goals**: zero manual coordination errors · digital service confirmation (Leistungsnachweis) · real-time availability · automated reminders.
 
