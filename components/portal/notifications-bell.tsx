@@ -8,7 +8,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Bell } from "lucide-react";
 import { markAllNotificationsRead } from "@/lib/notification-actions";
 import type { NotificationType } from "@prisma/client";
@@ -38,17 +39,16 @@ export function NotificationsBell({ items }: { items: NotificationItem[] }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={
-          <Button variant="ghost" size="sm" className="relative" aria-label={t("title")}>
-            <Bell className="size-4" />
-            {unread > 0 ? (
-              <span className="absolute -end-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-white">
-                {unread > 9 ? "9+" : unread}
-              </span>
-            ) : null}
-          </Button>
-        }
-      />
+        aria-label={t("title")}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "relative")}
+      >
+        <Bell className="size-4" />
+        {unread > 0 ? (
+          <span className="absolute -end-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-white">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        ) : null}
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
           <span className="text-sm font-semibold">{t("title")}</span>

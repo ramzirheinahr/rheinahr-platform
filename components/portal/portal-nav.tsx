@@ -5,11 +5,18 @@ import { cn } from "@/lib/utils";
 
 export type NavItem = { href: string; label: string };
 
-export function PortalNav({ items }: { items: NavItem[] }) {
+export function PortalNav({
+  items,
+  orientation = "vertical",
+}: {
+  items: NavItem[];
+  orientation?: "vertical" | "horizontal";
+}) {
   const pathname = usePathname();
+  const horizontal = orientation === "horizontal";
 
   return (
-    <nav className="flex flex-col gap-1">
+    <nav className={cn("flex gap-1", horizontal ? "flex-row" : "flex-col")}>
       {items.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(item.href + "/");
@@ -19,6 +26,7 @@ export function PortalNav({ items }: { items: NavItem[] }) {
             href={item.href}
             className={cn(
               "rounded-md px-3 py-2 text-sm transition-colors",
+              horizontal && "whitespace-nowrap",
               active
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",

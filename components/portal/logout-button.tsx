@@ -20,7 +20,7 @@ export function LogoutButton() {
   return (
     <Button variant="ghost" size="sm" onClick={logout} className="gap-2">
       <LogOut className="size-4" />
-      {c("logout")}
+      <span className="hidden sm:inline">{c("logout")}</span>
     </Button>
   );
 }

@@ -10,7 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Globe } from "lucide-react";
 
 export function LocaleSwitcher() {
@@ -30,14 +31,13 @@ export function LocaleSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={
-          <Button variant="ghost" size="sm" disabled={isPending} className="gap-2">
-            <Globe className="size-4" />
-            {localeLabels[locale]}
-          </Button>
-        }
-      />
-      <DropdownMenuContent align="end">
+        disabled={isPending}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-2")}
+      >
+        <Globe className="size-4" />
+        <span className="hidden sm:inline">{localeLabels[locale]}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
         {routing.locales.map((l) => (
           <DropdownMenuItem
             key={l}
