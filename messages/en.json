@@ -23,17 +23,76 @@
     "exportData": "Export my data"
   },
   "landing": {
-    "heroTitle": "Qualified elderly-care staff — coordinated digitally",
-    "heroSubtitle": "The platform of RheinAhr Dienstleistungen GmbH for nursing homes, senior residences, day/short-term care and outpatient care services in Bonn, NRW and across Germany.",
-    "ctaClient": "Request as a facility",
-    "ctaWorker": "Sign up as a professional",
-    "featuresTitle": "Everything in one place",
-    "feature1Title": "Automatic matching",
-    "feature1Body": "Available, qualified professionals are matched to suitable orders automatically.",
-    "feature2Title": "Digital service confirmation",
-    "feature2Body": "Electronic signature or upload — legally sound and auditable.",
-    "feature3Title": "Automated reminders",
-    "feature3Body": "Email and SMS reminders 24 hours and 1 hour before each shift."
+    "nav": {
+      "services": "Services",
+      "how": "How it works",
+      "why": "Why us",
+      "contact": "Contact"
+    },
+    "hero": {
+      "badge": "Staffing for elderly care",
+      "title": "Qualified care & support staff — fast, reliable, digital.",
+      "subtitle": "RheinAhr Dienstleistungen places registered care staff with nursing homes, senior residences and outpatient services in Bonn, NRW and across Germany — with digital dispatch and legally sound service confirmation.",
+      "ctaClient": "Request care staff",
+      "ctaWorker": "Apply as care staff"
+    },
+    "trust": {
+      "aug": "Licensed under AÜG",
+      "dsgvo": "GDPR-compliant",
+      "eu": "Hosted in the EU"
+    },
+    "stats": {
+      "workers": "Care staff in pool",
+      "facilities": "Partner facilities",
+      "languages": "Languages",
+      "response": "Response time"
+    },
+    "services": {
+      "title": "Our qualifications",
+      "subtitle": "Vetted professionals for every area of elderly care."
+    },
+    "how": {
+      "title": "How it works",
+      "subtitle": "From request to proof of service — fully digital.",
+      "step1Title": "Submit a request",
+      "step1Body": "Facilities post their need — date, shift, qualification and headcount — right in the portal.",
+      "step2Title": "Automatic matching",
+      "step2Body": "The system instantly suggests available, suitably qualified care staff and assigns them.",
+      "step3Title": "Digital service confirmation",
+      "step3Body": "After the shift, the service is confirmed digitally — by signature or upload, audit-proof."
+    },
+    "why": {
+      "title": "Why RheinAhr",
+      "subtitle": "One partner uniting dispatch, compliance and technology.",
+      "f1Title": "Fast staffing",
+      "f1Body": "Automated matching instead of phone and Excel — the right people in minutes.",
+      "f2Title": "Legally sound",
+      "f2Body": "Licensed under AÜG with a complete digital service record and timestamp.",
+      "f3Title": "Reliable",
+      "f3Body": "Automated reminders noticeably reduce no-shows and lateness.",
+      "f4Title": "Multilingual",
+      "f4Body": "Platform in German, English and Arabic — also for international care staff.",
+      "f5Title": "Data protection",
+      "f5Body": "All data hosted in the EU, fully GDPR-compliant.",
+      "f6Title": "Mobile",
+      "f6Body": "Installable app for care staff — shifts and availability always at hand."
+    },
+    "audience": {
+      "facilitiesTitle": "For facilities",
+      "facilitiesBody": "Cover staffing gaps at short notice with qualified care staff — planned, documented and legally sound.",
+      "facilitiesCta": "Post a need",
+      "workersTitle": "For care staff",
+      "workersBody": "Flexible shifts, fair conditions and a simple app — work when it suits you.",
+      "workersCta": "Apply now"
+    },
+    "contact": {
+      "title": "Get in touch",
+      "subtitle": "We'll gladly advise you on your staffing needs in elderly care.",
+      "phone": "Phone",
+      "email": "Email",
+      "address": "Address"
+    },
+    "footerTagline": "Your partner for qualified care staff."
   },
   "roles": {
     "admin": "Administration",

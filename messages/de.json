@@ -23,17 +23,76 @@
     "exportData": "Meine Daten exportieren"
   },
   "landing": {
-    "heroTitle": "Qualifizierte Pflege- und Betreuungskräfte für die Altenpflege – digital koordiniert",
-    "heroSubtitle": "Die Plattform der RheinAhr Dienstleistungen GmbH für Pflegeheime, Seniorenheime, Tages-/Kurzzeitpflege und ambulante Pflegedienste in Bonn, NRW und ganz Deutschland.",
-    "ctaClient": "Als Einrichtung anfragen",
-    "ctaWorker": "Als Fachkraft anmelden",
-    "featuresTitle": "Alles aus einer Hand",
-    "feature1Title": "Automatisches Matching",
-    "feature1Body": "Verfügbare, qualifizierte Fachkräfte werden automatisch passenden Aufträgen zugeordnet.",
-    "feature2Title": "Digitaler Leistungsnachweis",
-    "feature2Body": "Elektronische Unterschrift oder Upload – rechtssicher und prüfbar.",
-    "feature3Title": "Automatische Erinnerungen",
-    "feature3Body": "E-Mail- und SMS-Erinnerungen 24 Stunden und 1 Stunde vor dem Einsatz."
+    "nav": {
+      "services": "Leistungen",
+      "how": "Ablauf",
+      "why": "Warum wir",
+      "contact": "Kontakt"
+    },
+    "hero": {
+      "badge": "Personaldienstleistung für die Altenpflege",
+      "title": "Qualifizierte Pflege- und Betreuungskräfte – schnell, zuverlässig, digital.",
+      "subtitle": "RheinAhr Dienstleistungen vermittelt examiniertes Pflegepersonal an Pflegeheime, Seniorenheime und ambulante Dienste in Bonn, NRW und ganz Deutschland – mit digitaler Disposition und rechtssicherem Leistungsnachweis.",
+      "ctaClient": "Pflegekraft anfragen",
+      "ctaWorker": "Als Pflegekraft bewerben"
+    },
+    "trust": {
+      "aug": "Erlaubnis nach AÜG",
+      "dsgvo": "DSGVO-konform",
+      "eu": "Hosting in der EU"
+    },
+    "stats": {
+      "workers": "Pflegekräfte im Pool",
+      "facilities": "Partner-Einrichtungen",
+      "languages": "Sprachen",
+      "response": "Reaktionszeit"
+    },
+    "services": {
+      "title": "Unsere Qualifikationen",
+      "subtitle": "Geprüftes Fachpersonal für alle Bereiche der Altenpflege."
+    },
+    "how": {
+      "title": "So einfach funktioniert es",
+      "subtitle": "Von der Anfrage bis zum Nachweis – vollständig digital.",
+      "step1Title": "Anfrage stellen",
+      "step1Body": "Einrichtungen melden ihren Bedarf – Datum, Schicht, Qualifikation und Anzahl – bequem über das Portal.",
+      "step2Title": "Automatisches Matching",
+      "step2Body": "Das System schlägt sofort verfügbare, passend qualifizierte Pflegekräfte vor und weist sie zu.",
+      "step3Title": "Digitaler Leistungsnachweis",
+      "step3Body": "Nach dem Einsatz wird die Leistung digital bestätigt – per Unterschrift oder Upload, revisionssicher."
+    },
+    "why": {
+      "title": "Warum RheinAhr",
+      "subtitle": "Ein Partner, der Disposition, Recht und Technik vereint.",
+      "f1Title": "Schnelle Besetzung",
+      "f1Body": "Automatisiertes Matching statt Telefon und Excel – passende Kräfte in Minuten.",
+      "f2Title": "Rechtssicher",
+      "f2Body": "Erlaubnis nach AÜG und lückenloser digitaler Leistungsnachweis mit Zeitstempel.",
+      "f3Title": "Zuverlässig",
+      "f3Body": "Automatische Erinnerungen reduzieren Ausfälle und Verspätungen spürbar.",
+      "f4Title": "Mehrsprachig",
+      "f4Body": "Plattform in Deutsch, Englisch und Arabisch – auch für internationale Pflegekräfte.",
+      "f5Title": "Datenschutz",
+      "f5Body": "Alle Daten in der EU gehostet, vollständig DSGVO-konform.",
+      "f6Title": "Mobil",
+      "f6Body": "Installierbare App für Pflegekräfte – Einsätze und Verfügbarkeit immer dabei."
+    },
+    "audience": {
+      "facilitiesTitle": "Für Einrichtungen",
+      "facilitiesBody": "Decken Sie Personalengpässe kurzfristig mit qualifizierten Pflegekräften – planbar, dokumentiert und rechtssicher.",
+      "facilitiesCta": "Bedarf melden",
+      "workersTitle": "Für Pflegekräfte",
+      "workersBody": "Flexible Einsätze, faire Bedingungen und eine einfache App – arbeiten Sie, wann es Ihnen passt.",
+      "workersCta": "Jetzt bewerben"
+    },
+    "contact": {
+      "title": "Sprechen Sie uns an",
+      "subtitle": "Wir beraten Sie gern zu Ihrem Personalbedarf in der Altenpflege.",
+      "phone": "Telefon",
+      "email": "E-Mail",
+      "address": "Adresse"
+    },
+    "footerTagline": "Ihr Partner für qualifiziertes Pflegepersonal."
   },
   "roles": {
     "admin": "Verwaltung",
