@@ -4,16 +4,17 @@ import { requireSuperAdmin } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Plus, Pencil } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
+
+type AccountRow = {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: "super_admin" | "admin" | "client" | "worker";
+  active: boolean;
+};
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,45 @@ export default async function AccountsPage({
   const c = await getTranslations("common");
   const er = await getTranslations("enums.role");
 
-  const users = await prisma.user
+  const users: AccountRow[] = await prisma.user
     .findMany({
       orderBy: { createdAt: "desc" },
       select: { id: true, email: true, fullName: true, role: true, active: true },
     })
     .catch(() => []);
+
+  const columns: Column<AccountRow>[] = [
+    { header: t("fullName"), primary: true, cell: (u) => u.fullName ?? c("none") },
+    { header: t("email"), cell: (u) => u.email },
+    { header: t("role"), cell: (u) => <Badge variant="secondary">{er(u.role)}</Badge> },
+    {
+      header: t("status"),
+      cell: (u) => (
+        <Badge variant={u.active ? "default" : "outline"}>
+          {u.active ? t("statusActive") : t("statusInactive")}
+        </Badge>
+      ),
+    },
+    {
+      header: c("actions"),
+      className: "text-end",
+      action: true,
+      cell: (u) =>
+        u.role === "super_admin" ? (
+          <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            render={<Link href={`/admin/accounts/${u.id}/edit`} />}
+          >
+            <Pencil className="size-4" />
+            {c("edit")}
+          </Button>
+        ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -49,58 +83,12 @@ export default async function AccountsPage({
         </Button>
       </div>
 
-      {users.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("empty")}
-        </p>
-      ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("fullName")}</TableHead>
-                <TableHead>{t("email")}</TableHead>
-                <TableHead>{t("role")}</TableHead>
-                <TableHead>{t("status")}</TableHead>
-                <TableHead className="text-end">{c("actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-medium">
-                    {u.fullName ?? c("none")}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{er(u.role)}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={u.active ? "default" : "outline"}>
-                      {u.active ? t("statusActive") : t("statusInactive")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-end">
-                    {u.role === "super_admin" ? (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-2"
-                        render={<Link href={`/admin/accounts/${u.id}/edit`} />}
-                      >
-                        <Pencil className="size-4" />
-                        {c("edit")}
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <ResponsiveTable
+        columns={columns}
+        rows={users}
+        getRowKey={(u) => u.id}
+        empty={t("empty")}
+      />
     </div>
   );
 }

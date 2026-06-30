@@ -1,16 +1,9 @@
 import { getTranslations } from "next-intl/server";
-import { getConfirmedServices } from "@/lib/invoicing";
+import { getConfirmedServices, type InvoiceRow } from "@/lib/invoicing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Download } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +34,34 @@ export default async function InvoicingPage({
   const totalHours = rows.reduce((sum, r) => sum + r.hours, 0);
   const downloadHref = `/api/exports/confirmations?from=${from}&to=${to}`;
 
+  const columns: Column<InvoiceRow>[] = [
+    { header: t("date"), primary: true, cell: (r) => r.shiftDate },
+    { header: t("facility"), cell: (r) => r.facilityName },
+    { header: t("worker"), cell: (r) => r.workerName },
+    { header: t("qualification"), cell: (r) => eq(r.qualification) },
+    { header: t("hours"), className: "text-end", cell: (r) => r.hours },
+    {
+      header: t("method"),
+      cell: (r) =>
+        ec(r.method === "electronic" ? "methodElectronic" : "methodUpload"),
+    },
+    {
+      header: cc("actions"),
+      className: "text-end",
+      action: true,
+      cell: (r) => (
+        <a
+          href={`/api/confirmations/${r.assignmentId}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline underline-offset-2"
+        >
+          {ec("pdf")}
+        </a>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
@@ -66,62 +87,19 @@ export default async function InvoicingPage({
         </Button>
       </form>
 
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("date")}</TableHead>
-              <TableHead>{t("facility")}</TableHead>
-              <TableHead>{t("worker")}</TableHead>
-              <TableHead>{t("qualification")}</TableHead>
-              <TableHead className="text-end">{t("hours")}</TableHead>
-              <TableHead>{t("method")}</TableHead>
-              <TableHead className="text-end">{cc("actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
-                  {t("empty")}
-                </TableCell>
-              </TableRow>
-            ) : (
-              <>
-                {rows.map((r) => (
-                  <TableRow key={r.assignmentId}>
-                    <TableCell>{r.shiftDate}</TableCell>
-                    <TableCell className="font-medium">{r.facilityName}</TableCell>
-                    <TableCell>{r.workerName}</TableCell>
-                    <TableCell>{eq(r.qualification)}</TableCell>
-                    <TableCell className="text-end">{r.hours}</TableCell>
-                    <TableCell>
-                      {ec(r.method === "electronic" ? "methodElectronic" : "methodUpload")}
-                    </TableCell>
-                    <TableCell className="text-end">
-                      <a
-                        href={`/api/confirmations/${r.assignmentId}/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline underline-offset-2"
-                      >
-                        {ec("pdf")}
-                      </a>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                <TableRow>
-                  <TableCell colSpan={4} className="text-end font-semibold">
-                    {t("totalHours")}
-                  </TableCell>
-                  <TableCell className="text-end font-semibold">{totalHours}</TableCell>
-                  <TableCell colSpan={2} />
-                </TableRow>
-              </>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <ResponsiveTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(r) => r.assignmentId}
+        empty={t("empty")}
+      />
+
+      {rows.length > 0 ? (
+        <div className="flex justify-end gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm font-semibold">
+          <span>{t("totalHours")}:</span>
+          <span>{totalHours}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

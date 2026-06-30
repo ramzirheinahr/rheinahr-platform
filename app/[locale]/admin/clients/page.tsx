@@ -3,15 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Plus, Pencil } from "lucide-react";
+
+type ClientRow = Awaited<ReturnType<typeof getClients>>[number];
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +27,32 @@ export default async function ClientsPage() {
   const ef = await getTranslations("enums.facilityType");
   const clients = await getClients();
 
+  const columns: Column<ClientRow>[] = [
+    { header: t("facilityName"), primary: true, cell: (cl) => cl.facilityName },
+    {
+      header: t("facilityType"),
+      cell: (cl) => <Badge variant="secondary">{ef(cl.facilityType)}</Badge>,
+    },
+    { header: t("contactPerson"), cell: (cl) => cl.contactPerson || c("none") },
+    { header: t("email"), cell: (cl) => cl.user.email },
+    {
+      header: c("actions"),
+      className: "text-end",
+      action: true,
+      cell: (cl) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2"
+          render={<Link href={`/admin/clients/${cl.id}/edit`} />}
+        >
+          <Pencil className="size-4" />
+          {c("edit")}
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -45,50 +66,12 @@ export default async function ClientsPage() {
         </Button>
       </div>
 
-      {clients.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("empty")}
-        </p>
-      ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("facilityName")}</TableHead>
-                <TableHead>{t("facilityType")}</TableHead>
-                <TableHead>{t("contactPerson")}</TableHead>
-                <TableHead>{t("email")}</TableHead>
-                <TableHead className="text-end">{c("actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map((cl) => (
-                <TableRow key={cl.id}>
-                  <TableCell className="font-medium">{cl.facilityName}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{ef(cl.facilityType)}</Badge>
-                  </TableCell>
-                  <TableCell>{cl.contactPerson || c("none")}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {cl.user.email}
-                  </TableCell>
-                  <TableCell className="text-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-2"
-                      render={<Link href={`/admin/clients/${cl.id}/edit`} />}
-                    >
-                      <Pencil className="size-4" />
-                      {c("edit")}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <ResponsiveTable
+        columns={columns}
+        rows={clients}
+        getRowKey={(cl) => cl.id}
+        empty={t("empty")}
+      />
     </div>
   );
 }

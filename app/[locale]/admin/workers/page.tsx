@@ -3,15 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Plus, Pencil } from "lucide-react";
+
+type WorkerRow = Awaited<ReturnType<typeof getWorkers>>[number];
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +28,33 @@ export default async function WorkersPage() {
   const ec = await getTranslations("enums.contractType");
   const workers = await getWorkers();
 
+  const columns: Column<WorkerRow>[] = [
+    { header: t("fullName"), primary: true, cell: (w) => w.fullName },
+    { header: t("email"), cell: (w) => w.user.email },
+    {
+      header: t("qualification"),
+      cell: (w) => <Badge variant="secondary">{eq(w.qualification)}</Badge>,
+    },
+    { header: t("contractType"), cell: (w) => ec(w.contractType) },
+    { header: t("phone"), cell: (w) => w.phone || c("none") },
+    {
+      header: c("actions"),
+      className: "text-end",
+      action: true,
+      cell: (w) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2"
+          render={<Link href={`/admin/workers/${w.id}/edit`} />}
+        >
+          <Pencil className="size-4" />
+          {c("edit")}
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -46,52 +68,12 @@ export default async function WorkersPage() {
         </Button>
       </div>
 
-      {workers.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("empty")}
-        </p>
-      ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("fullName")}</TableHead>
-                <TableHead>{t("email")}</TableHead>
-                <TableHead>{t("qualification")}</TableHead>
-                <TableHead>{t("contractType")}</TableHead>
-                <TableHead>{t("phone")}</TableHead>
-                <TableHead className="text-end">{c("actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {workers.map((w) => (
-                <TableRow key={w.id}>
-                  <TableCell className="font-medium">{w.fullName}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {w.user.email}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{eq(w.qualification)}</Badge>
-                  </TableCell>
-                  <TableCell>{ec(w.contractType)}</TableCell>
-                  <TableCell>{w.phone || c("none")}</TableCell>
-                  <TableCell className="text-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-2"
-                      render={<Link href={`/admin/workers/${w.id}/edit`} />}
-                    >
-                      <Pencil className="size-4" />
-                      {c("edit")}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <ResponsiveTable
+        columns={columns}
+        rows={workers}
+        getRowKey={(w) => w.id}
+        empty={t("empty")}
+      />
     </div>
   );
 }

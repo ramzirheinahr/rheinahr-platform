@@ -4,15 +4,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Plus } from "lucide-react";
+
+type OrderRow = Awaited<ReturnType<typeof getOrders>>[number];
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +35,18 @@ export default async function ClientOrdersPage() {
   const eq = await getTranslations("enums.qualification");
   const orders = await getOrders();
 
+  const columns: Column<OrderRow>[] = [
+    {
+      header: t("shiftDate"),
+      primary: true,
+      cell: (o) => o.shiftDate.toISOString().slice(0, 10),
+    },
+    { header: t("shiftTime"), cell: (o) => `${o.startTime}–${o.endTime}` },
+    { header: t("qualification"), cell: (o) => eq(o.requiredQualification) },
+    { header: t("quantity"), cell: (o) => o.quantity },
+    { header: t("status"), cell: (o) => <OrderStatusBadge status={o.status} /> },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -50,42 +57,12 @@ export default async function ClientOrdersPage() {
         </Button>
       </div>
 
-      {orders.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("emptyClient")}
-        </p>
-      ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("shiftDate")}</TableHead>
-                <TableHead>{t("shiftTime")}</TableHead>
-                <TableHead>{t("qualification")}</TableHead>
-                <TableHead>{t("quantity")}</TableHead>
-                <TableHead>{t("status")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell className="font-medium">
-                    {o.shiftDate.toISOString().slice(0, 10)}
-                  </TableCell>
-                  <TableCell>
-                    {o.startTime}–{o.endTime}
-                  </TableCell>
-                  <TableCell>{eq(o.requiredQualification)}</TableCell>
-                  <TableCell>{o.quantity}</TableCell>
-                  <TableCell>
-                    <OrderStatusBadge status={o.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <ResponsiveTable
+        columns={columns}
+        rows={orders}
+        getRowKey={(o) => o.id}
+        empty={t("emptyClient")}
+      />
     </div>
   );
 }

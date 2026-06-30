@@ -3,16 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 
 export const dynamic = "force-dynamic";
+
+type OrderRow = Awaited<ReturnType<typeof getOrders>>[number];
 
 async function getOrders() {
   try {
@@ -34,60 +29,41 @@ export default async function AdminOrdersPage() {
   const eq = await getTranslations("enums.qualification");
   const orders = await getOrders();
 
+  const columns: Column<OrderRow>[] = [
+    { header: t("facility"), primary: true, cell: (o) => o.client.facilityName },
+    { header: t("shiftDate"), cell: (o) => o.shiftDate.toISOString().slice(0, 10) },
+    { header: t("shiftTime"), cell: (o) => `${o.startTime}–${o.endTime}` },
+    { header: t("qualification"), cell: (o) => eq(o.requiredQualification) },
+    {
+      header: t("assignedWorkers"),
+      cell: (o) => `${o._count.assignments} / ${o.quantity}`,
+    },
+    { header: t("status"), cell: (o) => <OrderStatusBadge status={o.status} /> },
+    {
+      header: c("actions"),
+      className: "text-end",
+      action: true,
+      cell: (o) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          render={<Link href={`/admin/orders/${o.id}`} />}
+        >
+          {t("detailTitle")}
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">{t("title")}</h1>
-
-      {orders.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("empty")}
-        </p>
-      ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("facility")}</TableHead>
-                <TableHead>{t("shiftDate")}</TableHead>
-                <TableHead>{t("shiftTime")}</TableHead>
-                <TableHead>{t("qualification")}</TableHead>
-                <TableHead>{t("assignedWorkers")}</TableHead>
-                <TableHead>{t("status")}</TableHead>
-                <TableHead className="text-end">{c("actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell className="font-medium">
-                    {o.client.facilityName}
-                  </TableCell>
-                  <TableCell>{o.shiftDate.toISOString().slice(0, 10)}</TableCell>
-                  <TableCell>
-                    {o.startTime}–{o.endTime}
-                  </TableCell>
-                  <TableCell>{eq(o.requiredQualification)}</TableCell>
-                  <TableCell>
-                    {o._count.assignments} / {o.quantity}
-                  </TableCell>
-                  <TableCell>
-                    <OrderStatusBadge status={o.status} />
-                  </TableCell>
-                  <TableCell className="text-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      render={<Link href={`/admin/orders/${o.id}`} />}
-                    >
-                      {t("detailTitle")}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <ResponsiveTable
+        columns={columns}
+        rows={orders}
+        getRowKey={(o) => o.id}
+        empty={t("empty")}
+      />
     </div>
   );
 }
