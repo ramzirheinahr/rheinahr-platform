@@ -206,13 +206,23 @@
       "reminder_1h": "Erinnerung (1 h)",
       "service_confirmed": "Leistung bestätigt",
       "order_status_changed": "Status geändert",
-      "document_uploaded": "Dokument hochgeladen"
+      "document_uploaded": "Dokument hochgeladen",
+      "new_message": "Neue Nachricht"
     }
   },
   "notifications": {
     "title": "Benachrichtigungen",
     "empty": "Keine Benachrichtigungen.",
     "markAllRead": "Alle als gelesen markieren"
+  },
+  "messages": {
+    "title": "Nachrichten",
+    "chat": "Nachrichten",
+    "placeholder": "Nachricht schreiben…",
+    "send": "Senden",
+    "empty": "Noch keine Nachrichten. Schreiben Sie die erste.",
+    "you": "Sie",
+    "saveError": "Senden fehlgeschlagen."
   },
   "availability": {
     "title": "Verfügbarkeit",

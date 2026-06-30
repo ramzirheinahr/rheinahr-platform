@@ -206,13 +206,23 @@
       "reminder_1h": "Reminder (1 h)",
       "service_confirmed": "Service confirmed",
       "order_status_changed": "Status changed",
-      "document_uploaded": "Document uploaded"
+      "document_uploaded": "Document uploaded",
+      "new_message": "New message"
     }
   },
   "notifications": {
     "title": "Notifications",
     "empty": "No notifications.",
     "markAllRead": "Mark all as read"
+  },
+  "messages": {
+    "title": "Messages",
+    "chat": "Messages",
+    "placeholder": "Write a message…",
+    "send": "Send",
+    "empty": "No messages yet. Write the first one.",
+    "you": "You",
+    "saveError": "Failed to send."
   },
   "availability": {
     "title": "Availability",

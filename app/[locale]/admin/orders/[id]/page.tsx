@@ -9,7 +9,7 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AssignWorkerButton } from "@/components/admin/assign-worker-button";
 import { eligibleWorkers, type MatchCandidate } from "@/lib/matching";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, MessageSquare } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +24,7 @@ export default async function OrderDetailPage({
   const eq = await getTranslations("enums.qualification");
   const eas = await getTranslations("enums.assignmentStatus");
   const ec = await getTranslations("confirmations");
+  const tm = await getTranslations("messages");
 
   const order = await prisma.order
     .findUnique({
@@ -160,6 +161,15 @@ export default async function OrderDetailPage({
                     >
                       {eas(a.status)}
                     </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5"
+                      render={<Link href={`/admin/messages/${a.id}`} />}
+                    >
+                      <MessageSquare className="size-4" />
+                      <span className="hidden sm:inline">{tm("chat")}</span>
+                    </Button>
                   </div>
                 </li>
               ))}

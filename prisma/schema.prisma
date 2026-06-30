@@ -93,6 +93,7 @@ enum NotificationType {
   service_confirmed
   order_status_changed
   document_uploaded
+  new_message
 }
 
 enum NotificationChannel {
@@ -134,6 +135,7 @@ model User {
   client               Client?
   notifications        Notification[]
   serviceConfirmations ServiceConfirmation[]
+  sentMessages         Message[]
 
   createdBy    User?  @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers User[] @relation("UserCreatedBy")
@@ -225,10 +227,26 @@ model Assignment {
   order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)
   serviceConfirmation ServiceConfirmation?
+  messages            Message[]
 
   @@unique([orderId, workerId])
   @@index([workerId, status])
   @@map("assignments")
+}
+
+// In-app messaging per assignment (coordinator/admin ↔ assigned care worker).
+model Message {
+  id           String   @id @default(uuid())
+  assignmentId String   @map("assignment_id")
+  senderId     String   @map("sender_id")
+  body         String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  sender     User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId, createdAt])
+  @@map("messages")
 }
 
 model ServiceConfirmation {

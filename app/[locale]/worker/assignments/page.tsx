@@ -1,9 +1,12 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { Link } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
+import { MessageSquare } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +42,7 @@ async function getAssignments() {
 export default async function WorkerAssignmentsPage() {
   const t = await getTranslations("orders");
   const eas = await getTranslations("enums.assignmentStatus");
+  const tm = await getTranslations("messages");
   const assignments = await getAssignments();
 
   return (
@@ -75,9 +79,20 @@ export default async function WorkerAssignmentsPage() {
                     {a.order.client.address ? ` · ${a.order.client.address}` : ""}
                   </p>
                 </div>
-                {a.status === "pending" ? (
-                  <AssignmentActions assignmentId={a.id} />
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  {a.status === "pending" ? (
+                    <AssignmentActions assignmentId={a.id} />
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    render={<Link href={`/worker/assignments/${a.id}`} />}
+                  >
+                    <MessageSquare className="size-4" />
+                    {tm("chat")}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

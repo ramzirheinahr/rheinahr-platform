@@ -206,13 +206,23 @@
       "reminder_1h": "تذكير (ساعة واحدة)",
       "service_confirmed": "تم تأكيد الخدمة",
       "order_status_changed": "تغيّرت الحالة",
-      "document_uploaded": "تم رفع مستند"
+      "document_uploaded": "تم رفع مستند",
+      "new_message": "رسالة جديدة"
     }
   },
   "notifications": {
     "title": "الإشعارات",
     "empty": "لا توجد إشعارات.",
     "markAllRead": "تعليم الكل كمقروء"
+  },
+  "messages": {
+    "title": "الرسائل",
+    "chat": "الرسائل",
+    "placeholder": "اكتب رسالة…",
+    "send": "إرسال",
+    "empty": "لا توجد رسائل بعد. اكتب الأولى.",
+    "you": "أنت",
+    "saveError": "فشل الإرسال."
   },
   "availability": {
     "title": "التوفر",
