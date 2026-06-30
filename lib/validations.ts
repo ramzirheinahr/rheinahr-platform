@@ -68,6 +68,30 @@ export const orderSchema = z
     path: ["endTime"],
   });
 
+// Calendar-based multi-shift request: one submission → many shifts (orders),
+// each with its own qualification, time and headcount.
+export const orderShiftSchema = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    requiredQualification: z.enum(qualifications),
+    startTime: z.string().regex(timeRegex),
+    endTime: z.string().regex(timeRegex),
+    quantity: z.coerce.number().int().min(1).max(50),
+    bereich: z.string().max(120).optional(), // Wohnbereich / ward
+  })
+  .refine((s) => s.startTime !== s.endTime, {
+    message: "startEndEqual",
+    path: ["endTime"],
+  });
+
+export const orderRequestSchema = z.object({
+  notes: z.string().max(1000).optional(),
+  shifts: z.array(orderShiftSchema).min(1).max(60),
+});
+
+export type OrderShiftInput = z.infer<typeof orderShiftSchema>;
+export type OrderRequestInput = z.infer<typeof orderRequestSchema>;
+
 export const workerSchema = z.object({
   fullName: z.string().min(2).max(120),
   qualification: z.enum(qualifications),

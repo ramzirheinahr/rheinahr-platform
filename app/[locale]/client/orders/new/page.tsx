@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { OrderForm } from "@/components/client/order-form";
+import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function NewOrderPage() {
         </Button>
         <h1 className="text-2xl font-semibold">{t("newOrder")}</h1>
       </div>
-      <OrderForm />
+      <OrderRequestBuilder />
     </div>
   );
 }

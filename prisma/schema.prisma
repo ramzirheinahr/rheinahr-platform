@@ -198,6 +198,7 @@ model Client {
 model Order {
   id                    String        @id @default(uuid())
   clientId              String        @map("client_id")
+  requestGroupId        String?       @map("request_group_id") // groups shifts submitted together
   requiredQualification Qualification @map("required_qualification")
   shiftDate             DateTime      @map("shift_date") @db.Date
   startTime             String        @map("start_time") // "HH:mm"
@@ -213,6 +214,7 @@ model Order {
 
   @@index([status])
   @@index([shiftDate])
+  @@index([clientId, requestGroupId])
   @@map("orders")
 }
 
