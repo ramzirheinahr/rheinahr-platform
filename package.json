@@ -16,6 +16,7 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "node --env-file=.env scripts/seed-admin.mjs",
+    "db:seed:demo": "node --env-file=.env scripts/seed-demo.mjs",
     "db:storage": "node --env-file=.env scripts/setup-storage.mjs",
     "postinstall": "prisma generate"
   },
