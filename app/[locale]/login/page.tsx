@@ -1,4 +1,6 @@
-import { setRequestLocale, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
+import { redirect } from "@/i18n/navigation";
+import { getCurrentUser, portalPath } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { LoginForm } from "@/components/auth/login-form";
 import { LocaleSwitcher } from "@/components/locale-switcher";
@@ -10,6 +12,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { Locale } from "@/i18n/routing";
+
+// Reads the session to redirect already-signed-in users to their portal.
+export const dynamic = "force-dynamic";
 
 export default async function LoginPage({
   params,
@@ -17,7 +23,8 @@ export default async function LoginPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  setRequestLocale(locale);
+  const existing = await getCurrentUser();
+  if (existing) redirect({ href: portalPath(existing.role), locale: locale as Locale });
   const t = await getTranslations("auth");
 
   return (

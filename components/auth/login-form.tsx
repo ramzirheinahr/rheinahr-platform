@@ -23,16 +23,26 @@ export function LoginForm() {
     const password = String(form.get("password"));
 
     const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
 
     if (error) {
       toast.error(t("invalidCredentials"));
       return;
     }
-    // Server layouts resolve the role and route to the correct portal.
-    router.push("/");
+    // Route to the portal by role (server guards self-correct any mismatch).
+    // Fall back to /dashboard, which resolves the role server-side.
+    const role = data.user?.user_metadata?.role as string | undefined;
+    const dest =
+      role === "client"
+        ? "/client"
+        : role === "worker"
+          ? "/worker"
+          : role
+            ? "/admin"
+            : "/dashboard";
     router.refresh();
+    router.push(dest);
   }
 
   return (
