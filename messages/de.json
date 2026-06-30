@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "RheinAhr Dienstleistungen",
-    "tagline": "Personaldienstleistung für Pflege & Medizin",
+    "tagline": "Personaldienstleistung für die Altenpflege",
     "login": "Anmelden",
     "logout": "Abmelden",
     "register": "Registrieren",
@@ -23,8 +23,8 @@
     "exportData": "Meine Daten exportieren"
   },
   "landing": {
-    "heroTitle": "Qualifizierte Pflege- und Fachkräfte – digital koordiniert",
-    "heroSubtitle": "Die Plattform der RheinAhr Dienstleistungen GmbH für Krankenhäuser, Pflegeheime und Kliniken in Bonn, NRW und ganz Deutschland.",
+    "heroTitle": "Qualifizierte Pflege- und Betreuungskräfte für die Altenpflege – digital koordiniert",
+    "heroSubtitle": "Die Plattform der RheinAhr Dienstleistungen GmbH für Pflegeheime, Seniorenheime, Tages-/Kurzzeitpflege und ambulante Pflegedienste in Bonn, NRW und ganz Deutschland.",
     "ctaClient": "Als Einrichtung anfragen",
     "ctaWorker": "Als Fachkraft anmelden",
     "featuresTitle": "Alles aus einer Hand",
@@ -38,7 +38,7 @@
   "roles": {
     "admin": "Verwaltung",
     "client": "Einrichtung",
-    "worker": "Fachkraft"
+    "worker": "Pflegekraft"
   },
   "portal": {
     "adminTitle": "Verwaltungsportal",
@@ -46,7 +46,7 @@
     "workerTitle": "Mitarbeiterportal",
     "dashboard": "Übersicht",
     "orders": "Aufträge",
-    "workers": "Fachkräfte",
+    "workers": "Pflegekräfte",
     "clients": "Einrichtungen",
     "assignments": "Einsätze",
     "availability": "Verfügbarkeit",
@@ -66,10 +66,10 @@
     "rights": "Alle Rechte vorbehalten."
   },
   "workers": {
-    "title": "Fachkräfte",
-    "new": "Neue Fachkraft",
-    "editTitle": "Fachkraft bearbeiten",
-    "empty": "Noch keine Fachkräfte angelegt.",
+    "title": "Pflegekräfte",
+    "new": "Neue Pflegekraft",
+    "editTitle": "Pflegekraft bearbeiten",
+    "empty": "Noch keine Pflegekräfte angelegt.",
     "fullName": "Vollständiger Name",
     "email": "E-Mail",
     "qualification": "Qualifikation",
@@ -152,13 +152,11 @@
   "enums": {
     "qualification": {
       "pflegefachkraft": "Pflegefachkraft",
-      "pflegehelfer": "Pflegehilfskraft",
       "altenpfleger": "Altenpfleger/in",
       "gesundheitspfleger": "Gesundheits- & Krankenpfleger/in",
-      "arzt": "Arzt / Ärztin",
-      "facharzt": "Facharzt / Fachärztin",
-      "ot_kraft": "OP-/Anästhesiekraft",
-      "intensivpfleger": "Intensivpfleger/in"
+      "pflegehelfer": "Pflegehilfskraft",
+      "betreuungskraft": "Betreuungskraft (§ 43b)",
+      "pflegedienstleitung": "Pflegedienstleitung (PDL)"
     },
     "contractType": {
       "unbefristet": "Unbefristet",
@@ -178,11 +176,11 @@
       "worker": "Fachkraft"
     },
     "facilityType": {
-      "krankenhaus": "Krankenhaus",
       "pflegeheim": "Pflegeheim",
-      "klinik": "Klinik",
-      "reha": "Reha-Einrichtung",
-      "ambulant": "Ambulanter Dienst"
+      "seniorenheim": "Seniorenheim",
+      "ambulant": "Ambulanter Pflegedienst",
+      "tagespflege": "Tagespflege",
+      "kurzzeitpflege": "Kurzzeitpflege"
     },
     "orderStatus": {
       "pending": "Eingereicht",

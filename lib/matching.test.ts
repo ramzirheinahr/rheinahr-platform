@@ -16,7 +16,7 @@ describe("eligibleWorkers", () => {
   });
 
   it("excludes workers with a different qualification", () => {
-    const c = [make({ workerId: "a", qualification: "arzt" })];
+    const c = [make({ workerId: "a", qualification: "altenpfleger" })];
     expect(eligibleWorkers("pflegefachkraft", c)).toHaveLength(0);
   });
 
@@ -33,7 +33,7 @@ describe("eligibleWorkers", () => {
   it("filters a mixed pool and preserves order", () => {
     const c = [
       make({ workerId: "ok1" }),
-      make({ workerId: "wrongQual", qualification: "facharzt" }),
+      make({ workerId: "wrongQual", qualification: "betreuungskraft" }),
       make({ workerId: "busy", alreadyAssigned: true }),
       make({ workerId: "ok2" }),
       make({ workerId: "off", unavailable: true }),

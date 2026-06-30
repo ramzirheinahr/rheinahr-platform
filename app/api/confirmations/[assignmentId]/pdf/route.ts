@@ -65,7 +65,7 @@ export async function GET(
     methodLabel: methodLabel[sc.method],
     isElectronic: sc.method === "electronic",
     signatureData: sc.signatureData,
-    confirmedByEmail: sc.confirmedBy.email,
+    confirmedByEmail: sc.confirmedBy?.email ?? "—",
     confirmedAt: sc.confirmedAt.toISOString().slice(0, 16).replace("T", " "),
     ipAddress: sc.ipAddress,
     orderId: a.order.id,

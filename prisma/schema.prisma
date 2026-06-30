@@ -29,15 +29,14 @@ enum Language {
   ar
 }
 
+// Elderly-care (Altenpflege) qualifications only — see CLAUDE.md domain focus.
 enum Qualification {
-  pflegefachkraft // examinierte Pflegefachkraft
+  pflegefachkraft // examinierte Pflegefachkraft (Altenpflege)
+  altenpfleger // Altenpfleger/in
+  gesundheitspfleger // Gesundheits- und Krankenpfleger/in
   pflegehelfer // Pflegehilfskraft
-  altenpfleger
-  gesundheitspfleger // Gesundheits- und Krankenpfleger
-  arzt // Arzt / Ärztin
-  facharzt
-  ot_kraft // OP-/Anästhesie
-  intensivpfleger
+  betreuungskraft // Betreuungskraft § 43b SGB XI
+  pflegedienstleitung // Pflegedienstleitung (PDL)
 }
 
 enum ContractType {
@@ -53,12 +52,13 @@ enum AvailabilityStatus {
   assigned
 }
 
+// Elderly-care facility types only.
 enum FacilityType {
-  krankenhaus // hospital
-  pflegeheim // care home
-  klinik // clinic
-  reha // rehab
-  ambulant // outpatient
+  pflegeheim // Pflegeheim
+  seniorenheim // Senioren-/Altenheim
+  ambulant // ambulanter Pflegedienst
+  tagespflege // Tagespflege
+  kurzzeitpflege // Kurzzeitpflege
 }
 
 enum OrderStatus {
@@ -234,7 +234,7 @@ model Assignment {
 model ServiceConfirmation {
   id            String             @id @default(uuid())
   assignmentId  String             @unique @map("assignment_id")
-  confirmedById String             @map("confirmed_by")
+  confirmedById String?            @map("confirmed_by") // nullable so GDPR erasure keeps the financial record
   method        ConfirmationMethod
   signatureData String?            @map("signature_data") // base64 signature image
   documentUrl   String?            @map("document_url")
@@ -243,7 +243,7 @@ model ServiceConfirmation {
   ipAddress     String?            @map("ip_address")
 
   assignment  Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  confirmedBy User       @relation(fields: [confirmedById], references: [id])
+  confirmedBy User?       @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
 
   @@map("service_confirmations")
 }

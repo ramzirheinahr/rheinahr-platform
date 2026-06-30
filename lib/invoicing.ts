@@ -18,13 +18,11 @@ export type InvoiceRow = {
 // German business labels for the export (DATEV / accounting is German-language).
 export const qualLabel: Record<Qualification, string> = {
   pflegefachkraft: "Pflegefachkraft",
-  pflegehelfer: "Pflegehilfskraft",
   altenpfleger: "Altenpfleger/in",
   gesundheitspfleger: "Gesundheits- & Krankenpfleger/in",
-  arzt: "Arzt / Ärztin",
-  facharzt: "Facharzt / Fachärztin",
-  ot_kraft: "OP-/Anästhesiekraft",
-  intensivpfleger: "Intensivpfleger/in",
+  pflegehelfer: "Pflegehilfskraft",
+  betreuungskraft: "Betreuungskraft (§ 43b)",
+  pflegedienstleitung: "Pflegedienstleitung",
 };
 export const methodLabel: Record<ConfirmationMethod, string> = {
   electronic: "Elektronische Unterschrift",

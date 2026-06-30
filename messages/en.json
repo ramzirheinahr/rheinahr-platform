@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "RheinAhr Dienstleistungen",
-    "tagline": "Staffing services for care & medicine",
+    "tagline": "Staffing for elderly care",
     "login": "Sign in",
     "logout": "Sign out",
     "register": "Register",
@@ -23,8 +23,8 @@
     "exportData": "Export my data"
   },
   "landing": {
-    "heroTitle": "Qualified care & medical staff — coordinated digitally",
-    "heroSubtitle": "The platform of RheinAhr Dienstleistungen GmbH for hospitals, care homes and clinics in Bonn, NRW and across Germany.",
+    "heroTitle": "Qualified elderly-care staff — coordinated digitally",
+    "heroSubtitle": "The platform of RheinAhr Dienstleistungen GmbH for nursing homes, senior residences, day/short-term care and outpatient care services in Bonn, NRW and across Germany.",
     "ctaClient": "Request as a facility",
     "ctaWorker": "Sign up as a professional",
     "featuresTitle": "Everything in one place",
@@ -38,7 +38,7 @@
   "roles": {
     "admin": "Administration",
     "client": "Facility",
-    "worker": "Professional"
+    "worker": "Care professional"
   },
   "portal": {
     "adminTitle": "Admin Portal",
@@ -46,7 +46,7 @@
     "workerTitle": "Worker Portal",
     "dashboard": "Dashboard",
     "orders": "Orders",
-    "workers": "Professionals",
+    "workers": "Care staff",
     "clients": "Facilities",
     "assignments": "Assignments",
     "availability": "Availability",
@@ -66,10 +66,10 @@
     "rights": "All rights reserved."
   },
   "workers": {
-    "title": "Professionals",
-    "new": "New professional",
-    "editTitle": "Edit professional",
-    "empty": "No professionals yet.",
+    "title": "Care staff",
+    "new": "New care worker",
+    "editTitle": "Edit care worker",
+    "empty": "No care staff yet.",
     "fullName": "Full name",
     "email": "Email",
     "qualification": "Qualification",
@@ -151,14 +151,12 @@
   },
   "enums": {
     "qualification": {
-      "pflegefachkraft": "Registered nurse",
-      "pflegehelfer": "Nursing assistant",
+      "pflegefachkraft": "Registered care nurse",
       "altenpfleger": "Geriatric nurse",
       "gesundheitspfleger": "Health & care nurse",
-      "arzt": "Physician",
-      "facharzt": "Specialist physician",
-      "ot_kraft": "OR / anesthesia staff",
-      "intensivpfleger": "Intensive-care nurse"
+      "pflegehelfer": "Nursing assistant",
+      "betreuungskraft": "Care companion (§43b)",
+      "pflegedienstleitung": "Nursing service manager"
     },
     "contractType": {
       "unbefristet": "Permanent",
@@ -178,11 +176,11 @@
       "worker": "Professional"
     },
     "facilityType": {
-      "krankenhaus": "Hospital",
-      "pflegeheim": "Care home",
-      "klinik": "Clinic",
-      "reha": "Rehab facility",
-      "ambulant": "Outpatient service"
+      "pflegeheim": "Nursing home",
+      "seniorenheim": "Senior residence",
+      "ambulant": "Outpatient care service",
+      "tagespflege": "Day care",
+      "kurzzeitpflege": "Short-term care"
     },
     "orderStatus": {
       "pending": "Submitted",

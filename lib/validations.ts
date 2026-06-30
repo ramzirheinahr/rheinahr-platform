@@ -5,21 +5,19 @@ import { z } from "zod";
 
 export const qualifications = [
   "pflegefachkraft",
-  "pflegehelfer",
   "altenpfleger",
   "gesundheitspfleger",
-  "arzt",
-  "facharzt",
-  "ot_kraft",
-  "intensivpfleger",
+  "pflegehelfer",
+  "betreuungskraft",
+  "pflegedienstleitung",
 ] as const;
 
 export const facilityTypes = [
-  "krankenhaus",
   "pflegeheim",
-  "klinik",
-  "reha",
+  "seniorenheim",
   "ambulant",
+  "tagespflege",
+  "kurzzeitpflege",
 ] as const;
 
 export const contractTypes = [

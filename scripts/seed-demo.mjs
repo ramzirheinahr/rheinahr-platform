@@ -16,7 +16,14 @@ const d = (s) => new Date(`${s}T00:00:00.000Z`);
 const hash = async (p) => bcrypt.hash(p, 10);
 
 async function cleanup() {
-  // Remove all non-super_admin app users (cascades to profiles/orders/etc.).
+  // Delete in dependency order (the confirmedBy FK is SetNull, not cascade).
+  await prisma.serviceConfirmation.deleteMany({});
+  await prisma.assignment.deleteMany({});
+  await prisma.workerAvailability.deleteMany({});
+  await prisma.order.deleteMany({});
+  await prisma.worker.deleteMany({});
+  await prisma.client.deleteMany({});
+  await prisma.notification.deleteMany({});
   await prisma.user.deleteMany({ where: { email: { not: SUPER_ADMIN } } });
   // Remove their Supabase Auth logins.
   const { data } = await sb.auth.admin.listUsers({ page: 1, perPage: 200 });
@@ -50,14 +57,14 @@ async function main() {
 
   // ── Login accounts the owner can try ──
   const clientUid = await loginUser(
-    "client.demo@demo.rheinahr-gmbh.de", "client", "MediClinic Bonn", "Demo!Klinik2026",
+    "client.demo@demo.rheinahr-gmbh.de", "client", "Seniorenresidenz Rheinaue", "Demo!Klinik2026",
   );
   const workerUid = await loginUser(
     "worker.demo@demo.rheinahr-gmbh.de", "worker", "Layla Hassan", "Demo!Pflege2026",
   );
 
   const demoClient = await prisma.client.create({
-    data: { userId: clientUid, facilityName: "MediClinic Bonn", facilityType: "krankenhaus",
+    data: { userId: clientUid, facilityName: "Seniorenresidenz Rheinaue", facilityType: "seniorenheim",
       address: "Bonner Talweg 12, 53113 Bonn", contactPerson: "Frau Dr. Neumann" },
   });
   const layla = await prisma.worker.create({
@@ -73,8 +80,8 @@ async function main() {
       address: "Rheinaustr. 5, 53225 Bonn", contactPerson: "Herr Klein" },
   });
   const c2 = await prisma.client.create({
-    data: { userId: await bgUser("klinikpark@demo.rheinahr-gmbh.de", "client", "Klinik am Park"),
-      facilityName: "Klinik am Park", facilityType: "klinik",
+    data: { userId: await bgUser("rheinpflege@demo.rheinahr-gmbh.de", "client", "Ambulanter Dienst RheinPflege"),
+      facilityName: "Ambulanter Dienst RheinPflege", facilityType: "ambulant",
       address: "Parkstr. 30, 53111 Bonn", contactPerson: "Frau Hofmann" },
   });
 
@@ -86,8 +93,8 @@ async function main() {
   const w = {
     anna: await mk("anna@demo.rheinahr-gmbh.de", "Anna Müller", "pflegefachkraft", "unbefristet"),
     thomas: await mk("thomas@demo.rheinahr-gmbh.de", "Thomas Schmidt", "altenpfleger", "befristet"),
-    sarah: await mk("sarah@demo.rheinahr-gmbh.de", "Dr. Sarah Wagner", "arzt", "unbefristet"),
-    mehmet: await mk("mehmet@demo.rheinahr-gmbh.de", "Mehmet Yılmaz", "intensivpfleger", "unbefristet"),
+    sarah: await mk("sarah@demo.rheinahr-gmbh.de", "Dr. Sarah Wagner", "pflegedienstleitung", "unbefristet"),
+    mehmet: await mk("mehmet@demo.rheinahr-gmbh.de", "Mehmet Yılmaz", "betreuungskraft", "unbefristet"),
     julia: await mk("julia@demo.rheinahr-gmbh.de", "Julia Becker", "gesundheitspfleger", "minijob"),
     omar: await mk("omar@demo.rheinahr-gmbh.de", "Omar Khalil", "pflegehelfer", "befristet"),
   };
@@ -119,13 +126,13 @@ async function main() {
   // ── Orders across the lifecycle ──
   await order(demoClient.id, "pflegefachkraft", "2026-07-15", "08:00", "16:00", "pending",
     { notes: "Vertretung Station 3" });
-  await order(demoClient.id, "arzt", "2026-07-08", "09:00", "17:00", "assigned",
+  await order(demoClient.id, "pflegedienstleitung", "2026-07-08", "09:00", "17:00", "assigned",
     { assign: w.sarah, assignStatus: "pending" });
   // Owner can ACCEPT this one in the worker portal (Layla):
   await order(demoClient.id, "pflegefachkraft", "2026-07-10", "07:00", "15:00", "assigned",
     { assign: layla.id, assignStatus: "pending" });
   // Confirmed + service-confirmed (history / reports / invoicing):
-  await order(demoClient.id, "intensivpfleger", "2026-06-20", "08:00", "20:00", "confirmed",
+  await order(demoClient.id, "betreuungskraft", "2026-06-20", "08:00", "20:00", "confirmed",
     { assign: w.mehmet, assignStatus: "confirmed", hours: 12, confirmedBy: clientUid });
   await order(c1.id, "altenpfleger", "2026-06-22", "06:00", "14:00", "confirmed",
     { assign: w.thomas, assignStatus: "confirmed", hours: 8,
@@ -143,7 +150,7 @@ async function main() {
   // ── A few in-app notifications so the bell is alive ──
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: SUPER_ADMIN }, select: { id: true } });
   await prisma.notification.createMany({ data: [
-    { userId: admin.id, type: "new_order", channel: "in_app", content: "MediClinic Bonn: 2026-07-15 08:00–16:00" },
+    { userId: admin.id, type: "new_order", channel: "in_app", content: "Seniorenresidenz Rheinaue: 2026-07-15 08:00–16:00" },
     { userId: admin.id, type: "service_confirmed", channel: "in_app", content: "12h" },
     { userId: workerUid, type: "worker_assigned", channel: "in_app", content: "2026-07-10 07:00–15:00" },
     { userId: clientUid, type: "worker_confirmed", channel: "in_app", content: "Mehmet Yılmaz: 2026-06-20" },
