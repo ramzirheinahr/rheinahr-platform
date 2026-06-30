@@ -1,0 +1,294 @@
+// RheinAhr Dienstleistungen GmbH — Staffing Platform
+// Prisma schema · derived from CLAUDE.md Section 5
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  // "native" for local dev; the rhel target is what Vercel's serverless runtime uses.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum Role {
+  super_admin // owns account creation & role assignment
+  admin // company staff / supervisors
+  client // facility requesting staff
+  worker // care professional providing the service
+}
+
+enum Language {
+  de
+  en
+  ar
+}
+
+enum Qualification {
+  pflegefachkraft // examinierte Pflegefachkraft
+  pflegehelfer // Pflegehilfskraft
+  altenpfleger
+  gesundheitspfleger // Gesundheits- und Krankenpfleger
+  arzt // Arzt / Ärztin
+  facharzt
+  ot_kraft // OP-/Anästhesie
+  intensivpfleger
+}
+
+enum ContractType {
+  unbefristet // permanent
+  befristet // fixed-term
+  minijob
+  werkstudent
+}
+
+enum AvailabilityStatus {
+  available
+  unavailable
+  assigned
+}
+
+enum FacilityType {
+  krankenhaus // hospital
+  pflegeheim // care home
+  klinik // clinic
+  reha // rehab
+  ambulant // outpatient
+}
+
+enum OrderStatus {
+  pending // 1. Request submitted
+  review // 2. Admin review
+  availability_check // 3. Availability check
+  assigned // 4. Worker assignment
+  accepted // 5. Worker acceptance
+  in_progress // 7. Shift execution
+  completed // shift done, awaiting confirmation
+  confirmed // 8. Service confirmed
+  cancelled
+}
+
+enum AssignmentStatus {
+  pending
+  confirmed
+  declined
+}
+
+enum ConfirmationMethod {
+  electronic // signature pad / click-to-confirm
+  upload // signed scanned document
+}
+
+enum NotificationType {
+  new_order
+  worker_assigned
+  worker_confirmed
+  reminder_24h
+  reminder_1h
+  service_confirmed
+  order_status_changed
+  document_uploaded
+}
+
+enum NotificationChannel {
+  email
+  sms
+  in_app
+}
+
+enum OwnerType {
+  worker
+  client
+}
+
+enum DocumentCategory {
+  certification // Approbation / Fachkunde
+  id_document
+  vaccination // Impfnachweis
+  contract
+  service_confirmation
+  other
+}
+
+// ─────────────────────────── Models ───────────────────────────
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique // login identity (Supabase Auth) — Google/Apple OAuth later
+  fullName          String?  @map("full_name") // display name (esp. for staff/admins without a profile)
+  passwordHash      String   @map("password_hash")
+  role              Role
+  active            Boolean  @default(true) // disabled accounts cannot sign in
+  preferredLanguage Language @default(de) @map("preferred_language")
+  twoFactorEnabled  Boolean  @default(false) @map("2fa_enabled")
+  createdById       String?  @map("created_by") // which admin provisioned this account
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  worker               Worker?
+  client               Client?
+  notifications        Notification[]
+  serviceConfirmations ServiceConfirmation[]
+
+  createdBy    User?  @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[] @relation("UserCreatedBy")
+
+  @@map("users")
+}
+
+model Worker {
+  id             String        @id @default(uuid())
+  userId         String        @unique @map("user_id")
+  fullName       String        @map("full_name")
+  qualification  Qualification
+  certifications String[]      @default([])
+  contractType   ContractType  @map("contract_type")
+  phone          String?
+  address        String?
+  languages      Language[]    @default([])
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability WorkerAvailability[]
+  assignments  Assignment[]
+
+  @@index([qualification])
+  @@map("workers")
+}
+
+model WorkerAvailability {
+  id       String             @id @default(uuid())
+  workerId String             @map("worker_id")
+  date     DateTime           @db.Date
+  status   AvailabilityStatus @default(available)
+  notes    String?
+
+  worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@unique([workerId, date])
+  @@index([date, status])
+  @@map("worker_availability")
+}
+
+model Client {
+  id            String       @id @default(uuid())
+  userId        String       @unique @map("user_id")
+  facilityName  String       @map("facility_name")
+  facilityType  FacilityType @map("facility_type")
+  address       String?
+  contactPerson String?      @map("contact_person")
+  billingInfo   String?      @map("billing_info")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@map("clients")
+}
+
+model Order {
+  id                    String        @id @default(uuid())
+  clientId              String        @map("client_id")
+  requiredQualification Qualification @map("required_qualification")
+  shiftDate             DateTime      @map("shift_date") @db.Date
+  startTime             String        @map("start_time") // "HH:mm"
+  endTime               String        @map("end_time") // "HH:mm"
+  quantity              Int           @default(1)
+  status                OrderStatus   @default(pending)
+  notes                 String?
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignments Assignment[]
+
+  @@index([status])
+  @@index([shiftDate])
+  @@map("orders")
+}
+
+model Assignment {
+  id          String           @id @default(uuid())
+  orderId     String           @map("order_id")
+  workerId    String           @map("worker_id")
+  status      AssignmentStatus @default(pending)
+  assignedAt  DateTime         @default(now()) @map("assigned_at")
+  confirmedAt DateTime?        @map("confirmed_at")
+
+  order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  serviceConfirmation ServiceConfirmation?
+
+  @@unique([orderId, workerId])
+  @@index([workerId, status])
+  @@map("assignments")
+}
+
+model ServiceConfirmation {
+  id            String             @id @default(uuid())
+  assignmentId  String             @unique @map("assignment_id")
+  confirmedById String             @map("confirmed_by")
+  method        ConfirmationMethod
+  signatureData String?            @map("signature_data") // base64 signature image
+  documentUrl   String?            @map("document_url")
+  hoursWorked   Decimal?           @map("hours_worked") @db.Decimal(5, 2)
+  confirmedAt   DateTime           @default(now()) @map("confirmed_at")
+  ipAddress     String?            @map("ip_address")
+
+  assignment  Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  confirmedBy User       @relation(fields: [confirmedById], references: [id])
+
+  @@map("service_confirmations")
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String              @map("user_id")
+  type      NotificationType
+  channel   NotificationChannel
+  content   String
+  sentAt    DateTime?           @map("sent_at")
+  readAt    DateTime?           @map("read_at")
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model Document {
+  id         String           @id @default(uuid())
+  ownerId    String           @map("owner_id")
+  ownerType  OwnerType        @map("owner_type")
+  category   DocumentCategory
+  fileUrl    String           @map("file_url")
+  verified   Boolean          @default(false)
+  uploadedAt DateTime         @default(now()) @map("uploaded_at")
+
+  @@index([ownerId, ownerType])
+  @@map("documents")
+}
+
+// GDPR Art. 30 / access-log — every PII-touching data access event
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id") // actor (null = system)
+  action    String // e.g. "order.create", "confirmation.sign"
+  entity    String? // affected entity name
+  entityId  String?  @map("entity_id")
+  ipAddress String?  @map("ip_address")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
