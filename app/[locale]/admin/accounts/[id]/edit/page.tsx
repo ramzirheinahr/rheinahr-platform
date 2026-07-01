@@ -5,6 +5,8 @@ import { requireSuperAdmin } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { AccountEditForm } from "@/components/admin/account-edit-form";
+import { AccountAccessLink } from "@/components/admin/account-access-link";
+import { roleUsesAccessLink } from "@/lib/access";
 import { ArrowLeft } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
 
@@ -24,13 +26,21 @@ export default async function EditAccountPage({
   const user = await prisma.user
     .findUnique({
       where: { id },
-      select: { id: true, email: true, fullName: true, role: true, active: true },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        active: true,
+        loginToken: true,
+      },
     })
     .catch(() => null);
 
   if (!user) notFound();
 
   const editable = user.role !== "super_admin" && user.id !== actor.id;
+  const showAccessLink = editable && roleUsesAccessLink(user.role);
 
   return (
     <div className="space-y-6">
@@ -48,15 +58,20 @@ export default async function EditAccountPage({
       </div>
 
       {editable ? (
-        <AccountEditForm
-          account={{
-            id: user.id,
-            fullName: user.fullName,
-            email: user.email,
-            role: user.role as "admin" | "client" | "worker",
-            active: user.active,
-          }}
-        />
+        <div className="max-w-2xl space-y-8">
+          {showAccessLink && (
+            <AccountAccessLink accountId={user.id} hasLink={!!user.loginToken} />
+          )}
+          <AccountEditForm
+            account={{
+              id: user.id,
+              fullName: user.fullName,
+              email: user.email,
+              role: user.role as "admin" | "client" | "worker",
+              active: user.active,
+            }}
+          />
+        </div>
       ) : (
         <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
           {t("selfEdit")}

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { generateLoginToken, generatePin, roleUsesAccessLink } from "@/lib/access";
 import {
   accountBaseSchema,
   workerProfileSchema,
@@ -231,6 +232,86 @@ export async function resetAccountPassword(
     entity: "User",
     entityId: id,
   });
+  return { ok: true };
+}
+
+export type AccessLinkState = {
+  ok: boolean;
+  error?: string;
+  token?: string; // the /access/<token> slug (shown so the admin can copy the link)
+  pin?: string; // the 6-digit PIN — returned in plaintext ONCE, never stored readable
+};
+
+// Generate (or regenerate) a passwordless access link + PIN for a client/worker.
+// Regenerating rotates both secrets, invalidating any previously shared link/PIN
+// and clearing lockout state. The PIN is returned once and only its hash is kept.
+export async function generateAccessLink(id: string): Promise<AccessLinkState> {
+  let actor;
+  try {
+    actor = await assertSuperAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true, active: true },
+  });
+  if (!target) return { ok: false, error: "saveError" };
+  if (!roleUsesAccessLink(target.role)) return { ok: false, error: "forbidden" };
+
+  const token = generateLoginToken();
+  const pin = generatePin();
+  const loginPinHash = await bcrypt.hash(pin, 12);
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      loginToken: token,
+      loginPinHash,
+      loginPinAttempts: 0,
+      loginPinLockUntil: null,
+    },
+  });
+
+  await audit({
+    userId: actor.id,
+    action: "account.access_link.generate",
+    entity: "User",
+    entityId: id,
+  });
+
+  revalidatePath(`/admin/accounts/${id}/edit`);
+  return { ok: true, token, pin };
+}
+
+// Revoke the access link + PIN entirely (e.g. lost device). Email login remains.
+export async function revokeAccessLink(id: string): Promise<ActionState> {
+  let actor;
+  try {
+    actor = await assertSuperAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      loginToken: null,
+      loginPinHash: null,
+      loginPinAttempts: 0,
+      loginPinLockUntil: null,
+    },
+  });
+
+  await audit({
+    userId: actor.id,
+    action: "account.access_link.revoke",
+    entity: "User",
+    entityId: id,
+  });
+
+  revalidatePath(`/admin/accounts/${id}/edit`);
   return { ok: true };
 }
 

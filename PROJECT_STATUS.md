@@ -1,0 +1,127 @@
+# RheinAhr Platform — Project Status & Context
+
+> Handoff/context snapshot for continuing in a new session. Read `CLAUDE.md`
+> first (domain + conventions), then this file. Date of snapshot: 2026‑07‑01.
+
+## 1. What this is
+Trilingual (DE/EN/AR, Arabic RTL) staffing platform for **RheinAhr Dienstleistungen GmbH**,
+an **elderly‑care (Altenpflege) Zeitarbeit** company in Bonn. NOT general hospital
+staffing. Workers = care staff (Pflegekräfte); clients = care facilities.
+
+## 2. Stack
+- Next.js **14** App Router + TypeScript (strict) · Tailwind **v4** (CSS‑first) ·
+  shadcn/ui **base‑nova** style built on **Base UI** (use the `render` prop, not `asChild`).
+- **next-intl** (locale‑prefixed routes `/de /en /ar`, default `de`, catalogs in `messages/`).
+- **Prisma 6** + **Supabase Postgres (EU, eu‑west‑1/Ireland)** · **Supabase Auth (email)**.
+- **Supabase Storage** private bucket `confirmations` (Leistungsnachweis uploads).
+- PDF: `@react-pdf/renderer`. Signature: `signature_pad`. Top loader: `nextjs-toploader`.
+- Hosting: **Vercel** (Hobby). CI: push to GitHub `main` → Vercel auto‑deploy.
+
+## 3. Deployment & Git (IMPORTANT)
+- GitHub: `github.com/ramzirheinahr/rheinahr-platform` (private). Push via SSH
+  (dedicated key `~/.ssh/github_rheinahr`, configured in `~/.ssh/config`).
+- Vercel account/owner email: **paypalalmnar@gmail.com** (Hobby plan).
+- **Commit author email MUST be `paypalalmnar@gmail.com`** — repo‑local git config is
+  set to it. Vercel Hobby **blocks** deploys whose commit author isn't the owner.
+  (The machine's global git email is `ramziabuibaid@gmail.com` — do NOT let commits
+  use it here.)
+- Custom domain plan: point `rheinahr-gmbh.de` DNS (A `76.76.21.21`, `www` CNAME
+  `cname.vercel-dns.com`) at Vercel; **keep MX/email records untouched**; upgrade to
+  Vercel Pro for production/commercial use.
+
+## 4. Roles & auth
+- Roles: `super_admin`, `admin`, `client`, `worker`. Login is **email** (Supabase Auth);
+  Google/Apple OAuth planned later. Username login was explored and rejected.
+- **super_admin** is the sole account creator (`/admin/accounts`) and role assigner;
+  provisions Supabase Auth user + Prisma `User` (+ worker/client profile).
+- **Passwordless access link + PIN** (client/worker convenience login): from an
+  account's edit page, super_admin generates a personal link `/{locale}/access/<token>`
+  + a 6‑digit PIN (shown once, stored bcrypt‑hashed). User opens the link, enters the
+  PIN once per device → server mints a **persistent Supabase session** (`/api/access/verify`
+  via `generateLink`+`verifyOtp`, no email sent; cookie Max‑Age ~400d). Returning visits
+  skip the PIN. PWA "add to home screen" hint on the page. Brute‑force lockout
+  (5 attempts → 15 min), uniform 401 (no enumeration), regenerate/revoke, audit‑logged.
+  New `User` fields: `loginToken` (unique), `loginPinHash`, `loginPinAttempts`,
+  `loginPinLockUntil`. Helpers in `lib/access.ts`. Email login still works for everyone.
+- `lib/auth.ts`: `getCurrentUser`, `requireRole`, `requireSuperAdmin`, `roleSatisfies`
+  (super_admin ⊇ admin), `portalPath`. After login `/dashboard` routes by role.
+
+## 5. Demo login accounts (seeded)
+| Role | Email | Password |
+|---|---|---|
+| super_admin | admin@rheinahr-gmbh.de | RheinAhr#2026!Admin |
+| client | client.demo@demo.rheinahr-gmbh.de | Demo!Klinik2026 |
+| worker | worker.demo@demo.rheinahr-gmbh.de | Demo!Pflege2026 |
+
+Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin data + recreates).
+
+## 6. Feature inventory (built)
+- Auth/RBAC · super_admin **account management** · **worker** & **client** modules.
+- **Order lifecycle** + availability **matching engine** (`lib/matching.ts`, unit‑tested).
+- **Order entry = full‑month spreadsheet** (`components/client/order-request-builder.tsx`):
+  one row/day, 1 shift default + `+` to add up to 3; per shift = type
+  (Früh 06:30‑14:00 / Spät 13:30‑21:00 / Nacht 20:30‑07:00 presets, editable), **Pause**
+  (default 30), computed **net hours**, headcount, **Wohnbereich/Station/Etage**; weekend/
+  **NRW holidays** (`lib/holidays.ts`) rows red; request total hours; one grouped request
+  (`Order.requestGroupId`) → many orders.
+- **Requests shown as a sheet**, grouped/expandable in client & admin lists.
+  Client can **edit a request** while all shifts pending & unassigned (`isRequestEditable`);
+  locks on first admin action.
+- **Admin request detail** (`/admin/orders/[id]` where `[id]` = requestGroupId): per‑shift
+  assignment via `candidatesForShift` (`lib/orders.ts`) showing **available / busy (same‑day)
+  / unavailable (time‑overlap)** with override allowed.
+- **Worker** portal: **monthly sheet** of shifts (accept/decline, chat); **availability =
+  monthly table** with per‑shift or whole‑day unavailability, instant local edit + one Save.
+- Digital **service confirmation** (signature pad OR upload → Storage, IP+timestamp),
+  **Leistungsnachweis PDF**, **in‑app notifications** (bell), **per‑assignment messaging**.
+- **Reports** dashboard · **Invoicing** CSV/DATEV export + PDF · legal **Impressum/Datenschutz**
+  (German) · cookie banner · **GDPR data export** (`/api/me/export`) · **PWA** (installable,
+  offline shell) · professional **landing** + **/roadmap** page (German, for stakeholder).
+- **Top progress bar** (YouTube‑style) on every navigation.
+
+## 7. Data‑model notes (recent)
+- `Order.requestGroupId` groups shifts from one submission (backfilled = own id for legacy).
+- `WorkerAvailability` now stores **unavailability blocks**: `startTime/endTime` nullable
+  (null = whole day), unique `[workerId,date]` **dropped** (multiple blocks/day). Matcher
+  uses **time overlap**.
+- `ServiceConfirmation.confirmedById` nullable + `onDelete: SetNull` (GDPR‑safe erasure).
+- Per‑shift **Pause/net hours are UI‑only** (not persisted); `Wohnbereich` stored in `Order.notes`.
+
+## 8. ⚠️ PENDING / UNPUSHED WORK
+The request‑lifecycle + per‑shift availability + top‑loader work is now **committed**
+(HEAD `e0e506b`). Currently uncommitted: the **passwordless access link + PIN** feature
+(see §4) — new files under `app/[locale]/access/`, `app/api/access/`,
+`components/{admin/account-access-link,auth/pin-login-form,pwa-install-hint}.tsx`,
+`lib/access.ts`, edited accounts actions/edit page + `messages/*` + `prisma/schema.prisma`.
+- **Production DB already migrated** (`prisma db push`) with the 4 new nullable/defaulted
+  `User` columns. Because they're nullable, the deployed code is **not** broken by them
+  (unlike the earlier availability change) — no urgency, but push to keep code+DB in sync.
+- Verified locally: clean build passes; runtime smoke test of `/api/access/verify` returns
+  a persistent session + `/client` redirect; wrong PIN / unknown token → uniform 401.
+- **Next action:** after review, `git add -A && git commit && git push origin main`
+  (author must be paypalalmnar@gmail.com) to deploy.
+- Last pushed commit: `e0e506b`.
+
+## 9. Commands
+```
+npm run dev            # binds 0.0.0.0 (LAN access: http://<lan-ip>:3000)
+npm run build:clean    # rm -rf .next && next build   (use this, not plain build)
+npm run test           # vitest (matching engine)
+npm run db:push        # prisma db push
+npm run db:seed        # super_admin seed
+npm run db:seed:demo   # realistic demo dataset
+npm run db:storage     # create Storage bucket
+```
+
+## 10. Deferred (by owner) & roadmap
+- Deferred: **Resend email** (owner has working domain email; migrate later), **Twilio SMS/
+  WhatsApp**, **2FA for admin** (mandatory before production).
+- Later (P2/P3): certificate‑expiry tracking, AÜG 18‑month cap & Equal‑Pay monitoring,
+  invoice PDF generation, DATEV/payroll integration, QES (BundID), multi‑branch, ratings,
+  check‑in/out.
+
+## 11. Known environment gotchas
+- **Transient `.next` build corruption** (errors like “Cannot find module ./XXXX.js” or
+  “React Client Manifest”): fix with `rm -rf .next node_modules/.cache && npm run build`.
+- **Never pipe `npm run build` through `head`** — SIGPIPE can kill the build mid‑emit.
+- `.env` is gitignored (Prisma + Next read it). `.env.example` documents vars.

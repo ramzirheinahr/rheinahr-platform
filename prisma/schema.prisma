@@ -127,6 +127,13 @@ model User {
   active            Boolean  @default(true) // disabled accounts cannot sign in
   preferredLanguage Language @default(de) @map("preferred_language")
   twoFactorEnabled  Boolean  @default(false) @map("2fa_enabled")
+  // Passwordless "access link + PIN" login (client/worker convenience). The admin
+  // shares the /access/<loginToken> link; the user enters a 6-digit PIN once per
+  // device, then the persistent session skips it. Never a full credential alone.
+  loginToken        String?   @unique @map("login_token") // random slug in the shared link
+  loginPinHash      String?   @map("login_pin_hash") // bcrypt of the 6-digit PIN
+  loginPinAttempts  Int       @default(0) @map("login_pin_attempts") // brute-force counter
+  loginPinLockUntil DateTime? @map("login_pin_lock_until") // temporary lockout after failures
   createdById       String?  @map("created_by") // which admin provisioned this account
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
