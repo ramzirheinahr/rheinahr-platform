@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,12 +30,26 @@ export function PinLoginForm({ token }: { token: string }) {
         body: JSON.stringify({ token, pin }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { ok: boolean; error?: string; redirect?: string }
+        | {
+            ok: boolean;
+            error?: string;
+            redirect?: string;
+            session?: { access_token: string; refresh_token: string };
+          }
         | null;
 
-      if (res.ok && data?.ok && data.redirect) {
-        router.replace(data.redirect);
+      if (res.ok && data?.ok && data.redirect && data.session) {
+        // Persist the session in the browser (same path as email login), so the
+        // portal recognizes us on the next navigation.
+        const supabase = createSupabaseBrowserClient();
+        const { error } = await supabase.auth.setSession(data.session);
+        if (error) {
+          toast.error(t("wrongPin"));
+          setPin("");
+          return;
+        }
         router.refresh();
+        router.replace(data.redirect);
         return;
       }
       if (res.status === 429 || data?.error === "locked") {

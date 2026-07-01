@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { portalPath } from "@/lib/auth";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { PIN_MAX_ATTEMPTS, PIN_LOCK_MINUTES } from "@/lib/access";
 
@@ -76,7 +76,10 @@ export async function POST(req: NextRequest) {
       : invalid();
   }
 
-  // Correct PIN — clear counters and establish a Supabase session on this device.
+  // Correct PIN — mint session tokens and hand them to the browser, which stores
+  // them via supabase.auth.setSession() exactly like the email login does. We do
+  // NOT set cookies in this route: server-set auth cookies proved unreliable for
+  // the subsequent client navigation, so the browser owns session persistence.
   const admin = createSupabaseAdminClient();
   const { data: link, error: linkError } = await admin.auth.admin.generateLink({
     type: "magiclink",
@@ -86,12 +89,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "session" }, { status: 500 });
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { error: verifyError } = await supabase.auth.verifyOtp({
+  // Exchange the one-time OTP for a session on a throwaway (non-persisting) client
+  // so this route never writes cookies of its own.
+  const exchange = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const { data: verified, error: verifyError } = await exchange.auth.verifyOtp({
     type: (link.properties.verification_type ?? "magiclink") as "magiclink",
     token_hash: link.properties.hashed_token,
   });
-  if (verifyError) {
+  if (verifyError || !verified.session) {
     return NextResponse.json({ ok: false, error: "session" }, { status: 500 });
   }
 
@@ -107,5 +116,12 @@ export async function POST(req: NextRequest) {
     ipAddress: ip,
   });
 
-  return NextResponse.json({ ok: true, redirect: portalPath(user.role) });
+  return NextResponse.json({
+    ok: true,
+    redirect: portalPath(user.role),
+    session: {
+      access_token: verified.session.access_token,
+      refresh_token: verified.session.refresh_token,
+    },
+  });
 }
