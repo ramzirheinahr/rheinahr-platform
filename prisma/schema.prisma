@@ -164,16 +164,21 @@ model Worker {
   @@map("workers")
 }
 
+// Unavailability blocks. A whole-day block has null start/end; otherwise the
+// block covers [startTime, endTime]. Multiple blocks per day are allowed
+// (e.g. unavailable for the early AND night shift).
 model WorkerAvailability {
-  id       String             @id @default(uuid())
-  workerId String             @map("worker_id")
-  date     DateTime           @db.Date
-  status   AvailabilityStatus @default(available)
-  notes    String?
+  id        String             @id @default(uuid())
+  workerId  String             @map("worker_id")
+  date      DateTime           @db.Date
+  status    AvailabilityStatus @default(unavailable)
+  startTime String?            @map("start_time") // null = whole day
+  endTime   String?            @map("end_time")
+  notes     String?
 
   worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
 
-  @@unique([workerId, date])
+  @@index([workerId, date])
   @@index([date, status])
   @@map("worker_availability")
 }

@@ -4,6 +4,7 @@ import "../globals.css";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
+import NextTopLoader from "nextjs-toploader";
 import { Toaster } from "@/components/ui/sonner";
 import { CookieConsent } from "@/components/cookie-consent";
 import { PwaRegister } from "@/components/pwa-register";
@@ -55,6 +56,7 @@ export default async function LocaleLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
+        <NextTopLoader color="#1e3a8a" height={3} showSpinner={false} shadow="0 0 8px #1e3a8a" />
         <NextIntlClientProvider>
           {children}
           <CookieConsent />

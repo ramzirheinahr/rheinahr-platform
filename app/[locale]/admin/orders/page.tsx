@@ -1,9 +1,9 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { Link } from "@/i18n/navigation";
-import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
-import type { OrderStatus, Qualification } from "@prisma/client";
+import { ChevronRight } from "lucide-react";
+import type { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +11,8 @@ type Row = {
   id: string;
   requestGroupId: string | null;
   shiftDate: Date;
-  startTime: string;
-  endTime: string;
-  requiredQualification: Qualification;
-  quantity: number;
   status: OrderStatus;
   client: { facilityName: string };
-  _count: { assignments: number };
 };
 
 async function getOrders(): Promise<Row[]> {
@@ -28,13 +23,8 @@ async function getOrders(): Promise<Row[]> {
         id: true,
         requestGroupId: true,
         shiftDate: true,
-        startTime: true,
-        endTime: true,
-        requiredQualification: true,
-        quantity: true,
         status: true,
         client: { select: { facilityName: true } },
-        _count: { select: { assignments: true } },
       },
     });
   } catch {
@@ -45,12 +35,13 @@ async function getOrders(): Promise<Row[]> {
 function groupOrders(rows: Row[]) {
   const map = new Map<string, Row[]>();
   for (const r of rows) {
-    const key = r.requestGroupId ?? `one:${r.id}`;
+    const key = r.requestGroupId ?? r.id;
     const arr = map.get(key);
     if (arr) arr.push(r);
     else map.set(key, [r]);
   }
-  return Array.from(map.values()).map((shifts) => ({
+  return Array.from(map.entries()).map(([key, shifts]) => ({
+    key,
     shifts: [...shifts].sort(
       (a, b) => a.shiftDate.getTime() - b.shiftDate.getTime(),
     ),
@@ -61,7 +52,6 @@ const d = (date: Date) => date.toISOString().slice(0, 10);
 
 export default async function AdminOrdersPage() {
   const t = await getTranslations("orders");
-  const eq = await getTranslations("enums.qualification");
   const rows = await getOrders();
   const groups = groupOrders(rows);
 
@@ -78,43 +68,27 @@ export default async function AdminOrdersPage() {
           {groups.map((g) => {
             const first = g.shifts[0];
             const last = g.shifts[g.shifts.length - 1];
-            const range = d(first.shiftDate) === d(last.shiftDate)
-              ? d(first.shiftDate)
-              : `${d(first.shiftDate)} – ${d(last.shiftDate)}`;
+            const range =
+              d(first.shiftDate) === d(last.shiftDate)
+                ? d(first.shiftDate)
+                : `${d(first.shiftDate)} – ${d(last.shiftDate)}`;
             return (
-              <details key={first.id} className="group rounded-lg border" open={g.shifts.length === 1}>
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
-                  <div>
-                    <div className="font-medium">{first.client.facilityName}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {range} · {g.shifts.length} {t("shiftsCount")}
-                    </div>
+              <Link
+                key={g.key}
+                href={`/admin/orders/${g.key}`}
+                className="flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-muted/40"
+              >
+                <div>
+                  <div className="font-medium">{first.client.facilityName}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {range} · {g.shifts.length} {t("shiftsCount")}
                   </div>
-                  <span className="text-xs text-muted-foreground transition-transform group-open:rotate-180">
-                    ▾
-                  </span>
-                </summary>
-                <ul className="divide-y border-t">
-                  {g.shifts.map((s) => (
-                    <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                      <span className="font-medium">{d(s.shiftDate)}</span>
-                      <span className="text-muted-foreground">{s.startTime}–{s.endTime}</span>
-                      <span>{eq(s.requiredQualification)}</span>
-                      <span className="text-muted-foreground">
-                        {s._count.assignments}/{s.quantity}
-                      </span>
-                      <OrderStatusBadge status={s.status} />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        render={<Link href={`/admin/orders/${s.id}`} />}
-                      >
-                        {t("detailTitle")}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </details>
+                </div>
+                <div className="flex items-center gap-2">
+                  <OrderStatusBadge status={first.status} />
+                  <ChevronRight className="size-4 text-muted-foreground rtl:rotate-180" />
+                </div>
+              </Link>
             );
           })}
         </div>

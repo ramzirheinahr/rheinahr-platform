@@ -8,17 +8,25 @@ import { audit } from "@/lib/audit";
 export type ActionState = { ok: boolean; error?: string };
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-// Worker toggles their availability for a day. Default (no record) = available;
-// blocking a day stores an `unavailable` record that the matching engine honors.
-// `makeAvailable=false` blocks the day; `true` clears the block.
-export async function setAvailability(
-  dateStr: string,
-  makeAvailable: boolean,
+export type UnavailBlock = {
+  date: string;
+  startTime: string | null; // null = whole day
+  endTime: string | null;
+};
+
+// Replaces the worker's unavailability blocks for one month (local edits saved
+// in one go). A block with null times means the whole day is unavailable.
+export async function saveAvailability(
+  year: number,
+  month: number,
+  blocks: UnavailBlock[],
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user || user.role !== "worker") return { ok: false, error: "forbidden" };
-  if (!dateRegex.test(dateStr)) return { ok: false, error: "saveError" };
+  if (month < 1 || month > 12 || year < 2020 || year > 2100)
+    return { ok: false, error: "saveError" };
 
   const worker = await prisma.worker.findUnique({
     where: { userId: user.id },
@@ -26,36 +34,45 @@ export async function setAvailability(
   });
   if (!worker) return { ok: false, error: "saveError" };
 
-  const date = new Date(`${dateStr}T00:00:00.000Z`);
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 1));
 
-  // Cannot change a day the worker is already scheduled for.
-  const scheduled = await prisma.assignment.count({
-    where: {
-      workerId: worker.id,
-      status: { not: "declined" },
-      order: { shiftDate: date },
-    },
+  // Validate & keep only blocks inside the month.
+  const clean = blocks.filter((b) => {
+    if (!dateRegex.test(b.date)) return false;
+    const dt = new Date(`${b.date}T00:00:00.000Z`);
+    if (dt < start || dt >= end) return false;
+    const full = b.startTime === null && b.endTime === null;
+    const ranged =
+      b.startTime !== null &&
+      b.endTime !== null &&
+      timeRegex.test(b.startTime) &&
+      timeRegex.test(b.endTime) &&
+      b.startTime !== b.endTime;
+    return full || ranged;
   });
-  if (scheduled > 0) return { ok: false, error: "scheduled" };
 
-  if (makeAvailable) {
-    await prisma.workerAvailability.deleteMany({
-      where: { workerId: worker.id, date },
-    });
-  } else {
-    await prisma.workerAvailability.upsert({
-      where: { workerId_date: { workerId: worker.id, date } },
-      update: { status: "unavailable" },
-      create: { workerId: worker.id, date, status: "unavailable" },
-    });
-  }
+  await prisma.$transaction([
+    prisma.workerAvailability.deleteMany({
+      where: { workerId: worker.id, date: { gte: start, lt: end } },
+    }),
+    prisma.workerAvailability.createMany({
+      data: clean.map((b) => ({
+        workerId: worker.id,
+        date: new Date(`${b.date}T00:00:00.000Z`),
+        status: "unavailable" as const,
+        startTime: b.startTime,
+        endTime: b.endTime,
+      })),
+    }),
+  ]);
 
   await audit({
     userId: user.id,
-    action: "availability.set",
+    action: "availability.save",
     entity: "Worker",
     entityId: worker.id,
-    metadata: { date: dateStr, available: makeAvailable },
+    metadata: { year, month, blocks: clean.length },
   });
 
   revalidatePath("/worker/availability");

@@ -8,7 +8,22 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { qualifications } from "@/lib/validations";
 import { germanHolidays } from "@/lib/holidays";
-import { createOrderRequest } from "@/app/[locale]/client/orders/actions";
+import {
+  createOrderRequest,
+  updateOrderRequest,
+} from "@/app/[locale]/client/orders/actions";
+
+export type InitialRequest = {
+  requestGroupId: string;
+  qual: string;
+  shifts: {
+    date: string;
+    start: string;
+    end: string;
+    quantity: number;
+    bereich: string;
+  }[];
+};
 import { Save, Plus, X } from "lucide-react";
 
 type Qual = (typeof qualifications)[number];
@@ -43,10 +58,33 @@ const PRESETS = [
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const EMPTY: Cell = { type: "none", start: "", end: "", pause: 30, quantity: 1, bereich: "" };
+const matchPreset = (start: string, end: string): ShiftType =>
+  (PRESETS.find((p) => p.start === start && p.end === end)?.key as ShiftType) ?? "none";
+
+// Build initial cell map + per-day slot counts from an existing request.
+function fromInitial(shifts: InitialRequest["shifts"]) {
+  const cells: Record<string, Cell> = {};
+  const counts: Record<string, number> = {};
+  const byDate: Record<string, number> = {};
+  for (const s of shifts) {
+    const slot = byDate[s.date] ?? 0;
+    byDate[s.date] = slot + 1;
+    counts[s.date] = slot + 1;
+    cells[`${s.date}:${slot}`] = {
+      type: matchPreset(s.start, s.end),
+      start: s.start,
+      end: s.end,
+      pause: 30,
+      quantity: s.quantity,
+      bereich: s.bereich,
+    };
+  }
+  return { cells, counts };
+}
 const field =
   "w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50";
 
-export function OrderRequestBuilder() {
+export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
   const t = useTranslations("orderRequest");
   const o = useTranslations("orders");
   const c = useTranslations("common");
@@ -59,12 +97,19 @@ export function OrderRequestBuilder() {
   const thisYear = now.getUTCFullYear();
   const todayStr = now.toISOString().slice(0, 10);
 
-  const [year, setYear] = useState(thisYear);
-  const [month, setMonth] = useState(now.getUTCMonth() + 1); // 1-12
-  const [qual, setQual] = useState<Qual>(qualifications[0]);
-  const [cells, setCells] = useState<Record<string, Cell>>({});
+  const firstDate = initial?.shifts[0]?.date;
+  const initData = initial ? fromInitial(initial.shifts) : null;
+
+  const [year, setYear] = useState(firstDate ? Number(firstDate.slice(0, 4)) : thisYear);
+  const [month, setMonth] = useState(
+    firstDate ? Number(firstDate.slice(5, 7)) : now.getUTCMonth() + 1,
+  );
+  const [qual, setQual] = useState<Qual>((initial?.qual as Qual) ?? qualifications[0]);
+  const [cells, setCells] = useState<Record<string, Cell>>(initData?.cells ?? {});
   // Visible shift rows per day (1 by default, up to 3 via the + button).
-  const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
+  const [slotCounts, setSlotCounts] = useState<Record<string, number>>(
+    initData?.counts ?? {},
+  );
   // Remount key per cell — bumped only when a preset/clear changes the times, so
   // the uncontrolled <input type="time"> isn't reset mid-typing.
   const [ver, setVer] = useState<Record<string, number>>({});
@@ -165,19 +210,22 @@ export function OrderRequestBuilder() {
 
   function submit() {
     if (activeShifts.length === 0) return;
+    const payload = {
+      shifts: activeShifts.map((s) => ({
+        date: s.date,
+        requiredQualification: qual,
+        startTime: s.start,
+        endTime: s.end,
+        quantity: s.quantity,
+        bereich: s.bereich.trim() || undefined,
+      })),
+    };
     startTransition(async () => {
-      const res = await createOrderRequest({
-        shifts: activeShifts.map((s) => ({
-          date: s.date,
-          requiredQualification: qual,
-          startTime: s.start,
-          endTime: s.end,
-          quantity: s.quantity,
-          bereich: s.bereich.trim() || undefined,
-        })),
-      });
+      const res = initial
+        ? await updateOrderRequest(initial.requestGroupId, payload)
+        : await createOrderRequest(payload);
       if (res.ok) {
-        toast.success(o("created"));
+        toast.success(o(initial ? "updated" : "created"));
         router.push("/client/orders");
         router.refresh();
       } else {

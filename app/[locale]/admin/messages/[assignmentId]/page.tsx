@@ -25,9 +25,8 @@ export default async function AdminMessagesPage({
       where: { id: assignmentId },
       select: {
         id: true,
-        orderId: true,
         worker: { select: { fullName: true } },
-        order: { select: { client: { select: { facilityName: true } } } },
+        order: { select: { requestGroupId: true, id: true, client: { select: { facilityName: true } } } },
       },
     })
     .catch(() => null);
@@ -43,7 +42,7 @@ export default async function AdminMessagesPage({
           variant="ghost"
           size="sm"
           className="gap-2"
-          render={<Link href={`/admin/orders/${assignment.orderId}`} />}
+          render={<Link href={`/admin/orders/${assignment.order.requestGroupId ?? assignment.order.id}`} />}
         >
           <ArrowLeft className="size-4" />
           {assignment.order.client.facilityName}
