@@ -35,9 +35,15 @@ export async function updateClient(
     address: formData.get("address") || undefined,
     contactPerson: formData.get("contactPerson") || undefined,
     billingInfo: formData.get("billingInfo") || undefined,
+    surchargeSat: formData.get("surchargeSat") || undefined,
+    surchargeSun: formData.get("surchargeSun") || undefined,
+    surchargeHoliday: formData.get("surchargeHoliday") || undefined,
   });
   if (!parsed.success) return { ok: false, error: "saveError" };
   const data = parsed.data;
+  // Empty field → null (fall back to platform default); percent → fraction.
+  const pctToFrac = (v: number | undefined) =>
+    v === undefined ? null : v / 100;
 
   await prisma.client.update({
     where: { id },
@@ -47,6 +53,9 @@ export async function updateClient(
       address: data.address,
       contactPerson: data.contactPerson,
       billingInfo: data.billingInfo,
+      surchargeSat: pctToFrac(data.surchargeSat),
+      surchargeSun: pctToFrac(data.surchargeSun),
+      surchargeHoliday: pctToFrac(data.surchargeHoliday),
     },
   });
 

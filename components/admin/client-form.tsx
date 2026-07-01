@@ -25,7 +25,14 @@ type ClientData = {
   address: string | null;
   contactPerson: string | null;
   billingInfo: string | null;
+  // Surcharge overrides stored as fractions (0.25) — shown here as percent.
+  surchargeSat: number | null;
+  surchargeSun: number | null;
+  surchargeHoliday: number | null;
 };
+
+const toPct = (v: number | null) =>
+  v === null || v === undefined ? "" : String(Math.round(v * 1000) / 10);
 
 // Edits an existing facility profile. Account creation lives in /admin/accounts.
 export function ClientForm({ client }: { client: ClientData }) {
@@ -107,6 +114,55 @@ export function ClientForm({ client }: { client: ClientData }) {
           defaultValue={client.billingInfo ?? ""}
         />
       </div>
+
+      <fieldset className="space-y-3 rounded-lg border p-4">
+        <legend className="px-1 text-sm font-medium">{t("surcharges")}</legend>
+        <p className="text-xs text-muted-foreground">{t("surchargesHint")}</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="surchargeSat">{t("surchargeSat")}</Label>
+            <Input
+              id="surchargeSat"
+              name="surchargeSat"
+              type="number"
+              min={0}
+              max={500}
+              step={1}
+              inputMode="decimal"
+              placeholder="25"
+              defaultValue={toPct(client.surchargeSat)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="surchargeSun">{t("surchargeSun")}</Label>
+            <Input
+              id="surchargeSun"
+              name="surchargeSun"
+              type="number"
+              min={0}
+              max={500}
+              step={1}
+              inputMode="decimal"
+              placeholder="50"
+              defaultValue={toPct(client.surchargeSun)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="surchargeHoliday">{t("surchargeHoliday")}</Label>
+            <Input
+              id="surchargeHoliday"
+              name="surchargeHoliday"
+              type="number"
+              min={0}
+              max={500}
+              step={1}
+              inputMode="decimal"
+              placeholder="100"
+              defaultValue={toPct(client.surchargeHoliday)}
+            />
+          </div>
+        </div>
+      </fieldset>
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

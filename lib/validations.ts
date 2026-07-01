@@ -108,6 +108,10 @@ export const clientSchema = z.object({
   address: z.string().max(240).optional(),
   contactPerson: z.string().max(120).optional(),
   billingInfo: z.string().max(500).optional(),
+  // Surcharges entered as percentages (e.g. 25 = +25 %); stored as fractions.
+  surchargeSat: z.coerce.number().min(0).max(500).optional(),
+  surchargeSun: z.coerce.number().min(0).max(500).optional(),
+  surchargeHoliday: z.coerce.number().min(0).max(500).optional(),
 });
 
 // ── Account provisioning (super_admin) ──

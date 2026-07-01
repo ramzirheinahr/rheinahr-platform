@@ -7,6 +7,7 @@ import { redirect } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
+import { resolveSurcharges } from "@/lib/pricing";
 import { ArrowLeft } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
 
@@ -26,7 +27,15 @@ export default async function EditRequestPage({
   const user = await getCurrentUser();
   if (!user) notFound();
   const client = await prisma.client
-    .findUnique({ where: { userId: user.id }, select: { id: true } })
+    .findUnique({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        surchargeSat: true,
+        surchargeSun: true,
+        surchargeHoliday: true,
+      },
+    })
     .catch(() => null);
   if (!client) notFound();
 
@@ -77,7 +86,7 @@ export default async function EditRequestPage({
         </Button>
         <h1 className="text-2xl font-semibold">{t("detailTitle")}</h1>
       </div>
-      <OrderRequestBuilder initial={initial} />
+      <OrderRequestBuilder initial={initial} surcharges={resolveSurcharges(client)} />
     </div>
   );
 }

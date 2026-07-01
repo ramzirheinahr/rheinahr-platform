@@ -28,6 +28,7 @@ type AssignableRole = (typeof assignableRoles)[number];
 export function AccountCreateForm({ initialRole }: { initialRole?: AssignableRole }) {
   const t = useTranslations("accounts");
   const c = useTranslations("common");
+  const ecl = useTranslations("clients");
   const ew = useTranslations("workers");
   const er = useTranslations("enums.role");
   const eq = useTranslations("enums.qualification");
@@ -212,6 +213,24 @@ export function AccountCreateForm({ initialRole }: { initialRole?: AssignableRol
           <div className="space-y-2">
             <Label htmlFor="billingInfo">{t("billingInfo")}</Label>
             <Input id="billingInfo" name="billingInfo" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{ecl("surcharges")}</p>
+            <p className="text-xs text-muted-foreground">{ecl("surchargesHint")}</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="surchargeSat">{ecl("surchargeSat")}</Label>
+                <Input id="surchargeSat" name="surchargeSat" type="number" min={0} max={500} step={1} inputMode="decimal" placeholder="25" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="surchargeSun">{ecl("surchargeSun")}</Label>
+                <Input id="surchargeSun" name="surchargeSun" type="number" min={0} max={500} step={1} inputMode="decimal" placeholder="50" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="surchargeHoliday">{ecl("surchargeHoliday")}</Label>
+                <Input id="surchargeHoliday" name="surchargeHoliday" type="number" min={0} max={500} step={1} inputMode="decimal" placeholder="100" />
+              </div>
+            </div>
           </div>
         </fieldset>
       )}

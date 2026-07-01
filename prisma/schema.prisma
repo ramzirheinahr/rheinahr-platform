@@ -198,6 +198,11 @@ model Client {
   address       String?
   contactPerson String?      @map("contact_person")
   billingInfo   String?      @map("billing_info")
+  // Per-client billing surcharges (fractions, e.g. 0.25 = +25 %). Null falls
+  // back to the platform default in lib/pricing.ts.
+  surchargeSat     Float?    @map("surcharge_sat")
+  surchargeSun     Float?    @map("surcharge_sun")
+  surchargeHoliday Float?    @map("surcharge_holiday")
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 

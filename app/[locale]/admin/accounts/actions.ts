@@ -70,6 +70,9 @@ export async function createAccount(formData: FormData): Promise<ActionState> {
       address: formData.get("address") || undefined,
       contactPerson: formData.get("contactPerson") || undefined,
       billingInfo: formData.get("billingInfo") || undefined,
+      surchargeSat: formData.get("surchargeSat") || undefined,
+      surchargeSun: formData.get("surchargeSun") || undefined,
+      surchargeHoliday: formData.get("surchargeHoliday") || undefined,
     });
     if (!p.success) return { ok: false, error: "saveError" };
     clientData = p.data;
@@ -131,6 +134,18 @@ export async function createAccount(formData: FormData): Promise<ActionState> {
             address: clientData.address,
             contactPerson: clientData.contactPerson,
             billingInfo: clientData.billingInfo,
+            surchargeSat:
+              clientData.surchargeSat === undefined
+                ? null
+                : clientData.surchargeSat / 100,
+            surchargeSun:
+              clientData.surchargeSun === undefined
+                ? null
+                : clientData.surchargeSun / 100,
+            surchargeHoliday:
+              clientData.surchargeHoliday === undefined
+                ? null
+                : clientData.surchargeHoliday / 100,
           },
         });
       }

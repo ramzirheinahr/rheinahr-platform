@@ -7,11 +7,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { qualifications } from "@/lib/validations";
+import { rateFor, DEFAULT_SURCHARGES, VAT_RATE, type Surcharges } from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
 import {
   createOrderRequest,
   updateOrderRequest,
 } from "@/app/[locale]/client/orders/actions";
+import { createOrderRequestForClient } from "@/app/[locale]/admin/orders/actions";
 
 export type InitialRequest = {
   requestGroupId: string;
@@ -24,7 +26,7 @@ export type InitialRequest = {
     bereich: string;
   }[];
 };
-import { Save, Plus, X } from "lucide-react";
+import { Send, Plus, X, Copy, ClipboardPaste, Info } from "lucide-react";
 
 type Qual = (typeof qualifications)[number];
 type ShiftType = "none" | "early" | "late" | "night";
@@ -84,7 +86,19 @@ function fromInitial(shifts: InitialRequest["shifts"]) {
 const field =
   "w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50";
 
-export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
+export function OrderRequestBuilder({
+  initial,
+  clients,
+  surcharges,
+}: {
+  initial?: InitialRequest;
+  // When provided, the builder runs in admin mode: the admin must pick the
+  // target client and the request is created on that client's account. Each
+  // client carries its own billing surcharges.
+  clients?: { id: string; name: string; surcharges: Surcharges }[];
+  // Client mode: the logged-in client's resolved surcharges.
+  surcharges?: Surcharges;
+}) {
   const t = useTranslations("orderRequest");
   const o = useTranslations("orders");
   const c = useTranslations("common");
@@ -92,6 +106,8 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const isAdmin = Boolean(clients);
+  const [clientId, setClientId] = useState<string>("");
 
   const now = new Date();
   const thisYear = now.getUTCFullYear();
@@ -180,6 +196,33 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
     clear(date, n - 1);
     setSlotCounts((p) => ({ ...p, [date]: n - 1 }));
   }
+  // Row-level copy/paste: copy a filled day's shifts, paste them onto empty days
+  // so clients can replicate a recurring shift pattern without retyping.
+  const [clip, setClip] = useState<{ cells: Cell[]; count: number } | null>(null);
+  const dayHasContent = (date: string) => {
+    const c0 = get(date, 0);
+    return Boolean(c0.start && c0.end);
+  };
+  function copyDay(date: string) {
+    const n = effCount(date);
+    setClip({
+      cells: Array.from({ length: n }, (_, slot) => ({ ...get(date, slot) })),
+      count: n,
+    });
+    toast.success(t("copiedToast"));
+  }
+  function pasteDay(date: string) {
+    if (!clip) return;
+    setCells((prev) => {
+      const next = { ...prev };
+      clip.cells.forEach((cell, slot) => {
+        next[`${date}:${slot}`] = { ...cell };
+      });
+      return next;
+    });
+    setSlotCounts((p) => ({ ...p, [date]: clip.count }));
+    clip.cells.forEach((_, slot) => bump(date, slot));
+  }
   function onType(date: string, slot: number, val: string) {
     bump(date, slot); // re-mount the time inputs to reflect the preset times
     if (val === "none") return clear(date, slot);
@@ -208,8 +251,65 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
   const fmtH = (n: number) =>
     n.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Active surcharges: in admin mode the selected client's; in client mode the
+  // logged-in client's; otherwise the platform default.
+  const selectedClient = clients?.find((cl) => cl.id === clientId);
+  const sc: Surcharges = isAdmin
+    ? selectedClient?.surcharges ?? DEFAULT_SURCHARGES
+    : surcharges ?? DEFAULT_SURCHARGES;
+
+  // Billing (netto): each shift is hours × headcount × base rate, uplifted by
+  // the day's Zuschlag (Sat/Sun/holiday). Holidays are resolved per shift year.
+  // Grouped by day category so we can show a transparent calculation breakdown.
+  const rate = useMemo(() => rateFor(qual), [qual]);
+  const billing = useMemo(() => {
+    const holidayCache = new Map<number, Map<string, string>>();
+    const holidaysForYear = (y: number) => {
+      let h = holidayCache.get(y);
+      if (!h) {
+        h = germanHolidays(y);
+        holidayCache.set(y, h);
+      }
+      return h;
+    };
+    const hours = { base: 0, sat: 0, sun: 0, holiday: 0 };
+    for (const s of activeShifts) {
+      const net = (netHours(s.start, s.end, s.pause) ?? 0) * s.quantity;
+      const y = Number(s.date.slice(0, 4));
+      const dow = new Date(`${s.date}T00:00:00Z`).getUTCDay();
+      const cat = holidaysForYear(y).has(s.date)
+        ? "holiday"
+        : dow === 0
+          ? "sun"
+          : dow === 6
+            ? "sat"
+            : "base";
+      hours[cat] += net;
+    }
+    const rows = (
+      [
+        { key: "base", hours: hours.base, mult: 1 },
+        { key: "sat", hours: hours.sat, mult: 1 + sc.sat },
+        { key: "sun", hours: hours.sun, mult: 1 + sc.sun },
+        { key: "holiday", hours: hours.holiday, mult: 1 + sc.holiday },
+      ] as const
+    ).map((r) => ({ ...r, amount: r.hours * rate * r.mult }));
+    const total = rows.reduce((s, r) => s + r.amount, 0);
+    return { rows, total };
+  }, [activeShifts, rate, sc.sat, sc.sun, sc.holiday]);
+  const totalPrice = billing.total;
+  const fmtEur = (n: number) =>
+    n.toLocaleString(locale, { style: "currency", currency: "EUR" });
+  const pct = (n: number) =>
+    `${(n * 100).toLocaleString(locale, { maximumFractionDigits: 0 })} %`;
+  const [showCalc, setShowCalc] = useState(false);
+
   function submit() {
     if (activeShifts.length === 0) return;
+    if (isAdmin && !clientId) {
+      toast.error(t("selectClientError"));
+      return;
+    }
     const payload = {
       shifts: activeShifts.map((s) => ({
         date: s.date,
@@ -221,12 +321,14 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
       })),
     };
     startTransition(async () => {
-      const res = initial
-        ? await updateOrderRequest(initial.requestGroupId, payload)
-        : await createOrderRequest(payload);
+      const res = isAdmin
+        ? await createOrderRequestForClient(clientId, payload)
+        : initial
+          ? await updateOrderRequest(initial.requestGroupId, payload)
+          : await createOrderRequest(payload);
       if (res.ok) {
         toast.success(o(initial ? "updated" : "created"));
-        router.push("/client/orders");
+        router.push(isAdmin ? "/admin/orders" : "/client/orders");
         router.refresh();
       } else {
         toast.error(o("saveError"));
@@ -267,7 +369,7 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
             disabled={past}
             defaultValue={cell.start}
             onChange={(e) => update(date, slot, { start: e.target.value })}
-            className={cn(field, "min-w-24")}
+            className={cn(field, "min-w-20")}
           />
         </td>
         <td className="p-1">
@@ -277,7 +379,7 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
             disabled={past}
             defaultValue={cell.end}
             onChange={(e) => update(date, slot, { end: e.target.value })}
-            className={cn(field, "min-w-24")}
+            className={cn(field, "min-w-20")}
           />
         </td>
         <td className="p-1">
@@ -306,7 +408,7 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
               const nx = days[idx + 1];
               if (nx) document.getElementById(`bereich-${nx.date}-0`)?.focus();
             }}
-            className={cn(field, "min-w-40")}
+            className={cn(field, "min-w-20")}
           />
         </td>
       </>
@@ -317,6 +419,23 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
+        {isAdmin ? (
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <span>
+              {t("client")} <span className="text-destructive">*</span>
+            </span>
+            <select
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              className={cn(field, "w-64", !clientId && "text-muted-foreground")}
+            >
+              <option value="">{t("selectClient")}</option>
+              {clients!.map((cl) => (
+                <option key={cl.id} value={cl.id}>{cl.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("year")}
           <input type="number" min={thisYear} max={thisYear + 2} value={year} onChange={(e) => setYear(Number(e.target.value) || thisYear)} className={cn(field, "w-24")} />
@@ -336,6 +455,9 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
               <option key={q} value={q}>{eq(q)}</option>
             ))}
           </select>
+          <span className="text-[11px] text-muted-foreground">
+            {fmtEur(rate)} / {t("perHour")}
+          </span>
         </label>
       </div>
 
@@ -371,6 +493,29 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
                   <tr title={d.holiday ?? undefined} className={cn("border-b", rowCls)}>
                     <td className="whitespace-nowrap p-2 font-medium">
                       <div className="flex items-center gap-1.5">
+                        <span className="flex size-5 shrink-0 items-center justify-center">
+                          {d.past ? null : dayHasContent(d.date) ? (
+                            <button
+                              type="button"
+                              onClick={() => copyDay(d.date)}
+                              aria-label={t("copyTitle")}
+                              title={t("copyTitle")}
+                              className="flex size-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                              <Copy className="size-3.5" />
+                            </button>
+                          ) : clip ? (
+                            <button
+                              type="button"
+                              onClick={() => pasteDay(d.date)}
+                              aria-label={t("pasteTitle")}
+                              title={t("pasteTitle")}
+                              className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                            >
+                              <ClipboardPaste className="size-3.5" />
+                            </button>
+                          ) : null}
+                        </span>
                         <span>{d.label}</span>
                         {d.holiday ? <span className="text-rose-600">•</span> : null}
                         {!d.past && count === 1 ? (
@@ -441,13 +586,84 @@ export function OrderRequestBuilder({ initial }: { initial?: InitialRequest }) {
               {t("totalHours")}:{" "}
               <span className="font-semibold text-foreground">{fmtH(totalHours)} Std</span>
             </span>
+            <span className="inline-flex items-center gap-1">
+              {t("totalPrice")}:{" "}
+              <span className="font-semibold text-foreground">{fmtEur(totalPrice)}</span>
+              <span className="relative inline-flex">
+                <button
+                  type="button"
+                  onClick={() => setShowCalc((v) => !v)}
+                  aria-label={t("showCalc")}
+                  title={t("showCalc")}
+                  className="flex size-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Info className="size-3.5" />
+                </button>
+                {showCalc ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-hidden
+                      tabIndex={-1}
+                      onClick={() => setShowCalc(false)}
+                      className="fixed inset-0 z-40 cursor-default"
+                    />
+                    <div className="absolute bottom-full end-0 z-50 mb-2 w-72 rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg">
+                      <div className="mb-2 text-xs font-semibold text-foreground">
+                        {t("calcTitle")}
+                      </div>
+                      {activeShifts.length === 0 ? (
+                        <div className="text-xs text-muted-foreground">
+                          {t("calcEmpty")}
+                        </div>
+                      ) : (
+                        <div className="space-y-1 text-xs">
+                          {billing.rows
+                            .filter((r) => r.hours > 0)
+                            .map((r) => (
+                              <div key={r.key} className="flex justify-between gap-2">
+                                <span className="text-muted-foreground">
+                                  {t(`cat_${r.key}`)}: {fmtH(r.hours)} × {fmtEur(rate)}
+                                  {r.mult !== 1 ? ` × ${r.mult.toLocaleString(locale, { maximumFractionDigits: 2 })}` : ""}
+                                </span>
+                                <span className="whitespace-nowrap font-medium text-foreground">
+                                  {fmtEur(r.amount)}
+                                </span>
+                              </div>
+                            ))}
+                          <div className="mt-2 flex justify-between gap-2 border-t pt-2 font-semibold text-foreground">
+                            <span>{t("netTotal")}</span>
+                            <span>{fmtEur(totalPrice)}</span>
+                          </div>
+                          <div className="flex justify-between gap-2 text-muted-foreground">
+                            <span>{t("vat")}</span>
+                            <span>{fmtEur(totalPrice * VAT_RATE)}</span>
+                          </div>
+                          <div className="flex justify-between gap-2 font-semibold text-foreground">
+                            <span>{t("grossTotal")}</span>
+                            <span>{fmtEur(totalPrice * (1 + VAT_RATE))}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : null}
+              </span>
+            </span>
           </div>
-          <span className="text-xs">{t("saveHint")}</span>
+          <span className="block text-xs">{t("saveHint")} · {t("priceNote")}</span>
+          <span className="block text-xs">
+            {t("surchargeNote", {
+              sat: pct(sc.sat),
+              sun: pct(sc.sun),
+              hol: pct(sc.holiday),
+            })}
+          </span>
         </div>
         <div className="flex gap-2">
-          <Button onClick={submit} disabled={pending || activeShifts.length === 0} className="gap-2">
-            <Save className="size-4" />
-            {pending ? c("loading") : t("save")}
+          <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId)} className="gap-2">
+            <Send className="size-4" />
+            {pending ? c("loading") : t("submit")}
           </Button>
           <Button variant="outline" onClick={() => router.push("/client/orders")}>
             {c("cancel")}
