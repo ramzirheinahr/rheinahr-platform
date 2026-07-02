@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { facilityTypes } from "@/lib/validations";
+import { PasswordField } from "@/components/admin/password-field";
 import { createClient } from "@/app/[locale]/admin/clients/actions";
 
 // Creates a facility together with its login account (super_admin only) —
@@ -66,22 +67,14 @@ export function ClientCreateForm() {
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="email">{t("email")}</Label>
-          <Input id="email" name="email" type="email" required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">{ta("password")}</Label>
-          <Input
-            id="password"
-            name="password"
-            type="text"
-            minLength={12}
-            placeholder={ta("passwordHint")}
-            required
-          />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="email">{t("email")}</Label>
+        <Input id="email" name="email" type="email" required className="sm:max-w-sm" />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="password">{ta("password")}</Label>
+        <PasswordField placeholder={ta("passwordHint")} />
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">

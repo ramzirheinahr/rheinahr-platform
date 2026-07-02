@@ -21,7 +21,8 @@
     "confirm": "Confirm",
     "search": "Search",
     "none": "—",
-    "exportData": "Export my data"
+    "exportData": "Export my data",
+    "view": "View"
   },
   "landing": {
     "nav": {
@@ -159,6 +160,7 @@
   "workers": {
     "title": "Care staff",
     "new": "New care worker",
+    "allTypes": "All types",
     "editTitle": "Edit care worker",
     "empty": "No care staff yet.",
     "fullName": "Full name",
@@ -175,7 +177,50 @@
     "deleted": "Professional deleted.",
     "deleteConfirm": "Permanently delete this professional? (GDPR erasure)",
     "saveError": "Saving failed. Please check your input.",
-    "emailInUse": "This email is already in use."
+    "emailInUse": "This email is already in use.",
+    "languagesPlaceholder": "Select languages…",
+    "searchLanguage": "Search language…",
+    "noResults": "No results",
+    "nationalityPlaceholder": "Select nationality…",
+    "searchCountry": "Search country…",
+    "personalSection": "Personal details",
+    "birthDate": "Date of birth",
+    "birthPlace": "Place of birth",
+    "nationality": "Nationality",
+    "socialSecurityNumber": "Social security number",
+    "profileSection": "Professional profile",
+    "skills": "Skills / specializations",
+    "skillsHint": "Comma-separated, e.g. dementia care, palliative care",
+    "yearsExperience": "Experience (years)",
+    "employedSince": "Employed since",
+    "bio": "Short profile",
+    "bioHint": "Short introduction shown to clients",
+    "uploadsHint": "Photo and documents can be uploaded after creating the profile.",
+    "photoHint": "JPG, PNG or WebP, max 10 MB.",
+    "uploadPhoto": "Upload photo",
+    "photoUploaded": "Photo uploaded.",
+    "photoDeleted": "Photo removed.",
+    "documentsSection": "Documents",
+    "documentCategory": "Category",
+    "uploadDocument": "Upload document",
+    "noDocuments": "No documents yet.",
+    "documentUploaded": "Document uploaded.",
+    "documentDeleted": "Document deleted.",
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "verify": "Verify",
+    "unverify": "Unverify",
+    "fileType": "File type not allowed.",
+    "fileTooLarge": "File too large (max 10 MB).",
+    "fileRequired": "Please choose a file.",
+    "forbidden": "Not authorized.",
+    "workerDocumentsHint": "Upload your certificates, ID and vaccination proof.",
+    "noWorkerProfile": "No worker profile found.",
+    "documentsVerifiedBadge": "Documents verified",
+    "yearsCount": "{count} years",
+    "viewProfile": "View profile",
+    "profilePreviewTitle": "Profile preview",
+    "profilePreviewHint": "This is how clients see this worker's profile."
   },
   "clients": {
     "title": "Facilities",
@@ -372,6 +417,13 @@
       "order_status_changed": "Status changed",
       "document_uploaded": "Document uploaded",
       "new_message": "New message"
+    },
+    "documentCategory": {
+      "certification": "Certificate / qualification",
+      "id_document": "ID document",
+      "vaccination": "Vaccination proof",
+      "contract": "Contract",
+      "other": "Other"
     }
   },
   "notifications": {
@@ -452,6 +504,9 @@
     "emailInUse": "This email is already in use.",
     "password": "Password",
     "passwordHint": "At least 12 characters.",
+    "generatePassword": "Generate password",
+    "copyPassword": "Copy password",
+    "passwordCopied": "Password copied.",
     "newPassword": "New password",
     "resetPassword": "Reset password",
     "passwordReset": "Password has been reset.",

@@ -5,11 +5,16 @@ import { getCurrentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { WorkerForm } from "@/components/admin/worker-form";
+import { WorkerPhoto } from "@/components/admin/worker-photo";
+import { WorkerDocuments } from "@/components/admin/worker-documents";
 import { AccountSection } from "@/components/admin/account-section";
 import { DeleteWorkerButton } from "@/components/admin/delete-worker-button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+// @db.Date → "yyyy-mm-dd" for a native date input.
+const toDateInput = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 export default async function EditWorkerPage({
   params,
@@ -26,14 +31,17 @@ export default async function EditWorkerPage({
       where: { id },
       include: {
         user: { select: { id: true, email: true, active: true, loginToken: true } },
+        documents: { orderBy: { uploadedAt: "desc" } },
       },
     })
     .catch(() => null);
 
   if (!worker) notFound();
 
+  const isAdmin = actor ? actor.role === "admin" || actor.role === "super_admin" : false;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button
@@ -47,7 +55,22 @@ export default async function EditWorkerPage({
           </Button>
           <h1 className="text-2xl font-semibold">{t("editTitle")}</h1>
         </div>
-        <DeleteWorkerButton id={worker.id} />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            render={<Link href={`/admin/workers/${worker.id}/profile`} />}
+          >
+            <Eye className="size-4" />
+            {t("viewProfile")}
+          </Button>
+          <DeleteWorkerButton id={worker.id} />
+        </div>
+      </div>
+
+      <div className="max-w-2xl">
+        <WorkerPhoto workerId={worker.id} hasPhoto={!!worker.photoPath} />
       </div>
 
       <WorkerForm
@@ -59,9 +82,31 @@ export default async function EditWorkerPage({
           phone: worker.phone,
           address: worker.address,
           certifications: worker.certifications,
+          skills: worker.skills,
           languages: worker.languages,
+          birthDate: toDateInput(worker.birthDate),
+          birthPlace: worker.birthPlace,
+          nationality: worker.nationality,
+          socialSecurityNumber: worker.socialSecurityNumber,
+          bio: worker.bio,
+          yearsExperience: worker.yearsExperience,
+          employedSince: toDateInput(worker.employedSince),
         }}
       />
+
+      <section className="max-w-2xl space-y-3">
+        <h2 className="text-lg font-medium">{t("documentsSection")}</h2>
+        <WorkerDocuments
+          workerId={worker.id}
+          canVerify={isAdmin}
+          documents={worker.documents.map((d) => ({
+            id: d.id,
+            category: d.category,
+            fileName: d.fileName,
+            verified: d.verified,
+          }))}
+        />
+      </section>
 
       {/* Login account management (password, access link, active) — super_admin only. */}
       {actor?.role === "super_admin" && (

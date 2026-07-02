@@ -21,7 +21,8 @@
     "confirm": "تأكيد",
     "search": "بحث",
     "none": "—",
-    "exportData": "تصدير بياناتي"
+    "exportData": "تصدير بياناتي",
+    "view": "عرض"
   },
   "landing": {
     "nav": {
@@ -159,6 +160,7 @@
   "workers": {
     "title": "كوادر الرعاية",
     "new": "كادر رعاية جديد",
+    "allTypes": "كل الأنواع",
     "editTitle": "تعديل كادر الرعاية",
     "empty": "لا توجد كوادر رعاية بعد.",
     "fullName": "الاسم الكامل",
@@ -175,7 +177,50 @@
     "deleted": "تم حذف الكادر.",
     "deleteConfirm": "حذف هذا الكادر نهائيًا؟ (محو وفق اللائحة العامة لحماية البيانات)",
     "saveError": "فشل الحفظ. يرجى التحقق من المدخلات.",
-    "emailInUse": "هذا البريد الإلكتروني مستخدم بالفعل."
+    "emailInUse": "هذا البريد الإلكتروني مستخدم بالفعل.",
+    "languagesPlaceholder": "اختر اللغات…",
+    "searchLanguage": "ابحث عن لغة…",
+    "noResults": "لا نتائج",
+    "nationalityPlaceholder": "اختر الجنسية…",
+    "searchCountry": "ابحث عن دولة…",
+    "personalSection": "البيانات الشخصية",
+    "birthDate": "تاريخ الميلاد",
+    "birthPlace": "مكان الميلاد",
+    "nationality": "الجنسية",
+    "socialSecurityNumber": "رقم الضمان الاجتماعي",
+    "profileSection": "الملف المهني",
+    "skills": "المهارات / التخصصات",
+    "skillsHint": "افصل بينها بفواصل، مثل: رعاية الخرف، الرعاية التلطيفية",
+    "yearsExperience": "سنوات الخبرة",
+    "employedSince": "يعمل لدى RheinAhr منذ",
+    "bio": "نبذة مختصرة",
+    "bioHint": "تعريف مختصر يظهر للزبائن",
+    "uploadsHint": "يمكن رفع الصورة والوثائق بعد إنشاء الملف.",
+    "photoHint": "JPG أو PNG أو WebP، بحد أقصى 10 ميغابايت.",
+    "uploadPhoto": "رفع صورة",
+    "photoUploaded": "تم رفع الصورة.",
+    "photoDeleted": "تم حذف الصورة.",
+    "documentsSection": "الوثائق",
+    "documentCategory": "التصنيف",
+    "uploadDocument": "رفع وثيقة",
+    "noDocuments": "لا توجد وثائق بعد.",
+    "documentUploaded": "تم رفع الوثيقة.",
+    "documentDeleted": "تم حذف الوثيقة.",
+    "verified": "موثّقة",
+    "unverified": "غير موثّقة",
+    "verify": "توثيق",
+    "unverify": "إلغاء التوثيق",
+    "fileType": "نوع الملف غير مسموح.",
+    "fileTooLarge": "الملف كبير جداً (بحد أقصى 10 ميغابايت).",
+    "fileRequired": "يرجى اختيار ملف.",
+    "forbidden": "لا تملك الصلاحية.",
+    "workerDocumentsHint": "ارفع شهاداتك وهويتك وإثبات التطعيم.",
+    "noWorkerProfile": "لا يوجد ملف موظف.",
+    "documentsVerifiedBadge": "وثائق موثّقة",
+    "yearsCount": "{count} سنوات",
+    "viewProfile": "عرض الملف",
+    "profilePreviewTitle": "معاينة الملف",
+    "profilePreviewHint": "هكذا يرى الزبائن ملف هذا الموظف."
   },
   "clients": {
     "title": "المنشآت",
@@ -372,6 +417,13 @@
       "order_status_changed": "تغيّرت الحالة",
       "document_uploaded": "تم رفع مستند",
       "new_message": "رسالة جديدة"
+    },
+    "documentCategory": {
+      "certification": "شهادة / مؤهل",
+      "id_document": "وثيقة هوية",
+      "vaccination": "إثبات تطعيم",
+      "contract": "عقد",
+      "other": "أخرى"
     }
   },
   "notifications": {
@@ -452,6 +504,9 @@
     "emailInUse": "هذا البريد الإلكتروني مستخدم بالفعل.",
     "password": "كلمة المرور",
     "passwordHint": "12 حرفًا على الأقل.",
+    "generatePassword": "توليد كلمة مرور",
+    "copyPassword": "نسخ كلمة المرور",
+    "passwordCopied": "تم نسخ كلمة المرور.",
     "newPassword": "كلمة مرور جديدة",
     "resetPassword": "إعادة تعيين كلمة المرور",
     "passwordReset": "تمت إعادة تعيين كلمة المرور.",

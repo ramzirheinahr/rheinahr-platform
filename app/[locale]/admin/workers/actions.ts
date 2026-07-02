@@ -42,8 +42,39 @@ function parseProfile(formData: FormData) {
     phone: formData.get("phone") || undefined,
     address: formData.get("address") || undefined,
     certifications: parseList(formData.get("certifications")),
+    skills: parseList(formData.get("skills")),
     languages: formData.getAll("languages").map(String),
+    birthDate: formData.get("birthDate") || undefined,
+    birthPlace: formData.get("birthPlace") || undefined,
+    nationality: formData.get("nationality") || undefined,
+    socialSecurityNumber: formData.get("socialSecurityNumber") || undefined,
+    bio: formData.get("bio") || undefined,
+    yearsExperience: formData.get("yearsExperience") || undefined,
+    employedSince: formData.get("employedSince") || undefined,
   });
+}
+
+// Map validated profile input to Prisma columns. Empty optionals become null so
+// clearing a field in the form actually clears it on update.
+type ProfileInput = ReturnType<typeof workerSchema.parse>;
+function toWorkerColumns(d: ProfileInput) {
+  return {
+    fullName: d.fullName,
+    qualification: d.qualification,
+    contractType: d.contractType,
+    certifications: d.certifications,
+    skills: d.skills,
+    languages: d.languages,
+    phone: d.phone ?? null,
+    address: d.address ?? null,
+    birthDate: d.birthDate ?? null,
+    birthPlace: d.birthPlace ?? null,
+    nationality: d.nationality ?? null,
+    socialSecurityNumber: d.socialSecurityNumber ?? null,
+    bio: d.bio ?? null,
+    yearsExperience: d.yearsExperience ?? null,
+    employedSince: d.employedSince ?? null,
+  };
 }
 
 // Creating a worker provisions their login in the same step: Supabase Auth
@@ -97,16 +128,7 @@ export async function createWorker(formData: FormData): Promise<ActionState> {
         },
       });
       await tx.worker.create({
-        data: {
-          userId: authId,
-          fullName: data.fullName,
-          qualification: data.qualification,
-          contractType: data.contractType,
-          certifications: data.certifications,
-          languages: data.languages,
-          phone: data.phone,
-          address: data.address,
-        },
+        data: { userId: authId, ...toWorkerColumns(data) },
       });
     });
   } catch {
@@ -144,13 +166,7 @@ export async function updateWorker(
   await prisma.worker.update({
     where: { id },
     data: {
-      fullName: data.fullName,
-      qualification: data.qualification,
-      contractType: data.contractType,
-      certifications: data.certifications,
-      languages: data.languages,
-      phone: data.phone,
-      address: data.address,
+      ...toWorkerColumns(data),
       // Keep the account display name in sync with the profile.
       user: { update: { fullName: data.fullName } },
     },

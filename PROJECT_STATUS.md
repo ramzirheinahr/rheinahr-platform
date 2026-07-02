@@ -62,6 +62,20 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
 
 ## 6. Feature inventory (built)
 - Auth/RBAC · **worker** & **client** modules with account management folded in (§4).
+- **Rich worker profiles** (2026‑07): personal/HR fields (birthDate, birthPlace,
+  nationality [ISO‑3166 code], socialSecurityNumber — all sensitive, admin‑only),
+  professional fields (bio/Kurzprofil, skills[], yearsExperience, employedSince),
+  **profile photo** + **certificate/ID/vaccination documents** (new `WorkerDocument`
+  model + private `worker-files` Storage bucket, signed‑URL API routes
+  `/api/workers/[id]/photo` & `/api/worker-documents/[id]`, admin‑verifiable).
+  Spoken **languages = all world languages** (ISO‑639 codes, DE/EN/AR pinned;
+  labels via `Intl.DisplayNames`, no hand tables — `lib/languages.ts`,
+  `lib/countries.ts`, searchable `components/ui/combobox.tsx`). Worker `languages`
+  column migrated `Language[]`→`text[]` (data preserved). Worker self‑service at
+  `/worker/documents`. **Client‑facing profile** `/client/workers/[id]` (access‑gated:
+  client must have an assignment with the worker; data‑minimized, no SV‑Nr/birthdate);
+  admin preview at `/admin/workers/[id]/profile`; linked from client confirmations
+  and the worker edit page.
 - **Qualifications** (2026‑07): merged to 4 — `pflegefachkraft` (absorbed
   `altenpfleger` + `gesundheitspfleger`; AR label „مؤهل رعاية", EN "Qualified care
   professional"), `pflegehelfer`, `betreuungskraft`, `pflegedienstleitung`. DB rows
@@ -104,10 +118,12 @@ pages + `worker-create-form`/`client-create-form`/`account-section` components +
 `app/[locale]/admin/account-actions.ts`; edited workers/clients actions & pages, admin
 nav, `lib/{validations,pricing,invoicing}.ts`, `messages/*`, `prisma/schema.prisma`,
 `scripts/seed-demo.mjs`.
-- **Production DB already migrated**: rows remapped (`altenpfleger`/`gesundheitspfleger`
-  → `pflegefachkraft`) then `prisma db push --accept-data-loss` dropped the two enum
-  values. ⚠️ The **deployed** code still offers the old values until this is pushed —
-  selecting them there will fail; push soon.
+- **Production DB already migrated**: (a) qualification rows remapped
+  (`altenpfleger`/`gesundheitspfleger` → `pflegefachkraft`) + enum values dropped;
+  (b) worker profile fields + `worker_documents` table added; `workers.languages`
+  cast `Language[]`→`text[]` (values preserved). Private `worker-files` Storage bucket
+  created (`npm run db:storage`). ⚠️ The **deployed** code still offers the old
+  qualification values until this is pushed — push soon.
 - Verified locally: tests + clean build pass; authed smoke test — `/admin/accounts` 404,
   new/edit pages render (incl. AR), AccountSection on worker & client edit pages.
 - **Next action:** after review, `git add -A && git commit && git push origin main`

@@ -25,6 +25,16 @@ export const contractTypes = [
   "werkstudent",
 ] as const;
 
+// Worker document categories (subset of the Prisma DocumentCategory enum that
+// applies to worker uploads — service_confirmation is produced elsewhere).
+export const documentCategories = [
+  "certification",
+  "id_document",
+  "vaccination",
+  "contract",
+  "other",
+] as const;
+
 export const locales = ["de", "en", "ar"] as const;
 
 // Roles a super_admin may assign. (super_admin itself is provisioned via seed.)
@@ -90,14 +100,35 @@ export const orderRequestSchema = z.object({
 export type OrderShiftInput = z.infer<typeof orderShiftSchema>;
 export type OrderRequestInput = z.infer<typeof orderRequestSchema>;
 
+// Empty form values arrive as "" — treat them as "not provided".
+const optionalDate = z.preprocess(
+  (v) => (v ? v : undefined),
+  z.coerce.date().optional(),
+);
+const optionalInt = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : v),
+  z.coerce.number().int().min(0).max(80).optional(),
+);
+
 export const workerSchema = z.object({
   fullName: z.string().min(2).max(120),
   qualification: z.enum(qualifications),
   contractType: z.enum(contractTypes),
   certifications: z.array(z.string().max(120)).default([]),
-  languages: z.array(z.enum(locales)).default([]),
+  skills: z.array(z.string().max(80)).default([]),
+  // Spoken languages as ISO 639-1 codes (any world language).
+  languages: z.array(z.string().min(2).max(10)).default([]),
   phone: z.string().max(40).optional(),
   address: z.string().max(240).optional(),
+  // Personal / HR (sensitive — admin only).
+  birthDate: optionalDate,
+  birthPlace: z.string().max(120).optional(),
+  nationality: z.string().length(2).optional(), // ISO 3166-1 alpha-2
+  socialSecurityNumber: z.string().max(40).optional(),
+  // Professional profile.
+  bio: z.string().max(2000).optional(),
+  yearsExperience: optionalInt,
+  employedSince: optionalDate,
 });
 
 export const clientSchema = z.object({

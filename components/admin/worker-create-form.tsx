@@ -14,18 +14,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { qualifications, contractTypes, locales } from "@/lib/validations";
+import { qualifications, contractTypes } from "@/lib/validations";
+import { PasswordField } from "@/components/admin/password-field";
+import { LanguageSelect } from "@/components/admin/language-select";
+import { NationalitySelect } from "@/components/admin/nationality-select";
 import { createWorker } from "@/app/[locale]/admin/workers/actions";
+
+const textareaClass =
+  "flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 // Creates a worker together with their login account (super_admin only) —
 // profile and credentials in one step, no separate accounts page.
-export function WorkerCreateForm() {
+export function WorkerCreateForm({
+  initialQualification,
+}: {
+  initialQualification?: string;
+}) {
   const t = useTranslations("workers");
   const ta = useTranslations("accounts");
   const c = useTranslations("common");
   const eq = useTranslations("enums.qualification");
   const ec = useTranslations("enums.contractType");
-  const el = useTranslations("enums.language");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -59,21 +68,16 @@ export function WorkerCreateForm() {
 
       <div className="space-y-2">
         <Label htmlFor="password">{ta("password")}</Label>
-        <Input
-          id="password"
-          name="password"
-          type="text"
-          minLength={12}
-          placeholder={ta("passwordHint")}
-          required
-          className="sm:max-w-sm"
-        />
+        <PasswordField placeholder={ta("passwordHint")} />
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>{t("qualification")}</Label>
-          <Select name="qualification" defaultValue={qualifications[0]}>
+          <Select
+            name="qualification"
+            defaultValue={initialQualification ?? qualifications[0]}
+          >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -103,6 +107,29 @@ export function WorkerCreateForm() {
         </div>
       </div>
 
+      {/* Personal / HR data — sensitive, admin-only, never shown to clients. */}
+      <fieldset className="space-y-5 rounded-lg border p-4">
+        <legend className="px-1 text-sm font-medium">{t("personalSection")}</legend>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="birthDate">{t("birthDate")}</Label>
+            <Input id="birthDate" name="birthDate" type="date" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="birthPlace">{t("birthPlace")}</Label>
+            <Input id="birthPlace" name="birthPlace" />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("nationality")}</Label>
+            <NationalitySelect />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="socialSecurityNumber">{t("socialSecurityNumber")}</Label>
+            <Input id="socialSecurityNumber" name="socialSecurityNumber" />
+          </div>
+        </div>
+      </fieldset>
+
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="phone">{t("phone")}</Label>
@@ -114,31 +141,53 @@ export function WorkerCreateForm() {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="certifications">{t("certifications")}</Label>
-        <Input
-          id="certifications"
-          name="certifications"
-          placeholder={t("certificationsHint")}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label>{t("languages")}</Label>
-        <div className="flex flex-wrap gap-4">
-          {locales.map((l) => (
-            <label key={l} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="languages"
-                value={l}
-                className="size-4 accent-primary"
-              />
-              {el(l)}
-            </label>
-          ))}
+      {/* Professional profile — may be shown to clients. */}
+      <fieldset className="space-y-5 rounded-lg border p-4">
+        <legend className="px-1 text-sm font-medium">{t("profileSection")}</legend>
+        <div className="space-y-2">
+          <Label>{t("languages")}</Label>
+          <LanguageSelect />
         </div>
-      </div>
+        <div className="space-y-2">
+          <Label htmlFor="skills">{t("skills")}</Label>
+          <Input id="skills" name="skills" placeholder={t("skillsHint")} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="certifications">{t("certifications")}</Label>
+          <Input
+            id="certifications"
+            name="certifications"
+            placeholder={t("certificationsHint")}
+          />
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="yearsExperience">{t("yearsExperience")}</Label>
+            <Input
+              id="yearsExperience"
+              name="yearsExperience"
+              type="number"
+              min={0}
+              max={80}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="employedSince">{t("employedSince")}</Label>
+            <Input id="employedSince" name="employedSince" type="date" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="bio">{t("bio")}</Label>
+          <textarea
+            id="bio"
+            name="bio"
+            className={textareaClass}
+            placeholder={t("bioHint")}
+          />
+        </div>
+      </fieldset>
+
+      <p className="text-xs text-muted-foreground">{t("uploadsHint")}</p>
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

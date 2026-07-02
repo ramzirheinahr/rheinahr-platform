@@ -159,16 +159,48 @@ model Worker {
   contractType   ContractType  @map("contract_type")
   phone          String?
   address        String?
-  languages      Language[]    @default([])
+  // Languages spoken by the worker as ISO 639-1 codes (any world language).
+  // Decoupled from the UI-locale enum (User.preferredLanguage stays de/en/ar).
+  languages      String[]      @default([])
+  // Personal / HR data (sensitive PII — admin-only, never exposed to clients).
+  birthDate            DateTime? @map("birth_date") @db.Date
+  birthPlace           String?   @map("birth_place")
+  nationality          String?   // ISO 3166-1 alpha-2 country code
+  socialSecurityNumber String?   @map("social_security_number") // Sozialversicherungsnummer
+  // Professional profile (may be shown to clients).
+  photoPath       String?  @map("photo_path") // Storage path in the worker-files bucket
+  bio             String?  // Kurzprofil shown to clients
+  skills          String[] @default([]) // specializations (Demenz, Palliativ, …)
+  yearsExperience Int?     @map("years_experience")
+  employedSince   DateTime? @map("employed_since") @db.Date
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
   user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   availability WorkerAvailability[]
   assignments  Assignment[]
+  documents    WorkerDocument[]
 
   @@index([qualification])
   @@map("workers")
+}
+
+// Uploaded worker files (certificates, ID, vaccination proof …) stored in the
+// private worker-files bucket; `filePath` is the storage key, served via a
+// short-lived signed URL. `verified` is toggled by an admin after review.
+model WorkerDocument {
+  id         String           @id @default(uuid())
+  workerId   String           @map("worker_id")
+  category   DocumentCategory
+  fileName   String           @map("file_name")
+  filePath   String           @map("file_path")
+  verified   Boolean          @default(false)
+  uploadedAt DateTime         @default(now()) @map("uploaded_at")
+
+  worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([workerId])
+  @@map("worker_documents")
 }
 
 // Unavailability blocks. A whole-day block has null start/end; otherwise the

@@ -21,7 +21,8 @@
     "confirm": "Bestätigen",
     "search": "Suchen",
     "none": "—",
-    "exportData": "Meine Daten exportieren"
+    "exportData": "Meine Daten exportieren",
+    "view": "Ansehen"
   },
   "landing": {
     "nav": {
@@ -159,6 +160,7 @@
   "workers": {
     "title": "Pflegekräfte",
     "new": "Neue Pflegekraft",
+    "allTypes": "Alle Typen",
     "editTitle": "Pflegekraft bearbeiten",
     "empty": "Noch keine Pflegekräfte angelegt.",
     "fullName": "Vollständiger Name",
@@ -175,7 +177,50 @@
     "deleted": "Fachkraft wurde gelöscht.",
     "deleteConfirm": "Diese Fachkraft endgültig löschen? (DSGVO-Löschung)",
     "saveError": "Speichern fehlgeschlagen. Bitte Eingaben prüfen.",
-    "emailInUse": "Diese E-Mail wird bereits verwendet."
+    "emailInUse": "Diese E-Mail wird bereits verwendet.",
+    "languagesPlaceholder": "Sprachen auswählen…",
+    "searchLanguage": "Sprache suchen…",
+    "noResults": "Keine Treffer",
+    "nationalityPlaceholder": "Staatsangehörigkeit auswählen…",
+    "searchCountry": "Land suchen…",
+    "personalSection": "Persönliche Daten",
+    "birthDate": "Geburtsdatum",
+    "birthPlace": "Geburtsort",
+    "nationality": "Staatsangehörigkeit",
+    "socialSecurityNumber": "Sozialversicherungsnummer",
+    "profileSection": "Berufsprofil",
+    "skills": "Fähigkeiten / Spezialisierungen",
+    "skillsHint": "Kommagetrennt, z. B. Demenzbetreuung, Palliativpflege",
+    "yearsExperience": "Berufserfahrung (Jahre)",
+    "employedSince": "Bei RheinAhr seit",
+    "bio": "Kurzprofil",
+    "bioHint": "Kurze Vorstellung für Kunden",
+    "uploadsHint": "Foto und Dokumente können nach dem Anlegen hochgeladen werden.",
+    "photoHint": "JPG, PNG oder WebP, max. 10 MB.",
+    "uploadPhoto": "Foto hochladen",
+    "photoUploaded": "Foto hochgeladen.",
+    "photoDeleted": "Foto entfernt.",
+    "documentsSection": "Dokumente",
+    "documentCategory": "Kategorie",
+    "uploadDocument": "Dokument hochladen",
+    "noDocuments": "Noch keine Dokumente.",
+    "documentUploaded": "Dokument hochgeladen.",
+    "documentDeleted": "Dokument gelöscht.",
+    "verified": "Geprüft",
+    "unverified": "Ungeprüft",
+    "verify": "Prüfen",
+    "unverify": "Prüfung zurücknehmen",
+    "fileType": "Dateityp nicht erlaubt.",
+    "fileTooLarge": "Datei zu groß (max. 10 MB).",
+    "fileRequired": "Bitte eine Datei auswählen.",
+    "forbidden": "Keine Berechtigung.",
+    "workerDocumentsHint": "Laden Sie Ihre Zertifikate, Ihren Ausweis und Impfnachweise hoch.",
+    "noWorkerProfile": "Kein Mitarbeiterprofil gefunden.",
+    "documentsVerifiedBadge": "Dokumente geprüft",
+    "yearsCount": "{count} Jahre",
+    "viewProfile": "Profil ansehen",
+    "profilePreviewTitle": "Profilvorschau",
+    "profilePreviewHint": "So sehen Kunden das Profil dieses Mitarbeiters."
   },
   "clients": {
     "title": "Einrichtungen",
@@ -372,6 +417,13 @@
       "order_status_changed": "Status geändert",
       "document_uploaded": "Dokument hochgeladen",
       "new_message": "Neue Nachricht"
+    },
+    "documentCategory": {
+      "certification": "Zertifikat / Qualifikation",
+      "id_document": "Ausweis",
+      "vaccination": "Impfnachweis",
+      "contract": "Vertrag",
+      "other": "Sonstiges"
     }
   },
   "notifications": {
@@ -452,6 +504,9 @@
     "emailInUse": "Diese E-Mail wird bereits verwendet.",
     "password": "Passwort",
     "passwordHint": "Mindestens 12 Zeichen.",
+    "generatePassword": "Passwort erzeugen",
+    "copyPassword": "Passwort kopieren",
+    "passwordCopied": "Passwort kopiert.",
     "newPassword": "Neues Passwort",
     "resetPassword": "Passwort zurücksetzen",
     "passwordReset": "Passwort wurde zurückgesetzt.",

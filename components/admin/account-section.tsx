@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { UserRound } from "lucide-react";
+import { PasswordField } from "@/components/admin/password-field";
 import { AccountAccessLink } from "@/components/admin/account-access-link";
 import {
   resetAccountPassword,
@@ -128,20 +129,14 @@ export function AccountSection({
 
       <form onSubmit={onResetPassword} className="space-y-3">
         <Label htmlFor="password">{t("newPassword")}</Label>
-        <div className="flex flex-wrap gap-3">
-          <Input
-            id="password"
-            name="password"
-            type="text"
-            minLength={12}
-            placeholder={t("passwordHint")}
-            required
-            className="max-w-sm"
-          />
-          <Button type="submit" variant="secondary" disabled={pwPending}>
-            {t("resetPassword")}
-          </Button>
-        </div>
+        <PasswordField
+          placeholder={t("passwordHint")}
+          trailing={
+            <Button type="submit" disabled={pwPending}>
+              {t("resetPassword")}
+            </Button>
+          }
+        />
       </form>
 
       <Separator />
