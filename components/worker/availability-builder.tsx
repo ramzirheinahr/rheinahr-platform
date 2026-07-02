@@ -9,9 +9,22 @@ import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
 import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
 import { Save, Plus, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { AssignmentActions } from "@/components/worker/assignment-actions";
 
 type BType = "none" | "full" | "early" | "late" | "night" | "custom";
 type Block = { type: BType; start: string; end: string };
+
+export type Assignment = {
+  id: string;
+  status: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  notes: string | null;
+  facilityName: string;
+  address: string | null;
+};
 
 export type InitialBlock = { date: string; startTime: string | null; endTime: string | null };
 
@@ -37,21 +50,21 @@ export function AvailabilityBuilder({
   year,
   month,
   initialBlocks,
-  assignedDates,
+  assignments = [],
 }: {
   year: number;
   month: number;
   initialBlocks: InitialBlock[];
-  assignedDates: string[];
+  assignments?: Assignment[];
 }) {
   const t = useTranslations("availability");
   const oq = useTranslations("orderRequest");
   const c = useTranslations("common");
+  const eas = useTranslations("enums.assignmentStatus");
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  const assigned = useMemo(() => new Set(assignedDates), [assignedDates]);
   const todayStr = new Date().toISOString().slice(0, 10);
   const holidays = useMemo(() => germanHolidays(year), [year]);
 
@@ -191,6 +204,7 @@ export function AvailabilityBuilder({
           <thead>
             <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
               <th className="p-2 text-start">Datum</th>
+              <th className="p-2 text-start">{t("shiftOrTask")}</th>
               <th className="p-2 text-start">{t("unavailable")}</th>
               <th className="p-2 text-start">{oq("von")}</th>
               <th className="p-2 text-start">{oq("bis")}</th>
@@ -201,15 +215,53 @@ export function AvailabilityBuilder({
               const rowCls = cn(d.past && "opacity-50", (d.weekend || d.holiday) && "bg-rose-500/10");
               const count = effCount(d.date);
               const extra = Array.from({ length: count - 1 }, (_, k) => k + 1);
-              const isAssigned = assigned.has(d.date);
+              const dayAssignments = (assignments || []).filter((a) => a.date === d.date);
+              let isFirstRow = true;
+
               return (
                 <Fragment key={d.date}>
+                  {dayAssignments.map((a) => {
+                    const isFirst = isFirstRow;
+                    isFirstRow = false;
+                    return (
+                      <tr key={a.id} className={cn("border-b bg-primary/5", d.past && "opacity-50")}>
+                        <td className="whitespace-nowrap p-2 font-medium">
+                          {isFirst ? (
+                            <div className="flex items-center gap-1.5">
+                              <span>{d.label}</span>
+                              {d.holiday ? <span className="text-rose-600">•</span> : null}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="p-2">
+                          <div className="font-medium text-primary">{a.facilityName}</div>
+                          {a.address ? <div className="text-xs text-muted-foreground">{a.address}</div> : null}
+                          {a.notes ? <div className="text-xs text-muted-foreground">{oq("ward")}: {a.notes}</div> : null}
+                        </td>
+                        <td className="p-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={a.status === "confirmed" ? "default" : a.status === "declined" ? "outline" : "secondary"}>
+                              {eas(a.status)}
+                            </Badge>
+                            {a.status === "pending" && !d.past ? (
+                              <AssignmentActions assignmentId={a.id} />
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="p-2 whitespace-nowrap font-medium text-primary">
+                          {a.startTime}
+                        </td>
+                        <td className="p-2 whitespace-nowrap font-medium text-primary">
+                          {a.endTime}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   <tr title={d.holiday ?? undefined} className={cn("border-b", rowCls)}>
                     <td className="whitespace-nowrap p-2 font-medium">
                       <div className="flex items-center gap-1.5">
-                        <span>{d.label}</span>
-                        {d.holiday ? <span className="text-rose-600">•</span> : null}
-                        {isAssigned ? <span className="rounded bg-primary/10 px-1 text-[10px] text-primary">{t("assigned")}</span> : null}
+                        <span className={cn(!isFirstRow && "opacity-0")}>{d.label}</span>
+                        {isFirstRow && d.holiday ? <span className="text-rose-600">•</span> : null}
                         {!d.past && count === 1 ? (
                           <button type="button" onClick={() => addSlot(d.date)} aria-label="+" className="ms-auto flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20">
                             <Plus className="size-3.5" />
@@ -217,6 +269,7 @@ export function AvailabilityBuilder({
                         ) : null}
                       </div>
                     </td>
+                    <td className="p-1"></td>
                     {TypeCells(d.date, 0)}
                   </tr>
                   {extra.map((slot) => (
@@ -235,6 +288,7 @@ export function AvailabilityBuilder({
                           ) : null}
                         </div>
                       </td>
+                      <td className="p-1"></td>
                       {TypeCells(d.date, slot)}
                     </tr>
                   ))}

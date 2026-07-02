@@ -308,6 +308,7 @@ model ServiceConfirmation {
   signatureData String?            @map("signature_data") // base64 signature image
   documentUrl   String?            @map("document_url")
   hoursWorked   Decimal?           @map("hours_worked") @db.Decimal(5, 2)
+  clientNotes   String?            @map("client_notes")
   confirmedAt   DateTime           @default(now()) @map("confirmed_at")
   ipAddress     String?            @map("ip_address")
 

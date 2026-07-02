@@ -21,7 +21,6 @@ export default async function ClientLayout({
   const nav = [
     { href: "/client", label: t("dashboard") },
     { href: "/client/orders", label: t("orders") },
-    { href: "/client/confirmations", label: t("confirmations") },
   ];
 
   return (

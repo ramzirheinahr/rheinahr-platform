@@ -40,7 +40,7 @@ export default async function ClientWorkerProfilePage({
         variant="ghost"
         size="sm"
         className="gap-2"
-        render={<Link href="/client/confirmations" />}
+        render={<Link href="/client/orders" />}
       >
         <ArrowLeft className="size-4" />
         {c("back")}

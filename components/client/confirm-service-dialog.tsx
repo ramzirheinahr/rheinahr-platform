@@ -16,9 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { SignaturePadField } from "@/components/client/signature-pad-field";
 import { FileSignature } from "lucide-react";
-import { confirmService } from "@/app/[locale]/client/confirmations/actions";
+import { confirmService } from "@/app/[locale]/client/orders/actions";
 
 export function ConfirmServiceDialog({ assignmentId }: { assignmentId: string }) {
   const t = useTranslations("confirmations");
@@ -75,6 +76,17 @@ export function ConfirmServiceDialog({ assignmentId }: { assignmentId: string })
               max={24}
               required
               className="max-w-32"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="clientNotes">{t("clientNotes")}</Label>
+            <Textarea
+              id="clientNotes"
+              name="clientNotes"
+              placeholder={t("clientNotesPlaceholder")}
+              className="resize-none"
+              rows={3}
             />
           </div>
 

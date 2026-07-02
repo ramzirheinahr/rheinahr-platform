@@ -169,6 +169,7 @@ export const serviceConfirmationSchema = z
     assignmentId: z.string().uuid(),
     method: z.enum(confirmationMethods),
     hoursWorked: z.coerce.number().min(0).max(24),
+    clientNotes: z.string().max(2000).optional(),
     // Method A: base64 PNG from the signature pad.
     signatureData: z.string().startsWith("data:image/").optional(),
   })

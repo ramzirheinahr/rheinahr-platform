@@ -14,8 +14,9 @@ import {
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AssignWorkerButton } from "@/components/admin/assign-worker-button";
+import { ConfirmServiceDialog } from "@/components/client/confirm-service-dialog";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, MessageSquare, Users } from "lucide-react";
+import { CheckCircle2, MessageSquare, Users, UserRound } from "lucide-react";
 import type { AssignmentStatus, OrderStatus } from "@prisma/client";
 
 // Per-shift pipeline data shown inside the request table, keyed like the
@@ -26,11 +27,18 @@ export type ShiftMeta = {
   status: OrderStatus;
   quantity: number;
   label: string; // "dd.mm.yyyy · HH:mm–HH:mm" dialog heading
+  isPast?: boolean;
   assignments?: {
     id: string;
-    workerName: string;
+    workerName?: string;
     status: AssignmentStatus;
-    hours: number | null;
+    hours?: number | null;
+    hasConfirmation?: boolean;
+    worker?: {
+      id: string;
+      fullName: string;
+      hasPhoto: boolean;
+    };
   }[];
   candidates?: {
     workerId: string;
@@ -60,11 +68,62 @@ export function ShiftMetaCell({
   const t = useTranslations("orders");
   const eas = useTranslations("enums.assignmentStatus");
 
-  if (!assignable) return <OrderStatusBadge status={meta.status} />;
-
   const assignments = meta.assignments ?? [];
-  const candidates = meta.candidates ?? [];
   const active = assignments.filter((a) => a.status !== "declined").length;
+
+  if (!assignable) {
+    const confirmedWorkers = assignments.filter((a) => a.status === "confirmed" && a.worker);
+    return (
+      <div className="flex flex-col gap-2 py-1">
+        <div className="flex items-center gap-2">
+          <OrderStatusBadge status={meta.status} />
+          {meta.quantity > 1 ? (
+             <span
+              className={cn(
+                "inline-flex items-center gap-1 text-xs tabular-nums font-medium",
+                active >= meta.quantity ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <Users className="size-3.5" />
+              {active}/{meta.quantity}
+            </span>
+          ) : null}
+        </div>
+        {confirmedWorkers.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {confirmedWorkers.map((a) => (
+              <div key={a.id} className="flex items-center gap-1 rounded-md border bg-muted/20 p-0.5 pr-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs font-medium"
+                  render={<Link href={`/client/workers/${a.worker!.id}`} />}
+                >
+                  <div className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
+                    {a.worker!.hasPhoto ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/api/workers/${a.worker!.id}/photo`} alt="" className="size-full object-cover" />
+                    ) : (
+                      <UserRound className="size-3 text-muted-foreground" />
+                    )}
+                  </div>
+                  {a.worker!.fullName}
+                </Button>
+                {meta.isPast && !a.hasConfirmation && (
+                  <ConfirmServiceDialog assignmentId={a.id} />
+                )}
+                {meta.isPast && a.hasConfirmation && (
+                  <CheckCircle2 className="size-4 text-primary" />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const candidates = meta.candidates ?? [];
   const wLabel = {
     available: t("wAvailable"),
     busy: t("wBusy"),

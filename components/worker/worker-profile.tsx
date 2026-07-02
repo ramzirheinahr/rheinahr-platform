@@ -1,13 +1,12 @@
 import { getTranslations, getLocale } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { UserRound, BadgeCheck, Languages, Award, Clock, CalendarDays } from "lucide-react";
+import { UserRound, BadgeCheck, Languages, Award, Clock, CalendarDays, FileText, ExternalLink } from "lucide-react";
 import { languageLabel } from "@/lib/languages";
 import type { WorkerProfileData } from "@/lib/worker-profile";
 
-// Read-only professional profile shown to clients. Deliberately excludes
-// sensitive data (birth date, nationality, social-security number, address,
-// phone) per data-minimization — those stay admin-only.
+// Professional profile shown to clients. Now includes birth date and 
+// verified certificates per the client's request.
 export async function WorkerProfile({ data }: { data: WorkerProfileData }) {
   const t = await getTranslations("workers");
   const eq = await getTranslations("enums.qualification");
@@ -99,6 +98,22 @@ export async function WorkerProfile({ data }: { data: WorkerProfileData }) {
               </dd>
             </div>
           )}
+
+          {data.birthDate && (
+            <div className="space-y-1">
+              <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <CalendarDays className="size-3.5" />
+                {t("birthDate")}
+              </dt>
+              <dd className="text-sm">
+                {new Date(data.birthDate).toLocaleDateString(locale, {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </dd>
+            </div>
+          )}
         </dl>
 
         {data.certifications.length > 0 && (
@@ -113,6 +128,30 @@ export async function WorkerProfile({ data }: { data: WorkerProfileData }) {
                 </Badge>
               ))}
             </div>
+          </div>
+        )}
+
+        {data.verifiedCertificates && data.verifiedCertificates.length > 0 && (
+          <div className="space-y-2 pt-2 border-t">
+            <p className="text-xs font-medium text-muted-foreground">
+              {t("documentsSection")} ({t("documentsVerifiedBadge")})
+            </p>
+            <ul className="space-y-1.5">
+              {data.verifiedCertificates.map((doc) => (
+                <li key={doc.id} className="flex items-center gap-2 text-sm text-primary">
+                  <FileText className="size-4 shrink-0 text-muted-foreground" />
+                  <a
+                    href={`/api/worker-documents/${doc.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline flex items-center gap-1"
+                  >
+                    {doc.fileName}
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </CardContent>

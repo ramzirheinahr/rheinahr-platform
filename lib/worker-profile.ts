@@ -14,6 +14,8 @@ export type WorkerProfileData = {
   bio: string | null;
   hasPhoto: boolean;
   verifiedCertCount: number;
+  birthDate: Date | null;
+  verifiedCertificates: { id: string; fileName: string }[];
 };
 
 export async function getWorkerProfileData(
@@ -33,9 +35,10 @@ export async function getWorkerProfileData(
         employedSince: true,
         bio: true,
         photoPath: true,
+        birthDate: true,
         documents: {
-          where: { verified: true, category: "certification" },
-          select: { id: true },
+          where: { verified: true },
+          select: { id: true, fileName: true },
         },
       },
     })
@@ -54,5 +57,7 @@ export async function getWorkerProfileData(
     bio: w.bio,
     hasPhoto: !!w.photoPath,
     verifiedCertCount: w.documents.length,
+    birthDate: w.birthDate,
+    verifiedCertificates: w.documents,
   };
 }

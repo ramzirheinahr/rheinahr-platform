@@ -52,6 +52,16 @@ export default async function ClientRequestDetail({
       quantity: true,
       notes: true,
       status: true,
+      assignments: {
+        select: {
+          id: true,
+          status: true,
+          serviceConfirmation: { select: { id: true } },
+          worker: {
+            select: { id: true, fullName: true, photoPath: true },
+          },
+        },
+      },
     },
   });
   if (orders.length === 0) notFound();
@@ -80,11 +90,27 @@ export default async function ClientRequestDetail({
     const date = d(o.shiftDate);
     const slot = slotByDate[date] ?? 0;
     slotByDate[date] = slot + 1;
+    const [eh, em] = o.endTime.split(":").map(Number);
+    const endDateTime = new Date(o.shiftDate);
+    endDateTime.setUTCHours(eh, em, 0, 0);
+    const isPast = Date.now() > endDateTime.getTime();
+
     shiftMeta[`${date}:${slot}`] = {
       orderId: o.id,
       status: o.status,
       quantity: o.quantity,
       label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
+      isPast,
+      assignments: o.assignments.map((a) => ({
+        id: a.id,
+        status: a.status,
+        hasConfirmation: !!a.serviceConfirmation,
+        worker: {
+          id: a.worker.id,
+          fullName: a.worker.fullName,
+          hasPhoto: !!a.worker.photoPath,
+        },
+      })),
     };
   }
 

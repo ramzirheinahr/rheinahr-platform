@@ -17,12 +17,19 @@ export async function GET(
 
   const doc = await prisma.workerDocument.findUnique({
     where: { id },
-    select: { filePath: true, worker: { select: { userId: true } } },
+    select: { filePath: true, workerId: true, worker: { select: { userId: true } } },
   });
   if (!doc) return new NextResponse("Not found", { status: 404 });
 
-  const allowed =
+  let allowed =
     roleSatisfies(user.role, ["admin"]) || doc.worker.userId === user.id;
+  if (!allowed && user.role === "client") {
+    const link = await prisma.assignment.findFirst({
+      where: { workerId: doc.workerId, order: { client: { userId: user.id } } },
+      select: { id: true },
+    });
+    allowed = !!link;
+  }
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
   const supabase = createSupabaseAdminClient();
