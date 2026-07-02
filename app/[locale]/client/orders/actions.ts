@@ -360,3 +360,17 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   revalidatePath(`/admin/orders/${assignment.order.id}`);
   return { ok: true };
 }
+
+export async function getWorkerProfilePreview(workerId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "client") return null;
+
+  const link = await prisma.assignment.findFirst({
+    where: { workerId, order: { client: { userId: user.id } } },
+    select: { id: true },
+  });
+  if (!link) return null;
+
+  const { getWorkerProfileData } = await import("@/lib/worker-profile");
+  return getWorkerProfileData(workerId);
+}

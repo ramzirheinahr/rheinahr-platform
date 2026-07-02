@@ -172,10 +172,6 @@ export const serviceConfirmationSchema = z
     clientNotes: z.string().max(2000).optional(),
     // Method A: base64 PNG from the signature pad.
     signatureData: z.string().startsWith("data:image/").optional(),
-  })
-  .refine((v) => v.method !== "electronic" || !!v.signatureData, {
-    message: "signatureRequired",
-    path: ["signatureData"],
   });
 
 export type ServiceConfirmationInput = z.infer<typeof serviceConfirmationSchema>;

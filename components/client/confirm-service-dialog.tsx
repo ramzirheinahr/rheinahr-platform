@@ -12,26 +12,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { SignaturePadField } from "@/components/client/signature-pad-field";
 import { FileSignature } from "lucide-react";
 import { confirmService } from "@/app/[locale]/client/orders/actions";
 
-export function ConfirmServiceDialog({ assignmentId }: { assignmentId: string }) {
+export function ConfirmServiceDialog({ assignmentId, scheduledHours }: { assignmentId: string; scheduledHours: number }) {
   const t = useTranslations("confirmations");
   const c = useTranslations("common");
   const [open, setOpen] = useState(false);
-  const [method, setMethod] = useState<"electronic" | "upload">("electronic");
   const [pending, startTransition] = useTransition();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    formData.set("method", method);
+    formData.set("method", "electronic");
     startTransition(async () => {
       const res = await confirmService(formData);
       if (res.ok) {
@@ -75,6 +72,7 @@ export function ConfirmServiceDialog({ assignmentId }: { assignmentId: string })
               min={0}
               max={24}
               required
+              defaultValue={scheduledHours}
               className="max-w-32"
             />
           </div>
@@ -90,26 +88,7 @@ export function ConfirmServiceDialog({ assignmentId }: { assignmentId: string })
             />
           </div>
 
-          <Tabs
-            value={method}
-            onValueChange={(v) => setMethod(v as "electronic" | "upload")}
-          >
-            <TabsList className="w-full">
-              <TabsTrigger value="electronic">{t("methodElectronic")}</TabsTrigger>
-              <TabsTrigger value="upload">{t("methodUpload")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="electronic" className="pt-3">
-              <SignaturePadField name="signatureData" />
-            </TabsContent>
-            <TabsContent value="upload" className="pt-3">
-              <Input
-                name="document"
-                type="file"
-                accept="image/png,image/jpeg,application/pdf"
-              />
-              <p className="mt-2 text-xs text-muted-foreground">{t("uploadHint")}</p>
-            </TabsContent>
-          </Tabs>
+
 
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? c("loading") : t("confirm")}

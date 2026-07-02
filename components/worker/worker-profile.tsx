@@ -1,4 +1,6 @@
-import { getTranslations, getLocale } from "next-intl/server";
+"use client";
+
+import { useTranslations, useLocale } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserRound, BadgeCheck, Languages, Award, Clock, CalendarDays, FileText, ExternalLink } from "lucide-react";
@@ -7,10 +9,10 @@ import type { WorkerProfileData } from "@/lib/worker-profile";
 
 // Professional profile shown to clients. Now includes birth date and 
 // verified certificates per the client's request.
-export async function WorkerProfile({ data }: { data: WorkerProfileData }) {
-  const t = await getTranslations("workers");
-  const eq = await getTranslations("enums.qualification");
-  const locale = await getLocale();
+export function WorkerProfile({ data }: { data: WorkerProfileData }) {
+  const t = useTranslations("workers");
+  const eq = useTranslations("enums.qualification");
+  const locale = useLocale();
 
   return (
     <Card>

@@ -275,6 +275,7 @@
     "wOff": "Nicht verfügbar",
     "assign": "Zuweisen",
     "assigned": "Fachkraft wurde zugewiesen.",
+    "shiftFull": "Diese Schicht ist bereits vollständig belegt.",
     "saveError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
     "myAssignments": "Meine Einsätze",
     "noAssignments": "Keine Einsätze vorhanden.",

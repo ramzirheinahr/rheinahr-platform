@@ -34,44 +34,63 @@ export async function respondAssignment(
     return { ok: false, error: "forbidden" };
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.assignment.update({
-      where: { id: assignmentId },
-      data: {
-        status: accept ? "confirmed" : "declined",
-        confirmedAt: accept ? new Date() : null,
-      },
-    });
-
-    if (accept) {
-      await tx.order.update({
-        where: { id: assignment.order.id },
-        data: { status: "accepted" },
-      });
-      // Notify the client (CLAUDE.md §8 "Worker confirms").
-      const recipients = await tx.user.findMany({
-        where: {
-          OR: [
-            { id: assignment.order.client.userId },
-            { role: { in: ["admin", "super_admin"] }, active: true },
-          ],
-        },
-        select: { id: true },
-      });
-      if (recipients.length) {
-        await tx.notification.createMany({
-          data: recipients.map((r) => ({
-            userId: r.id,
-            type: "worker_confirmed" as const,
-            channel: "in_app" as const,
-            content: `${assignment.worker.fullName}: ${assignment.order.shiftDate
-              .toISOString()
-              .slice(0, 10)} ${assignment.order.startTime}–${assignment.order.endTime}`,
-          })),
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (accept) {
+        const orderData = await tx.order.findUnique({
+          where: { id: assignment.order.id },
+          select: {
+            quantity: true,
+            _count: { select: { assignments: { where: { status: "confirmed" } } } },
+          },
         });
+        if (!orderData || orderData._count.assignments >= orderData.quantity) {
+          throw new Error("shiftFull");
+        }
       }
+
+      await tx.assignment.update({
+        where: { id: assignmentId },
+        data: {
+          status: accept ? "confirmed" : "declined",
+          confirmedAt: accept ? new Date() : null,
+        },
+      });
+
+      if (accept) {
+        await tx.order.update({
+          where: { id: assignment.order.id },
+          data: { status: "accepted" },
+        });
+        const recipients = await tx.user.findMany({
+          where: {
+            OR: [
+              { id: assignment.order.client.userId },
+              { role: { in: ["admin", "super_admin"] }, active: true },
+            ],
+          },
+          select: { id: true },
+        });
+        if (recipients.length) {
+          await tx.notification.createMany({
+            data: recipients.map((r) => ({
+              userId: r.id,
+              type: "worker_confirmed" as const,
+              channel: "in_app" as const,
+              content: `${assignment.worker.fullName}: ${assignment.order.shiftDate
+                .toISOString()
+                .slice(0, 10)} ${assignment.order.startTime}–${assignment.order.endTime}`,
+            })),
+          });
+        }
+      }
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "shiftFull") {
+      return { ok: false, error: "shiftFull" };
     }
-  });
+    return { ok: false, error: "saveError" };
+  }
 
   await audit({
     userId: user.id,

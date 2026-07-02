@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { isRequestEditable } from "@/lib/orders";
-import { resolveSurcharges } from "@/lib/pricing";
+import { resolveSurcharges, netShiftHours } from "@/lib/pricing";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
@@ -94,6 +94,7 @@ export default async function ClientRequestDetail({
     const endDateTime = new Date(o.shiftDate);
     endDateTime.setUTCHours(eh, em, 0, 0);
     const isPast = Date.now() > endDateTime.getTime();
+    const scheduledHours = netShiftHours(o.startTime, o.endTime);
 
     shiftMeta[`${date}:${slot}`] = {
       orderId: o.id,
@@ -101,6 +102,7 @@ export default async function ClientRequestDetail({
       quantity: o.quantity,
       label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
       isPast,
+      scheduledHours,
       assignments: o.assignments.map((a) => ({
         id: a.id,
         status: a.status,

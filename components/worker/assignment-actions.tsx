@@ -20,7 +20,7 @@ export function AssignmentActions({ assignmentId }: { assignmentId: string }) {
         toast.success(accept ? t("accepted") : t("declined"));
         router.refresh();
       } else {
-        toast.error(t("saveError"));
+        toast.error(res.error === "shiftFull" ? t("shiftFull") : t("saveError"));
       }
     });
   }

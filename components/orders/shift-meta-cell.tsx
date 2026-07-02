@@ -15,6 +15,7 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AssignWorkerButton } from "@/components/admin/assign-worker-button";
 import { ConfirmServiceDialog } from "@/components/client/confirm-service-dialog";
+import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, MessageSquare, Users, UserRound } from "lucide-react";
 import type { AssignmentStatus, OrderStatus } from "@prisma/client";
@@ -28,6 +29,7 @@ export type ShiftMeta = {
   quantity: number;
   label: string; // "dd.mm.yyyy · HH:mm–HH:mm" dialog heading
   isPast?: boolean;
+  scheduledHours?: number;
   assignments?: {
     id: string;
     workerName?: string;
@@ -93,24 +95,25 @@ export function ShiftMetaCell({
           <div className="flex flex-wrap gap-1.5 mt-2">
             {confirmedWorkers.map((a) => (
               <div key={a.id} className="flex items-center gap-1 rounded-md border bg-muted/20 p-0.5 pr-1.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs font-medium"
-                  render={<Link href={`/client/workers/${a.worker!.id}`} />}
-                >
-                  <div className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
-                    {a.worker!.hasPhoto ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`/api/workers/${a.worker!.id}/photo`} alt="" className="size-full object-cover" />
-                    ) : (
-                      <UserRound className="size-3 text-muted-foreground" />
-                    )}
-                  </div>
-                  {a.worker!.fullName}
-                </Button>
+                <WorkerProfileDialog workerId={a.worker!.id}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1.5 px-2 text-xs font-medium"
+                  >
+                    <div className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
+                      {a.worker!.hasPhoto ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={`/api/workers/${a.worker!.id}/photo`} alt="" className="size-full object-cover" />
+                      ) : (
+                        <UserRound className="size-3 text-muted-foreground" />
+                      )}
+                    </div>
+                    {a.worker!.fullName}
+                  </Button>
+                </WorkerProfileDialog>
                 {meta.isPast && !a.hasConfirmation && (
-                  <ConfirmServiceDialog assignmentId={a.id} />
+                  <ConfirmServiceDialog assignmentId={a.id} scheduledHours={meta.scheduledHours ?? 0} />
                 )}
                 {meta.isPast && a.hasConfirmation && (
                   <CheckCircle2 className="size-4 text-primary" />
