@@ -80,7 +80,7 @@ export async function respondAssignment(
     entityId: assignmentId,
   });
 
-  revalidatePath("/worker/assignments");
+  revalidatePath("/worker");
   revalidatePath(`/admin/orders/${assignment.order.id}`);
   return { ok: true };
 }

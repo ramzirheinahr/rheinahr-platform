@@ -75,6 +75,6 @@ export async function saveAvailability(
     metadata: { year, month, blocks: clean.length },
   });
 
-  revalidatePath("/worker/availability");
+  revalidatePath("/worker");
   return { ok: true };
 }

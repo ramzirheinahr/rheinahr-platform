@@ -112,7 +112,9 @@
     "assignments": "المهام",
     "availability": "التوفر",
     "documents": "المستندات",
-    "confirmations": "إثباتات الخدمة"
+    "confirmations": "إثباتات الخدمة",
+    "schedule": "الورديات والتوفّر",
+    "scheduleSubtitle": "وافق على وردياتك وصادِق عليها، وحدّث توفّرك."
   },
   "auth": {
     "signInTitle": "تسجيل الدخول إلى حسابك",

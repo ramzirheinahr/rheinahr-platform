@@ -112,7 +112,9 @@
     "assignments": "Einsätze",
     "availability": "Verfügbarkeit",
     "documents": "Dokumente",
-    "confirmations": "Leistungsnachweise"
+    "confirmations": "Leistungsnachweise",
+    "schedule": "Einsätze & Verfügbarkeit",
+    "scheduleSubtitle": "Einsätze annehmen und bestätigen, Verfügbarkeit pflegen."
   },
   "auth": {
     "signInTitle": "Bei Ihrem Konto anmelden",

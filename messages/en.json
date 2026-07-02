@@ -112,7 +112,9 @@
     "assignments": "Assignments",
     "availability": "Availability",
     "documents": "Documents",
-    "confirmations": "Service confirmations"
+    "confirmations": "Service confirmations",
+    "schedule": "Shifts & Availability",
+    "scheduleSubtitle": "Accept and confirm your shifts, and keep your availability up to date."
   },
   "auth": {
     "signInTitle": "Sign in to your account",

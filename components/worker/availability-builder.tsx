@@ -2,13 +2,13 @@
 
 import { useMemo, useState, useTransition, Fragment } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { useRouter, Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
 import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
-import { ChevronLeft, ChevronRight, Save, Plus, X } from "lucide-react";
+import { Save, Plus, X } from "lucide-react";
 
 type BType = "none" | "full" | "early" | "late" | "night" | "custom";
 type Block = { type: BType; start: string; end: string };
@@ -144,12 +144,6 @@ export function AvailabilityBuilder({
     });
   }
 
-  const monthLabel = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(
-    new Date(Date.UTC(year, month - 1, 1)),
-  );
-  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
-  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
-
   function TypeCells(date: string, slot: number) {
     const b = get(date, slot);
     const timed = b.type !== "none" && b.type !== "full";
@@ -192,18 +186,6 @@ export function AvailabilityBuilder({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" className="gap-1" render={<Link href={`/worker/availability?year=${prev.y}&month=${prev.m}`} />}>
-          <ChevronLeft className="size-4" />
-          {t("prevMonth")}
-        </Button>
-        <span className="font-semibold">{monthLabel}</span>
-        <Button variant="ghost" size="sm" className="gap-1" render={<Link href={`/worker/availability?year=${next.y}&month=${next.m}`} />}>
-          {t("nextMonth")}
-          <ChevronRight className="size-4" />
-        </Button>
-      </div>
-
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full border-collapse text-sm">
           <thead>

@@ -19,9 +19,7 @@ export default async function WorkerLayout({
   const t = await getTranslations("portal");
 
   const nav = [
-    { href: "/worker", label: t("dashboard") },
-    { href: "/worker/assignments", label: t("assignments") },
-    { href: "/worker/availability", label: t("availability") },
+    { href: "/worker", label: t("schedule") },
     { href: "/worker/documents", label: t("documents") },
   ];
 

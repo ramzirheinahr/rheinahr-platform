@@ -56,7 +56,7 @@ export default async function WorkerAssignmentDetail({
           variant="ghost"
           size="sm"
           className="gap-2"
-          render={<Link href="/worker/assignments" />}
+          render={<Link href="/worker" />}
         >
           <ArrowLeft className="size-4" />
           {c("back")}
