@@ -13,7 +13,11 @@ import {
   createOrderRequest,
   updateOrderRequest,
 } from "@/app/[locale]/client/orders/actions";
-import { createOrderRequestForClient } from "@/app/[locale]/admin/orders/actions";
+import {
+  createOrderRequestForClient,
+  updateOrderRequestAsAdmin,
+} from "@/app/[locale]/admin/orders/actions";
+import { ShiftMetaCell, type ShiftMeta } from "@/components/orders/shift-meta-cell";
 
 export type InitialRequest = {
   requestGroupId: string;
@@ -90,6 +94,11 @@ export function OrderRequestBuilder({
   initial,
   clients,
   surcharges,
+  readOnly = false,
+  adminEdit = false,
+  backHref,
+  shiftMeta,
+  assignable = false,
 }: {
   initial?: InitialRequest;
   // When provided, the builder runs in admin mode: the admin must pick the
@@ -98,6 +107,17 @@ export function OrderRequestBuilder({
   clients?: { id: string; name: string; surcharges: Surcharges }[];
   // Client mode: the logged-in client's resolved surcharges.
   surcharges?: Surcharges;
+  // Review mode: same table shape, all inputs locked, no submit.
+  readOnly?: boolean;
+  // Admin adjusting an existing request → route the save to the admin action.
+  adminEdit?: boolean;
+  // Where "Cancel" (and, in review mode, the whole flow) returns to.
+  backHref?: string;
+  // Per-shift pipeline data keyed `${date}:${slot}` — adds a status column to
+  // the table (client review) and, with `assignable`, the admin's assignment
+  // dialog per shift.
+  shiftMeta?: Record<string, ShiftMeta>;
+  assignable?: boolean;
 }) {
   const t = useTranslations("orderRequest");
   const o = useTranslations("orders");
@@ -107,6 +127,11 @@ export function OrderRequestBuilder({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const isAdmin = Boolean(clients);
+  const ro = readOnly;
+  // Admins may enter/edit shifts on past days (e.g. fixing a request after the
+  // fact); clients are locked to today onward.
+  const allowPast = isAdmin || adminEdit;
+  const cancelHref = backHref ?? (isAdmin || adminEdit ? "/admin/orders" : "/client/orders");
   const [clientId, setClientId] = useState<string>("");
 
   const now = new Date();
@@ -321,14 +346,17 @@ export function OrderRequestBuilder({
       })),
     };
     startTransition(async () => {
-      const res = isAdmin
-        ? await createOrderRequestForClient(clientId, payload)
-        : initial
-          ? await updateOrderRequest(initial.requestGroupId, payload)
-          : await createOrderRequest(payload);
+      const res =
+        adminEdit && initial
+          ? await updateOrderRequestAsAdmin(initial.requestGroupId, payload)
+          : isAdmin
+            ? await createOrderRequestForClient(clientId, payload)
+            : initial
+              ? await updateOrderRequest(initial.requestGroupId, payload)
+              : await createOrderRequest(payload);
       if (res.ok) {
         toast.success(o(initial ? "updated" : "created"));
-        router.push(isAdmin ? "/admin/orders" : "/client/orders");
+        router.push(adminEdit ? `/admin/orders/${initial!.requestGroupId}` : cancelHref);
         router.refresh();
       } else {
         toast.error(o("saveError"));
@@ -338,7 +366,7 @@ export function OrderRequestBuilder({
 
   function TypeSelect({ date, slot }: { date: string; slot: number }) {
     const cell = get(date, slot);
-    const past = date < todayStr;
+    const past = (date < todayStr && !allowPast) || ro;
     return (
       <select
         disabled={past}
@@ -356,7 +384,7 @@ export function OrderRequestBuilder({
 
   function ShiftCells({ date, slot, sep }: { date: string; slot: number; sep?: boolean }) {
     const cell = get(date, slot);
-    const past = date < todayStr;
+    const past = (date < todayStr && !allowPast) || ro;
     return (
       <>
         <td className={cn("p-1", sep && "border-s")}>
@@ -411,6 +439,13 @@ export function OrderRequestBuilder({
             className={cn(field, "min-w-20")}
           />
         </td>
+        {shiftMeta ? (
+          <td className="whitespace-nowrap p-1">
+            {shiftMeta[`${date}:${slot}`] ? (
+              <ShiftMetaCell meta={shiftMeta[`${date}:${slot}`]} assignable={assignable} />
+            ) : null}
+          </td>
+        ) : null}
       </>
     );
   }
@@ -438,7 +473,7 @@ export function OrderRequestBuilder({
         ) : null}
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("year")}
-          <input type="number" min={thisYear} max={thisYear + 2} value={year} onChange={(e) => setYear(Number(e.target.value) || thisYear)} className={cn(field, "w-24")} />
+          <input type="number" min={allowPast ? thisYear - 1 : thisYear} max={thisYear + 2} value={year} onChange={(e) => setYear(Number(e.target.value) || thisYear)} className={cn(field, "w-24")} />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("month")}
@@ -450,7 +485,7 @@ export function OrderRequestBuilder({
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {o("qualification")}
-          <select value={qual} onChange={(e) => setQual(e.target.value as Qual)} className={cn(field, "w-56")}>
+          <select disabled={ro} value={qual} onChange={(e) => setQual(e.target.value as Qual)} className={cn(field, "w-56")}>
             {qualifications.map((q) => (
               <option key={q} value={q}>{eq(q)}</option>
             ))}
@@ -467,7 +502,7 @@ export function OrderRequestBuilder({
           <thead>
             <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
               <th className="p-2 text-start">Datum</th>
-              <th className="p-2 text-start" colSpan={7}>{t("shift1")}</th>
+              <th className="p-2 text-start" colSpan={shiftMeta ? 8 : 7}>{t("shift1")}</th>
             </tr>
             <tr className="border-b text-[11px] text-muted-foreground">
               <th className="p-1" />
@@ -478,12 +513,16 @@ export function OrderRequestBuilder({
               <th className="p-1 text-end font-normal">{t("netHours")}</th>
               <th className="p-1 text-start font-normal">{t("count")}</th>
               <th className="p-1 text-start font-normal">{t("ward")}</th>
+              {shiftMeta ? (
+                <th className="p-1 text-start font-normal">{o("status")}</th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
             {days.map((d) => {
+              const lockedDay = d.past && !allowPast;
               const rowCls = cn(
-                d.past && "opacity-50",
+                lockedDay && "opacity-50",
                 (d.weekend || d.holiday) && "bg-rose-500/10",
               );
               const count = effCount(d.date);
@@ -494,7 +533,7 @@ export function OrderRequestBuilder({
                     <td className="whitespace-nowrap p-2 font-medium">
                       <div className="flex items-center gap-1.5">
                         <span className="flex size-5 shrink-0 items-center justify-center">
-                          {d.past ? null : dayHasContent(d.date) ? (
+                          {lockedDay || ro ? null : dayHasContent(d.date) ? (
                             <button
                               type="button"
                               onClick={() => copyDay(d.date)}
@@ -518,7 +557,7 @@ export function OrderRequestBuilder({
                         </span>
                         <span>{d.label}</span>
                         {d.holiday ? <span className="text-rose-600">•</span> : null}
-                        {!d.past && count === 1 ? (
+                        {!lockedDay && !ro && count === 1 ? (
                           <button
                             type="button"
                             onClick={() => addSlot(d.date)}
@@ -537,7 +576,7 @@ export function OrderRequestBuilder({
                     <tr key={slot} className={cn("border-b", rowCls)}>
                       <td className="whitespace-nowrap p-1 ps-3 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1.5">
-                          {slot === count - 1 ? (
+                          {!ro && slot === count - 1 ? (
                             <button
                               type="button"
                               onClick={() => removeLast(d.date)}
@@ -551,7 +590,7 @@ export function OrderRequestBuilder({
                             <span className="size-5" />
                           )}
                           <span>↳ {t(slot === 1 ? "shift2" : "shift3")}</span>
-                          {!d.past && slot === count - 1 && count < 3 ? (
+                          {!lockedDay && !ro && slot === count - 1 && count < 3 ? (
                             <button
                               type="button"
                               onClick={() => addSlot(d.date)}
@@ -651,7 +690,9 @@ export function OrderRequestBuilder({
               </span>
             </span>
           </div>
-          <span className="block text-xs">{t("saveHint")} · {t("priceNote")}</span>
+          <span className="block text-xs">
+            {ro ? t("priceNote") : `${t("saveHint")} · ${t("priceNote")}`}
+          </span>
           <span className="block text-xs">
             {t("surchargeNote", {
               sat: pct(sc.sat),
@@ -660,15 +701,17 @@ export function OrderRequestBuilder({
             })}
           </span>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId)} className="gap-2">
-            <Send className="size-4" />
-            {pending ? c("loading") : t("submit")}
-          </Button>
-          <Button variant="outline" onClick={() => router.push("/client/orders")}>
-            {c("cancel")}
-          </Button>
-        </div>
+        {ro ? null : (
+          <div className="flex gap-2">
+            <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId)} className="gap-2">
+              <Send className="size-4" />
+              {pending ? c("loading") : t("submit")}
+            </Button>
+            <Button variant="outline" onClick={() => router.push(cancelHref)}>
+              {c("cancel")}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

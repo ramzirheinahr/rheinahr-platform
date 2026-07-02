@@ -3,17 +3,13 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { isRequestEditable } from "@/lib/orders";
+import { resolveSurcharges } from "@/lib/pricing";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { OrderStatusBadge } from "@/components/orders/order-status-badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { OrderRequestBuilder } from "@/components/client/order-request-builder";
+import { RequestMessageButton } from "@/components/client/request-message-button";
+import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
+import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft, Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -28,19 +24,25 @@ export default async function ClientRequestDetail({
   const { requestId } = await params;
   const t = await getTranslations("orders");
   const c = await getTranslations("common");
-  const oq = await getTranslations("orderRequest");
-  const eq = await getTranslations("enums.qualification");
 
   const user = await getCurrentUser();
   if (!user) notFound();
   const client = await prisma.client
-    .findUnique({ where: { userId: user.id }, select: { id: true } })
+    .findUnique({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        surchargeSat: true,
+        surchargeSun: true,
+        surchargeHoliday: true,
+      },
+    })
     .catch(() => null);
   if (!client) notFound();
 
   const orders = await prisma.order.findMany({
     where: { requestGroupId: requestId, clientId: client.id },
-    orderBy: { shiftDate: "asc" },
+    orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
     select: {
       id: true,
       shiftDate: true,
@@ -50,16 +52,41 @@ export default async function ClientRequestDetail({
       quantity: true,
       notes: true,
       status: true,
-      _count: { select: { assignments: true } },
     },
   });
   if (orders.length === 0) notFound();
 
   const editable = isRequestEditable(orders);
-  const range =
-    d(orders[0].shiftDate) === d(orders[orders.length - 1].shiftDate)
-      ? d(orders[0].shiftDate)
-      : `${d(orders[0].shiftDate)} – ${d(orders[orders.length - 1].shiftDate)}`;
+  const first = formatDateDE(orders[0].shiftDate);
+  const last = formatDateDE(orders[orders.length - 1].shiftDate);
+  const range = first === last ? first : `${first} – ${last}`;
+
+  const initial = {
+    requestGroupId: requestId,
+    qual: orders[0].requiredQualification,
+    shifts: orders.map((o) => ({
+      date: d(o.shiftDate),
+      start: o.startTime,
+      end: o.endTime,
+      quantity: o.quantity,
+      bereich: o.notes ?? "",
+    })),
+  };
+
+  // Per-shift status for the table's status column (keyed like builder cells).
+  const shiftMeta: Record<string, ShiftMeta> = {};
+  const slotByDate: Record<string, number> = {};
+  for (const o of orders) {
+    const date = d(o.shiftDate);
+    const slot = slotByDate[date] ?? 0;
+    slotByDate[date] = slot + 1;
+    shiftMeta[`${date}:${slot}`] = {
+      orderId: o.id,
+      status: o.status,
+      quantity: o.quantity,
+      label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
+    };
+  }
 
   return (
     <div className="space-y-6">
@@ -89,35 +116,18 @@ export default async function ClientRequestDetail({
             <Pencil className="size-4" />
             {c("edit")}
           </Button>
-        ) : null}
+        ) : (
+          <RequestMessageButton requestGroupId={requestId} />
+        )}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("shiftDate")}</TableHead>
-              <TableHead>{t("shiftTime")}</TableHead>
-              <TableHead>{t("qualification")}</TableHead>
-              <TableHead>{oq("count")}</TableHead>
-              <TableHead>{oq("ward")}</TableHead>
-              <TableHead>{t("status")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map((o) => (
-              <TableRow key={o.id}>
-                <TableCell className="font-medium">{d(o.shiftDate)}</TableCell>
-                <TableCell>{o.startTime}–{o.endTime}</TableCell>
-                <TableCell>{eq(o.requiredQualification)}</TableCell>
-                <TableCell>{o.quantity}</TableCell>
-                <TableCell>{o.notes || c("none")}</TableCell>
-                <TableCell><OrderStatusBadge status={o.status} /></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <OrderRequestBuilder
+        initial={initial}
+        surcharges={resolveSurcharges(client)}
+        readOnly
+        backHref="/client/orders"
+        shiftMeta={shiftMeta}
+      />
     </div>
   );
 }

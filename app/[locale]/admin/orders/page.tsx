@@ -1,10 +1,12 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { requestNetTotal, resolveSurcharges } from "@/lib/pricing";
+import { formatDateDE } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, Plus } from "lucide-react";
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus, Qualification } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +14,17 @@ type Row = {
   id: string;
   requestGroupId: string | null;
   shiftDate: Date;
+  startTime: string;
+  endTime: string;
+  quantity: number;
+  requiredQualification: Qualification;
   status: OrderStatus;
-  client: { facilityName: string };
+  client: {
+    facilityName: string;
+    surchargeSat: number | null;
+    surchargeSun: number | null;
+    surchargeHoliday: number | null;
+  };
 };
 
 async function getOrders(): Promise<Row[]> {
@@ -24,8 +35,19 @@ async function getOrders(): Promise<Row[]> {
         id: true,
         requestGroupId: true,
         shiftDate: true,
+        startTime: true,
+        endTime: true,
+        quantity: true,
+        requiredQualification: true,
         status: true,
-        client: { select: { facilityName: true } },
+        client: {
+          select: {
+            facilityName: true,
+            surchargeSat: true,
+            surchargeSun: true,
+            surchargeHoliday: true,
+          },
+        },
       },
     });
   } catch {
@@ -49,12 +71,13 @@ function groupOrders(rows: Row[]) {
   }));
 }
 
-const d = (date: Date) => date.toISOString().slice(0, 10);
-
 export default async function AdminOrdersPage() {
   const t = await getTranslations("orders");
+  const locale = await getLocale();
   const rows = await getOrders();
   const groups = groupOrders(rows);
+  const fmtEur = (n: number) =>
+    n.toLocaleString(locale, { style: "currency", currency: "EUR" });
 
   return (
     <div className="space-y-6">
@@ -76,9 +99,10 @@ export default async function AdminOrdersPage() {
             const first = g.shifts[0];
             const last = g.shifts[g.shifts.length - 1];
             const range =
-              d(first.shiftDate) === d(last.shiftDate)
-                ? d(first.shiftDate)
-                : `${d(first.shiftDate)} – ${d(last.shiftDate)}`;
+              formatDateDE(first.shiftDate) === formatDateDE(last.shiftDate)
+                ? formatDateDE(first.shiftDate)
+                : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
+            const total = requestNetTotal(g.shifts, resolveSurcharges(first.client));
             return (
               <Link
                 key={g.key}
@@ -88,7 +112,8 @@ export default async function AdminOrdersPage() {
                 <div>
                   <div className="font-medium">{first.client.facilityName}</div>
                   <div className="text-sm text-muted-foreground">
-                    {range} · {g.shifts.length} {t("shiftsCount")}
+                    {range} · {g.shifts.length} {t("shiftsCount")} · {fmtEur(total)}{" "}
+                    {t("net")}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

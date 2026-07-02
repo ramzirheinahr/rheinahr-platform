@@ -9,7 +9,9 @@ import {
   orderRequestSchema,
   type OrderRequestInput,
 } from "@/lib/validations";
-import type { OrderStatus } from "@prisma/client";
+import { diffRequestShifts } from "@/lib/orders";
+import { formatDateDE } from "@/lib/utils";
+import type { OrderStatus, Qualification } from "@prisma/client";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -80,6 +82,104 @@ export async function createOrderRequestForClient(
   });
 
   revalidatePath("/admin/orders");
+  revalidatePath("/client/orders");
+  return { ok: true };
+}
+
+// Admin adjusting a request: apply only the actual changes. Admins are not
+// bound to the client's 4h cutoff — they may edit at any time, even after a
+// shift has run. Untouched shifts keep their orders, assignments and
+// confirmations; only modified/removed shifts are replaced.
+export async function updateOrderRequestAsAdmin(
+  requestGroupId: string,
+  input: OrderRequestInput,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const existing = await prisma.order.findMany({
+    where: { requestGroupId },
+    select: {
+      id: true,
+      clientId: true,
+      status: true,
+      shiftDate: true,
+      startTime: true,
+      endTime: true,
+      quantity: true,
+      notes: true,
+      requiredQualification: true,
+    },
+  });
+  if (existing.length === 0) return { ok: false, error: "saveError" };
+  const clientId = existing[0].clientId;
+
+  const parsed = orderRequestSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "saveError" };
+  const { notes, shifts } = parsed.data;
+
+  const { updates, creates, deleteIds } = diffRequestShifts(
+    existing,
+    shifts.map((s) => ({
+      date: s.date,
+      requiredQualification: s.requiredQualification,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      quantity: s.quantity,
+      notes: s.bereich ?? notes ?? null,
+    })),
+  );
+
+  if (updates.length + creates.length + deleteIds.length > 0) {
+    await prisma.$transaction([
+      ...(deleteIds.length
+        ? [prisma.order.deleteMany({ where: { id: { in: deleteIds } } })]
+        : []),
+      ...updates.map((u) =>
+        prisma.order.update({
+          where: { id: u.id },
+          data: { quantity: u.quantity, notes: u.notes },
+        }),
+      ),
+      ...(creates.length
+        ? [
+            prisma.order.createMany({
+              data: creates.map((s) => ({
+                clientId,
+                requestGroupId,
+                requiredQualification: s.requiredQualification as Qualification,
+                shiftDate: new Date(`${s.date}T00:00:00.000Z`),
+                startTime: s.startTime,
+                endTime: s.endTime,
+                quantity: s.quantity,
+                notes: s.notes,
+                status: "pending" as const,
+              })),
+            }),
+          ]
+        : []),
+    ]);
+  }
+
+  await audit({
+    userId: admin.id,
+    action: "order.request.update",
+    entity: "Order",
+    entityId: requestGroupId,
+    metadata: {
+      byAdmin: true,
+      updated: updates.length,
+      created: creates.length,
+      deleted: deleteIds.length,
+    },
+  });
+
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${requestGroupId}`);
   revalidatePath("/client/orders");
   return { ok: true };
 }
@@ -158,7 +258,7 @@ export async function assignWorker(
           userId: worker.userId,
           type: "worker_assigned",
           channel: "in_app",
-          content: `${order.shiftDate.toISOString().slice(0, 10)} ${order.startTime}–${order.endTime}`,
+          content: `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime}`,
         },
       });
     });

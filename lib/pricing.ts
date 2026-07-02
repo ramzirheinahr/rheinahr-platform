@@ -1,4 +1,5 @@
 import { qualifications } from "@/lib/validations";
+import { germanHolidays } from "@/lib/holidays";
 
 type Qualification = (typeof qualifications)[number];
 
@@ -50,6 +51,56 @@ export function resolveSurcharges(
     sun: o?.surchargeSun ?? DEFAULT_SURCHARGES.sun,
     holiday: o?.surchargeHoliday ?? DEFAULT_SURCHARGES.holiday,
   };
+}
+
+// Break (minutes) assumed for billing — per-shift breaks are not persisted, so
+// pricing always uses the builder's default.
+export const DEFAULT_BREAK_MIN = 30;
+
+const toMin = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+
+// Net billable hours of one shift: overnight-aware duration minus the break.
+export function netShiftHours(start: string, end: string, breakMin = DEFAULT_BREAK_MIN): number {
+  let dur = (toMin(end) - toMin(start) + 1440) % 1440;
+  if (dur === 0) dur = 1440;
+  return Math.max(0, (dur - breakMin) / 60);
+}
+
+// Net order value (EUR) for a set of persisted shifts — mirrors the price the
+// builder shows live: hours × headcount × qualification rate, uplifted by the
+// day's Zuschlag (Sat/Sun/holiday, holiday wins).
+export function requestNetTotal(
+  shifts: {
+    shiftDate: Date;
+    startTime: string;
+    endTime: string;
+    quantity: number;
+    requiredQualification: string;
+  }[],
+  sc: Surcharges = DEFAULT_SURCHARGES,
+): number {
+  const holidayCache = new Map<number, Map<string, string>>();
+  let total = 0;
+  for (const s of shifts) {
+    const date = s.shiftDate.toISOString().slice(0, 10);
+    const year = Number(date.slice(0, 4));
+    let hol = holidayCache.get(year);
+    if (!hol) {
+      hol = germanHolidays(year);
+      holidayCache.set(year, hol);
+    }
+    const mult =
+      1 + surchargeFor({ isHoliday: hol.has(date), dow: s.shiftDate.getUTCDay() }, sc);
+    total +=
+      netShiftHours(s.startTime, s.endTime) *
+      s.quantity *
+      rateFor(s.requiredQualification) *
+      mult;
+  }
+  return total;
 }
 
 // Surcharge fraction (0 = none) for a given day. `dow` is 0=Sun … 6=Sat.

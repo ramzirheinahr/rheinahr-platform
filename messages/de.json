@@ -231,7 +231,15 @@
     "accept": "Annehmen",
     "decline": "Ablehnen",
     "accepted": "Einsatz angenommen.",
-    "declined": "Einsatz abgelehnt."
+    "declined": "Einsatz abgelehnt.",
+    "assignSection": "Zuweisung & Status",
+    "net": "netto",
+    "requestChange": "Änderung anfragen",
+    "messageTitle": "Nachricht an das Büro",
+    "messageHint": "Bis 4 Stunden vor der ersten Schicht können Sie die Bestellung selbst bearbeiten. Danach senden Sie uns hier Ihren Änderungswunsch — wir melden uns umgehend.",
+    "messagePlaceholder": "Ihre Nachricht zu dieser Bestellung …",
+    "messageSend": "Senden",
+    "messageSent": "Nachricht gesendet."
   },
   "orderRequest": {
     "prev": "Zurück",
