@@ -1,21 +1,128 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { clientSchema } from "@/lib/validations";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { clientSchema, accountBaseSchema } from "@/lib/validations";
 
 export type ActionState = { ok: boolean; error?: string };
 
-// Admin (or super_admin) may edit facility profiles. Account creation lives in
-// /admin/accounts (super_admin).
+// Admin (or super_admin) may edit facility profiles. Creating a facility
+// (= its login account) is super_admin-only, like all account provisioning.
 async function assertAdmin() {
   const user = await getCurrentUser();
   if (!user || !roleSatisfies(user.role, ["admin"])) {
     throw new Error("forbidden");
   }
   return user;
+}
+
+async function assertSuperAdmin() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "super_admin") throw new Error("forbidden");
+  return user;
+}
+
+function parseProfile(formData: FormData) {
+  return clientSchema.safeParse({
+    facilityName: formData.get("facilityName"),
+    facilityType: formData.get("facilityType"),
+    address: formData.get("address") || undefined,
+    contactPerson: formData.get("contactPerson") || undefined,
+    billingInfo: formData.get("billingInfo") || undefined,
+    surchargeSat: formData.get("surchargeSat") || undefined,
+    surchargeSun: formData.get("surchargeSun") || undefined,
+    surchargeHoliday: formData.get("surchargeHoliday") || undefined,
+  });
+}
+
+// Empty field → null (fall back to platform default); percent → fraction.
+const pctToFrac = (v: number | undefined) => (v === undefined ? null : v / 100);
+
+// Creating a facility provisions its login in the same step: Supabase Auth
+// user + our User row + the Client profile.
+export async function createClient(formData: FormData): Promise<ActionState> {
+  let actor;
+  try {
+    actor = await assertSuperAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const profile = parseProfile(formData);
+  if (!profile.success) return { ok: false, error: "saveError" };
+  const data = profile.data;
+  // The account display name is the contact person, falling back to the facility.
+  const base = accountBaseSchema.safeParse({
+    email: formData.get("email"),
+    fullName: data.contactPerson || data.facilityName,
+    password: formData.get("password"),
+  });
+  if (!base.success) return { ok: false, error: "saveError" };
+
+  const existing = await prisma.user.findUnique({
+    where: { email: base.data.email },
+    select: { id: true },
+  });
+  if (existing) return { ok: false, error: "emailInUse" };
+
+  // 1) Provision the Supabase Auth login (email confirmed so they can sign in now).
+  const supabase = createSupabaseAdminClient();
+  const { data: created, error: authError } = await supabase.auth.admin.createUser({
+    email: base.data.email,
+    password: base.data.password,
+    email_confirm: true,
+    user_metadata: { role: "client" },
+  });
+  if (authError || !created.user) return { ok: false, error: "emailInUse" };
+  const authId = created.user.id;
+
+  // 2) Create our records. If this fails, roll back the auth user.
+  try {
+    const passwordHash = await bcrypt.hash(base.data.password, 12);
+    await prisma.$transaction(async (tx) => {
+      await tx.user.create({
+        data: {
+          id: authId,
+          email: base.data.email,
+          fullName: base.data.fullName,
+          role: "client",
+          passwordHash,
+          createdById: actor.id,
+        },
+      });
+      await tx.client.create({
+        data: {
+          userId: authId,
+          facilityName: data.facilityName,
+          facilityType: data.facilityType,
+          address: data.address,
+          contactPerson: data.contactPerson,
+          billingInfo: data.billingInfo,
+          surchargeSat: pctToFrac(data.surchargeSat),
+          surchargeSun: pctToFrac(data.surchargeSun),
+          surchargeHoliday: pctToFrac(data.surchargeHoliday),
+        },
+      });
+    });
+  } catch {
+    await supabase.auth.admin.deleteUser(authId).catch(() => {});
+    return { ok: false, error: "saveError" };
+  }
+
+  await audit({
+    userId: actor.id,
+    action: "account.create",
+    entity: "User",
+    entityId: authId,
+    metadata: { role: "client" },
+  });
+
+  revalidatePath("/admin/clients");
+  return { ok: true };
 }
 
 export async function updateClient(
@@ -29,21 +136,9 @@ export async function updateClient(
     return { ok: false, error: "forbidden" };
   }
 
-  const parsed = clientSchema.safeParse({
-    facilityName: formData.get("facilityName"),
-    facilityType: formData.get("facilityType"),
-    address: formData.get("address") || undefined,
-    contactPerson: formData.get("contactPerson") || undefined,
-    billingInfo: formData.get("billingInfo") || undefined,
-    surchargeSat: formData.get("surchargeSat") || undefined,
-    surchargeSun: formData.get("surchargeSun") || undefined,
-    surchargeHoliday: formData.get("surchargeHoliday") || undefined,
-  });
+  const parsed = parseProfile(formData);
   if (!parsed.success) return { ok: false, error: "saveError" };
   const data = parsed.data;
-  // Empty field → null (fall back to platform default); percent → fraction.
-  const pctToFrac = (v: number | undefined) =>
-    v === undefined ? null : v / 100;
 
   await prisma.client.update({
     where: { id },
@@ -56,6 +151,10 @@ export async function updateClient(
       surchargeSat: pctToFrac(data.surchargeSat),
       surchargeSun: pctToFrac(data.surchargeSun),
       surchargeHoliday: pctToFrac(data.surchargeHoliday),
+      // Keep the account display name in sync with the profile.
+      user: {
+        update: { fullName: data.contactPerson || data.facilityName },
+      },
     },
   });
 

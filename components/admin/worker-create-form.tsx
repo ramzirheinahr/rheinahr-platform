@@ -15,23 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { qualifications, contractTypes, locales } from "@/lib/validations";
-import { updateWorker } from "@/app/[locale]/admin/workers/actions";
+import { createWorker } from "@/app/[locale]/admin/workers/actions";
 
-type WorkerData = {
-  id: string;
-  fullName: string;
-  qualification: string;
-  contractType: string;
-  phone: string | null;
-  address: string | null;
-  certifications: string[];
-  languages: string[];
-};
-
-// Edits an existing worker profile; the login account is managed in the
-// AccountSection rendered next to this form.
-export function WorkerForm({ worker }: { worker: WorkerData }) {
+// Creates a worker together with their login account (super_admin only) —
+// profile and credentials in one step, no separate accounts page.
+export function WorkerCreateForm() {
   const t = useTranslations("workers");
+  const ta = useTranslations("accounts");
   const c = useTranslations("common");
   const eq = useTranslations("enums.qualification");
   const ec = useTranslations("enums.contractType");
@@ -43,36 +33,47 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
-      const res = await updateWorker(worker.id, formData);
+      const res = await createWorker(formData);
       if (res.ok) {
-        toast.success(t("updated"));
+        toast.success(t("created"));
         router.push("/admin/workers");
         router.refresh();
       } else {
-        toast.error(t("saveError"));
+        toast.error(t(res.error === "emailInUse" ? "emailInUse" : "saveError"));
       }
     });
   }
 
   return (
     <form onSubmit={onSubmit} className="max-w-2xl space-y-5">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="fullName">{t("fullName")}</Label>
+          <Input id="fullName" name="fullName" required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">{t("email")}</Label>
+          <Input id="email" name="email" type="email" required />
+        </div>
+      </div>
+
       <div className="space-y-2">
-        <Label htmlFor="fullName">{t("fullName")}</Label>
+        <Label htmlFor="password">{ta("password")}</Label>
         <Input
-          id="fullName"
-          name="fullName"
+          id="password"
+          name="password"
+          type="text"
+          minLength={12}
+          placeholder={ta("passwordHint")}
           required
-          defaultValue={worker?.fullName}
+          className="sm:max-w-sm"
         />
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>{t("qualification")}</Label>
-          <Select
-            name="qualification"
-            defaultValue={worker?.qualification ?? qualifications[0]}
-          >
+          <Select name="qualification" defaultValue={qualifications[0]}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -87,10 +88,7 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
         </div>
         <div className="space-y-2">
           <Label>{t("contractType")}</Label>
-          <Select
-            name="contractType"
-            defaultValue={worker?.contractType ?? contractTypes[0]}
-          >
+          <Select name="contractType" defaultValue={contractTypes[0]}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -108,15 +106,11 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="phone">{t("phone")}</Label>
-          <Input id="phone" name="phone" defaultValue={worker?.phone ?? ""} />
+          <Input id="phone" name="phone" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="address">{t("address")}</Label>
-          <Input
-            id="address"
-            name="address"
-            defaultValue={worker?.address ?? ""}
-          />
+          <Input id="address" name="address" />
         </div>
       </div>
 
@@ -126,7 +120,6 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
           id="certifications"
           name="certifications"
           placeholder={t("certificationsHint")}
-          defaultValue={worker?.certifications.join(", ")}
         />
       </div>
 
@@ -139,7 +132,6 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
                 type="checkbox"
                 name="languages"
                 value={l}
-                defaultChecked={worker?.languages.includes(l)}
                 className="size-4 accent-primary"
               />
               {el(l)}
@@ -150,7 +142,7 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>
-          {pending ? c("loading") : c("save")}
+          {pending ? c("loading") : c("create")}
         </Button>
         <Button
           type="button"

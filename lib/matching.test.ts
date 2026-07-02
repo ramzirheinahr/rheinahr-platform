@@ -16,7 +16,7 @@ describe("eligibleWorkers", () => {
   });
 
   it("excludes workers with a different qualification", () => {
-    const c = [make({ workerId: "a", qualification: "altenpfleger" })];
+    const c = [make({ workerId: "a", qualification: "pflegehelfer" })];
     expect(eligibleWorkers("pflegefachkraft", c)).toHaveLength(0);
   });
 

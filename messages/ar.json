@@ -195,7 +195,10 @@
     "surchargesHint": "اتركها فارغة للقيم الافتراضية (السبت +25٪، الأحد +50٪، عطلة +100٪).",
     "surchargeSat": "السبت ٪",
     "surchargeSun": "الأحد ٪",
-    "surchargeHoliday": "عطلة ٪"
+    "surchargeHoliday": "عطلة ٪",
+    "new": "منشأة جديدة",
+    "created": "تم إنشاء المنشأة.",
+    "emailInUse": "هذا البريد الإلكتروني مستخدم بالفعل."
   },
   "orders": {
     "title": "الطلبات",
@@ -314,9 +317,7 @@
   },
   "enums": {
     "qualification": {
-      "pflegefachkraft": "ممرض رعاية مؤهل",
-      "altenpfleger": "ممرض رعاية مسنّين",
-      "gesundheitspfleger": "ممرض صحة ورعاية",
+      "pflegefachkraft": "مؤهل رعاية",
       "pflegehelfer": "مساعد تمريض",
       "betreuungskraft": "كادر مرافقة (§43b)",
       "pflegedienstleitung": "إدارة خدمة التمريض"
@@ -443,33 +444,20 @@
     "empty": "لا توجد خدمات مؤكدة في هذه الفترة."
   },
   "accounts": {
-    "title": "الحسابات",
-    "subtitle": "إنشاء الحسابات وإسناد الأدوار (المدير العام فقط).",
-    "new": "حساب جديد",
-    "editTitle": "تعديل الحساب",
-    "empty": "لا توجد حسابات بعد.",
-    "fullName": "الاسم الكامل",
+    "accountSection": "الحساب وبيانات الدخول",
+    "accountHint": "إدارة بيانات دخول هذا الحساب: الحالة وكلمة المرور ورابط الدخول.",
     "email": "البريد الإلكتروني (الدخول)",
+    "saveEmail": "حفظ البريد",
+    "emailUpdated": "تم تغيير البريد الإلكتروني.",
+    "emailInUse": "هذا البريد الإلكتروني مستخدم بالفعل.",
     "password": "كلمة المرور",
     "passwordHint": "12 حرفًا على الأقل.",
     "newPassword": "كلمة مرور جديدة",
-    "role": "الدور",
-    "active": "مُفعّل",
-    "status": "الحالة",
-    "statusActive": "مُفعّل",
-    "statusInactive": "مُعطّل",
     "resetPassword": "إعادة تعيين كلمة المرور",
-    "profileSection": "بيانات الملف",
-    "facilityName": "اسم المنشأة",
-    "facilityType": "نوع المنشأة",
-    "contactPerson": "جهة الاتصال",
-    "billingInfo": "بيانات الفوترة",
-    "created": "تم إنشاء الحساب.",
-    "updated": "تم حفظ التغييرات.",
     "passwordReset": "تمت إعادة تعيين كلمة المرور.",
+    "active": "مُفعّل",
+    "updated": "تم حفظ التغييرات.",
     "saveError": "فشل الحفظ. يرجى التحقق من المدخلات.",
-    "emailInUse": "هذا البريد الإلكتروني مستخدم بالفعل.",
-    "forbidden": "لا تملك الصلاحية.",
-    "selfEdit": "لا يمكنك تعديل حسابك من هنا."
+    "forbidden": "لا تملك الصلاحية."
   }
 }

@@ -16,10 +16,11 @@ export default async function AdminLayout({
   const { locale } = await params;
   const user = await requireRole(locale as Locale, "admin");
   const t = await getTranslations("portal");
-  const ta = await getTranslations("accounts");
   const tr = await getTranslations("reports");
   const ti = await getTranslations("invoicing");
 
+  // Accounts are managed inside the worker/client pages (create + edit),
+  // so there is no separate accounts entry.
   const nav = [
     { href: "/admin", label: t("dashboard") },
     { href: "/admin/orders", label: t("orders") },
@@ -27,10 +28,6 @@ export default async function AdminLayout({
     { href: "/admin/clients", label: t("clients") },
     { href: "/admin/reports", label: tr("title") },
     { href: "/admin/invoicing", label: ti("title") },
-    // Account creation & role assignment is super_admin-only.
-    ...(user.role === "super_admin"
-      ? [{ href: "/admin/accounts", label: ta("title") }]
-      : []),
   ];
 
   return (

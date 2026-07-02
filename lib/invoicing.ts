@@ -18,8 +18,6 @@ export type InvoiceRow = {
 // German business labels for the export (DATEV / accounting is German-language).
 export const qualLabel: Record<Qualification, string> = {
   pflegefachkraft: "Pflegefachkraft",
-  altenpfleger: "Altenpfleger/in",
-  gesundheitspfleger: "Gesundheits- & Krankenpfleger/in",
   pflegehelfer: "Pflegehilfskraft",
   betreuungskraft: "Betreuungskraft (§ 43b)",
   pflegedienstleitung: "Pflegedienstleitung",

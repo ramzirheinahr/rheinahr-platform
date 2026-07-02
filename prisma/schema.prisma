@@ -30,10 +30,10 @@ enum Language {
 }
 
 // Elderly-care (Altenpflege) qualifications only — see CLAUDE.md domain focus.
+// pflegefachkraft covers all examinierten Fachkräfte (früher auch Altenpfleger/in
+// und Gesundheits- & Krankenpfleger/in als eigene Werte — 2026-07 zusammengeführt).
 enum Qualification {
   pflegefachkraft // examinierte Pflegefachkraft (Altenpflege)
-  altenpfleger // Altenpfleger/in
-  gesundheitspfleger // Gesundheits- und Krankenpfleger/in
   pflegehelfer // Pflegehilfskraft
   betreuungskraft // Betreuungskraft § 43b SGB XI
   pflegedienstleitung // Pflegedienstleitung (PDL)

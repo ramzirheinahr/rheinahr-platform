@@ -195,7 +195,10 @@
     "surchargesHint": "Leer lassen für Standard (Sa +25 %, So +50 %, Feiertag +100 %).",
     "surchargeSat": "Samstag %",
     "surchargeSun": "Sonntag %",
-    "surchargeHoliday": "Feiertag %"
+    "surchargeHoliday": "Feiertag %",
+    "new": "Neue Einrichtung",
+    "created": "Einrichtung wurde angelegt.",
+    "emailInUse": "Diese E-Mail wird bereits verwendet."
   },
   "orders": {
     "title": "Aufträge",
@@ -315,8 +318,6 @@
   "enums": {
     "qualification": {
       "pflegefachkraft": "Pflegefachkraft",
-      "altenpfleger": "Altenpfleger/in",
-      "gesundheitspfleger": "Gesundheits- & Krankenpfleger/in",
       "pflegehelfer": "Pflegehilfskraft",
       "betreuungskraft": "Betreuungskraft (§ 43b)",
       "pflegedienstleitung": "Pflegedienstleitung (PDL)"
@@ -443,33 +444,20 @@
     "empty": "Keine bestätigten Leistungen im Zeitraum."
   },
   "accounts": {
-    "title": "Konten",
-    "subtitle": "Konten anlegen und Rollen zuweisen (nur Super-Administrator).",
-    "new": "Neues Konto",
-    "editTitle": "Konto bearbeiten",
-    "empty": "Noch keine Konten angelegt.",
-    "fullName": "Vollständiger Name",
+    "accountSection": "Konto & Zugang",
+    "accountHint": "Zugangsdaten dieses Kontos verwalten: Status, Passwort und Zugangslink.",
     "email": "E-Mail (Login)",
+    "saveEmail": "E-Mail speichern",
+    "emailUpdated": "E-Mail wurde geändert.",
+    "emailInUse": "Diese E-Mail wird bereits verwendet.",
     "password": "Passwort",
     "passwordHint": "Mindestens 12 Zeichen.",
     "newPassword": "Neues Passwort",
-    "role": "Rolle",
-    "active": "Aktiv",
-    "status": "Status",
-    "statusActive": "Aktiv",
-    "statusInactive": "Deaktiviert",
     "resetPassword": "Passwort zurücksetzen",
-    "profileSection": "Profilangaben",
-    "facilityName": "Name der Einrichtung",
-    "facilityType": "Art der Einrichtung",
-    "contactPerson": "Ansprechpartner",
-    "billingInfo": "Rechnungsangaben",
-    "created": "Konto wurde angelegt.",
-    "updated": "Änderungen wurden gespeichert.",
     "passwordReset": "Passwort wurde zurückgesetzt.",
+    "active": "Aktiv",
+    "updated": "Änderungen wurden gespeichert.",
     "saveError": "Speichern fehlgeschlagen. Bitte Eingaben prüfen.",
-    "emailInUse": "Diese E-Mail wird bereits verwendet.",
-    "forbidden": "Keine Berechtigung.",
-    "selfEdit": "Sie können Ihr eigenes Konto hier nicht ändern."
+    "forbidden": "Keine Berechtigung."
   }
 }

@@ -8,8 +8,6 @@ type Qualification = (typeof qualifications)[number];
 // price shown while building an order and, later, the generated invoice.
 export const HOURLY_RATES: Record<Qualification, number> = {
   pflegefachkraft: 54.9,
-  altenpfleger: 54.9,
-  gesundheitspfleger: 54.9,
   betreuungskraft: 54.9,
   pflegehelfer: 36.9,
   pflegedienstleitung: 65.9,

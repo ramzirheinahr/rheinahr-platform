@@ -6,12 +6,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Copy, Link2, KeyRound, Trash2 } from "lucide-react";
 import {
   generateAccessLink,
   revokeAccessLink,
-} from "@/app/[locale]/admin/accounts/actions";
+} from "@/app/[locale]/admin/account-actions";
 
 // Super-admin control to create/rotate/revoke a client's or worker's passwordless
 // access link + PIN. The PIN is shown ONCE right after generation (never stored
@@ -144,8 +143,6 @@ export function AccountAccessLink({
           </Button>
         )}
       </div>
-
-      <Separator />
     </div>
   );
 }

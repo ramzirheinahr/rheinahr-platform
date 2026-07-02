@@ -1,9 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { ClientForm } from "@/components/admin/client-form";
+import { AccountSection } from "@/components/admin/account-section";
 import { DeleteClientButton } from "@/components/admin/delete-client-button";
 import { ArrowLeft } from "lucide-react";
 
@@ -17,11 +19,14 @@ export default async function EditClientPage({
   const { id } = await params;
   const t = await getTranslations("clients");
   const c = await getTranslations("common");
+  const actor = await getCurrentUser();
 
   const client = await prisma.client
     .findUnique({
       where: { id },
-      include: { user: { select: { email: true } } },
+      include: {
+        user: { select: { id: true, email: true, active: true, loginToken: true } },
+      },
     })
     .catch(() => null);
 
@@ -48,7 +53,6 @@ export default async function EditClientPage({
       <ClientForm
         client={{
           id: client.id,
-          email: client.user.email,
           facilityName: client.facilityName,
           facilityType: client.facilityType,
           address: client.address,
@@ -59,6 +63,16 @@ export default async function EditClientPage({
           surchargeHoliday: client.surchargeHoliday,
         }}
       />
+
+      {/* Login account management (password, access link, active) — super_admin only. */}
+      {actor?.role === "super_admin" && (
+        <AccountSection
+          userId={client.user.id}
+          email={client.user.email}
+          active={client.user.active}
+          hasLink={!!client.user.loginToken}
+        />
+      )}
     </div>
   );
 }

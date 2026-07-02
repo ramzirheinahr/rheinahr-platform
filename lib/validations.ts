@@ -5,8 +5,6 @@ import { z } from "zod";
 
 export const qualifications = [
   "pflegefachkraft",
-  "altenpfleger",
-  "gesundheitspfleger",
   "pflegehelfer",
   "betreuungskraft",
   "pflegedienstleitung",
@@ -122,21 +120,14 @@ export const accountBaseSchema = z.object({
   password: z.string().min(12, { message: "min12" }),
 });
 
-// Worker / client profile fields, without duplicated identity fields (fullName
-// comes from the account base).
-export const workerProfileSchema = workerSchema.omit({ fullName: true });
-export const clientProfileSchema = clientSchema;
-
-// Updating an account: role, display name and active flag (email is immutable —
-// it is the auth identity). Password reset is a separate action.
-export const updateAccountSchema = z.object({
-  fullName: z.string().min(2).max(160),
-  role: z.enum(assignableRoles),
-  active: z.boolean(),
-});
-
 export const resetPasswordSchema = z.object({
   password: z.string().min(12, { message: "min12" }),
+});
+
+// Changing an account's login email (super_admin) — it is the Supabase Auth
+// identity, so the change must propagate to both Auth and our User row.
+export const updateEmailSchema = z.object({
+  email: z.string().email(),
 });
 
 // ── Service confirmation (Leistungsnachweis) ──

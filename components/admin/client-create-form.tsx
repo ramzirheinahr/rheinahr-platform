@@ -15,28 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { facilityTypes } from "@/lib/validations";
-import { updateClient } from "@/app/[locale]/admin/clients/actions";
+import { createClient } from "@/app/[locale]/admin/clients/actions";
 
-type ClientData = {
-  id: string;
-  facilityName: string;
-  facilityType: string;
-  address: string | null;
-  contactPerson: string | null;
-  billingInfo: string | null;
-  // Surcharge overrides stored as fractions (0.25) — shown here as percent.
-  surchargeSat: number | null;
-  surchargeSun: number | null;
-  surchargeHoliday: number | null;
-};
-
-const toPct = (v: number | null) =>
-  v === null || v === undefined ? "" : String(Math.round(v * 1000) / 10);
-
-// Edits an existing facility profile; the login account is managed in the
-// AccountSection rendered next to this form.
-export function ClientForm({ client }: { client: ClientData }) {
+// Creates a facility together with its login account (super_admin only) —
+// profile and credentials in one step, no separate accounts page.
+export function ClientCreateForm() {
   const t = useTranslations("clients");
+  const ta = useTranslations("accounts");
   const c = useTranslations("common");
   const ef = useTranslations("enums.facilityType");
   const router = useRouter();
@@ -46,13 +31,13 @@ export function ClientForm({ client }: { client: ClientData }) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
-      const res = await updateClient(client.id, formData);
+      const res = await createClient(formData);
       if (res.ok) {
-        toast.success(t("updated"));
+        toast.success(t("created"));
         router.push("/admin/clients");
         router.refresh();
       } else {
-        toast.error(t("saveError"));
+        toast.error(t(res.error === "emailInUse" ? "emailInUse" : "saveError"));
       }
     });
   }
@@ -62,16 +47,11 @@ export function ClientForm({ client }: { client: ClientData }) {
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="facilityName">{t("facilityName")}</Label>
-          <Input
-            id="facilityName"
-            name="facilityName"
-            required
-            defaultValue={client.facilityName}
-          />
+          <Input id="facilityName" name="facilityName" required />
         </div>
         <div className="space-y-2">
           <Label>{t("facilityType")}</Label>
-          <Select name="facilityType" defaultValue={client.facilityType}>
+          <Select name="facilityType" defaultValue={facilityTypes[0]}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -88,26 +68,36 @@ export function ClientForm({ client }: { client: ClientData }) {
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="contactPerson">{t("contactPerson")}</Label>
+          <Label htmlFor="email">{t("email")}</Label>
+          <Input id="email" name="email" type="email" required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">{ta("password")}</Label>
           <Input
-            id="contactPerson"
-            name="contactPerson"
-            defaultValue={client.contactPerson ?? ""}
+            id="password"
+            name="password"
+            type="text"
+            minLength={12}
+            placeholder={ta("passwordHint")}
+            required
           />
+        </div>
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="contactPerson">{t("contactPerson")}</Label>
+          <Input id="contactPerson" name="contactPerson" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="address">{t("address")}</Label>
-          <Input id="address" name="address" defaultValue={client.address ?? ""} />
+          <Input id="address" name="address" />
         </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="billingInfo">{t("billingInfo")}</Label>
-        <Input
-          id="billingInfo"
-          name="billingInfo"
-          defaultValue={client.billingInfo ?? ""}
-        />
+        <Input id="billingInfo" name="billingInfo" />
       </div>
 
       <fieldset className="space-y-3 rounded-lg border p-4">
@@ -125,7 +115,6 @@ export function ClientForm({ client }: { client: ClientData }) {
               step={1}
               inputMode="decimal"
               placeholder="25"
-              defaultValue={toPct(client.surchargeSat)}
             />
           </div>
           <div className="space-y-2">
@@ -139,7 +128,6 @@ export function ClientForm({ client }: { client: ClientData }) {
               step={1}
               inputMode="decimal"
               placeholder="50"
-              defaultValue={toPct(client.surchargeSun)}
             />
           </div>
           <div className="space-y-2">
@@ -153,7 +141,6 @@ export function ClientForm({ client }: { client: ClientData }) {
               step={1}
               inputMode="decimal"
               placeholder="100"
-              defaultValue={toPct(client.surchargeHoliday)}
             />
           </div>
         </div>
@@ -161,7 +148,7 @@ export function ClientForm({ client }: { client: ClientData }) {
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>
-          {pending ? c("loading") : c("save")}
+          {pending ? c("loading") : c("create")}
         </Button>
         <Button
           type="button"

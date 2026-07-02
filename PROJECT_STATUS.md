@@ -32,10 +32,15 @@ staffing. Workers = care staff (Pflegekräfte); clients = care facilities.
 ## 4. Roles & auth
 - Roles: `super_admin`, `admin`, `client`, `worker`. Login is **email** (Supabase Auth);
   Google/Apple OAuth planned later. Username login was explored and rejected.
-- **super_admin** is the sole account creator (`/admin/accounts`) and role assigner;
-  provisions Supabase Auth user + Prisma `User` (+ worker/client profile).
-- **Passwordless access link + PIN** (client/worker convenience login): from an
-  account's edit page, super_admin generates a personal link `/{locale}/access/<token>`
+- **super_admin** is the sole account creator. There is **no separate accounts page**
+  (removed 2026‑07): creating a worker (`/admin/workers/new`) or facility
+  (`/admin/clients/new`) provisions the Supabase Auth user + Prisma `User` + profile in
+  one step, and the worker/client **edit pages** carry an `AccountSection`
+  (super_admin‑only: active flag, password reset, access link). Shared actions in
+  `app/[locale]/admin/account-actions.ts`. Plain `admin`-role accounts can no longer be
+  created via UI (seed/DB only).
+- **Passwordless access link + PIN** (client/worker convenience login): from the
+  worker/client edit page, super_admin generates a personal link `/{locale}/access/<token>`
   + a 6‑digit PIN (shown once, stored bcrypt‑hashed). User opens the link, enters the
   PIN once per device → server mints a **persistent Supabase session** (`/api/access/verify`
   via `generateLink`+`verifyOtp`, no email sent; cookie Max‑Age ~400d). Returning visits
@@ -56,7 +61,11 @@ staffing. Workers = care staff (Pflegekräfte); clients = care facilities.
 Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin data + recreates).
 
 ## 6. Feature inventory (built)
-- Auth/RBAC · super_admin **account management** · **worker** & **client** modules.
+- Auth/RBAC · **worker** & **client** modules with account management folded in (§4).
+- **Qualifications** (2026‑07): merged to 4 — `pflegefachkraft` (absorbed
+  `altenpfleger` + `gesundheitspfleger`; AR label „مؤهل رعاية", EN "Qualified care
+  professional"), `pflegehelfer`, `betreuungskraft`, `pflegedienstleitung`. DB rows
+  remapped + enum values dropped (prod already pushed).
 - **Order lifecycle** + availability **matching engine** (`lib/matching.ts`, unit‑tested).
 - **Order entry = full‑month spreadsheet** (`components/client/order-request-builder.tsx`):
   one row/day, 1 shift default + `+` to add up to 3; per shift = type
@@ -88,19 +97,21 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
 - Per‑shift **Pause/net hours are UI‑only** (not persisted); `Wohnbereich` stored in `Order.notes`.
 
 ## 8. ⚠️ PENDING / UNPUSHED WORK
-The request‑lifecycle + per‑shift availability + top‑loader work is now **committed**
-(HEAD `e0e506b`). Currently uncommitted: the **passwordless access link + PIN** feature
-(see §4) — new files under `app/[locale]/access/`, `app/api/access/`,
-`components/{admin/account-access-link,auth/pin-login-form,pwa-install-hint}.tsx`,
-`lib/access.ts`, edited accounts actions/edit page + `messages/*` + `prisma/schema.prisma`.
-- **Production DB already migrated** (`prisma db push`) with the 4 new nullable/defaulted
-  `User` columns. Because they're nullable, the deployed code is **not** broken by them
-  (unlike the earlier availability change) — no urgency, but push to keep code+DB in sync.
-- Verified locally: clean build passes; runtime smoke test of `/api/access/verify` returns
-  a persistent session + `/client` redirect; wrong PIN / unknown token → uniform 401.
+Access link + PIN is committed (HEAD `8086fc2`). Currently **uncommitted** (2026‑07‑02):
+**accounts‑page removal + qualification merge** — deleted `app/[locale]/admin/accounts/`
+and `components/admin/account-{create,edit}-form.tsx`; new `/admin/{workers,clients}/new`
+pages + `worker-create-form`/`client-create-form`/`account-section` components +
+`app/[locale]/admin/account-actions.ts`; edited workers/clients actions & pages, admin
+nav, `lib/{validations,pricing,invoicing}.ts`, `messages/*`, `prisma/schema.prisma`,
+`scripts/seed-demo.mjs`.
+- **Production DB already migrated**: rows remapped (`altenpfleger`/`gesundheitspfleger`
+  → `pflegefachkraft`) then `prisma db push --accept-data-loss` dropped the two enum
+  values. ⚠️ The **deployed** code still offers the old values until this is pushed —
+  selecting them there will fail; push soon.
+- Verified locally: tests + clean build pass; authed smoke test — `/admin/accounts` 404,
+  new/edit pages render (incl. AR), AccountSection on worker & client edit pages.
 - **Next action:** after review, `git add -A && git commit && git push origin main`
   (author must be paypalalmnar@gmail.com) to deploy.
-- Last pushed commit: `e0e506b`.
 
 ## 9. Commands
 ```

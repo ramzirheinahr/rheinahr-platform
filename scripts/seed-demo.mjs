@@ -92,10 +92,10 @@ async function main() {
       qualification: qual, contractType: contract, languages: ["de"] } })).id;
   const w = {
     anna: await mk("anna@demo.rheinahr-gmbh.de", "Anna Müller", "pflegefachkraft", "unbefristet"),
-    thomas: await mk("thomas@demo.rheinahr-gmbh.de", "Thomas Schmidt", "altenpfleger", "befristet"),
+    thomas: await mk("thomas@demo.rheinahr-gmbh.de", "Thomas Schmidt", "pflegefachkraft", "befristet"),
     sarah: await mk("sarah@demo.rheinahr-gmbh.de", "Dr. Sarah Wagner", "pflegedienstleitung", "unbefristet"),
     mehmet: await mk("mehmet@demo.rheinahr-gmbh.de", "Mehmet Yılmaz", "betreuungskraft", "unbefristet"),
-    julia: await mk("julia@demo.rheinahr-gmbh.de", "Julia Becker", "gesundheitspfleger", "minijob"),
+    julia: await mk("julia@demo.rheinahr-gmbh.de", "Julia Becker", "pflegefachkraft", "minijob"),
     omar: await mk("omar@demo.rheinahr-gmbh.de", "Omar Khalil", "pflegehelfer", "befristet"),
   };
 
@@ -134,14 +134,14 @@ async function main() {
   // Confirmed + service-confirmed (history / reports / invoicing):
   await order(demoClient.id, "betreuungskraft", "2026-06-20", "08:00", "20:00", "confirmed",
     { assign: w.mehmet, assignStatus: "confirmed", hours: 12, confirmedBy: clientUid });
-  await order(c1.id, "altenpfleger", "2026-06-22", "06:00", "14:00", "confirmed",
+  await order(c1.id, "pflegefachkraft", "2026-06-22", "06:00", "14:00", "confirmed",
     { assign: w.thomas, assignStatus: "confirmed", hours: 8,
       confirmedBy: (await prisma.client.findUniqueOrThrow({ where: { id: c1.id }, select: { userId: true } })).userId });
   // Layla's completed shift (worker history):
   await order(c2.id, "pflegefachkraft", "2026-06-25", "14:00", "22:00", "confirmed",
     { assign: layla.id, assignStatus: "confirmed", hours: 8,
       confirmedBy: (await prisma.client.findUniqueOrThrow({ where: { id: c2.id }, select: { userId: true } })).userId });
-  await order(c1.id, "gesundheitspfleger", "2026-07-12", "08:00", "16:00", "review");
+  await order(c1.id, "pflegefachkraft", "2026-07-12", "08:00", "16:00", "review");
   // Completed, worker confirmed, awaiting the client's service confirmation
   // (owner can confirm LIVE with the signature pad):
   await order(demoClient.id, "pflegehelfer", "2026-06-28", "08:00", "16:00", "completed",

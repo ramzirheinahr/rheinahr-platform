@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ export default async function WorkersPage() {
   const c = await getTranslations("common");
   const eq = await getTranslations("enums.qualification");
   const ec = await getTranslations("enums.contractType");
+  const actor = await getCurrentUser();
   const workers = await getWorkers();
 
   const columns: Column<WorkerRow>[] = [
@@ -59,13 +61,13 @@ export default async function WorkersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <Button
-          render={<Link href="/admin/accounts/new?role=worker" />}
-          className="gap-2"
-        >
-          <Plus className="size-4" />
-          {t("new")}
-        </Button>
+        {/* Creating a worker provisions their login account — super_admin only. */}
+        {actor?.role === "super_admin" && (
+          <Button render={<Link href="/admin/workers/new" />} className="gap-2">
+            <Plus className="size-4" />
+            {t("new")}
+          </Button>
+        )}
       </div>
 
       <ResponsiveTable

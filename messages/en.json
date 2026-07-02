@@ -195,7 +195,10 @@
     "surchargesHint": "Leave empty for defaults (Sat +25%, Sun +50%, holiday +100%).",
     "surchargeSat": "Saturday %",
     "surchargeSun": "Sunday %",
-    "surchargeHoliday": "Holiday %"
+    "surchargeHoliday": "Holiday %",
+    "new": "New facility",
+    "created": "Facility created.",
+    "emailInUse": "This email is already in use."
   },
   "orders": {
     "title": "Orders",
@@ -314,9 +317,7 @@
   },
   "enums": {
     "qualification": {
-      "pflegefachkraft": "Registered care nurse",
-      "altenpfleger": "Geriatric nurse",
-      "gesundheitspfleger": "Health & care nurse",
+      "pflegefachkraft": "Qualified care professional",
       "pflegehelfer": "Nursing assistant",
       "betreuungskraft": "Care companion (§43b)",
       "pflegedienstleitung": "Nursing service manager"
@@ -443,33 +444,20 @@
     "empty": "No confirmed services in this period."
   },
   "accounts": {
-    "title": "Accounts",
-    "subtitle": "Create accounts and assign roles (super administrator only).",
-    "new": "New account",
-    "editTitle": "Edit account",
-    "empty": "No accounts yet.",
-    "fullName": "Full name",
+    "accountSection": "Account & access",
+    "accountHint": "Manage this account's access: status, password and access link.",
     "email": "Email (login)",
+    "saveEmail": "Save email",
+    "emailUpdated": "Email updated.",
+    "emailInUse": "This email is already in use.",
     "password": "Password",
     "passwordHint": "At least 12 characters.",
     "newPassword": "New password",
-    "role": "Role",
-    "active": "Active",
-    "status": "Status",
-    "statusActive": "Active",
-    "statusInactive": "Disabled",
     "resetPassword": "Reset password",
-    "profileSection": "Profile details",
-    "facilityName": "Facility name",
-    "facilityType": "Facility type",
-    "contactPerson": "Contact person",
-    "billingInfo": "Billing details",
-    "created": "Account created.",
-    "updated": "Changes saved.",
     "passwordReset": "Password has been reset.",
+    "active": "Active",
+    "updated": "Changes saved.",
     "saveError": "Saving failed. Please check your input.",
-    "emailInUse": "This email is already in use.",
-    "forbidden": "Not authorized.",
-    "selfEdit": "You cannot modify your own account here."
+    "forbidden": "Not authorized."
   }
 }

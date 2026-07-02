@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ export default async function ClientsPage() {
   const t = await getTranslations("clients");
   const c = await getTranslations("common");
   const ef = await getTranslations("enums.facilityType");
+  const actor = await getCurrentUser();
   const clients = await getClients();
 
   const columns: Column<ClientRow>[] = [
@@ -57,13 +59,13 @@ export default async function ClientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <Button
-          render={<Link href="/admin/accounts/new?role=client" />}
-          className="gap-2"
-        >
-          <Plus className="size-4" />
-          {t("title")}
-        </Button>
+        {/* Creating a facility provisions its login account — super_admin only. */}
+        {actor?.role === "super_admin" && (
+          <Button render={<Link href="/admin/clients/new" />} className="gap-2">
+            <Plus className="size-4" />
+            {t("new")}
+          </Button>
+        )}
       </div>
 
       <ResponsiveTable
