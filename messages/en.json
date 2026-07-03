@@ -116,7 +116,8 @@
     "confirmations": "Service confirmations",
     "schedule": "Shifts & Availability",
     "scheduleSubtitle": "Accept and confirm your shifts, and keep your availability up to date.",
-    "clientSchedule": "Monthly overview"
+    "clientSchedule": "Monthly overview",
+    "masterSchedule": "Duty roster"
   },
   "auth": {
     "signInTitle": "Sign in to your account",
@@ -252,7 +253,10 @@
     "created": "Facility created.",
     "emailInUse": "This email is already in use.",
     "hoursAction": "Hours",
-    "scheduleHint": "All deployments and confirmed hours at this facility."
+    "scheduleHint": "All deployments and confirmed hours at this facility.",
+    "shortCode": "Roster code",
+    "shortCodeHint": "2–3 characters, shown on the duty roster (e.g. WB).",
+    "codeInUse": "This code is already used by another facility."
   },
   "orders": {
     "title": "Orders",
@@ -567,5 +571,32 @@
     "workerHeader": "Care worker",
     "downloadPdf": "PDF",
     "downloadExcel": "Excel (CSV)"
+  },
+  "masterSchedule": {
+    "title": "Duty roster",
+    "subtitle": "Availability (line 1) and worked shifts (line 2) for all care staff – tap a cell to edit.",
+    "empty": "No active care staff with this qualification.",
+    "nameHeader": "Name",
+    "legend": "Legend",
+    "legendConfirmed": "Confirmed by the client (ward, 0 = not specified)",
+    "legendPending": "Faded codes = acceptance by the worker still pending",
+    "missingCodesHint": "Grey = no fixed code yet (derived automatically). Set the code on the facility.",
+    "availabilitySection": "Availability",
+    "availabilityHint": "All three = FSN, none = unavailable all day.",
+    "deploymentsSection": "Shifts",
+    "noDeployments": "No shifts on this day.",
+    "shift": "Shift",
+    "facility": "Facility",
+    "selectFacility": "Select a facility…",
+    "assign": "Add shift",
+    "assigned": "Shift added. The worker has been notified.",
+    "removed": "Shift removed.",
+    "saved": "Saved.",
+    "saveError": "Saving failed. Please try again.",
+    "busyWarning": "The worker already has an overlapping shift on this day.",
+    "unavailableWarning": "The worker is marked unavailable for this shift.",
+    "forceAssign": "Assign anyway",
+    "confirmedShort": "Confirmed",
+    "confirmedLocked": "Shifts confirmed by the client (Leistungsnachweis) cannot be removed here."
   }
 }

@@ -29,6 +29,7 @@ async function assertSuperAdmin() {
 function parseProfile(formData: FormData) {
   return clientSchema.safeParse({
     facilityName: formData.get("facilityName"),
+    shortCode: formData.get("shortCode"),
     facilityType: formData.get("facilityType"),
     address: formData.get("address") || undefined,
     contactPerson: formData.get("contactPerson") || undefined,
@@ -69,6 +70,14 @@ export async function createClient(formData: FormData): Promise<ActionState> {
   });
   if (existing) return { ok: false, error: "emailInUse" };
 
+  if (data.shortCode) {
+    const codeTaken = await prisma.client.findUnique({
+      where: { shortCode: data.shortCode },
+      select: { id: true },
+    });
+    if (codeTaken) return { ok: false, error: "codeInUse" };
+  }
+
   // 1) Provision the Supabase Auth login (email confirmed so they can sign in now).
   const supabase = createSupabaseAdminClient();
   const { data: created, error: authError } = await supabase.auth.admin.createUser({
@@ -98,6 +107,7 @@ export async function createClient(formData: FormData): Promise<ActionState> {
         data: {
           userId: authId,
           facilityName: data.facilityName,
+          shortCode: data.shortCode ?? null,
           facilityType: data.facilityType,
           address: data.address,
           contactPerson: data.contactPerson,
@@ -140,23 +150,30 @@ export async function updateClient(
   if (!parsed.success) return { ok: false, error: "saveError" };
   const data = parsed.data;
 
-  await prisma.client.update({
-    where: { id },
-    data: {
-      facilityName: data.facilityName,
-      facilityType: data.facilityType,
-      address: data.address,
-      contactPerson: data.contactPerson,
-      billingInfo: data.billingInfo,
-      surchargeSat: pctToFrac(data.surchargeSat),
-      surchargeSun: pctToFrac(data.surchargeSun),
-      surchargeHoliday: pctToFrac(data.surchargeHoliday),
-      // Keep the account display name in sync with the profile.
-      user: {
-        update: { fullName: data.contactPerson || data.facilityName },
+  try {
+    await prisma.client.update({
+      where: { id },
+      data: {
+        facilityName: data.facilityName,
+        shortCode: data.shortCode ?? null,
+        facilityType: data.facilityType,
+        address: data.address,
+        contactPerson: data.contactPerson,
+        billingInfo: data.billingInfo,
+        surchargeSat: pctToFrac(data.surchargeSat),
+        surchargeSun: pctToFrac(data.surchargeSun),
+        surchargeHoliday: pctToFrac(data.surchargeHoliday),
+        // Keep the account display name in sync with the profile.
+        user: {
+          update: { fullName: data.contactPerson || data.facilityName },
+        },
       },
-    },
-  });
+    });
+  } catch (e) {
+    // P2002 = another facility already uses this Dienstplan-Kürzel.
+    const dup = typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
+    return { ok: false, error: dup ? "codeInUse" : "saveError" };
+  }
 
   await audit({
     userId: admin.id,

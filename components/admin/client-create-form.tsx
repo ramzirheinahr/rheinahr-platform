@@ -38,7 +38,15 @@ export function ClientCreateForm() {
         router.push("/admin/clients");
         router.refresh();
       } else {
-        toast.error(t(res.error === "emailInUse" ? "emailInUse" : "saveError"));
+        toast.error(
+          t(
+            res.error === "emailInUse"
+              ? "emailInUse"
+              : res.error === "codeInUse"
+                ? "codeInUse"
+                : "saveError",
+          ),
+        );
       }
     });
   }
@@ -49,6 +57,17 @@ export function ClientCreateForm() {
         <div className="space-y-2">
           <Label htmlFor="facilityName">{t("facilityName")}</Label>
           <Input id="facilityName" name="facilityName" required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="shortCode">{t("shortCode")}</Label>
+          <Input
+            id="shortCode"
+            name="shortCode"
+            maxLength={3}
+            placeholder="WB"
+            className="uppercase sm:max-w-28"
+          />
+          <p className="text-xs text-muted-foreground">{t("shortCodeHint")}</p>
         </div>
         <div className="space-y-2">
           <Label>{t("facilityType")}</Label>

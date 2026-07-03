@@ -20,6 +20,7 @@ import { updateClient } from "@/app/[locale]/admin/clients/actions";
 type ClientData = {
   id: string;
   facilityName: string;
+  shortCode: string | null;
   facilityType: string;
   address: string | null;
   contactPerson: string | null;
@@ -52,7 +53,7 @@ export function ClientForm({ client }: { client: ClientData }) {
         router.push("/admin/clients");
         router.refresh();
       } else {
-        toast.error(t("saveError"));
+        toast.error(t(res.error === "codeInUse" ? "codeInUse" : "saveError"));
       }
     });
   }
@@ -68,6 +69,18 @@ export function ClientForm({ client }: { client: ClientData }) {
             required
             defaultValue={client.facilityName}
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="shortCode">{t("shortCode")}</Label>
+          <Input
+            id="shortCode"
+            name="shortCode"
+            maxLength={3}
+            placeholder="WB"
+            className="uppercase sm:max-w-28"
+            defaultValue={client.shortCode ?? ""}
+          />
+          <p className="text-xs text-muted-foreground">{t("shortCodeHint")}</p>
         </div>
         <div className="space-y-2">
           <Label>{t("facilityType")}</Label>

@@ -228,6 +228,9 @@ model Client {
   id            String       @id @default(uuid())
   userId        String       @unique @map("user_id")
   facilityName  String       @map("facility_name")
+  // Dienstplan-Kürzel: the 2–3 letter facility code used on the master
+  // schedule grid (e.g. "WB" = Limbachstift Wachtberg). Admin-assigned.
+  shortCode     String?      @unique @map("short_code")
   facilityType  FacilityType @map("facility_type")
   address       String?
   contactPerson String?      @map("contact_person")

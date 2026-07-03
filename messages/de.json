@@ -116,7 +116,8 @@
     "confirmations": "Leistungsnachweise",
     "schedule": "Einsätze & Verfügbarkeit",
     "scheduleSubtitle": "Einsätze annehmen und bestätigen, Verfügbarkeit pflegen.",
-    "clientSchedule": "Monatsübersicht"
+    "clientSchedule": "Monatsübersicht",
+    "masterSchedule": "Dienstplan"
   },
   "auth": {
     "signInTitle": "Bei Ihrem Konto anmelden",
@@ -252,7 +253,10 @@
     "created": "Einrichtung wurde angelegt.",
     "emailInUse": "Diese E-Mail wird bereits verwendet.",
     "hoursAction": "Stunden",
-    "scheduleHint": "Alle Einsätze und bestätigten Stunden in dieser Einrichtung."
+    "scheduleHint": "Alle Einsätze und bestätigten Stunden in dieser Einrichtung.",
+    "shortCode": "Dienstplan-Kürzel",
+    "shortCodeHint": "2–3 Zeichen, erscheint im Dienstplan (z. B. WB).",
+    "codeInUse": "Dieses Kürzel wird bereits von einer anderen Einrichtung verwendet."
   },
   "orders": {
     "title": "Aufträge",
@@ -567,5 +571,32 @@
     "workerHeader": "Pflegekraft",
     "downloadPdf": "PDF",
     "downloadExcel": "Excel (CSV)"
+  },
+  "masterSchedule": {
+    "title": "Dienstplan",
+    "subtitle": "Verfügbarkeit (Zeile 1) und geleistete Dienste (Zeile 2) aller Pflegekräfte – Zelle antippen zum Bearbeiten.",
+    "empty": "Keine aktiven Pflegekräfte mit dieser Qualifikation.",
+    "nameHeader": "Name",
+    "legend": "Legende",
+    "legendConfirmed": "Vom Kunden bestätigt (Wohnbereich, 0 = ohne Angabe)",
+    "legendPending": "Blasse Codes = Annahme durch Mitarbeiter ausstehend",
+    "missingCodesHint": "Grau = ohne festes Kürzel (automatisch abgeleitet). Kürzel in der Einrichtung festlegen.",
+    "availabilitySection": "Verfügbarkeit",
+    "availabilityHint": "Alle drei = FSN, keine = ganztägig nicht verfügbar.",
+    "deploymentsSection": "Dienste",
+    "noDeployments": "Keine Dienste an diesem Tag.",
+    "shift": "Schicht",
+    "facility": "Einrichtung",
+    "selectFacility": "Einrichtung wählen…",
+    "assign": "Dienst eintragen",
+    "assigned": "Dienst wurde eingetragen. Die Pflegekraft wurde benachrichtigt.",
+    "removed": "Dienst wurde entfernt.",
+    "saved": "Gespeichert.",
+    "saveError": "Speichern fehlgeschlagen. Bitte erneut versuchen.",
+    "busyWarning": "Die Pflegekraft hat an diesem Tag bereits einen überschneidenden Dienst.",
+    "unavailableWarning": "Die Pflegekraft ist für diese Schicht als nicht verfügbar markiert.",
+    "forceAssign": "Trotzdem eintragen",
+    "confirmedShort": "Bestätigt",
+    "confirmedLocked": "Vom Kunden bestätigte Dienste (Leistungsnachweis) können hier nicht entfernt werden."
   }
 }

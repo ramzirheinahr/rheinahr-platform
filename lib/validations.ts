@@ -133,6 +133,11 @@ export const workerSchema = z.object({
 
 export const clientSchema = z.object({
   facilityName: z.string().min(2).max(160),
+  // Dienstplan-Kürzel shown on the master schedule grid (2–3 letters/digits).
+  shortCode: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() ? v.trim().toUpperCase() : undefined),
+    z.string().regex(/^[A-Z0-9ÄÖÜ]{2,3}$/).optional(),
+  ),
   facilityType: z.enum(facilityTypes),
   address: z.string().max(240).optional(),
   contactPerson: z.string().max(120).optional(),

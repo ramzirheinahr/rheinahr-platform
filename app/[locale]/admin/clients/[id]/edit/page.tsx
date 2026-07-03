@@ -54,6 +54,7 @@ export default async function EditClientPage({
         client={{
           id: client.id,
           facilityName: client.facilityName,
+          shortCode: client.shortCode,
           facilityType: client.facilityType,
           address: client.address,
           contactPerson: client.contactPerson,

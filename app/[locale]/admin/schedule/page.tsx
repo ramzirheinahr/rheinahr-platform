@@ -1,0 +1,168 @@
+import { getTranslations } from "next-intl/server";
+import { getMasterSchedule } from "@/lib/master-schedule";
+import { qualifications } from "@/lib/validations";
+import { MasterScheduleGrid } from "@/components/admin/master-schedule-grid";
+import { Link } from "@/i18n/navigation";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { ChevronLeft, ChevronRight, FileDown, Sheet } from "lucide-react";
+import type { Qualification } from "@prisma/client";
+
+export const dynamic = "force-dynamic";
+
+// The master Dienstplan: the company's Excel shift sheet as a live, editable
+// grid — one tab per qualification, workers alphabetical, facility legend at
+// the side. Cell edits write to the real availability/order records.
+export default async function AdminMasterSchedulePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ year?: string; month?: string; qualification?: string }>;
+}) {
+  const { locale } = await params;
+  const sp = await searchParams;
+  const t = await getTranslations("masterSchedule");
+  const av = await getTranslations("availability");
+  const oq = await getTranslations("orderRequest");
+  const cs = await getTranslations("clientSchedule");
+  const eq = await getTranslations("enums.qualification");
+
+  const now = new Date();
+  let year = Number(sp.year) || now.getUTCFullYear();
+  let month = Number(sp.month) || now.getUTCMonth() + 1;
+  if (month < 1 || month > 12) month = now.getUTCMonth() + 1;
+  if (year < 2020 || year > 2100) year = now.getUTCFullYear();
+  const qualification: Qualification = (qualifications as readonly string[]).includes(
+    sp.qualification ?? "",
+  )
+    ? (sp.qualification as Qualification)
+    : "pflegefachkraft";
+
+  const { rows, facilities } = await getMasterSchedule(qualification, year, month);
+
+  const monthLabel = new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
+  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
+  const qs = (y: number, m: number, q: string) =>
+    `/admin/schedule?year=${y}&month=${m}&qualification=${q}`;
+  const exportBase = `/api/exports/master-schedule?year=${year}&month=${month}&qualification=${qualification}`;
+
+  const missingCodes = facilities.filter((f) => !f.hasCode);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">{t("title")}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t("subtitle")}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            render={<a href={`${exportBase}&format=pdf`} />}
+          >
+            <FileDown className="size-4" />
+            {cs("downloadPdf")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            render={<a href={`${exportBase}&format=csv`} />}
+          >
+            <Sheet className="size-4" />
+            {cs("downloadExcel")}
+          </Button>
+        </div>
+      </div>
+
+      {/* One sheet per qualification — like the separate Excel tabs. */}
+      <div className="flex flex-wrap gap-1 rounded-lg border bg-muted/30 p-1">
+        {qualifications.map((q) => (
+          <Link
+            key={q}
+            href={qs(year, month, q)}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              q === qualification
+                ? "bg-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {eq(q)}
+          </Link>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-2 py-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1"
+          render={<Link href={qs(prev.y, prev.m, qualification)} />}
+        >
+          <ChevronLeft className="size-4 rtl:rotate-180" />
+          {av("prevMonth")}
+        </Button>
+        <span className="font-semibold">{monthLabel}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1"
+          render={<Link href={qs(next.y, next.m, qualification)} />}
+        >
+          {av("nextMonth")}
+          <ChevronRight className="size-4 rtl:rotate-180" />
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-4 xl:flex-row">
+        <div className="min-w-0 flex-1">
+          <MasterScheduleGrid year={year} month={month} rows={rows} facilities={facilities} />
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>
+              F = {oq("preset_early")} · S = {oq("preset_late")} · N = {oq("preset_night")}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-3 rounded bg-emerald-600" /> {t("legendConfirmed")}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-3 rounded border bg-rose-500/15" /> {oq("weekendLegend")} /{" "}
+              {oq("holidayLegend")}
+            </span>
+            <span>{t("legendPending")}</span>
+          </div>
+        </div>
+
+        {/* Facility legend — the Kürzel index from the Excel sheet's right edge. */}
+        <aside className="shrink-0 xl:w-64">
+          <div className="rounded-lg border">
+            <h2 className="border-b bg-muted/50 px-3 py-2 text-sm font-semibold">
+              {t("legend")}
+            </h2>
+            <ul className="max-h-[60vh] overflow-y-auto p-2 text-sm">
+              {facilities.map((f) => (
+                <li key={f.clientId} className="flex items-baseline gap-2 px-1 py-0.5">
+                  <span className="w-9 shrink-0 font-mono font-bold">{f.code}</span>
+                  <span className={cn("truncate", !f.hasCode && "text-muted-foreground")}>
+                    {f.name}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {missingCodes.length > 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">{t("missingCodesHint")}</p>
+          ) : null}
+        </aside>
+      </div>
+    </div>
+  );
+}

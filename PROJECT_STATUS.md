@@ -135,6 +135,28 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   (`Conversation.requestGroupId`) instead of notification‑only. Server logic in
   `lib/inbox.ts` (queries/access) + `lib/inbox-actions.ts` (Zod‑validated
   actions, audit‑logged).
+- **Master Dienstplan** (2026‑07): `/admin/schedule` — the company's Excel shift sheet
+  as a live grid. One tab per qualification, workers alphabetical, day columns,
+  **two lines per worker**: line 1 availability letters (**F/S/N**, all three = `FSN`,
+  empty = whole day off; flips to the **ward number on green** once the client signed
+  the Leistungsnachweis, `0` = no ward on the order), line 2 worked codes
+  (**shift letter + facility Kürzel**, e.g. `FWB`; faded = worker acceptance pending).
+  Facility legend at the side. **Cell click opens an editor** that writes to the REAL
+  records (grid = view, never a copy): availability → `WorkerAvailability` blocks via
+  `lettersToBlocks`; add shift → attaches to an open matching order (free headcount,
+  same window) else creates a single‑shift admin order, + assignment + worker
+  notification, all in one transaction with busy/unavailable conflict checks
+  (`error: busy|unavailable`, explicit **force override** like the candidate list);
+  remove → deletes assignment (blocked once client‑confirmed), order falls back to
+  `pending` when empty. New `Client.shortCode` (2–3 chars, unique, uppercased —
+  "Dienstplan‑Kürzel" field on facility create/edit, `codeInUse` error; fallback code
+  derived from the name until set). Exports at `/api/exports/master-schedule`
+  (landscape **PDF** + Excel **CSV**, same two‑line layout + legend, admin‑only,
+  audited). Pure logic in `lib/master-schedule-core.ts` (unit‑tested — note: the three
+  shift windows overlap 30 min at handovers; blocks only count against a window past
+  that), DB layer `lib/master-schedule.ts`, grid `components/admin/master-schedule-grid.tsx`,
+  actions `app/[locale]/admin/schedule/actions.ts`. Shift letter for free‑form order
+  times is derived from the start time (04–11 F, 11–17:30 S, else N).
 - **Reports** dashboard · **Invoicing** CSV/DATEV export + PDF · legal **Impressum/Datenschutz**
   (German) · cookie banner · **GDPR data export** (`/api/me/export`) · **PWA** (installable,
   offline shell) · professional **landing** + **/roadmap** page (German, for stakeholder).
@@ -157,19 +179,20 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   "now" so old threads don't flood badges).
 
 ## 8. ⚠️ PENDING / UNPUSHED WORK
-Everything up to HEAD `ed61e83` is committed. Currently **uncommitted** (2026‑07‑03):
-the **unified inbox** feature (§6) — new `lib/inbox{,-actions}.ts`,
-`components/inbox/*`, 6 inbox pages, edits to the 3 portal layouts,
-`portal-{shell,nav}`, `notifications-bell`, worker assignment page, admin
-messages page (now a redirect), client orders actions, `prisma/schema.prisma`,
-`messages/{de,en,ar}.json`; deleted `lib/messages.ts`, `lib/message-actions.ts`,
-`components/messages/message-thread.tsx`.
-- **DB already pushed** (additive only — existing data untouched).
-- Verified locally: vitest green, clean build; authed smoke test (real Supabase
-  sessions): admin/worker inbox render (DE + AR RTL), unread nav badge counts,
-  legacy assignment‑chat URL lazily creates the conversation + redirects,
-  non‑participant worker gets 404 with **no content leak**, admin compose
-  recipient list serialized correctly. Test data cleaned up afterwards.
+Everything up to HEAD `59565a5` is committed (inbox shipped). Currently
+**uncommitted** (2026‑07‑03): the **master Dienstplan** feature (§6) — new
+`lib/master-schedule{,-core,-core.test}.ts`, `lib/pdf/dienstplan.tsx`,
+`components/admin/master-schedule-grid.tsx`, `app/[locale]/admin/schedule/`
+(page + actions), `app/api/exports/master-schedule/route.ts`; edits to
+`prisma/schema.prisma` (`Client.shortCode`), client forms/actions, admin
+layout nav, `lib/validations.ts`, `messages/{de,en,ar}.json`.
+- **DB already pushed** (additive: nullable unique `clients.short_code`).
+- Verified locally: vitest green (20), clean build; authed end‑to‑end smoke
+  (real Supabase sessions on `next start`): grid renders DE/EN/AR (RTL) with
+  demo data, CSV/PDF exports OK, cell actions exercised over HTTP
+  (availability save → CSV shows `FS`, assign → `FNE` appears, busy →
+  rejected, force → assigns, unavailable → rejected, unassign → cleared,
+  worker session → `forbidden`/403). Test data cleaned up afterwards.
 - **Next action:** after review, `git add -A && git commit && git push origin main`
   (author must be paypalalmnar@gmail.com) to deploy.
 
