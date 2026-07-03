@@ -47,6 +47,7 @@ export async function startConversation(input: {
   subject?: string;
   body: string;
   recipientIds?: string[];
+  broadcastTarget?: "all" | "workers" | "clients";
 }): Promise<InboxActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "forbidden" };
@@ -59,13 +60,27 @@ export async function startConversation(input: {
   const now = new Date();
 
   if (isAgencyRole(user.role)) {
-    const ids = z.array(z.string().uuid()).min(1).max(100).safeParse(input.recipientIds);
-    if (!ids.success) return { ok: false, error: "invalid" };
+    let recipients: { id: string }[] = [];
 
-    const recipients = await prisma.user.findMany({
-      where: { id: { in: ids.data }, active: true, role: { in: ["client", "worker"] } },
-      select: { id: true },
-    });
+    if (input.broadcastTarget) {
+      const rolesToFetch = 
+        input.broadcastTarget === "all" ? ["client", "worker"] :
+        input.broadcastTarget === "workers" ? ["worker"] : ["client"];
+      
+      recipients = await prisma.user.findMany({
+        where: { active: true, role: { in: rolesToFetch as import("@prisma/client").Role[] } },
+        select: { id: true },
+      });
+    } else {
+      const ids = z.array(z.string().uuid()).min(1).max(5000).safeParse(input.recipientIds);
+      if (!ids.success) return { ok: false, error: "invalid" };
+
+      recipients = await prisma.user.findMany({
+        where: { id: { in: ids.data }, active: true, role: { in: ["client", "worker"] } },
+        select: { id: true },
+      });
+    }
+
     if (recipients.length === 0) return { ok: false, error: "invalid" };
 
     const created: string[] = [];

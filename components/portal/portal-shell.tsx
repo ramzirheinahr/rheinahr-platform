@@ -6,6 +6,7 @@ import {
   type NotificationItem,
 } from "@/components/portal/notifications-bell";
 import { Logo } from "@/components/logo";
+import { LiveInboxRefresher } from "@/components/portal/live-inbox-refresher";
 import { Separator } from "@/components/ui/separator";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,7 @@ export async function PortalShell({
 
   return (
     <div className="flex min-h-screen flex-col">
+      <LiveInboxRefresher userId={userId} />
       <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2 sm:gap-3">
           <Logo className="h-7 w-auto sm:h-8" priority />

@@ -36,6 +36,7 @@ export function ComposeButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [broadcastTarget, setBroadcastTarget] = useState<"specific" | "workers" | "clients" | "all">("specific");
 
   const options: ComboOption[] | null = recipients
     ? recipients.map((r) => ({
@@ -56,7 +57,8 @@ export function ComposeButton({
       const res = await startConversation({
         subject: subject || undefined,
         body,
-        recipientIds: options ? recipientIds : undefined,
+        recipientIds: options && broadcastTarget === "specific" ? recipientIds : undefined,
+        broadcastTarget: broadcastTarget !== "specific" ? broadcastTarget : undefined,
       });
       if (res.ok) {
         toast.success(t("sent"));
@@ -88,16 +90,34 @@ export function ComposeButton({
 
         <form onSubmit={onSubmit} className="space-y-4">
           {options ? (
-            <div className="space-y-1.5">
-              <Label>{t("recipients")}</Label>
-              <Combobox
-                options={options}
-                name="recipients"
-                multiple
-                placeholder={t("recipientsPlaceholder")}
-                searchPlaceholder={c("search")}
-                emptyText={t("noRecipients")}
-              />
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Target Audience</Label>
+                <select
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                  value={broadcastTarget}
+                  onChange={(e) => setBroadcastTarget(e.target.value as "specific" | "workers" | "clients" | "all")}
+                >
+                  <option value="specific">Specific Users</option>
+                  <option value="workers">All Workers</option>
+                  <option value="clients">All Clients</option>
+                  <option value="all">Everyone (Workers & Clients)</option>
+                </select>
+              </div>
+
+              {broadcastTarget === "specific" && (
+                <div className="space-y-1.5">
+                  <Label>{t("recipients")}</Label>
+                  <Combobox
+                    options={options}
+                    name="recipients"
+                    multiple
+                    placeholder={t("recipientsPlaceholder")}
+                    searchPlaceholder={c("search")}
+                    emptyText={t("noRecipients")}
+                  />
+                </div>
+              )}
             </div>
           ) : null}
 

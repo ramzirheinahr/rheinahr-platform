@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
 import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
-import { Save, Plus, X, CheckCircle2, Clock, Download, Calendar } from "lucide-react";
+import { Plus, Calendar, CheckCircle2, Download, MapPin, Save, X, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
 import {
@@ -98,11 +98,14 @@ export function AvailabilityBuilder({
   );
   const totals = useMemo(() => {
     const confirmed = (assignments || []).filter((a) => a.confirmedHours != null);
+    const leaves = (leaveDays || []).filter((l) => l.status === "approved" && l.hours != null);
     return {
-      hours: confirmed.reduce((sum, a) => sum + (a.confirmedHours ?? 0), 0),
+      hours: 
+        confirmed.reduce((sum, a) => sum + (a.confirmedHours ?? 0), 0) +
+        leaves.reduce((sum, l) => sum + (l.hours ?? 0), 0),
       shifts: confirmed.length,
     };
-  }, [assignments]);
+  }, [assignments, leaveDays]);
 
   const [cells, setCells] = useState<Record<string, Block>>(() => {
     const map: Record<string, Block> = {};
@@ -384,7 +387,20 @@ export function AvailabilityBuilder({
                         </td>
                         <td className="p-2">
                           <div className="font-medium text-primary">{a.facilityName}</div>
-                          {a.address ? <div className="text-xs text-muted-foreground">{a.address}</div> : null}
+                          {a.address ? (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-xs text-muted-foreground">{a.address}</span>
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.address)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                                title="Open in Google Maps"
+                              >
+                                <MapPin className="size-3.5" />
+                              </a>
+                            </div>
+                          ) : null}
                         </td>
                         <td className="p-2">
                           {a.notes ? <div className="text-sm font-medium">{a.notes}</div> : <span className="text-muted-foreground">—</span>}

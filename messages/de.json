@@ -514,7 +514,7 @@
     "hoursUnit": "Std.",
     "requiredHoursLabel": "Soll",
     "remainingHoursLabel": "Rest",
-    "confirmedByClient": "Signieren",
+    "confirmedByClient": "Signiert",
     "monthTotal": "Geleistete Stunden im Monat (ohne Pausen)",
     "monthTotalHint": "{count, plural, one {# vom Kunden bestätigte Schicht} other {# vom Kunden bestätigte Schichten}}",
     "availableHeader": "Verfügbarkeit"
