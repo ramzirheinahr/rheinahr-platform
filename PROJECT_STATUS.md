@@ -112,8 +112,12 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   per‑shift worker + qualification + Wohnbereich, green confirmed badge, net hours +
   month total. Download as branded **PDF** (`lib/pdf/monatsuebersicht.tsx`, German
   business doc) or **Excel‑friendly CSV** (BOM + semicolon, German decimals) via
-  `/api/exports/client-schedule?year&month&format=pdf|csv` (client‑scoped, audited).
-  Data source `lib/client-schedule.ts` (`getClientMonthSchedule`, `clientScheduleCsv`).
+  `/api/exports/client-schedule?year&month&format=pdf|csv` (client‑scoped, audited;
+  admins add `&clientId=` for any facility). Data source `lib/client-schedule.ts`
+  (`getClientMonthSchedule`, `clientScheduleCsv`); table markup shared via
+  `components/client/month-schedule-table.tsx`. **Admin mirror** at
+  `/admin/clients/[id]/schedule` ("Stunden" button in the clients list) — same table +
+  same PDF/Excel downloads.
 - **Unified inbox** (2026‑07): conversation‑based messaging for all three portals
   (`/{admin,client,worker}/inbox` + `/inbox/[id]` thread pages, shared
   `components/inbox/*` views). Model: agency staff (admin/super_admin act as one

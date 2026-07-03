@@ -4,21 +4,30 @@ import { prisma } from "@/lib/prisma";
 import { getClientMonthSchedule, clientScheduleCsv } from "@/lib/client-schedule";
 import { audit } from "@/lib/audit";
 
-// Month overview download for the client portal — the facility's own shifts
-// only, as PDF (branded Monatsübersicht) or Excel-friendly CSV.
+// Month overview download — the facility's shifts as PDF (branded
+// Monatsübersicht) or Excel-friendly CSV. Clients get their own facility;
+// admins pass ?clientId= to download for any facility.
 export async function GET(req: Request) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "client") {
+  const isStaff = user?.role === "admin" || user?.role === "super_admin";
+  if (!user || (!isStaff && user.role !== "client")) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
-  const client = await prisma.client.findUnique({
-    where: { userId: user.id },
-    select: { id: true, facilityName: true },
-  });
-  if (!client) return new NextResponse("Forbidden", { status: 403 });
-
   const { searchParams } = new URL(req.url);
+
+  const client = isStaff
+    ? searchParams.get("clientId")
+      ? await prisma.client.findUnique({
+          where: { id: searchParams.get("clientId")! },
+          select: { id: true, facilityName: true },
+        })
+      : null
+    : await prisma.client.findUnique({
+        where: { userId: user.id },
+        select: { id: true, facilityName: true },
+      });
+  if (!client) return new NextResponse("Forbidden", { status: 403 });
   const year = Number(searchParams.get("year"));
   const month = Number(searchParams.get("month"));
   const format = searchParams.get("format") === "pdf" ? "pdf" : "csv";

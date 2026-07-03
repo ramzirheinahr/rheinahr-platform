@@ -5,7 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Clock } from "lucide-react";
 
 type ClientRow = Awaited<ReturnType<typeof getClients>>[number];
 
@@ -42,15 +42,26 @@ export default async function ClientsPage() {
       className: "text-end",
       action: true,
       cell: (cl) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2"
-          render={<Link href={`/admin/clients/${cl.id}/edit`} />}
-        >
-          <Pencil className="size-4" />
-          {c("edit")}
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            render={<Link href={`/admin/clients/${cl.id}/schedule`} />}
+          >
+            <Clock className="size-4" />
+            {t("hoursAction")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            render={<Link href={`/admin/clients/${cl.id}/edit`} />}
+          >
+            <Pencil className="size-4" />
+            {c("edit")}
+          </Button>
+        </div>
       ),
     },
   ];

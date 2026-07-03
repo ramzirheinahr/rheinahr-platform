@@ -250,7 +250,9 @@
     "surchargeHoliday": "Holiday %",
     "new": "New facility",
     "created": "Facility created.",
-    "emailInUse": "This email is already in use."
+    "emailInUse": "This email is already in use.",
+    "hoursAction": "Hours",
+    "scheduleHint": "All deployments and confirmed hours at this facility."
   },
   "orders": {
     "title": "Orders",

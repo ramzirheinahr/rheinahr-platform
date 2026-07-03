@@ -1,28 +1,40 @@
 import { getTranslations } from "next-intl/server";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
 import { getClientMonthSchedule } from "@/lib/client-schedule";
 import { MonthScheduleTable } from "@/components/client/month-schedule-table";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, FileDown, Sheet } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  FileDown,
+  Sheet,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-// Client mirror of the worker schedule: every deployment at this facility in
-// one month — same monthly table (all days, weekend/holiday tint, confirmed
-// hours + net total) plus PDF / Excel download of exactly this view.
-export default async function ClientSchedulePage({
+// Admin mirror of the client's month overview — everything RheinAhr worked at
+// one facility, identical table + the same PDF / Excel download.
+export default async function AdminClientSchedulePage({
   params,
   searchParams,
 }: {
-  params: Promise<{ locale: string }>;
+  params: Promise<{ locale: string; id: string }>;
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const { locale } = await params;
+  const { locale, id } = await params;
   const sp = await searchParams;
-  const t = await getTranslations("clientSchedule");
+  const t = await getTranslations("clients");
+  const cs = await getTranslations("clientSchedule");
   const av = await getTranslations("availability");
+  const c = await getTranslations("common");
+
+  const client = await prisma.client
+    .findUnique({ where: { id }, select: { id: true, facilityName: true } })
+    .catch(() => null);
+  if (!client) notFound();
 
   const now = new Date();
   let year = Number(sp.year) || now.getUTCFullYear();
@@ -30,15 +42,7 @@ export default async function ClientSchedulePage({
   if (month < 1 || month > 12) month = now.getUTCMonth() + 1;
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
-  const user = await getCurrentUser();
-  const client = user
-    ? await prisma.client
-        .findUnique({ where: { userId: user.id }, select: { id: true } })
-        .catch(() => null)
-    : null;
-  const { rows, totals } = client
-    ? await getClientMonthSchedule(client.id, year, month)
-    : { rows: [], totals: { confirmedHours: 0, confirmedShifts: 0 } };
+  const { rows, totals } = await getClientMonthSchedule(client.id, year, month);
 
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
@@ -47,14 +51,26 @@ export default async function ClientSchedulePage({
   }).format(new Date(Date.UTC(year, month - 1, 1)));
   const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
-  const exportBase = `/api/exports/client-schedule?year=${year}&month=${month}`;
+  const base = `/admin/clients/${client.id}/schedule`;
+  const exportBase = `/api/exports/client-schedule?year=${year}&month=${month}&clientId=${client.id}`;
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{t("title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            render={<Link href="/admin/clients" />}
+          >
+            <ArrowLeft className="size-4 rtl:rotate-180" />
+            {c("back")}
+          </Button>
+          <div>
+            <h1 className="text-2xl font-semibold">{client.facilityName}</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t("scheduleHint")}</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button
@@ -64,7 +80,7 @@ export default async function ClientSchedulePage({
             render={<a href={`${exportBase}&format=pdf`} />}
           >
             <FileDown className="size-4" />
-            {t("downloadPdf")}
+            {cs("downloadPdf")}
           </Button>
           <Button
             variant="outline"
@@ -73,7 +89,7 @@ export default async function ClientSchedulePage({
             render={<a href={`${exportBase}&format=csv`} />}
           >
             <Sheet className="size-4" />
-            {t("downloadExcel")}
+            {cs("downloadExcel")}
           </Button>
         </div>
       </div>
@@ -83,7 +99,7 @@ export default async function ClientSchedulePage({
           variant="ghost"
           size="sm"
           className="gap-1"
-          render={<Link href={`/client/schedule?year=${prev.y}&month=${prev.m}`} />}
+          render={<Link href={`${base}?year=${prev.y}&month=${prev.m}`} />}
         >
           <ChevronLeft className="size-4 rtl:rotate-180" />
           {av("prevMonth")}
@@ -93,7 +109,7 @@ export default async function ClientSchedulePage({
           variant="ghost"
           size="sm"
           className="gap-1"
-          render={<Link href={`/client/schedule?year=${next.y}&month=${next.m}`} />}
+          render={<Link href={`${base}?year=${next.y}&month=${next.m}`} />}
         >
           {av("nextMonth")}
           <ChevronRight className="size-4 rtl:rotate-180" />

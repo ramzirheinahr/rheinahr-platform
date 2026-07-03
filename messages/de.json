@@ -250,7 +250,9 @@
     "surchargeHoliday": "Feiertag %",
     "new": "Neue Einrichtung",
     "created": "Einrichtung wurde angelegt.",
-    "emailInUse": "Diese E-Mail wird bereits verwendet."
+    "emailInUse": "Diese E-Mail wird bereits verwendet.",
+    "hoursAction": "Stunden",
+    "scheduleHint": "Alle Einsätze und bestätigten Stunden in dieser Einrichtung."
   },
   "orders": {
     "title": "Aufträge",
