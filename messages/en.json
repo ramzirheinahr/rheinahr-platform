@@ -115,7 +115,8 @@
     "documents": "Documents",
     "confirmations": "Service confirmations",
     "schedule": "Shifts & Availability",
-    "scheduleSubtitle": "Accept and confirm your shifts, and keep your availability up to date."
+    "scheduleSubtitle": "Accept and confirm your shifts, and keep your availability up to date.",
+    "clientSchedule": "Monthly overview"
   },
   "auth": {
     "signInTitle": "Sign in to your account",
@@ -557,5 +558,12 @@
     "updated": "Changes saved.",
     "saveError": "Saving failed. Please check your input.",
     "forbidden": "Not authorized."
+  },
+  "clientSchedule": {
+    "title": "Monthly overview",
+    "subtitle": "All deployments at your facility — with confirmed hours (breaks deducted).",
+    "workerHeader": "Care worker",
+    "downloadPdf": "PDF",
+    "downloadExcel": "Excel (CSV)"
   }
 }

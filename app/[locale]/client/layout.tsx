@@ -22,6 +22,7 @@ export default async function ClientLayout({
     { href: "/client", label: t("dashboard") },
     { href: "/client/inbox", label: t("inbox") },
     { href: "/client/orders", label: t("orders") },
+    { href: "/client/schedule", label: t("clientSchedule") },
   ];
 
   return (

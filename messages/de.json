@@ -115,7 +115,8 @@
     "documents": "Dokumente",
     "confirmations": "Leistungsnachweise",
     "schedule": "Einsätze & Verfügbarkeit",
-    "scheduleSubtitle": "Einsätze annehmen und bestätigen, Verfügbarkeit pflegen."
+    "scheduleSubtitle": "Einsätze annehmen und bestätigen, Verfügbarkeit pflegen.",
+    "clientSchedule": "Monatsübersicht"
   },
   "auth": {
     "signInTitle": "Bei Ihrem Konto anmelden",
@@ -557,5 +558,12 @@
     "updated": "Änderungen wurden gespeichert.",
     "saveError": "Speichern fehlgeschlagen. Bitte Eingaben prüfen.",
     "forbidden": "Keine Berechtigung."
+  },
+  "clientSchedule": {
+    "title": "Monatsübersicht",
+    "subtitle": "Alle Einsätze in Ihrer Einrichtung – mit bestätigten Stunden (ohne Pausen).",
+    "workerHeader": "Pflegekraft",
+    "downloadPdf": "PDF",
+    "downloadExcel": "Excel (CSV)"
   }
 }

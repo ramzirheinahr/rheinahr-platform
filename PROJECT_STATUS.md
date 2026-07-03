@@ -107,6 +107,13 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   source `lib/worker-schedule.ts` (`getWorkerMonthSchedule`,
   `getWorkerMonthUnavailability`); `service_confirmed` bell notification carries
   facility · date · hours and the confirm action revalidates `/worker`.
+- **Client month overview** (2026‑07): `/client/schedule` (nav tab "Monatsübersicht")
+  mirrors the same monthly table for the facility — all days, weekend/NRW‑holiday tint,
+  per‑shift worker + qualification + Wohnbereich, green confirmed badge, net hours +
+  month total. Download as branded **PDF** (`lib/pdf/monatsuebersicht.tsx`, German
+  business doc) or **Excel‑friendly CSV** (BOM + semicolon, German decimals) via
+  `/api/exports/client-schedule?year&month&format=pdf|csv` (client‑scoped, audited).
+  Data source `lib/client-schedule.ts` (`getClientMonthSchedule`, `clientScheduleCsv`).
 - **Unified inbox** (2026‑07): conversation‑based messaging for all three portals
   (`/{admin,client,worker}/inbox` + `/inbox/[id]` thread pages, shared
   `components/inbox/*` views). Model: agency staff (admin/super_admin act as one
