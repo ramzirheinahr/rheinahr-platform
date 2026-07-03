@@ -4,7 +4,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { AvailabilityBuilder } from "@/components/worker/availability-builder";
-import { getWorkerMonthSchedule } from "@/lib/worker-schedule";
+import {
+  getWorkerMonthSchedule,
+  getWorkerMonthUnavailability,
+} from "@/lib/worker-schedule";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -15,30 +18,6 @@ async function getWorker() {
   return prisma.worker
     .findUnique({ where: { userId: user.id }, select: { id: true } })
     .catch(() => null);
-}
-
-async function getAvailability(workerId: string, year: number, month: number) {
-  const rangeStart = new Date(Date.UTC(year, month - 1, 1));
-  const rangeEnd = new Date(Date.UTC(year, month, 1));
-  try {
-    const blocks = await prisma.workerAvailability.findMany({
-      where: {
-        workerId,
-        status: "unavailable",
-        date: { gte: rangeStart, lt: rangeEnd },
-      },
-      select: { date: true, startTime: true, endTime: true },
-    });
-    return {
-      initialBlocks: blocks.map((b) => ({
-        date: b.date.toISOString().slice(0, 10),
-        startTime: b.startTime,
-        endTime: b.endTime,
-      })),
-    };
-  } catch {
-    return { initialBlocks: [] };
-  }
 }
 
 export default async function WorkerSchedulePage({
@@ -63,9 +42,9 @@ export default async function WorkerSchedulePage({
   const { rows: assignments } = worker
     ? await getWorkerMonthSchedule(worker.id, year, month)
     : { rows: [] };
-  const { initialBlocks } = worker
-    ? await getAvailability(worker.id, year, month)
-    : { initialBlocks: [] };
+  const initialBlocks = worker
+    ? await getWorkerMonthUnavailability(worker.id, year, month)
+    : [];
 
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",

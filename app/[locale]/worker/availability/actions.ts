@@ -18,20 +18,27 @@ export type UnavailBlock = {
 
 // Replaces the worker's unavailability blocks for one month (local edits saved
 // in one go). A block with null times means the whole day is unavailable.
+// Admins pass `workerId` to edit on the worker's behalf (e.g. availability
+// phoned in to the office); workers can only ever edit their own calendar.
 export async function saveAvailability(
   year: number,
   month: number,
   blocks: UnavailBlock[],
+  workerId?: string,
 ): Promise<ActionState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== "worker") return { ok: false, error: "forbidden" };
+  if (!user) return { ok: false, error: "forbidden" };
   if (month < 1 || month > 12 || year < 2020 || year > 2100)
     return { ok: false, error: "saveError" };
 
-  const worker = await prisma.worker.findUnique({
-    where: { userId: user.id },
-    select: { id: true },
-  });
+  const isStaff = user.role === "admin" || user.role === "super_admin";
+  if (!isStaff && user.role !== "worker") return { ok: false, error: "forbidden" };
+
+  const worker = isStaff
+    ? workerId
+      ? await prisma.worker.findUnique({ where: { id: workerId }, select: { id: true } })
+      : null
+    : await prisma.worker.findUnique({ where: { userId: user.id }, select: { id: true } });
   if (!worker) return { ok: false, error: "saveError" };
 
   const start = new Date(Date.UTC(year, month - 1, 1));
@@ -72,9 +79,10 @@ export async function saveAvailability(
     action: "availability.save",
     entity: "Worker",
     entityId: worker.id,
-    metadata: { year, month, blocks: clean.length },
+    metadata: { year, month, blocks: clean.length, actorRole: user.role },
   });
 
   revalidatePath("/worker");
+  revalidatePath(`/admin/workers/${worker.id}/schedule`);
   return { ok: true };
 }

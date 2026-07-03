@@ -99,10 +99,14 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   **Leistungsnachweis PDF**, **in‑app notifications** (bell).
 - **Worked hours** (2026‑07): worker schedule table shows client‑confirmed hours per
   shift (green "Vom Kunden bestätigt" badge) + monthly net total (breaks deducted) in a
-  table footer; admin mirror at `/admin/workers/[id]/schedule` (linked "Stunden" from the
-  workers list). Shared data source `lib/worker-schedule.ts` (`getWorkerMonthSchedule`);
-  `service_confirmed` bell notification carries facility · date · hours and the
-  confirm action revalidates `/worker`.
+  table footer; **fully editable admin mirror** at `/admin/workers/[id]/schedule`
+  (linked "Stunden" from the workers list) — renders the *same* `AvailabilityBuilder`
+  with `workerId`, so admins accept/decline assignments and edit availability **on the
+  worker's behalf** (phone‑in changes; `saveAvailability`/`respondAssignment` accept
+  admin/super_admin, audit logs keep the acting user via `actorRole`). Shared data
+  source `lib/worker-schedule.ts` (`getWorkerMonthSchedule`,
+  `getWorkerMonthUnavailability`); `service_confirmed` bell notification carries
+  facility · date · hours and the confirm action revalidates `/worker`.
 - **Unified inbox** (2026‑07): conversation‑based messaging for all three portals
   (`/{admin,client,worker}/inbox` + `/inbox/[id]` thread pages, shared
   `components/inbox/*` views). Model: agency staff (admin/super_admin act as one

@@ -7,13 +7,18 @@ import { audit } from "@/lib/audit";
 
 export type ActionState = { ok: boolean; error?: string };
 
-// Worker accepts or declines an assignment they own.
+// Worker accepts or declines an assignment they own. Admins may respond on
+// the worker's behalf (e.g. acceptance given by phone) — the audit log keeps
+// the acting user, so on-behalf responses stay traceable.
 export async function respondAssignment(
   assignmentId: string,
   accept: boolean,
 ): Promise<ActionState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== "worker") return { ok: false, error: "forbidden" };
+  const isStaff = user?.role === "admin" || user?.role === "super_admin";
+  if (!user || (!isStaff && user.role !== "worker")) {
+    return { ok: false, error: "forbidden" };
+  }
 
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
@@ -30,7 +35,7 @@ export async function respondAssignment(
       },
     },
   });
-  if (!assignment || assignment.worker.userId !== user.id) {
+  if (!assignment || (!isStaff && assignment.worker.userId !== user.id)) {
     return { ok: false, error: "forbidden" };
   }
 
@@ -97,9 +102,11 @@ export async function respondAssignment(
     action: accept ? "assignment.confirm" : "assignment.decline",
     entity: "Assignment",
     entityId: assignmentId,
+    metadata: { actorRole: user.role },
   });
 
   revalidatePath("/worker");
   revalidatePath(`/admin/orders/${assignment.order.id}`);
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
   return { ok: true };
 }

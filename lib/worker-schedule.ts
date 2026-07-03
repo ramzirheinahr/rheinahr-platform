@@ -82,3 +82,30 @@ export async function getWorkerMonthSchedule(
     },
   };
 }
+
+// One month of unavailability blocks in the shape the AvailabilityBuilder
+// expects — used by the worker's own schedule page and the admin mirror.
+export async function getWorkerMonthUnavailability(
+  workerId: string,
+  year: number,
+  month: number,
+): Promise<{ date: string; startTime: string | null; endTime: string | null }[]> {
+  const blocks = await prisma.workerAvailability
+    .findMany({
+      where: {
+        workerId,
+        status: "unavailable",
+        date: {
+          gte: new Date(Date.UTC(year, month - 1, 1)),
+          lt: new Date(Date.UTC(year, month, 1)),
+        },
+      },
+      select: { date: true, startTime: true, endTime: true },
+    })
+    .catch(() => []);
+  return blocks.map((b) => ({
+    date: b.date.toISOString().slice(0, 10),
+    startTime: b.startTime,
+    endTime: b.endTime,
+  }));
+}

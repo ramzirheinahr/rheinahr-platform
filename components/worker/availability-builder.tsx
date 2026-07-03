@@ -54,11 +54,15 @@ export function AvailabilityBuilder({
   month,
   initialBlocks,
   assignments = [],
+  workerId,
 }: {
   year: number;
   month: number;
   initialBlocks: InitialBlock[];
   assignments?: Assignment[];
+  // Set when an admin edits on the worker's behalf (phone-in changes); the
+  // worker's own page omits it and the action resolves the worker from the session.
+  workerId?: string;
 }) {
   const t = useTranslations("availability");
   const oq = useTranslations("orderRequest");
@@ -163,7 +167,7 @@ export function AvailabilityBuilder({
           : { date, startTime: b.start, endTime: b.end },
       );
     startTransition(async () => {
-      const res = await saveAvailability(year, month, blocks);
+      const res = await saveAvailability(year, month, blocks, workerId);
       if (res.ok) {
         toast.success(t("saved"));
         router.refresh();
