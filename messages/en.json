@@ -488,14 +488,14 @@
   },
   "availability": {
     "title": "Availability",
-    "subtitle": "Mark when you are not available — per shift or the whole day.",
+    "subtitle": "Mark when you are available – per shift or all day. Days left blank count as unavailable.",
     "available": "Available",
     "unavailable": "Unavailable",
-    "fullDay": "All day",
+    "fullDay": "Available all day",
     "custom": "Custom",
     "assigned": "Scheduled",
     "shiftOrTask": "Shift / Task",
-    "legend": "Pick “All day” or a shift per day, then save.",
+    "legend": "For each day pick “Available all day” or individual shifts, then save. Blank days = unavailable.",
     "prevMonth": "Previous month",
     "nextMonth": "Next month",
     "save": "Save",
@@ -505,7 +505,8 @@
     "hoursUnit": "h",
     "confirmedByClient": "Confirmed by client",
     "monthTotal": "Hours worked this month (breaks deducted)",
-    "monthTotalHint": "{count, plural, one {# shift confirmed by the client} other {# shifts confirmed by the client}}"
+    "monthTotalHint": "{count, plural, one {# shift confirmed by the client} other {# shifts confirmed by the client}}",
+    "availableHeader": "Availability"
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",
@@ -576,7 +577,7 @@
   },
   "masterSchedule": {
     "title": "Duty roster",
-    "subtitle": "Availability (line 1) and worked shifts (line 2) for all care staff – tap a cell to edit.",
+    "subtitle": "Availability (line 1) and worked shifts (line 2) for all care staff. Blank availability = not yet entered – tap a cell to edit.",
     "empty": "No active care staff with this qualification.",
     "nameHeader": "Name",
     "legend": "Legend",
@@ -584,7 +585,7 @@
     "legendPending": "Faded codes = acceptance by the worker still pending",
     "missingCodesHint": "Grey = no fixed code yet (derived automatically). Set the code on the facility.",
     "availabilitySection": "Availability",
-    "availabilityHint": "All three = FSN, none = unavailable all day.",
+    "availabilityHint": "All three = FSN. Nothing selected = unavailable (blank).",
     "deploymentsSection": "Shifts",
     "noDeployments": "No shifts on this day.",
     "shift": "Shift",

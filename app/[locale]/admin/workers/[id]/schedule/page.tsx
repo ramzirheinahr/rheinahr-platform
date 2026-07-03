@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
   getWorkerMonthSchedule,
-  getWorkerMonthUnavailability,
+  getWorkerMonthAvailability,
 } from "@/lib/worker-schedule";
 import { AvailabilityBuilder } from "@/components/worker/availability-builder";
 import { Link } from "@/i18n/navigation";
@@ -41,7 +41,7 @@ export default async function AdminWorkerSchedulePage({
 
   const [{ rows: assignments }, initialBlocks] = await Promise.all([
     getWorkerMonthSchedule(worker.id, year, month),
-    getWorkerMonthUnavailability(worker.id, year, month),
+    getWorkerMonthAvailability(worker.id, year, month),
   ]);
 
   const monthLabel = new Intl.DateTimeFormat(locale, {

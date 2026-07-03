@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { BookText, CheckCircle2, Plus, Trash2, TriangleAlert } from "lucide-react";
 import {
   layoutUnassigned,
   type GridFacility,
@@ -58,6 +58,7 @@ export function MasterScheduleGrid({
   unassigned: UnassignedShift[];
 }) {
   const t = useTranslations("masterSchedule");
+  const oqShift = useTranslations("orderRequest");
   const locale = useLocale();
 
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -82,6 +83,18 @@ export function MasterScheduleGrid({
     () => layoutUnassigned(unassigned, daysInMonth),
     [unassigned, daysInMonth],
   );
+
+  // Column tints: holidays light green, weekends rose. `body`/`grey` for the
+  // two table regions, `head` for the dark header row.
+  type Day = (typeof days)[number];
+  const bodyTint = (d: Day) =>
+    d.holiday ? "bg-emerald-400/20" : d.weekend ? "bg-rose-500/15" : "";
+  const greyTint = (d: Day) =>
+    d.holiday ? "bg-emerald-400/25" : d.weekend ? "bg-muted-foreground/15" : "";
+  const headTint = (d: Day) =>
+    d.holiday ? "bg-emerald-700" : d.weekend ? "bg-rose-800" : "";
+
+  const [legendOpen, setLegendOpen] = useState(false);
 
   const [target, setTarget] = useState<{ workerId: string; day: number } | null>(null);
   const targetRow = target ? rows.find((r) => r.workerId === target.workerId) : undefined;
@@ -108,7 +121,7 @@ export function MasterScheduleGrid({
                   title={d.holiday ?? undefined}
                   className={cn(
                     "sticky top-0 z-20 min-w-8 border border-rose-950/40 bg-rose-950 p-1 text-center text-[11px] font-semibold text-white",
-                    (d.weekend || d.holiday) && "bg-rose-800",
+                    headTint(d),
                   )}
                 >
                   <div>{pad(d.day)}.</div>
@@ -142,7 +155,7 @@ export function MasterScheduleGrid({
                         }}
                         className={cn(
                           "h-6 cursor-pointer border p-0.5 text-center align-middle font-medium hover:ring-2 hover:ring-ring/60 hover:ring-inset",
-                          (d.weekend || d.holiday) && "bg-rose-500/15",
+                          bodyTint(d),
                           confirmedJob && "bg-emerald-600 font-bold text-white",
                         )}
                       >
@@ -166,7 +179,7 @@ export function MasterScheduleGrid({
                         }}
                         className={cn(
                           "h-6 cursor-pointer whitespace-nowrap border p-0.5 text-center align-middle font-semibold text-red-600 hover:ring-2 hover:ring-ring/60 hover:ring-inset",
-                          (d.weekend || d.holiday) && "bg-rose-500/15",
+                          bodyTint(d),
                         )}
                       >
                         {cell.jobs.map((j) => (
@@ -197,7 +210,7 @@ export function MasterScheduleGrid({
                 {days.map((d) => (
                   <td
                     key={d.day}
-                    className={cn("border border-border bg-muted", (d.weekend || d.holiday) && "bg-muted-foreground/15")}
+                    className={cn("border border-border bg-muted", greyTint(d))}
                   />
                 ))}
               </tr>
@@ -228,7 +241,7 @@ export function MasterScheduleGrid({
                         }
                         className={cn(
                           "h-6 whitespace-nowrap border border-border bg-muted p-0.5 text-center align-middle font-semibold text-foreground/80",
-                          (d.weekend || d.holiday) && "bg-muted-foreground/15",
+                          greyTint(d),
                           cellShift && "cursor-pointer hover:ring-2 hover:ring-ring/60 hover:ring-inset",
                         )}
                       >
@@ -274,6 +287,40 @@ export function MasterScheduleGrid({
               shift={openShift}
               onDone={() => setOpenShift(null)}
             />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Floating legend: the facility Kürzel index is off-screen to give the
+          grid full width; this button opens it on demand. */}
+      <Button
+        onClick={() => setLegendOpen(true)}
+        className="fixed bottom-6 end-6 z-40 gap-2 shadow-lg"
+      >
+        <BookText className="size-4" />
+        {t("legend")}
+      </Button>
+      <Dialog open={legendOpen} onOpenChange={setLegendOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("legend")}</DialogTitle>
+            <DialogDescription>
+              F = {oqShift("preset_early")} · S = {oqShift("preset_late")} · N ={" "}
+              {oqShift("preset_night")}
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
+            {facilities.map((f) => (
+              <li key={f.clientId} className="flex items-baseline gap-2">
+                <span className="w-9 shrink-0 font-mono font-bold">{f.code}</span>
+                <span className={cn("truncate", !f.hasCode && "text-muted-foreground")}>
+                  {f.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {facilities.some((f) => !f.hasCode) ? (
+            <p className="text-xs text-muted-foreground">{t("missingCodesHint")}</p>
           ) : null}
         </DialogContent>
       </Dialog>

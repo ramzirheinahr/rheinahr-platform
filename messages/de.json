@@ -488,14 +488,14 @@
   },
   "availability": {
     "title": "Verfügbarkeit",
-    "subtitle": "Markieren Sie, wann Sie nicht verfügbar sind – pro Schicht oder ganztägig.",
+    "subtitle": "Markieren Sie, wann Sie verfügbar sind – pro Schicht oder ganztägig. Nicht markierte Tage gelten als nicht verfügbar.",
     "available": "Verfügbar",
     "unavailable": "Nicht verfügbar",
-    "fullDay": "Ganztägig",
+    "fullDay": "Ganztägig verfügbar",
     "custom": "Benutzerdef.",
     "assigned": "Eingeplant",
     "shiftOrTask": "Schicht / Aufgabe",
-    "legend": "Wählen Sie pro Tag „Ganztägig“ oder eine Schicht, dann speichern.",
+    "legend": "Wählen Sie pro Tag „Ganztägig verfügbar“ oder einzelne Schichten, dann speichern. Leere Tage = nicht verfügbar.",
     "prevMonth": "Voriger Monat",
     "nextMonth": "Nächster Monat",
     "save": "Speichern",
@@ -505,7 +505,8 @@
     "hoursUnit": "Std.",
     "confirmedByClient": "Vom Kunden bestätigt",
     "monthTotal": "Geleistete Stunden im Monat (ohne Pausen)",
-    "monthTotalHint": "{count, plural, one {# vom Kunden bestätigte Schicht} other {# vom Kunden bestätigte Schichten}}"
+    "monthTotalHint": "{count, plural, one {# vom Kunden bestätigte Schicht} other {# vom Kunden bestätigte Schichten}}",
+    "availableHeader": "Verfügbarkeit"
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",
@@ -576,7 +577,7 @@
   },
   "masterSchedule": {
     "title": "Dienstplan",
-    "subtitle": "Verfügbarkeit (Zeile 1) und geleistete Dienste (Zeile 2) aller Pflegekräfte – Zelle antippen zum Bearbeiten.",
+    "subtitle": "Verfügbarkeit (Zeile 1) und geleistete Dienste (Zeile 2) aller Pflegekräfte. Leere Verfügbarkeit = noch nicht eingetragen – Zelle antippen zum Bearbeiten.",
     "empty": "Keine aktiven Pflegekräfte mit dieser Qualifikation.",
     "nameHeader": "Name",
     "legend": "Legende",
@@ -584,7 +585,7 @@
     "legendPending": "Blasse Codes = Annahme durch Mitarbeiter ausstehend",
     "missingCodesHint": "Grau = ohne festes Kürzel (automatisch abgeleitet). Kürzel in der Einrichtung festlegen.",
     "availabilitySection": "Verfügbarkeit",
-    "availabilityHint": "Alle drei = FSN, keine = ganztägig nicht verfügbar.",
+    "availabilityHint": "Alle drei = FSN. Nichts ausgewählt = nicht verfügbar (leer).",
     "deploymentsSection": "Dienste",
     "noDeployments": "Keine Dienste an diesem Tag.",
     "shift": "Schicht",

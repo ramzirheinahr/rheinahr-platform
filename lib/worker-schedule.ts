@@ -83,9 +83,10 @@ export async function getWorkerMonthSchedule(
   };
 }
 
-// One month of unavailability blocks in the shape the AvailabilityBuilder
-// expects — used by the worker's own schedule page and the admin mirror.
-export async function getWorkerMonthUnavailability(
+// One month of positive availability blocks in the shape the
+// AvailabilityBuilder expects — used by the worker's own schedule page and the
+// admin mirror. Availability is opt-in: only declared windows are stored.
+export async function getWorkerMonthAvailability(
   workerId: string,
   year: number,
   month: number,
@@ -94,7 +95,7 @@ export async function getWorkerMonthUnavailability(
     .findMany({
       where: {
         workerId,
-        status: "unavailable",
+        status: "available",
         date: {
           gte: new Date(Date.UTC(year, month - 1, 1)),
           lt: new Date(Date.UTC(year, month, 1)),

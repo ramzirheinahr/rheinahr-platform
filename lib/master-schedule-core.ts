@@ -55,40 +55,39 @@ const overlapsWindow = (
   return overlap > HANDOVER_MIN;
 };
 
-export type UnavailBlockLite = {
-  startTime: string | null; // null = whole day
+export type AvailBlockLite = {
+  startTime: string | null; // null = whole day available
   endTime: string | null;
 };
 
-// Availability letters for one day from its unavailability blocks. No blocks
-// → "FSN" (fully available, the sheet's old "0"); a whole-day block → "";
-// otherwise the letters of the windows no block touches.
-export function availabilityLetters(blocks: UnavailBlockLite[]): string {
-  if (blocks.some((b) => b.startTime === null || b.endTime === null)) return "";
+// Availability letters for one day from its POSITIVE availability blocks.
+// Availability is opt-in: no declaration → "" (empty cell, not offered). A
+// whole-day block → "FSN"; otherwise the letters of the declared windows.
+export function availabilityLetters(blocks: AvailBlockLite[]): string {
+  if (blocks.length === 0) return "";
+  if (blocks.some((b) => b.startTime === null || b.endTime === null)) return "FSN";
   let letters = "";
   for (const key of SHIFT_KEYS) {
     const w = SHIFT_PRESETS[key];
-    const blocked = blocks.some(
+    const declared = blocks.some(
       (b) =>
         b.startTime !== null &&
         b.endTime !== null &&
         overlapsWindow(b.startTime, b.endTime, w.start, w.end),
     );
-    if (!blocked) letters += w.letter;
+    if (declared) letters += w.letter;
   }
   return letters;
 }
 
-// Letters (available windows) → unavailability blocks to persist for that day.
-// All available → no rows; none → one whole-day row; else one row per blocked window.
+// Letters (declared-available windows) → availability blocks to persist for
+// that day. Empty selection → no rows (undeclared / not available); otherwise
+// one row per available window.
 export function lettersToBlocks(
   letters: string,
 ): { startTime: string | null; endTime: string | null }[] {
   const avail = new Set(letters.toUpperCase().split(""));
-  const blocked = SHIFT_KEYS.filter((k) => !avail.has(SHIFT_PRESETS[k].letter));
-  if (blocked.length === 0) return [];
-  if (blocked.length === SHIFT_KEYS.length) return [{ startTime: null, endTime: null }];
-  return blocked.map((k) => ({
+  return SHIFT_KEYS.filter((k) => avail.has(SHIFT_PRESETS[k].letter)).map((k) => ({
     startTime: SHIFT_PRESETS[k].start,
     endTime: SHIFT_PRESETS[k].end,
   }));

@@ -60,6 +60,8 @@ export async function saveDayAvailabilityFromGrid(
   if (!worker) return { ok: false, error: "saveError" };
 
   const day = new Date(`${date}T00:00:00.000Z`);
+  // Positive availability: the letters are the declared-available windows.
+  // Empty selection clears the day (undeclared → not available).
   const blocks = lettersToBlocks(letters);
 
   await prisma.$transaction([
@@ -70,7 +72,7 @@ export async function saveDayAvailabilityFromGrid(
             data: blocks.map((b) => ({
               workerId,
               date: day,
-              status: "unavailable" as const,
+              status: "available" as const,
               startTime: b.startTime,
               endTime: b.endTime,
             })),
@@ -137,7 +139,7 @@ export async function assignFromGrid(input: {
         userId: true,
         qualification: true,
         availability: {
-          where: { date: day, status: "unavailable" },
+          where: { date: day, status: "available" },
           select: { startTime: true, endTime: true },
         },
         assignments: {
@@ -158,13 +160,15 @@ export async function assignFromGrid(input: {
       overlaps(a.order.startTime, a.order.endTime, preset.start, preset.end),
     );
     if (busy) return { ok: false, error: "busy" };
-    const unavailable = worker.availability.some(
+    // Positive availability: assignable only if the worker declared this window.
+    const declared = worker.availability.some(
       (b) =>
-        b.startTime === null ||
-        b.endTime === null ||
-        overlaps(b.startTime, b.endTime, preset.start, preset.end),
+        (b.startTime === null && b.endTime === null) ||
+        (b.startTime !== null &&
+          b.endTime !== null &&
+          overlaps(b.startTime, b.endTime, preset.start, preset.end)),
     );
-    if (unavailable) return { ok: false, error: "unavailable" };
+    if (!declared) return { ok: false, error: "unavailable" };
   }
 
   try {
@@ -312,7 +316,7 @@ export async function assignWorkerToOrder(
     select: {
       userId: true,
       availability: {
-        where: { date: order.shiftDate, status: "unavailable" },
+        where: { date: order.shiftDate, status: "available" },
         select: { startTime: true, endTime: true },
       },
       assignments: {
@@ -331,13 +335,15 @@ export async function assignWorkerToOrder(
       overlaps(a.order.startTime, a.order.endTime, order.startTime, order.endTime),
     );
     if (busy) return { ok: false, error: "busy" };
-    const unavailable = worker.availability.some(
+    // Positive availability: assignable only if the worker declared this window.
+    const declared = worker.availability.some(
       (b) =>
-        b.startTime === null ||
-        b.endTime === null ||
-        overlaps(b.startTime, b.endTime, order.startTime, order.endTime),
+        (b.startTime === null && b.endTime === null) ||
+        (b.startTime !== null &&
+          b.endTime !== null &&
+          overlaps(b.startTime, b.endTime, order.startTime, order.endTime)),
     );
-    if (unavailable) return { ok: false, error: "unavailable" };
+    if (!declared) return { ok: false, error: "unavailable" };
   }
 
   try {

@@ -225,7 +225,7 @@ export function AvailabilityBuilder({
             <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
               <th className="p-2 text-start">Datum</th>
               <th className="p-2 text-start">{t("shiftOrTask")}</th>
-              <th className="p-2 text-start">{t("unavailable")}</th>
+              <th className="p-2 text-start">{t("availableHeader")}</th>
               <th className="p-2 text-start">{oq("von")}</th>
               <th className="p-2 text-start">{oq("bis")}</th>
               <th className="p-2 text-end">{t("hoursHeader")}</th>

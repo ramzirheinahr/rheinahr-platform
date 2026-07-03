@@ -10,20 +10,21 @@ export type ActionState = { ok: boolean; error?: string };
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export type UnavailBlock = {
+export type AvailBlock = {
   date: string;
-  startTime: string | null; // null = whole day
+  startTime: string | null; // null = whole day available
   endTime: string | null;
 };
 
-// Replaces the worker's unavailability blocks for one month (local edits saved
-// in one go). A block with null times means the whole day is unavailable.
-// Admins pass `workerId` to edit on the worker's behalf (e.g. availability
-// phoned in to the office); workers can only ever edit their own calendar.
+// Replaces the worker's positive availability for one month (local edits saved
+// in one go). Availability is opt-in: only declared windows are stored; a block
+// with null times means the worker is available the whole day. Days with no
+// block are undeclared (not offered). Admins pass `workerId` to edit on the
+// worker's behalf; workers can only ever edit their own calendar.
 export async function saveAvailability(
   year: number,
   month: number,
-  blocks: UnavailBlock[],
+  blocks: AvailBlock[],
   workerId?: string,
 ): Promise<ActionState> {
   const user = await getCurrentUser();
@@ -67,7 +68,7 @@ export async function saveAvailability(
       data: clean.map((b) => ({
         workerId: worker.id,
         date: new Date(`${b.date}T00:00:00.000Z`),
-        status: "unavailable" as const,
+        status: "available" as const,
         startTime: b.startTime,
         endTime: b.endTime,
       })),
@@ -84,5 +85,6 @@ export async function saveAvailability(
 
   revalidatePath("/worker");
   revalidatePath(`/admin/workers/${worker.id}/schedule`);
+  revalidatePath("/admin/schedule");
   return { ok: true };
 }

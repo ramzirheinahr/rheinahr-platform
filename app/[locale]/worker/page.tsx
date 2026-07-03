@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { AvailabilityBuilder } from "@/components/worker/availability-builder";
 import {
   getWorkerMonthSchedule,
-  getWorkerMonthUnavailability,
+  getWorkerMonthAvailability,
 } from "@/lib/worker-schedule";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -43,7 +43,7 @@ export default async function WorkerSchedulePage({
     ? await getWorkerMonthSchedule(worker.id, year, month)
     : { rows: [] };
   const initialBlocks = worker
-    ? await getWorkerMonthUnavailability(worker.id, year, month)
+    ? await getWorkerMonthAvailability(worker.id, year, month)
     : [];
 
   const monthLabel = new Intl.DateTimeFormat(locale, {

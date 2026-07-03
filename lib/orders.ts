@@ -138,7 +138,7 @@ export async function candidatesForShift(order: {
       fullName: true,
       user: { select: { email: true } },
       availability: {
-        where: { date: order.shiftDate, status: "unavailable" },
+        where: { date: order.shiftDate, status: "available" },
         select: { startTime: true, endTime: true },
       },
       assignments: {
@@ -157,15 +157,18 @@ export async function candidatesForShift(order: {
   for (const w of workers) {
     const alreadyHere = w.assignments.some((a) => a.order.id === order.id);
     if (alreadyHere) continue; // shown in the assigned list, not as a candidate
-    // Unavailable if a whole-day block exists, or a time block overlaps the shift.
-    const unavailable = w.availability.some(
+    // Positive availability: a worker is offerable only if they declared this
+    // window (whole-day block, or a block overlapping the shift). No
+    // declaration → not available (undeclared), the admin may still override.
+    const declared = w.availability.some(
       (a) =>
-        a.startTime === null ||
-        a.endTime === null ||
-        overlaps(a.startTime, a.endTime, order.startTime, order.endTime),
+        (a.startTime === null && a.endTime === null) ||
+        (a.startTime !== null &&
+          a.endTime !== null &&
+          overlaps(a.startTime, a.endTime, order.startTime, order.endTime)),
     );
     const others = w.assignments.filter((a) => a.order.id !== order.id);
-    const status: Candidate["status"] = unavailable
+    const status: Candidate["status"] = !declared
       ? "unavailable"
       : others.length > 0
         ? "busy"

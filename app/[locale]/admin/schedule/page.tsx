@@ -56,8 +56,6 @@ export default async function AdminMasterSchedulePage({
     `/admin/schedule?year=${y}&month=${m}&qualification=${q}`;
   const exportBase = `/api/exports/master-schedule?year=${year}&month=${month}&qualification=${qualification}`;
 
-  const missingCodes = facilities.filter((f) => !f.hasCode);
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -127,51 +125,31 @@ export default async function AdminMasterSchedulePage({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-4 xl:flex-row">
-        <div className="min-w-0 flex-1">
-          <MasterScheduleGrid
-            year={year}
-            month={month}
-            rows={rows}
-            facilities={facilities}
-            unassigned={unassigned}
-          />
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span>
-              F = {oq("preset_early")} · S = {oq("preset_late")} · N = {oq("preset_night")}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-3 rounded bg-emerald-600" /> {t("legendConfirmed")}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-3 rounded border bg-rose-500/15" /> {oq("weekendLegend")} /{" "}
-              {oq("holidayLegend")}
-            </span>
-            <span>{t("legendPending")}</span>
-          </div>
+      {/* Full width — the facility legend now lives behind a floating button
+          inside the grid (bottom corner) to keep the sheet as wide as possible. */}
+      <div>
+        <MasterScheduleGrid
+          year={year}
+          month={month}
+          rows={rows}
+          facilities={facilities}
+          unassigned={unassigned}
+        />
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            F = {oq("preset_early")} · S = {oq("preset_late")} · N = {oq("preset_night")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-3 rounded bg-emerald-600" /> {t("legendConfirmed")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-3 rounded border bg-emerald-400/25" /> {oq("holidayLegend")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-3 rounded border bg-rose-500/15" /> {oq("weekendLegend")}
+          </span>
+          <span>{t("legendPending")}</span>
         </div>
-
-        {/* Facility legend — the Kürzel index from the Excel sheet's right edge. */}
-        <aside className="shrink-0 xl:w-64">
-          <div className="rounded-lg border">
-            <h2 className="border-b bg-muted/50 px-3 py-2 text-sm font-semibold">
-              {t("legend")}
-            </h2>
-            <ul className="max-h-[60vh] overflow-y-auto p-2 text-sm">
-              {facilities.map((f) => (
-                <li key={f.clientId} className="flex items-baseline gap-2 px-1 py-0.5">
-                  <span className="w-9 shrink-0 font-mono font-bold">{f.code}</span>
-                  <span className={cn("truncate", !f.hasCode && "text-muted-foreground")}>
-                    {f.name}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          {missingCodes.length > 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">{t("missingCodesHint")}</p>
-          ) : null}
-        </aside>
       </div>
     </div>
   );

@@ -164,7 +164,10 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   (`candidatesForOrder` → reuses `candidatesForShift`, flagged available/busy/unavailable)
   and assigns via `assignWorkerToOrder(orderId, workerId, force)` (same conflict/force rule).
   Header row is **sticky** (`max-h-[70vh] overflow-auto` wrapper + `sticky top-0`) and each
-  day header shows the **localized weekday** under its number.
+  day header shows the **localized weekday** under its number. The facility legend is
+  **off‑canvas** behind a floating button (`fixed bottom-6 end-6`) → dialog, so the grid
+  spans full width. **Holidays** (NRW) tint light green (header `bg-emerald-700`, body
+  `bg-emerald-400/20`); weekends stay rose — distinct colours.
 - **Per‑facility hourly rates** (2026‑07): `Client.hourlyRates` (JSON map, e.g.
   `{ "pflegefachkraft": 60 }`) overrides the platform default per qualification;
   missing keys fall back to `HOURLY_RATES`. **New platform defaults** (EUR netto):

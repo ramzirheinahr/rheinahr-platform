@@ -8,7 +8,7 @@ import {
   type GridFacility,
   type GridWorkerRow,
   type UnassignedShift,
-  type UnavailBlockLite,
+  type AvailBlockLite,
 } from "@/lib/master-schedule-core";
 
 // DB layer of the master schedule grid — assembles one month of one
@@ -39,7 +39,7 @@ export async function getMasterSchedule(
         id: true,
         fullName: true,
         availability: {
-          where: { status: "unavailable", date: { gte: monthStart, lt: monthEnd } },
+          where: { status: "available", date: { gte: monthStart, lt: monthEnd } },
           select: { date: true, startTime: true, endTime: true },
         },
         assignments: {
@@ -95,13 +95,15 @@ export async function getMasterSchedule(
   ]);
 
   const rows: GridWorkerRow[] = workers.map((w) => {
+    // Availability is opt-in: undeclared days stay empty ("") until the worker
+    // or an admin fills them in.
     const days: GridDay[] = Array.from({ length: daysInMonth }, () => ({
-      avail: "FSN",
+      avail: "",
       hasBlocks: false,
       jobs: [],
     }));
 
-    const blocksByDay = new Map<number, UnavailBlockLite[]>();
+    const blocksByDay = new Map<number, AvailBlockLite[]>();
     for (const b of w.availability) {
       const day = b.date.getUTCDate();
       const list = blocksByDay.get(day) ?? [];

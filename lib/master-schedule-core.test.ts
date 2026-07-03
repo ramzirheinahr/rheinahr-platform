@@ -44,43 +44,47 @@ describe("shiftLetterForStart", () => {
   });
 });
 
-describe("availabilityLetters", () => {
-  it("no blocks → fully available (FSN)", () => {
-    expect(availabilityLetters([])).toBe("FSN");
+describe("availabilityLetters (opt-in / positive)", () => {
+  it("no blocks → empty (undeclared / not available)", () => {
+    expect(availabilityLetters([])).toBe("");
   });
 
-  it("whole-day block → empty", () => {
-    expect(availabilityLetters([{ startTime: null, endTime: null }])).toBe("");
+  it("whole-day block → fully available (FSN)", () => {
+    expect(availabilityLetters([{ startTime: null, endTime: null }])).toBe("FSN");
   });
 
-  it("an early-shift block removes only F", () => {
-    expect(availabilityLetters([{ startTime: "06:30", endTime: "14:00" }])).toBe("SN");
+  it("an early-shift block declares only F", () => {
+    expect(availabilityLetters([{ startTime: "06:30", endTime: "14:00" }])).toBe("F");
   });
 
-  it("a block spanning early+late removes F and S", () => {
-    expect(availabilityLetters([{ startTime: "08:00", endTime: "18:00" }])).toBe("N");
+  it("a block spanning early+late declares F and S", () => {
+    expect(availabilityLetters([{ startTime: "08:00", endTime: "18:00" }])).toBe("FS");
   });
 
-  it("multiple blocks accumulate", () => {
+  it("multiple blocks accumulate into the declared windows", () => {
     expect(
       availabilityLetters([
         { startTime: "06:30", endTime: "14:00" },
         { startTime: "20:30", endTime: "07:00" },
       ]),
-    ).toBe("S");
+    ).toBe("FN");
   });
 });
 
-describe("lettersToBlocks", () => {
+describe("lettersToBlocks (opt-in / positive)", () => {
   it("round-trips with availabilityLetters", () => {
     for (const letters of ["FSN", "FS", "FN", "SN", "F", "S", "N", ""]) {
       expect(availabilityLetters(lettersToBlocks(letters))).toBe(letters);
     }
   });
 
-  it("all available → no blocks; none → whole-day block", () => {
-    expect(lettersToBlocks("FSN")).toEqual([]);
-    expect(lettersToBlocks("")).toEqual([{ startTime: null, endTime: null }]);
+  it("empty selection → no rows (undeclared)", () => {
+    expect(lettersToBlocks("")).toEqual([]);
+  });
+
+  it("a selection → one row per declared window", () => {
+    expect(lettersToBlocks("FSN")).toHaveLength(3);
+    expect(lettersToBlocks("F")).toEqual([{ startTime: "06:30", endTime: "14:00" }]);
   });
 });
 
