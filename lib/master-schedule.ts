@@ -7,6 +7,7 @@ import {
   type GridDay,
   type GridFacility,
   type GridWorkerRow,
+  type UnassignedShift,
   type UnavailBlockLite,
 } from "@/lib/master-schedule-core";
 
@@ -17,6 +18,7 @@ import {
 export type MasterSchedule = {
   rows: GridWorkerRow[];
   facilities: GridFacility[];
+  unassigned: UnassignedShift[];
   daysInMonth: number;
 };
 
@@ -29,7 +31,7 @@ export async function getMasterSchedule(
   const monthEnd = new Date(Date.UTC(year, month, 1));
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-  const [workers, facilities] = await Promise.all([
+  const [workers, facilities, openOrders] = await Promise.all([
     prisma.worker.findMany({
       where: { qualification, user: { active: true } },
       orderBy: { fullName: "asc" },
@@ -69,6 +71,26 @@ export async function getMasterSchedule(
     prisma.client.findMany({
       orderBy: { facilityName: "asc" },
       select: { id: true, shortCode: true, facilityName: true },
+    }),
+    // Requested shifts of this qualification that still have open headcount —
+    // the grey "not yet dispatched" section. Terminal states are excluded.
+    prisma.order.findMany({
+      where: {
+        requiredQualification: qualification,
+        shiftDate: { gte: monthStart, lt: monthEnd },
+        status: { notIn: ["cancelled", "completed", "confirmed"] },
+      },
+      orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
+      select: {
+        id: true,
+        shiftDate: true,
+        startTime: true,
+        endTime: true,
+        quantity: true,
+        notes: true,
+        client: { select: { shortCode: true, facilityName: true } },
+        assignments: { where: { status: { not: "declined" } }, select: { id: true } },
+      },
     }),
   ]);
 
@@ -113,6 +135,23 @@ export async function getMasterSchedule(
     return { workerId: w.id, name: w.fullName, days };
   });
 
+  const unassigned: UnassignedShift[] = [];
+  for (const o of openOrders) {
+    const remaining = o.quantity - o.assignments.length;
+    if (remaining <= 0) continue;
+    unassigned.push({
+      orderId: o.id,
+      day: o.shiftDate.getUTCDate(),
+      letter: shiftLetterForStart(o.startTime),
+      code: facilityCode(o.client.shortCode, o.client.facilityName),
+      facilityName: o.client.facilityName,
+      startTime: o.startTime,
+      endTime: o.endTime,
+      ward: o.notes,
+      remaining,
+    });
+  }
+
   return {
     rows,
     facilities: facilities.map((f) => ({
@@ -121,6 +160,7 @@ export async function getMasterSchedule(
       name: f.facilityName,
       hasCode: f.shortCode !== null,
     })),
+    unassigned,
     daysInMonth,
   };
 }

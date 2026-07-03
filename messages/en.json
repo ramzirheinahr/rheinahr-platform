@@ -256,7 +256,9 @@
     "scheduleHint": "All deployments and confirmed hours at this facility.",
     "shortCode": "Roster code",
     "shortCodeHint": "2–3 characters, shown on the duty roster (e.g. WB).",
-    "codeInUse": "This code is already used by another facility."
+    "codeInUse": "This code is already used by another facility.",
+    "hourlyRates": "Hourly rates (net, €)",
+    "hourlyRatesHint": "Per qualification. Leave blank to use the platform default rate."
   },
   "orders": {
     "title": "Orders",
@@ -597,6 +599,13 @@
     "unavailableWarning": "The worker is marked unavailable for this shift.",
     "forceAssign": "Assign anyway",
     "confirmedShort": "Confirmed",
-    "confirmedLocked": "Shifts confirmed by the client (Leistungsnachweis) cannot be removed here."
+    "confirmedLocked": "Shifts confirmed by the client (Leistungsnachweis) cannot be removed here.",
+    "openShifts": "Open shifts",
+    "openShiftsRow": "no worker",
+    "candAvailable": "Available",
+    "candBusy": "Busy (same day)",
+    "candUnavailable": "Unavailable",
+    "noCandidates": "No matching care worker found.",
+    "assignWorker": "Assign worker"
   }
 }

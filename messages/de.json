@@ -256,7 +256,9 @@
     "scheduleHint": "Alle Einsätze und bestätigten Stunden in dieser Einrichtung.",
     "shortCode": "Dienstplan-Kürzel",
     "shortCodeHint": "2–3 Zeichen, erscheint im Dienstplan (z. B. WB).",
-    "codeInUse": "Dieses Kürzel wird bereits von einer anderen Einrichtung verwendet."
+    "codeInUse": "Dieses Kürzel wird bereits von einer anderen Einrichtung verwendet.",
+    "hourlyRates": "Stundensätze (netto, €)",
+    "hourlyRatesHint": "Pro Qualifikation. Leer lassen für den Standardsatz der Plattform."
   },
   "orders": {
     "title": "Aufträge",
@@ -597,6 +599,13 @@
     "unavailableWarning": "Die Pflegekraft ist für diese Schicht als nicht verfügbar markiert.",
     "forceAssign": "Trotzdem eintragen",
     "confirmedShort": "Bestätigt",
-    "confirmedLocked": "Vom Kunden bestätigte Dienste (Leistungsnachweis) können hier nicht entfernt werden."
+    "confirmedLocked": "Vom Kunden bestätigte Dienste (Leistungsnachweis) können hier nicht entfernt werden.",
+    "openShifts": "Offene Dienste",
+    "openShiftsRow": "ohne Mitarbeiter",
+    "candAvailable": "Verfügbar",
+    "candBusy": "Belegt (gleicher Tag)",
+    "candUnavailable": "Nicht verfügbar",
+    "noCandidates": "Keine passende Pflegekraft gefunden.",
+    "assignWorker": "Mitarbeiter zuweisen"
   }
 }

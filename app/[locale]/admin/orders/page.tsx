@@ -1,6 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
-import { requestNetTotal, resolveSurcharges } from "@/lib/pricing";
+import { requestNetTotal, resolveSurcharges, resolveRates } from "@/lib/pricing";
 import { formatDateDE } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
@@ -24,6 +24,7 @@ type Row = {
     surchargeSat: number | null;
     surchargeSun: number | null;
     surchargeHoliday: number | null;
+    hourlyRates: unknown;
   };
 };
 
@@ -46,6 +47,7 @@ async function getOrders(): Promise<Row[]> {
             surchargeSat: true,
             surchargeSun: true,
             surchargeHoliday: true,
+        hourlyRates: true,
           },
         },
       },
@@ -102,7 +104,7 @@ export default async function AdminOrdersPage() {
               formatDateDE(first.shiftDate) === formatDateDE(last.shiftDate)
                 ? formatDateDE(first.shiftDate)
                 : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
-            const total = requestNetTotal(g.shifts, resolveSurcharges(first.client));
+            const total = requestNetTotal(g.shifts, resolveSurcharges(first.client), resolveRates(first.client));
             return (
               <Link
                 key={g.key}

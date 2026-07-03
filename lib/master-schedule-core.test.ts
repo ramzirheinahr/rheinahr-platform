@@ -7,9 +7,12 @@ import {
   availCellText,
   workCellText,
   masterScheduleCsv,
+  suggestShortCode,
+  layoutUnassigned,
   SHIFT_PRESETS,
   type GridDay,
   type GridJob,
+  type UnassignedShift,
 } from "./master-schedule-core";
 
 const job = (over: Partial<GridJob>): GridJob => ({
@@ -85,8 +88,23 @@ describe("facilityCode", () => {
   it("prefers the admin-assigned code, uppercased", () => {
     expect(facilityCode("wb", "Limbachstift Wachtberg")).toBe("WB");
   });
-  it("derives a fallback from the name", () => {
-    expect(facilityCode(null, "St. Elisabeth Alfter")).toBe("ST");
+  it("derives a fallback from the first letter of each word", () => {
+    expect(facilityCode(null, "St. Elisabeth Alfter")).toBe("SEA");
+    expect(facilityCode(null, "Haus am Stadtwald")).toBe("HAS");
+  });
+});
+
+describe("suggestShortCode", () => {
+  it("takes the first letter of each word, capped at 3", () => {
+    expect(suggestShortCode("Newcare Home")).toBe("NH");
+    expect(suggestShortCode("Haus am Stadtwald Bonn")).toBe("HAS");
+  });
+  it("single word → first two letters", () => {
+    expect(suggestShortCode("Vecura")).toBe("VE");
+  });
+  it("ignores punctuation and empty input", () => {
+    expect(suggestShortCode("St. Josef")).toBe("SJ");
+    expect(suggestShortCode("   ")).toBe("");
   });
 });
 
@@ -119,6 +137,41 @@ describe("cell text", () => {
       jobs: [job({}), job({ assignmentId: "b", letter: "S", code: "PS" })],
     };
     expect(workCellText(cell)).toBe("FWB SPS");
+  });
+});
+
+describe("layoutUnassigned", () => {
+  const s = (over: Partial<UnassignedShift>): UnassignedShift => ({
+    orderId: "o",
+    day: 1,
+    letter: "F",
+    code: "WB",
+    facilityName: "Wachtberg",
+    startTime: "06:30",
+    endTime: "14:00",
+    ward: null,
+    remaining: 1,
+    ...over,
+  });
+
+  it("empty → no rows", () => {
+    expect(layoutUnassigned([], 31)).toEqual([]);
+  });
+
+  it("stacks same-day shifts on successive rows, sorted by start", () => {
+    const grid = layoutUnassigned(
+      [
+        s({ orderId: "a", day: 4, startTime: "20:30", letter: "N" }),
+        s({ orderId: "b", day: 4, startTime: "06:30", letter: "F" }),
+        s({ orderId: "c", day: 10, startTime: "06:30" }),
+      ],
+      31,
+    );
+    expect(grid).toHaveLength(2); // day 4 has two → two rows
+    expect(grid[0][3]?.orderId).toBe("b"); // earlier start first, day 4 = index 3
+    expect(grid[1][3]?.orderId).toBe("a");
+    expect(grid[0][9]?.orderId).toBe("c"); // day 10 = index 9
+    expect(grid[1][9]).toBeNull();
   });
 });
 

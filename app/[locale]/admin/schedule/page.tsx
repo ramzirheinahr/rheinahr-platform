@@ -39,7 +39,11 @@ export default async function AdminMasterSchedulePage({
     ? (sp.qualification as Qualification)
     : "pflegefachkraft";
 
-  const { rows, facilities } = await getMasterSchedule(qualification, year, month);
+  const { rows, facilities, unassigned } = await getMasterSchedule(
+    qualification,
+    year,
+    month,
+  );
 
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
@@ -125,7 +129,13 @@ export default async function AdminMasterSchedulePage({
 
       <div className="flex flex-col gap-4 xl:flex-row">
         <div className="min-w-0 flex-1">
-          <MasterScheduleGrid year={year} month={month} rows={rows} facilities={facilities} />
+          <MasterScheduleGrid
+            year={year}
+            month={month}
+            rows={rows}
+            facilities={facilities}
+            unassigned={unassigned}
+          />
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>
               F = {oq("preset_early")} · S = {oq("preset_late")} · N = {oq("preset_night")}

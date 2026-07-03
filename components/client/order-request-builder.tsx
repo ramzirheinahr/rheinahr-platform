@@ -7,7 +7,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { qualifications } from "@/lib/validations";
-import { rateFor, DEFAULT_SURCHARGES, VAT_RATE, type Surcharges } from "@/lib/pricing";
+import {
+  rateFor,
+  DEFAULT_SURCHARGES,
+  DEFAULT_RATES,
+  VAT_RATE,
+  type Surcharges,
+  type Rates,
+} from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
 import {
   createOrderRequest,
@@ -94,6 +101,7 @@ export function OrderRequestBuilder({
   initial,
   clients,
   surcharges,
+  rates,
   readOnly = false,
   adminEdit = false,
   backHref,
@@ -103,10 +111,12 @@ export function OrderRequestBuilder({
   initial?: InitialRequest;
   // When provided, the builder runs in admin mode: the admin must pick the
   // target client and the request is created on that client's account. Each
-  // client carries its own billing surcharges.
-  clients?: { id: string; name: string; surcharges: Surcharges }[];
+  // client carries its own billing surcharges and hourly rates.
+  clients?: { id: string; name: string; surcharges: Surcharges; rates: Rates }[];
   // Client mode: the logged-in client's resolved surcharges.
   surcharges?: Surcharges;
+  // Client mode: the logged-in client's resolved per-qualification hourly rates.
+  rates?: Rates;
   // Review mode: same table shape, all inputs locked, no submit.
   readOnly?: boolean;
   // Admin adjusting an existing request → route the save to the admin action.
@@ -282,11 +292,14 @@ export function OrderRequestBuilder({
   const sc: Surcharges = isAdmin
     ? selectedClient?.surcharges ?? DEFAULT_SURCHARGES
     : surcharges ?? DEFAULT_SURCHARGES;
+  const rt: Rates = isAdmin
+    ? selectedClient?.rates ?? DEFAULT_RATES
+    : rates ?? DEFAULT_RATES;
 
   // Billing (netto): each shift is hours × headcount × base rate, uplifted by
   // the day's Zuschlag (Sat/Sun/holiday). Holidays are resolved per shift year.
   // Grouped by day category so we can show a transparent calculation breakdown.
-  const rate = useMemo(() => rateFor(qual), [qual]);
+  const rate = useMemo(() => rateFor(qual, rt), [qual, rt]);
   const billing = useMemo(() => {
     const holidayCache = new Map<number, Map<string, string>>();
     const holidaysForYear = (y: number) => {

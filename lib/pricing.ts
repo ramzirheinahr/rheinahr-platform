@@ -3,15 +3,33 @@ import { germanHolidays } from "@/lib/holidays";
 
 type Qualification = (typeof qualifications)[number];
 
-// Hourly billing rates (EUR, netto — 19 % USt added on the invoice) per
-// qualification for Arbeitnehmerüberlassung. Single source of truth for the
-// price shown while building an order and, later, the generated invoice.
+// Platform-default hourly billing rates (EUR, netto — 19 % USt added on the
+// invoice) per qualification for Arbeitnehmerüberlassung. Each facility may
+// override any of these (Client.hourlyRates); missing keys fall back here.
 export const HOURLY_RATES: Record<Qualification, number> = {
   pflegefachkraft: 54.9,
-  betreuungskraft: 54.9,
   pflegehelfer: 36.9,
-  pflegedienstleitung: 65.9,
+  betreuungskraft: 39.9,
+  pflegedienstleitung: 64.9,
 };
+
+export type Rates = Record<Qualification, number>;
+export const DEFAULT_RATES: Rates = HOURLY_RATES;
+
+// Effective hourly rates for one client — its per-qualification overrides
+// (stored as a JSON map), else the platform default for each qualification.
+export function resolveRates(o?: { hourlyRates?: unknown } | null): Rates {
+  const override =
+    o && typeof o.hourlyRates === "object" && o.hourlyRates !== null
+      ? (o.hourlyRates as Record<string, unknown>)
+      : {};
+  const out = { ...HOURLY_RATES };
+  for (const q of qualifications) {
+    const v = override[q];
+    if (typeof v === "number" && v >= 0) out[q] = v;
+  }
+  return out;
+}
 
 // German statutory VAT applied to staffing services.
 export const VAT_RATE = 0.19;
@@ -24,8 +42,8 @@ export const SURCHARGES = {
   holiday: 1.0, // Feiertag +100 %
 } as const;
 
-export function rateFor(qual: string): number {
-  return HOURLY_RATES[qual as Qualification] ?? 0;
+export function rateFor(qual: string, rates: Rates = HOURLY_RATES): number {
+  return rates[qual as Qualification] ?? 0;
 }
 
 // Effective surcharge fractions for one client — its overrides, else defaults.
@@ -79,6 +97,7 @@ export function requestNetTotal(
     requiredQualification: string;
   }[],
   sc: Surcharges = DEFAULT_SURCHARGES,
+  rates: Rates = DEFAULT_RATES,
 ): number {
   const holidayCache = new Map<number, Map<string, string>>();
   let total = 0;
@@ -95,7 +114,7 @@ export function requestNetTotal(
     total +=
       netShiftHours(s.startTime, s.endTime) *
       s.quantity *
-      rateFor(s.requiredQualification) *
+      rateFor(s.requiredQualification, rates) *
       mult;
   }
   return total;

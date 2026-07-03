@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { lettersToBlocks, SHIFT_PRESETS, type ShiftKey } from "@/lib/master-schedule-core";
+import { candidatesForShift, type Candidate } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
 
 // Cell-level edits on the master schedule grid. Every edit here mutates the
@@ -236,6 +237,134 @@ export async function assignFromGrid(input: {
     entity: "Worker",
     entityId: workerId,
     metadata: { date, shift, clientId, via: "master-schedule", forced: !!force },
+  });
+
+  revalidatePath("/admin/schedule");
+  revalidatePath("/admin/orders");
+  revalidatePath("/worker");
+  return { ok: true };
+}
+
+// Qualified candidates for an open requested shift (grey section) — each
+// flagged available / busy / unavailable so the admin can pick with context.
+export async function candidatesForOrder(
+  orderId: string,
+): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; error: string }> {
+  try {
+    await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  if (!z.string().uuid().safeParse(orderId).success) {
+    return { ok: false, error: "saveError" };
+  }
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      shiftDate: true,
+      startTime: true,
+      endTime: true,
+      requiredQualification: true,
+    },
+  });
+  if (!order) return { ok: false, error: "saveError" };
+  const candidates = await candidatesForShift(order);
+  return { ok: true, candidates };
+}
+
+// Assign a worker to an EXISTING requested shift from the grey section. Same
+// conflict rules as the cell editor: busy/unavailable are rejected unless the
+// admin forces the override.
+export async function assignWorkerToOrder(
+  orderId: string,
+  workerId: string,
+  force = false,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  if (
+    !z.string().uuid().safeParse(orderId).success ||
+    !z.string().uuid().safeParse(workerId).success
+  ) {
+    return { ok: false, error: "saveError" };
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      status: true,
+      shiftDate: true,
+      startTime: true,
+      endTime: true,
+      client: { select: { facilityName: true } },
+    },
+  });
+  if (!order) return { ok: false, error: "saveError" };
+
+  const worker = await prisma.worker.findUnique({
+    where: { id: workerId },
+    select: {
+      userId: true,
+      availability: {
+        where: { date: order.shiftDate, status: "unavailable" },
+        select: { startTime: true, endTime: true },
+      },
+      assignments: {
+        where: { status: { not: "declined" }, order: { shiftDate: order.shiftDate } },
+        select: { orderId: true, order: { select: { startTime: true, endTime: true } } },
+      },
+    },
+  });
+  if (!worker) return { ok: false, error: "saveError" };
+  if (worker.assignments.some((a) => a.orderId === order.id)) {
+    return { ok: false, error: "saveError" }; // already on this shift
+  }
+
+  if (!force) {
+    const busy = worker.assignments.some((a) =>
+      overlaps(a.order.startTime, a.order.endTime, order.startTime, order.endTime),
+    );
+    if (busy) return { ok: false, error: "busy" };
+    const unavailable = worker.availability.some(
+      (b) =>
+        b.startTime === null ||
+        b.endTime === null ||
+        overlaps(b.startTime, b.endTime, order.startTime, order.endTime),
+    );
+    if (unavailable) return { ok: false, error: "unavailable" };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.assignment.create({ data: { orderId, workerId, status: "pending" } });
+      if (["pending", "review", "availability_check"].includes(order.status)) {
+        await tx.order.update({ where: { id: orderId }, data: { status: "assigned" } });
+      }
+      await tx.notification.create({
+        data: {
+          userId: worker.userId,
+          type: "worker_assigned",
+          channel: "in_app",
+          content: `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime} · ${order.client.facilityName}`,
+        },
+      });
+    });
+  } catch {
+    return { ok: false, error: "saveError" };
+  }
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.create",
+    entity: "Order",
+    entityId: orderId,
+    metadata: { workerId, via: "master-schedule-unassigned", forced: force },
   });
 
   revalidatePath("/admin/schedule");

@@ -94,13 +94,28 @@ export function lettersToBlocks(
   }));
 }
 
+// Suggested Kürzel from a facility name: the first letter of each word
+// (e.g. "Newcare Home" → "NH", "Haus am Stadtwald" → "HAS"), capped at 3,
+// uppercased. Single-word names fall back to their first two letters.
+export function suggestShortCode(facilityName: string): string {
+  const words = facilityName
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9äöüß]/gi, ""))
+    .filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return words
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 3)
+    .toUpperCase();
+}
+
 // Fallback grid code for facilities the admin has not given a Kürzel yet:
-// first two letters of the facility name, uppercased.
+// derived from the name (first letter of each word).
 export function facilityCode(shortCode: string | null, facilityName: string): string {
   if (shortCode) return shortCode.toUpperCase();
-  return (
-    facilityName.replace(/[^a-z0-9äöüß]/gi, "").slice(0, 2).toUpperCase() || "??"
-  );
+  return suggestShortCode(facilityName) || "??";
 }
 
 export type GridJob = {
@@ -134,6 +149,43 @@ export type GridFacility = {
   name: string;
   hasCode: boolean; // false = derived fallback, admin should set one
 };
+
+// A requested shift that still needs a worker (open headcount) — the grey
+// "not yet dispatched" section at the bottom of the sheet.
+export type UnassignedShift = {
+  orderId: string;
+  day: number; // 1-based day of month
+  letter: "F" | "S" | "N";
+  code: string;
+  facilityName: string;
+  startTime: string;
+  endTime: string;
+  ward: string | null;
+  remaining: number; // still-open headcount (quantity − non-declined assignments)
+};
+
+// Arrange the open shifts into as few grid rows as possible: for each day the
+// n-th open shift goes on row n. Result[row][day-1] is the cell (or null).
+export function layoutUnassigned(
+  shifts: UnassignedShift[],
+  daysInMonth: number,
+): (UnassignedShift | null)[][] {
+  const byDay = new Map<number, UnassignedShift[]>();
+  for (const s of shifts) {
+    const list = byDay.get(s.day) ?? [];
+    list.push(s);
+    byDay.set(s.day, list);
+  }
+  byDay.forEach((list) => list.sort((a, b) => a.startTime.localeCompare(b.startTime)));
+  const rowCount = Math.max(0, ...Array.from(byDay.values(), (l) => l.length));
+  const rows: (UnassignedShift | null)[][] = [];
+  for (let r = 0; r < rowCount; r++) {
+    rows.push(
+      Array.from({ length: daysInMonth }, (_, i) => byDay.get(i + 1)?.[r] ?? null),
+    );
+  }
+  return rows;
+}
 
 // What a day cell shows on each of its two lines (shared by grid, CSV, PDF).
 // Line 1: ward number (or 0) once the client signed, otherwise the letters.

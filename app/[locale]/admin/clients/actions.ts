@@ -7,6 +7,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { clientSchema, accountBaseSchema } from "@/lib/validations";
+import { Prisma } from "@prisma/client";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -37,11 +38,33 @@ function parseProfile(formData: FormData) {
     surchargeSat: formData.get("surchargeSat") || undefined,
     surchargeSun: formData.get("surchargeSun") || undefined,
     surchargeHoliday: formData.get("surchargeHoliday") || undefined,
+    ratePflegefachkraft: formData.get("ratePflegefachkraft") || undefined,
+    ratePflegehelfer: formData.get("ratePflegehelfer") || undefined,
+    rateBetreuungskraft: formData.get("rateBetreuungskraft") || undefined,
+    ratePflegedienstleitung: formData.get("ratePflegedienstleitung") || undefined,
   });
 }
 
 // Empty field → null (fall back to platform default); percent → fraction.
 const pctToFrac = (v: number | undefined) => (v === undefined ? null : v / 100);
+
+// The four per-qualification rate fields → the JSON override map stored on the
+// client. Only fields the admin actually filled are kept; all blank → null so
+// the facility falls back to the platform defaults for everything.
+function ratesJson(data: {
+  ratePflegefachkraft?: number;
+  ratePflegehelfer?: number;
+  rateBetreuungskraft?: number;
+  ratePflegedienstleitung?: number;
+}): Record<string, number> | null {
+  const map: Record<string, number> = {};
+  if (data.ratePflegefachkraft !== undefined) map.pflegefachkraft = data.ratePflegefachkraft;
+  if (data.ratePflegehelfer !== undefined) map.pflegehelfer = data.ratePflegehelfer;
+  if (data.rateBetreuungskraft !== undefined) map.betreuungskraft = data.rateBetreuungskraft;
+  if (data.ratePflegedienstleitung !== undefined)
+    map.pflegedienstleitung = data.ratePflegedienstleitung;
+  return Object.keys(map).length ? map : null;
+}
 
 // Creating a facility provisions its login in the same step: Supabase Auth
 // user + our User row + the Client profile.
@@ -115,6 +138,7 @@ export async function createClient(formData: FormData): Promise<ActionState> {
           surchargeSat: pctToFrac(data.surchargeSat),
           surchargeSun: pctToFrac(data.surchargeSun),
           surchargeHoliday: pctToFrac(data.surchargeHoliday),
+          hourlyRates: ratesJson(data) ?? undefined,
         },
       });
     });
@@ -163,6 +187,7 @@ export async function updateClient(
         surchargeSat: pctToFrac(data.surchargeSat),
         surchargeSun: pctToFrac(data.surchargeSun),
         surchargeHoliday: pctToFrac(data.surchargeHoliday),
+        hourlyRates: ratesJson(data) ?? Prisma.JsonNull,
         // Keep the account display name in sync with the profile.
         user: {
           update: { fullName: data.contactPerson || data.facilityName },

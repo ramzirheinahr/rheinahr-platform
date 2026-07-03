@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition, Fragment } from "react";
+import { useEffect, useMemo, useState, useTransition, Fragment } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
@@ -16,9 +16,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CheckCircle2, Plus, Trash2, TriangleAlert } from "lucide-react";
-import type { GridFacility, GridWorkerRow, ShiftKey } from "@/lib/master-schedule-core";
+import {
+  layoutUnassigned,
+  type GridFacility,
+  type GridWorkerRow,
+  type ShiftKey,
+  type UnassignedShift,
+} from "@/lib/master-schedule-core";
+import type { Candidate } from "@/lib/orders";
 import {
   assignFromGrid,
+  assignWorkerToOrder,
+  candidatesForOrder,
   saveDayAvailabilityFromGrid,
   unassignFromGrid,
 } from "@/app/[locale]/admin/schedule/actions";
@@ -40,11 +49,13 @@ export function MasterScheduleGrid({
   month,
   rows,
   facilities,
+  unassigned,
 }: {
   year: number;
   month: number;
   rows: GridWorkerRow[];
   facilities: GridFacility[];
+  unassigned: UnassignedShift[];
 }) {
   const t = useTranslations("masterSchedule");
   const locale = useLocale();
@@ -52,23 +63,30 @@ export function MasterScheduleGrid({
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const holidays = useMemo(() => germanHolidays(year), [year]);
 
-  const days = useMemo(
-    () =>
-      Array.from({ length: daysInMonth }, (_, i) => {
-        const date = `${year}-${pad(month)}-${pad(i + 1)}`;
-        const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
-        return {
-          day: i + 1,
-          date,
-          weekend: dow === 0 || dow === 6,
-          holiday: holidays.get(date),
-        };
-      }),
-    [year, month, daysInMonth, holidays],
+  const days = useMemo(() => {
+    const wdFmt = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const date = `${year}-${pad(month)}-${pad(i + 1)}`;
+      const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+      return {
+        day: i + 1,
+        date,
+        weekday: wdFmt.format(new Date(Date.UTC(year, month - 1, i + 1))),
+        weekend: dow === 0 || dow === 6,
+        holiday: holidays.get(date),
+      };
+    });
+  }, [year, month, daysInMonth, holidays, locale]);
+
+  const unassignedRows = useMemo(
+    () => layoutUnassigned(unassigned, daysInMonth),
+    [unassigned, daysInMonth],
   );
 
   const [target, setTarget] = useState<{ workerId: string; day: number } | null>(null);
   const targetRow = target ? rows.find((r) => r.workerId === target.workerId) : undefined;
+  // Grey-section assign dialog: the open shift the admin clicked.
+  const [openShift, setOpenShift] = useState<UnassignedShift | null>(null);
 
   if (rows.length === 0) {
     return <p className="rounded-lg border p-6 text-sm text-muted-foreground">{t("empty")}</p>;
@@ -76,11 +94,12 @@ export function MasterScheduleGrid({
 
   return (
     <>
-      <div dir="ltr" className="overflow-x-auto rounded-lg border">
+      <div dir="ltr" className="max-h-[70vh] overflow-auto rounded-lg border">
         <table className="border-collapse text-[11px] leading-tight">
           <thead>
+            {/* Sticky first row: stays visible while the sheet scrolls. */}
             <tr>
-              <th className="sticky start-0 z-10 min-w-40 border border-rose-950 bg-rose-950 p-1.5 text-start text-xs font-semibold text-white">
+              <th className="sticky start-0 top-0 z-30 min-w-40 border border-rose-950 bg-rose-950 p-1.5 text-start text-xs font-semibold text-white">
                 {t("nameHeader")}
               </th>
               {days.map((d) => (
@@ -88,11 +107,12 @@ export function MasterScheduleGrid({
                   key={d.day}
                   title={d.holiday ?? undefined}
                   className={cn(
-                    "min-w-8 border border-rose-950/40 bg-rose-950 p-1 text-center text-[11px] font-semibold text-white",
+                    "sticky top-0 z-20 min-w-8 border border-rose-950/40 bg-rose-950 p-1 text-center text-[11px] font-semibold text-white",
                     (d.weekend || d.holiday) && "bg-rose-800",
                   )}
                 >
-                  {pad(d.day)}.
+                  <div>{pad(d.day)}.</div>
+                  <div className="text-[9px] font-normal uppercase opacity-80">{d.weekday}</div>
                 </th>
               ))}
             </tr>
@@ -166,6 +186,68 @@ export function MasterScheduleGrid({
               </Fragment>
             ))}
           </tbody>
+          {/* Grey section — requested shifts still without a worker. Click a
+              cell to pick one (mirrors the paper sheet's "offene Dienste"). */}
+          {unassignedRows.length > 0 ? (
+            <tbody className="bg-muted">
+              <tr>
+                <th className="sticky start-0 z-10 border border-border bg-muted p-1.5 text-start text-[11px] font-semibold text-muted-foreground">
+                  {t("openShifts")}
+                </th>
+                {days.map((d) => (
+                  <td
+                    key={d.day}
+                    className={cn("border border-border bg-muted", (d.weekend || d.holiday) && "bg-muted-foreground/15")}
+                  />
+                ))}
+              </tr>
+              {unassignedRows.map((row, ri) => (
+                <tr key={ri}>
+                  <th className="sticky start-0 z-10 border border-border bg-muted p-1 ps-3 text-start text-[10px] font-normal text-muted-foreground">
+                    {ri === 0 ? t("openShiftsRow") : ""}
+                  </th>
+                  {row.map((cellShift, i) => {
+                    const d = days[i];
+                    return (
+                      <td
+                        key={i}
+                        role={cellShift ? "button" : undefined}
+                        tabIndex={cellShift ? 0 : undefined}
+                        onClick={cellShift ? () => setOpenShift(cellShift) : undefined}
+                        onKeyDown={
+                          cellShift
+                            ? (e) => {
+                                if (e.key === "Enter") setOpenShift(cellShift);
+                              }
+                            : undefined
+                        }
+                        title={
+                          cellShift
+                            ? `${cellShift.facilityName} · ${cellShift.startTime}–${cellShift.endTime}`
+                            : undefined
+                        }
+                        className={cn(
+                          "h-6 whitespace-nowrap border border-border bg-muted p-0.5 text-center align-middle font-semibold text-foreground/80",
+                          (d.weekend || d.holiday) && "bg-muted-foreground/15",
+                          cellShift && "cursor-pointer hover:ring-2 hover:ring-ring/60 hover:ring-inset",
+                        )}
+                      >
+                        {cellShift ? (
+                          <>
+                            {cellShift.letter}
+                            {cellShift.code}
+                            {cellShift.remaining > 1 ? (
+                              <sup className="ms-0.5 text-[8px]">×{cellShift.remaining}</sup>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          ) : null}
         </table>
       </div>
 
@@ -183,7 +265,146 @@ export function MasterScheduleGrid({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={openShift !== null} onOpenChange={(open) => !open && setOpenShift(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+          {openShift ? (
+            <OpenShiftEditor
+              key={openShift.orderId}
+              shift={openShift}
+              onDone={() => setOpenShift(null)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </>
+  );
+}
+
+// Grey-section dialog: choose a worker for one open requested shift. Loads the
+// qualified candidates (available / busy / unavailable) on open; picking one
+// assigns them. Busy/unavailable picks need an explicit confirm (force).
+function OpenShiftEditor({
+  shift,
+  onDone,
+}: {
+  shift: UnassignedShift;
+  onDone: () => void;
+}) {
+  const t = useTranslations("masterSchedule");
+  const oq = useTranslations("orderRequest");
+  const c = useTranslations("common");
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  // A worker the admin picked whose conflict needs confirming before assigning.
+  const [confirmWorker, setConfirmWorker] = useState<string | null>(null);
+
+  // Load candidates once when the dialog mounts.
+  useEffect(() => {
+    let active = true;
+    candidatesForOrder(shift.orderId).then((res) => {
+      if (!active) return;
+      if (res.ok) setCandidates(res.candidates);
+      else setLoadError(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [shift.orderId]);
+
+  function assign(workerId: string, force: boolean) {
+    startTransition(async () => {
+      const res = await assignWorkerToOrder(shift.orderId, workerId, force);
+      if (res.ok) {
+        toast.success(t("assigned"));
+        router.refresh();
+        onDone();
+      } else if (res.error === "busy" || res.error === "unavailable") {
+        setConfirmWorker(workerId);
+      } else {
+        toast.error(t("saveError"));
+      }
+    });
+  }
+
+  const statusBadge: Record<Candidate["status"], { label: string; cls: string }> = {
+    available: { label: t("candAvailable"), cls: "bg-emerald-600 text-white" },
+    busy: { label: t("candBusy"), cls: "bg-amber-500 text-white" },
+    unavailable: { label: t("candUnavailable"), cls: "bg-muted text-muted-foreground" },
+  };
+
+  return (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>
+          <span className="font-mono font-bold text-red-600">
+            {shift.letter}
+            {shift.code}
+          </span>{" "}
+          · {shift.facilityName}
+        </DialogTitle>
+        <DialogDescription>
+          {shift.startTime}–{shift.endTime}
+          {shift.ward ? <> · {oq("ward")}: {shift.ward}</> : null}
+        </DialogDescription>
+      </DialogHeader>
+
+      {loadError ? (
+        <p className="text-sm text-destructive">{t("saveError")}</p>
+      ) : candidates === null ? (
+        <p className="text-sm text-muted-foreground">{c("loading")}</p>
+      ) : candidates.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("noCandidates")}</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {candidates.map((cand) => {
+            const b = statusBadge[cand.status];
+            const needsConfirm = confirmWorker === cand.workerId;
+            return (
+              <li
+                key={cand.workerId}
+                className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{cand.fullName}</div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge className={cn("border-transparent text-[10px]", b.cls)}>{b.label}</Badge>
+                    {cand.conflictTimes.length > 0 ? (
+                      <span className="text-[10px] text-muted-foreground">
+                        {cand.conflictTimes.join(", ")}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                {needsConfirm ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 gap-1"
+                    disabled={pending}
+                    onClick={() => assign(cand.workerId, true)}
+                  >
+                    <TriangleAlert className="size-3.5 text-amber-600" />
+                    {t("forceAssign")}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="shrink-0"
+                    disabled={pending}
+                    onClick={() => assign(cand.workerId, false)}
+                  >
+                    {t("assign")}
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 

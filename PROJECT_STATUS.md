@@ -157,6 +157,28 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   that), DB layer `lib/master-schedule.ts`, grid `components/admin/master-schedule-grid.tsx`,
   actions `app/[locale]/admin/schedule/actions.ts`. Shift letter for free‑form order
   times is derived from the start time (04–11 F, 11–17:30 S, else N).
+  **Grey "offene Dienste" section** (2026‑07): below the worker grid, requested shifts
+  of that qualification still missing a worker (open headcount) are laid out on the same
+  day columns (`layoutUnassigned` stacks same‑day opens on successive rows; `×n` = remaining
+  count). Click one → `OpenShiftEditor` dialog loads qualified candidates
+  (`candidatesForOrder` → reuses `candidatesForShift`, flagged available/busy/unavailable)
+  and assigns via `assignWorkerToOrder(orderId, workerId, force)` (same conflict/force rule).
+  Header row is **sticky** (`max-h-[70vh] overflow-auto` wrapper + `sticky top-0`) and each
+  day header shows the **localized weekday** under its number.
+- **Per‑facility hourly rates** (2026‑07): `Client.hourlyRates` (JSON map, e.g.
+  `{ "pflegefachkraft": 60 }`) overrides the platform default per qualification;
+  missing keys fall back to `HOURLY_RATES`. **New platform defaults** (EUR netto):
+  Pflegefachkraft 54.9, Pflegehilfskraft 36.9, Betreuungskraft **39.9**,
+  Pflegedienstleitung **64.9** (were 54.9/36.9/54.9/65.9). Four rate inputs on the
+  facility create/edit form (`HourlyRatesFieldset`, placeholder = default, blank = keep
+  default); stored via `ratesJson()` in the client action. `resolveRates(client)`
+  threads a full `Rates` map into `requestNetTotal` and the `OrderRequestBuilder`
+  (`rates` prop / per‑client in admin mode) exactly like surcharges. Unit‑tested
+  (`lib/pricing.test.ts`). **Shortcode auto‑suggest**: `suggestShortCode()` = first
+  letter of each word (multi‑word) or first two letters (single word); the facility
+  form (`FacilityNameCodeFields`) fills it live as the admin types the name until they
+  edit the code themselves; the grid fallback `facilityCode()` uses the same rule.
+  Added `vitest.config.ts` (resolves the `@/` alias so lib tests can import app modules).
 - **Reports** dashboard · **Invoicing** CSV/DATEV export + PDF · legal **Impressum/Datenschutz**
   (German) · cookie banner · **GDPR data export** (`/api/me/export`) · **PWA** (installable,
   offline shell) · professional **landing** + **/roadmap** page (German, for stakeholder).
@@ -186,7 +208,8 @@ Everything up to HEAD `59565a5` is committed (inbox shipped). Currently
 (page + actions), `app/api/exports/master-schedule/route.ts`; edits to
 `prisma/schema.prisma` (`Client.shortCode`), client forms/actions, admin
 layout nav, `lib/validations.ts`, `messages/{de,en,ar}.json`.
-- **DB already pushed** (additive: nullable unique `clients.short_code`).
+- **DB already pushed** (additive: nullable unique `clients.short_code`, nullable
+  `clients.hourly_rates` JSON).
 - Verified locally: vitest green (20), clean build; authed end‑to‑end smoke
   (real Supabase sessions on `next start`): grid renders DE/EN/AR (RTL) with
   demo data, CSV/PDF exports OK, cell actions exercised over HTTP

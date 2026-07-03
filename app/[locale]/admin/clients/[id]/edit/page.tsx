@@ -8,8 +8,22 @@ import { ClientForm } from "@/components/admin/client-form";
 import { AccountSection } from "@/components/admin/account-section";
 import { DeleteClientButton } from "@/components/admin/delete-client-button";
 import { ArrowLeft } from "lucide-react";
+import { qualifications } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
+
+// Only the qualifications this facility actually overrides — so blank inputs
+// keep showing the platform default as a placeholder (not a prefilled value).
+function resolveRateOverrides(
+  raw: unknown,
+): Partial<Record<(typeof qualifications)[number], number>> {
+  const src = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const out: Partial<Record<(typeof qualifications)[number], number>> = {};
+  for (const q of qualifications) {
+    if (typeof src[q] === "number") out[q] = src[q] as number;
+  }
+  return out;
+}
 
 export default async function EditClientPage({
   params,
@@ -62,6 +76,7 @@ export default async function EditClientPage({
           surchargeSat: client.surchargeSat,
           surchargeSun: client.surchargeSun,
           surchargeHoliday: client.surchargeHoliday,
+          hourlyRates: resolveRateOverrides(client.hourlyRates),
         }}
       />
 

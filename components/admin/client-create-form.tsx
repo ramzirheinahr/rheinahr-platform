@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { facilityTypes } from "@/lib/validations";
 import { PasswordField } from "@/components/admin/password-field";
+import { FacilityNameCodeFields } from "@/components/admin/facility-name-code-fields";
+import { HourlyRatesFieldset } from "@/components/admin/hourly-rates-fieldset";
 import { createClient } from "@/app/[locale]/admin/clients/actions";
 
 // Creates a facility together with its login account (super_admin only) —
@@ -54,21 +56,7 @@ export function ClientCreateForm() {
   return (
     <form onSubmit={onSubmit} className="max-w-2xl space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="facilityName">{t("facilityName")}</Label>
-          <Input id="facilityName" name="facilityName" required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="shortCode">{t("shortCode")}</Label>
-          <Input
-            id="shortCode"
-            name="shortCode"
-            maxLength={3}
-            placeholder="WB"
-            className="uppercase sm:max-w-28"
-          />
-          <p className="text-xs text-muted-foreground">{t("shortCodeHint")}</p>
-        </div>
+        <FacilityNameCodeFields />
         <div className="space-y-2">
           <Label>{t("facilityType")}</Label>
           <Select name="facilityType" defaultValue={facilityTypes[0]}>
@@ -157,6 +145,8 @@ export function ClientCreateForm() {
           </div>
         </div>
       </fieldset>
+
+      <HourlyRatesFieldset />
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

@@ -1,7 +1,13 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { requestNetTotal, resolveSurcharges, type Surcharges } from "@/lib/pricing";
+import {
+  requestNetTotal,
+  resolveSurcharges,
+  resolveRates,
+  type Surcharges,
+  type Rates,
+} from "@/lib/pricing";
 import { formatDateDE } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
@@ -22,8 +28,8 @@ type Row = {
   status: OrderStatus;
 };
 
-async function getOrders(): Promise<{ rows: Row[]; surcharges: Surcharges }> {
-  const empty = { rows: [], surcharges: resolveSurcharges(null) };
+async function getOrders(): Promise<{ rows: Row[]; surcharges: Surcharges; rates: Rates }> {
+  const empty = { rows: [], surcharges: resolveSurcharges(null), rates: resolveRates(null) };
   const user = await getCurrentUser();
   if (!user) return empty;
   try {
@@ -34,6 +40,7 @@ async function getOrders(): Promise<{ rows: Row[]; surcharges: Surcharges }> {
         surchargeSat: true,
         surchargeSun: true,
         surchargeHoliday: true,
+        hourlyRates: true,
       },
     });
     if (!client) return empty;
@@ -51,7 +58,7 @@ async function getOrders(): Promise<{ rows: Row[]; surcharges: Surcharges }> {
         status: true,
       },
     });
-    return { rows, surcharges: resolveSurcharges(client) };
+    return { rows, surcharges: resolveSurcharges(client), rates: resolveRates(client) };
   } catch {
     return empty;
   }
@@ -76,7 +83,7 @@ function groupOrders(rows: Row[]) {
 export default async function ClientOrdersPage() {
   const t = await getTranslations("orders");
   const locale = await getLocale();
-  const { rows, surcharges } = await getOrders();
+  const { rows, surcharges, rates } = await getOrders();
   const groups = groupOrders(rows);
   const fmtEur = (n: number) =>
     n.toLocaleString(locale, { style: "currency", currency: "EUR" });
@@ -105,7 +112,7 @@ export default async function ClientOrdersPage() {
                 ? formatDateDE(first.shiftDate)
                 : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
             const confirmed = g.shifts.filter((s) => s.status === "confirmed").length;
-            const total = requestNetTotal(g.shifts, surcharges);
+            const total = requestNetTotal(g.shifts, surcharges, rates);
             return (
               <Link
                 key={g.key}

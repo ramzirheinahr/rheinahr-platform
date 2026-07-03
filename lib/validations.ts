@@ -109,6 +109,11 @@ const optionalInt = z.preprocess(
   (v) => (v === "" || v == null ? undefined : v),
   z.coerce.number().int().min(0).max(80).optional(),
 );
+// A qualification hourly rate override (EUR) — blank means "use the default".
+const optionalRate = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : v),
+  z.coerce.number().min(0).max(1000).optional(),
+);
 
 export const workerSchema = z.object({
   fullName: z.string().min(2).max(120),
@@ -146,6 +151,11 @@ export const clientSchema = z.object({
   surchargeSat: z.coerce.number().min(0).max(500).optional(),
   surchargeSun: z.coerce.number().min(0).max(500).optional(),
   surchargeHoliday: z.coerce.number().min(0).max(500).optional(),
+  // Per-qualification hourly rates (EUR netto). Empty → platform default.
+  ratePflegefachkraft: optionalRate,
+  ratePflegehelfer: optionalRate,
+  rateBetreuungskraft: optionalRate,
+  ratePflegedienstleitung: optionalRate,
 });
 
 // ── Account provisioning (super_admin) ──

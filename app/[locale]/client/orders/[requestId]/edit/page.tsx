@@ -7,7 +7,7 @@ import { redirect } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
-import { resolveSurcharges } from "@/lib/pricing";
+import { resolveSurcharges, resolveRates } from "@/lib/pricing";
 import { ArrowLeft } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
 
@@ -34,6 +34,7 @@ export default async function EditRequestPage({
         surchargeSat: true,
         surchargeSun: true,
         surchargeHoliday: true,
+        hourlyRates: true,
       },
     })
     .catch(() => null);
@@ -86,7 +87,7 @@ export default async function EditRequestPage({
         </Button>
         <h1 className="text-2xl font-semibold">{t("detailTitle")}</h1>
       </div>
-      <OrderRequestBuilder initial={initial} surcharges={resolveSurcharges(client)} />
+      <OrderRequestBuilder initial={initial} surcharges={resolveSurcharges(client)} rates={resolveRates(client)} />
     </div>
   );
 }

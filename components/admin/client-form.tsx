@@ -14,7 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { facilityTypes } from "@/lib/validations";
+import { facilityTypes, type qualifications } from "@/lib/validations";
+import { FacilityNameCodeFields } from "@/components/admin/facility-name-code-fields";
+import { HourlyRatesFieldset } from "@/components/admin/hourly-rates-fieldset";
 import { updateClient } from "@/app/[locale]/admin/clients/actions";
 
 type ClientData = {
@@ -29,6 +31,8 @@ type ClientData = {
   surchargeSat: number | null;
   surchargeSun: number | null;
   surchargeHoliday: number | null;
+  // Per-qualification hourly rate overrides (EUR), missing = platform default.
+  hourlyRates: Partial<Record<(typeof qualifications)[number], number | null>>;
 };
 
 const toPct = (v: number | null) =>
@@ -61,27 +65,10 @@ export function ClientForm({ client }: { client: ClientData }) {
   return (
     <form onSubmit={onSubmit} className="max-w-2xl space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="facilityName">{t("facilityName")}</Label>
-          <Input
-            id="facilityName"
-            name="facilityName"
-            required
-            defaultValue={client.facilityName}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="shortCode">{t("shortCode")}</Label>
-          <Input
-            id="shortCode"
-            name="shortCode"
-            maxLength={3}
-            placeholder="WB"
-            className="uppercase sm:max-w-28"
-            defaultValue={client.shortCode ?? ""}
-          />
-          <p className="text-xs text-muted-foreground">{t("shortCodeHint")}</p>
-        </div>
+        <FacilityNameCodeFields
+          defaultName={client.facilityName}
+          defaultCode={client.shortCode ?? ""}
+        />
         <div className="space-y-2">
           <Label>{t("facilityType")}</Label>
           <Select name="facilityType" defaultValue={client.facilityType}>
@@ -171,6 +158,8 @@ export function ClientForm({ client }: { client: ClientData }) {
           </div>
         </div>
       </fieldset>
+
+      <HourlyRatesFieldset values={client.hourlyRates} />
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

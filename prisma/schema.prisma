@@ -240,6 +240,10 @@ model Client {
   surchargeSat     Float?    @map("surcharge_sat")
   surchargeSun     Float?    @map("surcharge_sun")
   surchargeHoliday Float?    @map("surcharge_holiday")
+  // Per-client hourly rates (EUR netto) keyed by qualification, e.g.
+  // { "pflegefachkraft": 54.9 }. Only overridden qualifications are stored;
+  // missing keys fall back to HOURLY_RATES in lib/pricing.ts.
+  hourlyRates      Json?     @map("hourly_rates")
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 

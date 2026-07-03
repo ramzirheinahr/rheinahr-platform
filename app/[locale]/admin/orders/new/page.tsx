@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
-import { resolveSurcharges } from "@/lib/pricing";
+import { resolveSurcharges, resolveRates } from "@/lib/pricing";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,7 @@ async function getClients() {
         surchargeSat: true,
         surchargeSun: true,
         surchargeHoliday: true,
+        hourlyRates: true,
       },
     });
   } catch {
@@ -49,6 +50,7 @@ export default async function AdminNewOrderPage() {
           id: cl.id,
           name: cl.facilityName,
           surcharges: resolveSurcharges(cl),
+          rates: resolveRates(cl),
         }))}
       />
     </div>
