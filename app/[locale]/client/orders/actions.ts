@@ -191,8 +191,9 @@ export async function createOrderRequest(
 }
 
 // Once a request is locked for editing (< 4h before the first shift), the
-// client can still reach the office: the message lands as an in-app
-// notification for every admin, referencing the facility and the request date.
+// client can still reach the office: the message lands as an inbox thread
+// (one per order request, so follow-ups and admin replies stay together)
+// plus an in-app notification for every admin.
 export async function sendRequestMessage(
   requestGroupId: string,
   body: string,
@@ -216,9 +217,34 @@ export async function sendRequestMessage(
   });
   if (!first) return { ok: false, error: "forbidden" };
 
+  const { getOrCreateRequestConversation } = await import("@/lib/inbox");
+  const conversation = await getOrCreateRequestConversation(
+    requestGroupId,
+    user.id,
+    formatDateDE(first.shiftDate),
+  );
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.message.create({
+      data: { conversationId: conversation.id, senderId: user.id, body: parsed.data },
+    }),
+    prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { lastMessageAt: now },
+    }),
+    prisma.conversationParticipant.update({
+      where: {
+        conversationId_userId: { conversationId: conversation.id, userId: user.id },
+      },
+      data: { lastReadAt: now },
+    }),
+  ]);
+
+  const previewText =
+    parsed.data.length > 80 ? `${parsed.data.slice(0, 80)}…` : parsed.data;
   await notifyAdmins(
     "new_message",
-    `${client.facilityName} (${formatDateDE(first.shiftDate)}): ${parsed.data}`,
+    `${client.facilityName} (${formatDateDE(first.shiftDate)}): ${previewText}`,
   );
 
   await audit({
@@ -258,7 +284,14 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     where: { id: data.assignmentId },
     include: {
       serviceConfirmation: { select: { id: true } },
-      order: { select: { id: true, requestGroupId: true, client: { select: { userId: true } } } },
+      order: {
+        select: {
+          id: true,
+          requestGroupId: true,
+          shiftDate: true,
+          client: { select: { userId: true, facilityName: true } },
+        },
+      },
       worker: { select: { userId: true } },
     },
   });
@@ -340,7 +373,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
           userId: r.id,
           type: "service_confirmed" as const,
           channel: "in_app" as const,
-          content: `${data.hoursWorked}h`,
+          content: `${assignment.order.client.facilityName} · ${formatDateDE(assignment.order.shiftDate)} · ${data.hoursWorked} Std.`,
         })),
       });
     }
@@ -358,6 +391,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   revalidatePath("/client/orders");
   revalidatePath(`/client/orders/${assignment.order.requestGroupId ?? assignment.order.id}`);
   revalidatePath(`/admin/orders/${assignment.order.id}`);
+  // The worker's schedule shows the signed-off hours immediately.
+  revalidatePath("/worker");
   return { ok: true };
 }
 

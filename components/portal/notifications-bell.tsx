@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +22,14 @@ export type NotificationItem = {
   read: boolean;
 };
 
-export function NotificationsBell({ items }: { items: NotificationItem[] }) {
+export function NotificationsBell({
+  items,
+  inboxHref,
+}: {
+  items: NotificationItem[];
+  // Portal inbox path — "new message" notifications deep-link there.
+  inboxHref?: string | null;
+}) {
   const t = useTranslations("notifications");
   const et = useTranslations("enums.notificationType");
   const router = useRouter();
@@ -70,24 +77,37 @@ export function NotificationsBell({ items }: { items: NotificationItem[] }) {
           </p>
         ) : (
           <ul className="max-h-80 overflow-y-auto">
-            {items.map((n) => (
-              <li
-                key={n.id}
-                className={`border-b px-3 py-2 text-sm last:border-0 ${
-                  n.read ? "" : "bg-muted/40"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{et(n.type)}</span>
-                  <time className="shrink-0 text-xs text-muted-foreground">
-                    {n.createdAt.slice(0, 16).replace("T", " ")}
-                  </time>
-                </div>
-                {n.content ? (
-                  <p className="mt-0.5 text-xs text-muted-foreground">{n.content}</p>
-                ) : null}
-              </li>
-            ))}
+            {items.map((n) => {
+              const inner = (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{et(n.type)}</span>
+                    <time className="shrink-0 text-xs text-muted-foreground">
+                      {n.createdAt.slice(0, 16).replace("T", " ")}
+                    </time>
+                  </div>
+                  {n.content ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">{n.content}</p>
+                  ) : null}
+                </>
+              );
+              return (
+                <li
+                  key={n.id}
+                  className={`border-b text-sm last:border-0 ${
+                    n.read ? "" : "bg-muted/40"
+                  }`}
+                >
+                  {n.type === "new_message" && inboxHref ? (
+                    <Link href={inboxHref} className="block px-3 py-2 hover:bg-muted">
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div className="px-3 py-2">{inner}</div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </DropdownMenuContent>

@@ -20,11 +20,18 @@ export default async function ClientLayout({
 
   const nav = [
     { href: "/client", label: t("dashboard") },
+    { href: "/client/inbox", label: t("inbox") },
     { href: "/client/orders", label: t("orders") },
   ];
 
   return (
-    <PortalShell title={t("clientTitle")} email={user.email} userId={user.id} nav={nav}>
+    <PortalShell
+      title={t("clientTitle")}
+      email={user.email}
+      userId={user.id}
+      role={user.role}
+      nav={nav}
+    >
       {children}
     </PortalShell>
   );

@@ -106,6 +106,7 @@
     "clientTitle": "Client Portal",
     "workerTitle": "Worker Portal",
     "dashboard": "Dashboard",
+    "inbox": "Inbox",
     "orders": "Orders",
     "workers": "Care staff",
     "clients": "Facilities",
@@ -222,7 +223,10 @@
     "yearsCount": "{count} years",
     "viewProfile": "View profile",
     "profilePreviewTitle": "Profile preview",
-    "profilePreviewHint": "This is how clients see this worker's profile."
+    "profilePreviewHint": "This is how clients see this worker's profile.",
+    "hoursAction": "Hours",
+    "scheduleHint": "Schedule and client-confirmed hours for this care worker.",
+    "scheduleEmpty": "No assignments in this month."
   },
   "clients": {
     "title": "Facilities",
@@ -445,6 +449,34 @@
     "you": "You",
     "saveError": "Failed to send."
   },
+  "inbox": {
+    "title": "Inbox",
+    "subtitle": "Send and receive messages with the RheinAhr team.",
+    "subtitleAdmin": "Send and receive messages with facilities and care staff.",
+    "agencyTeam": "RheinAhr team",
+    "compose": "New message",
+    "composeTitle": "New message",
+    "composeHint": "Your message goes to the RheinAhr team.",
+    "composeHintAdmin": "With multiple recipients, a separate private conversation is created per recipient.",
+    "recipients": "Recipients",
+    "recipientsPlaceholder": "Select recipients…",
+    "noRecipients": "No matches.",
+    "subject": "Subject",
+    "subjectPlaceholder": "Subject (optional)",
+    "message": "Message",
+    "messagePlaceholder": "Write a message…",
+    "send": "Send",
+    "sent": "Message sent.",
+    "sendError": "Failed to send.",
+    "empty": "No conversations yet.",
+    "you": "You",
+    "context": {
+      "assignment": "Assignment",
+      "orderRequest": "Order request"
+    },
+    "openOrder": "Open order",
+    "openAssignment": "Open assignment"
+  },
   "availability": {
     "title": "Availability",
     "subtitle": "Mark when you are not available — per shift or the whole day.",
@@ -459,7 +491,12 @@
     "nextMonth": "Next month",
     "save": "Save",
     "saved": "Availability saved.",
-    "saveError": "Action failed."
+    "saveError": "Action failed.",
+    "hoursHeader": "Hours",
+    "hoursUnit": "h",
+    "confirmedByClient": "Confirmed by client",
+    "monthTotal": "Hours worked this month (breaks deducted)",
+    "monthTotalHint": "{count, plural, one {# shift confirmed by the client} other {# shifts confirmed by the client}}"
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",

@@ -7,7 +7,7 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Clock } from "lucide-react";
 
 type WorkerRow = Awaited<ReturnType<typeof getWorkers>>[number];
 
@@ -75,15 +75,26 @@ export default async function WorkersPage({
       className: "text-end",
       action: true,
       cell: (w) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2"
-          render={<Link href={`/admin/workers/${w.id}/edit`} />}
-        >
-          <Pencil className="size-4" />
-          {c("edit")}
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            render={<Link href={`/admin/workers/${w.id}/schedule`} />}
+          >
+            <Clock className="size-4" />
+            {t("hoursAction")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            render={<Link href={`/admin/workers/${w.id}/edit`} />}
+          >
+            <Pencil className="size-4" />
+            {c("edit")}
+          </Button>
+        </div>
       ),
     },
   ];

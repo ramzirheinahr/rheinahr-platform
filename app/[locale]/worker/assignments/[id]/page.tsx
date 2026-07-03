@@ -2,11 +2,14 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { loadThreadMessages } from "@/lib/messages";
+import {
+  getOrCreateAssignmentConversation,
+  loadConversation,
+} from "@/lib/inbox";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MessageThread } from "@/components/messages/message-thread";
+import { ConversationThread } from "@/components/inbox/conversation-thread";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +50,12 @@ export default async function WorkerAssignmentDetail({
   // Only the assigned worker may view their thread.
   if (!assignment || assignment.worker.userId !== user.id) notFound();
 
-  const messages = await loadThreadMessages(id, user.id);
+  // The chat lives in the unified inbox — resolve this assignment's thread.
+  const conversation = await getOrCreateAssignmentConversation(id);
+  const thread = conversation
+    ? await loadConversation(conversation.id, user)
+    : null;
+  if (!thread) notFound();
 
   return (
     <div className="space-y-6">
@@ -79,7 +87,7 @@ export default async function WorkerAssignmentDetail({
 
       <div className="space-y-2">
         <h2 className="text-base font-semibold">{tm("title")}</h2>
-        <MessageThread assignmentId={id} messages={messages} />
+        <ConversationThread conversationId={thread.id} messages={thread.messages} />
       </div>
     </div>
   );

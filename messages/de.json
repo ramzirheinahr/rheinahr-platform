@@ -106,6 +106,7 @@
     "clientTitle": "Kundenportal",
     "workerTitle": "Mitarbeiterportal",
     "dashboard": "Übersicht",
+    "inbox": "Postfach",
     "orders": "Aufträge",
     "workers": "Pflegekräfte",
     "clients": "Einrichtungen",
@@ -222,7 +223,10 @@
     "yearsCount": "{count} Jahre",
     "viewProfile": "Profil ansehen",
     "profilePreviewTitle": "Profilvorschau",
-    "profilePreviewHint": "So sehen Kunden das Profil dieses Mitarbeiters."
+    "profilePreviewHint": "So sehen Kunden das Profil dieses Mitarbeiters.",
+    "hoursAction": "Stunden",
+    "scheduleHint": "Dienstplan und vom Kunden bestätigte Stunden dieser Pflegekraft.",
+    "scheduleEmpty": "Keine Einsätze in diesem Monat."
   },
   "clients": {
     "title": "Einrichtungen",
@@ -445,6 +449,34 @@
     "you": "Sie",
     "saveError": "Senden fehlgeschlagen."
   },
+  "inbox": {
+    "title": "Postfach",
+    "subtitle": "Nachrichten mit dem RheinAhr-Team senden und empfangen.",
+    "subtitleAdmin": "Nachrichten an Einrichtungen und Pflegekräfte senden und empfangen.",
+    "agencyTeam": "RheinAhr-Team",
+    "compose": "Neue Nachricht",
+    "composeTitle": "Neue Nachricht",
+    "composeHint": "Ihre Nachricht geht an das RheinAhr-Team.",
+    "composeHintAdmin": "Bei mehreren Empfängern wird pro Empfänger eine eigene, private Unterhaltung erstellt.",
+    "recipients": "Empfänger",
+    "recipientsPlaceholder": "Empfänger auswählen…",
+    "noRecipients": "Keine Treffer.",
+    "subject": "Betreff",
+    "subjectPlaceholder": "Betreff (optional)",
+    "message": "Nachricht",
+    "messagePlaceholder": "Nachricht schreiben…",
+    "send": "Senden",
+    "sent": "Nachricht gesendet.",
+    "sendError": "Senden fehlgeschlagen.",
+    "empty": "Noch keine Unterhaltungen.",
+    "you": "Sie",
+    "context": {
+      "assignment": "Einsatz",
+      "orderRequest": "Auftragsanfrage"
+    },
+    "openOrder": "Auftrag öffnen",
+    "openAssignment": "Einsatz öffnen"
+  },
   "availability": {
     "title": "Verfügbarkeit",
     "subtitle": "Markieren Sie, wann Sie nicht verfügbar sind – pro Schicht oder ganztägig.",
@@ -459,7 +491,12 @@
     "nextMonth": "Nächster Monat",
     "save": "Speichern",
     "saved": "Verfügbarkeit gespeichert.",
-    "saveError": "Aktion fehlgeschlagen."
+    "saveError": "Aktion fehlgeschlagen.",
+    "hoursHeader": "Std.",
+    "hoursUnit": "Std.",
+    "confirmedByClient": "Vom Kunden bestätigt",
+    "monthTotal": "Geleistete Stunden im Monat (ohne Pausen)",
+    "monthTotalHint": "{count, plural, one {# vom Kunden bestätigte Schicht} other {# vom Kunden bestätigte Schichten}}"
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",

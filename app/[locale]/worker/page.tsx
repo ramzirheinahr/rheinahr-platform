@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { AvailabilityBuilder } from "@/components/worker/availability-builder";
+import { getWorkerMonthSchedule } from "@/lib/worker-schedule";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -14,36 +15,6 @@ async function getWorker() {
   return prisma.worker
     .findUnique({ where: { userId: user.id }, select: { id: true } })
     .catch(() => null);
-}
-
-async function getAssignments(workerId: string, year: number, month: number) {
-  try {
-    return await prisma.assignment.findMany({
-      where: {
-        workerId,
-        order: {
-          shiftDate: {
-            gte: new Date(Date.UTC(year, month - 1, 1)),
-            lt: new Date(Date.UTC(year, month, 1)),
-          },
-        },
-      },
-      orderBy: { order: { shiftDate: "asc" } },
-      include: {
-        order: {
-          select: {
-            shiftDate: true,
-            startTime: true,
-            endTime: true,
-            notes: true,
-            client: { select: { facilityName: true, address: true } },
-          },
-        },
-      },
-    });
-  } catch {
-    return [];
-  }
 }
 
 async function getAvailability(workerId: string, year: number, month: number) {
@@ -89,7 +60,9 @@ export default async function WorkerSchedulePage({
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
   const worker = await getWorker();
-  const assignments = worker ? await getAssignments(worker.id, year, month) : [];
+  const { rows: assignments } = worker
+    ? await getWorkerMonthSchedule(worker.id, year, month)
+    : { rows: [] };
   const { initialBlocks } = worker
     ? await getAvailability(worker.id, year, month)
     : { initialBlocks: [] };
@@ -145,12 +118,13 @@ export default async function WorkerSchedulePage({
           assignments={assignments.map((a) => ({
             id: a.id,
             status: a.status,
-            date: a.order.shiftDate.toISOString().slice(0, 10),
-            startTime: a.order.startTime,
-            endTime: a.order.endTime,
-            notes: a.order.notes,
-            facilityName: a.order.client.facilityName,
-            address: a.order.client.address,
+            date: a.date,
+            startTime: a.startTime,
+            endTime: a.endTime,
+            notes: a.notes,
+            facilityName: a.facilityName,
+            address: a.address,
+            confirmedHours: a.confirmedHours,
           }))}
         />
       </section>

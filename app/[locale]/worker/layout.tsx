@@ -20,11 +20,18 @@ export default async function WorkerLayout({
 
   const nav = [
     { href: "/worker", label: t("schedule") },
+    { href: "/worker/inbox", label: t("inbox") },
     { href: "/worker/documents", label: t("documents") },
   ];
 
   return (
-    <PortalShell title={t("workerTitle")} email={user.email} userId={user.id} nav={nav}>
+    <PortalShell
+      title={t("workerTitle")}
+      email={user.email}
+      userId={user.id}
+      role={user.role}
+      nav={nav}
+    >
       {children}
     </PortalShell>
   );

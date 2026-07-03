@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { Download } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { countUnreadConversations } from "@/lib/inbox";
+import type { Role } from "@prisma/client";
 
 async function getNotifications(userId: string): Promise<NotificationItem[]> {
   try {
@@ -38,17 +40,26 @@ export async function PortalShell({
   title,
   email,
   userId,
+  role,
   nav,
   children,
 }: {
   title: string;
   email: string;
   userId: string;
+  role: Role;
   nav: NavItem[];
   children: React.ReactNode;
 }) {
   const notifications = await getNotifications(userId);
   const c = await getTranslations("common");
+
+  // Unread-conversations badge on the inbox nav entry.
+  const unread = await countUnreadConversations({ id: userId, role }).catch(() => 0);
+  const inboxHref = nav.find((i) => i.href.endsWith("/inbox"))?.href ?? null;
+  const navWithBadge = nav.map((item) =>
+    item.href === inboxHref && unread > 0 ? { ...item, badge: unread } : item,
+  );
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -62,7 +73,7 @@ export async function PortalShell({
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
-          <NotificationsBell items={notifications} />
+          <NotificationsBell items={notifications} inboxHref={inboxHref} />
           <a
             href="/api/me/export"
             download
@@ -79,12 +90,12 @@ export async function PortalShell({
 
       {/* Mobile navigation (horizontal, scrollable) */}
       <nav className="overflow-x-auto border-b px-3 py-2 md:hidden">
-        <PortalNav items={nav} orientation="horizontal" />
+        <PortalNav items={navWithBadge} orientation="horizontal" />
       </nav>
 
       <div className="flex flex-1">
         <aside className="hidden w-56 shrink-0 border-e p-4 md:block">
-          <PortalNav items={nav} />
+          <PortalNav items={navWithBadge} />
         </aside>
         <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
       </div>

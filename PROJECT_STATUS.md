@@ -96,7 +96,30 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
 - **Worker** portal: **monthly sheet** of shifts (accept/decline, chat); **availability =
   monthly table** with per‑shift or whole‑day unavailability, instant local edit + one Save.
 - Digital **service confirmation** (signature pad OR upload → Storage, IP+timestamp),
-  **Leistungsnachweis PDF**, **in‑app notifications** (bell), **per‑assignment messaging**.
+  **Leistungsnachweis PDF**, **in‑app notifications** (bell).
+- **Worked hours** (2026‑07): worker schedule table shows client‑confirmed hours per
+  shift (green "Vom Kunden bestätigt" badge) + monthly net total (breaks deducted) in a
+  table footer; admin mirror at `/admin/workers/[id]/schedule` (linked "Stunden" from the
+  workers list). Shared data source `lib/worker-schedule.ts` (`getWorkerMonthSchedule`);
+  `service_confirmed` bell notification carries facility · date · hours and the
+  confirm action revalidates `/worker`.
+- **Unified inbox** (2026‑07): conversation‑based messaging for all three portals
+  (`/{admin,client,worker}/inbox` + `/inbox/[id]` thread pages, shared
+  `components/inbox/*` views). Model: agency staff (admin/super_admin act as one
+  team) ↔ exactly one client/worker per thread; staff see **all** threads, others
+  only their own; **no client↔worker** direct messaging. Admin compose supports
+  **multi‑recipient** (one private thread per recipient, searchable Combobox).
+  **Unread badge** on the inbox nav tab (`countUnreadConversations` in
+  `PortalShell`), `new_message` bell notifications **deep‑link to the inbox**.
+  Threads auto‑refresh (20 s, visibility‑aware) + read cursors
+  (`ConversationParticipant.lastReadAt`, upserted on open/send). Old
+  **per‑assignment chat** folded in: `/admin/messages/[assignmentId]` now
+  lazily creates/finds the assignment's conversation and redirects into the
+  inbox; the worker assignment page embeds the same thread. Client
+  **change‑request messages** (locked requests) land as a per‑request thread
+  (`Conversation.requestGroupId`) instead of notification‑only. Server logic in
+  `lib/inbox.ts` (queries/access) + `lib/inbox-actions.ts` (Zod‑validated
+  actions, audit‑logged).
 - **Reports** dashboard · **Invoicing** CSV/DATEV export + PDF · legal **Impressum/Datenschutz**
   (German) · cookie banner · **GDPR data export** (`/api/me/export`) · **PWA** (installable,
   offline shell) · professional **landing** + **/roadmap** page (German, for stakeholder).
@@ -109,23 +132,29 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   uses **time overlap**.
 - `ServiceConfirmation.confirmedById` nullable + `onDelete: SetNull` (GDPR‑safe erasure).
 - Per‑shift **Pause/net hours are UI‑only** (not persisted); `Wohnbereich` stored in `Order.notes`.
+- **Inbox schema** (2026‑07‑03, already `db push`ed — additive/safe): new
+  `conversations` (`subject`, `assignment_id` unique‑nullable, `request_group_id`,
+  `last_message_at`) + `conversation_participants` (`@@unique([conversationId,userId])`,
+  `lastReadAt` = per‑user read cursor). `messages.assignment_id` relaxed to
+  **nullable** (legacy column); new nullable `messages.conversation_id` — new
+  messages always set it; legacy per‑assignment rows are attached lazily on
+  first access (`getOrCreateAssignmentConversation`, seeds read cursors to
+  "now" so old threads don't flood badges).
 
 ## 8. ⚠️ PENDING / UNPUSHED WORK
-Access link + PIN is committed (HEAD `8086fc2`). Currently **uncommitted** (2026‑07‑02):
-**accounts‑page removal + qualification merge** — deleted `app/[locale]/admin/accounts/`
-and `components/admin/account-{create,edit}-form.tsx`; new `/admin/{workers,clients}/new`
-pages + `worker-create-form`/`client-create-form`/`account-section` components +
-`app/[locale]/admin/account-actions.ts`; edited workers/clients actions & pages, admin
-nav, `lib/{validations,pricing,invoicing}.ts`, `messages/*`, `prisma/schema.prisma`,
-`scripts/seed-demo.mjs`.
-- **Production DB already migrated**: (a) qualification rows remapped
-  (`altenpfleger`/`gesundheitspfleger` → `pflegefachkraft`) + enum values dropped;
-  (b) worker profile fields + `worker_documents` table added; `workers.languages`
-  cast `Language[]`→`text[]` (values preserved). Private `worker-files` Storage bucket
-  created (`npm run db:storage`). ⚠️ The **deployed** code still offers the old
-  qualification values until this is pushed — push soon.
-- Verified locally: tests + clean build pass; authed smoke test — `/admin/accounts` 404,
-  new/edit pages render (incl. AR), AccountSection on worker & client edit pages.
+Everything up to HEAD `ed61e83` is committed. Currently **uncommitted** (2026‑07‑03):
+the **unified inbox** feature (§6) — new `lib/inbox{,-actions}.ts`,
+`components/inbox/*`, 6 inbox pages, edits to the 3 portal layouts,
+`portal-{shell,nav}`, `notifications-bell`, worker assignment page, admin
+messages page (now a redirect), client orders actions, `prisma/schema.prisma`,
+`messages/{de,en,ar}.json`; deleted `lib/messages.ts`, `lib/message-actions.ts`,
+`components/messages/message-thread.tsx`.
+- **DB already pushed** (additive only — existing data untouched).
+- Verified locally: vitest green, clean build; authed smoke test (real Supabase
+  sessions): admin/worker inbox render (DE + AR RTL), unread nav badge counts,
+  legacy assignment‑chat URL lazily creates the conversation + redirects,
+  non‑participant worker gets 404 with **no content leak**, admin compose
+  recipient list serialized correctly. Test data cleaned up afterwards.
 - **Next action:** after review, `git add -A && git commit && git push origin main`
   (author must be paypalalmnar@gmail.com) to deploy.
 

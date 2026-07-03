@@ -27,6 +27,7 @@ export default async function AdminLayout({
   // inside the worker/client pages (create + edit), so there's no accounts entry.
   const nav = [
     { href: "/admin", label: t("dashboard") },
+    { href: "/admin/inbox", label: t("inbox") },
     { href: "/admin/orders", label: t("orders") },
     {
       href: "/admin/workers",
@@ -45,7 +46,13 @@ export default async function AdminLayout({
   ];
 
   return (
-    <PortalShell title={t("adminTitle")} email={user.email} userId={user.id} nav={nav}>
+    <PortalShell
+      title={t("adminTitle")}
+      email={user.email}
+      userId={user.id}
+      role={user.role}
+      nav={nav}
+    >
       {children}
     </PortalShell>
   );

@@ -106,6 +106,7 @@
     "clientTitle": "بوابة الزبائن",
     "workerTitle": "بوابة العمال",
     "dashboard": "لوحة المعلومات",
+    "inbox": "الرسائل",
     "orders": "الطلبات",
     "workers": "كوادر الرعاية",
     "clients": "المنشآت",
@@ -222,7 +223,10 @@
     "yearsCount": "{count} سنوات",
     "viewProfile": "عرض الملف",
     "profilePreviewTitle": "معاينة الملف",
-    "profilePreviewHint": "هكذا يرى الزبائن ملف هذا الموظف."
+    "profilePreviewHint": "هكذا يرى الزبائن ملف هذا الموظف.",
+    "hoursAction": "الساعات",
+    "scheduleHint": "جدول الورديات والساعات المؤكدة من الزبائن لكادر الرعاية هذا.",
+    "scheduleEmpty": "لا توجد ورديات في هذا الشهر."
   },
   "clients": {
     "title": "المنشآت",
@@ -445,6 +449,34 @@
     "you": "أنت",
     "saveError": "فشل الإرسال."
   },
+  "inbox": {
+    "title": "صندوق الرسائل",
+    "subtitle": "أرسل واستقبل الرسائل مع فريق RheinAhr.",
+    "subtitleAdmin": "أرسل واستقبل الرسائل مع المنشآت وكوادر الرعاية.",
+    "agencyTeam": "فريق RheinAhr",
+    "compose": "رسالة جديدة",
+    "composeTitle": "رسالة جديدة",
+    "composeHint": "ستصل رسالتك إلى فريق RheinAhr.",
+    "composeHintAdmin": "عند اختيار عدة مستلمين تُنشأ محادثة خاصة منفصلة لكل مستلم.",
+    "recipients": "المستلمون",
+    "recipientsPlaceholder": "اختر المستلمين…",
+    "noRecipients": "لا نتائج.",
+    "subject": "الموضوع",
+    "subjectPlaceholder": "الموضوع (اختياري)",
+    "message": "الرسالة",
+    "messagePlaceholder": "اكتب رسالة…",
+    "send": "إرسال",
+    "sent": "تم إرسال الرسالة.",
+    "sendError": "فشل الإرسال.",
+    "empty": "لا توجد محادثات بعد.",
+    "you": "أنت",
+    "context": {
+      "assignment": "مهمة عمل",
+      "orderRequest": "طلب خدمة"
+    },
+    "openOrder": "فتح الطلب",
+    "openAssignment": "فتح المهمة"
+  },
   "availability": {
     "title": "التوفر",
     "subtitle": "حدّد متى لا تكون متاحًا — حسب الوردية أو طوال اليوم.",
@@ -459,7 +491,12 @@
     "nextMonth": "الشهر التالي",
     "save": "حفظ",
     "saved": "تم حفظ التوفّر.",
-    "saveError": "فشل الإجراء."
+    "saveError": "فشل الإجراء.",
+    "hoursHeader": "الساعات",
+    "hoursUnit": "ساعة",
+    "confirmedByClient": "وقّعها الزبون",
+    "monthTotal": "مجموع ساعات العمل هذا الشهر (بعد خصم الاستراحة)",
+    "monthTotalHint": "{count, plural, one {وردية واحدة مؤكدة من الزبون} two {ورديتان مؤكدتان من الزبون} few {# ورديات مؤكدة من الزبون} other {# وردية مؤكدة من الزبون}}"
   },
   "cookies": {
     "message": "نستخدم فقط ملفات تعريف ارتباط ضرورية تقنيًا لتمكين تسجيل الدخول وتشغيل المنصة.",

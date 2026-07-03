@@ -12,8 +12,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // A nav entry. `children`, when present, turns the entry into a dropdown (e.g.
-// "Care staff" → one page per qualification).
-export type NavItem = { href: string; label: string; children?: NavItem[] };
+// "Care staff" → one page per qualification). `badge` renders an unread-count
+// chip (e.g. the inbox).
+export type NavItem = {
+  href: string;
+  label: string;
+  children?: NavItem[];
+  badge?: number;
+};
 
 export function PortalNav({
   items,
@@ -82,9 +88,18 @@ export function PortalNav({
           <Link
             key={item.href}
             href={item.href}
-            className={linkClass(onPath(item.href))}
+            className={cn(
+              linkClass(onPath(item.href)),
+              "flex items-center gap-2",
+              !horizontal && "justify-between",
+            )}
           >
             {item.label}
+            {item.badge ? (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold leading-none text-white">
+                {item.badge > 99 ? "99+" : item.badge}
+              </span>
+            ) : null}
           </Link>
         );
       })}

@@ -143,6 +143,8 @@ model User {
   notifications        Notification[]
   serviceConfirmations ServiceConfirmation[]
   sentMessages         Message[]
+  conversations        ConversationParticipant[]
+  createdConversations Conversation[]
 
   createdBy    User?  @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers User[] @relation("UserCreatedBy")
@@ -279,23 +281,68 @@ model Assignment {
   worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)
   serviceConfirmation ServiceConfirmation?
   messages            Message[]
+  conversation        Conversation?
 
   @@unique([orderId, workerId])
   @@index([workerId, status])
   @@map("assignments")
 }
 
-// In-app messaging per assignment (coordinator/admin ↔ assigned care worker).
+// Inbox thread. Agency staff (admin/super_admin) see every conversation; other
+// users only those they participate in. Optional links tie a thread to its
+// context: `assignmentId` for per-assignment chats (worker ↔ agency),
+// `requestGroupId` for client change requests on an order request.
+model Conversation {
+  id             String   @id @default(uuid())
+  subject        String? // free-text; context threads store e.g. "12.07.2026 · Facility"
+  assignmentId   String?  @unique @map("assignment_id")
+  requestGroupId String?  @map("request_group_id")
+  createdById    String?  @map("created_by")
+  lastMessageAt  DateTime @default(now()) @map("last_message_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  assignment   Assignment?               @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  createdBy    User?                     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt])
+  @@index([requestGroupId])
+  @@map("conversations")
+}
+
+// Membership + per-user read cursor. Agency staff get a row lazily (first
+// read) purely to track `lastReadAt`; visibility for them never depends on it.
+model ConversationParticipant {
+  id             String    @id @default(uuid())
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  lastReadAt     DateTime? @map("last_read_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+// A single inbox message. `assignmentId` is a legacy column from the
+// per-assignment-only messaging era (kept for existing rows); new messages
+// always carry `conversationId`.
 model Message {
-  id           String   @id @default(uuid())
-  assignmentId String   @map("assignment_id")
-  senderId     String   @map("sender_id")
-  body         String
-  createdAt    DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  conversationId String?  @map("conversation_id")
+  assignmentId   String?  @map("assignment_id")
+  senderId       String   @map("sender_id")
+  body           String
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  sender     User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  assignment   Assignment?   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  sender       User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
+  @@index([conversationId, createdAt])
   @@index([assignmentId, createdAt])
   @@map("messages")
 }

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
 import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
-import { Save, Plus, X } from "lucide-react";
+import { Save, Plus, X, CheckCircle2, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
 
@@ -24,6 +24,9 @@ export type Assignment = {
   notes: string | null;
   facilityName: string;
   address: string | null;
+  // Client-confirmed net hours (break already deducted) — null until the
+  // facility signs the Leistungsnachweis.
+  confirmedHours?: number | null;
 };
 
 export type InitialBlock = { date: string; startTime: string | null; endTime: string | null };
@@ -67,6 +70,19 @@ export function AvailabilityBuilder({
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const holidays = useMemo(() => germanHolidays(year), [year]);
+
+  // Month total of client-confirmed hours — already net of the break.
+  const hoursFmt = useMemo(
+    () => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
+    [locale],
+  );
+  const totals = useMemo(() => {
+    const confirmed = (assignments || []).filter((a) => a.confirmedHours != null);
+    return {
+      hours: confirmed.reduce((sum, a) => sum + (a.confirmedHours ?? 0), 0),
+      shifts: confirmed.length,
+    };
+  }, [assignments]);
 
   const [cells, setCells] = useState<Record<string, Block>>(() => {
     const map: Record<string, Block> = {};
@@ -208,6 +224,7 @@ export function AvailabilityBuilder({
               <th className="p-2 text-start">{t("unavailable")}</th>
               <th className="p-2 text-start">{oq("von")}</th>
               <th className="p-2 text-start">{oq("bis")}</th>
+              <th className="p-2 text-end">{t("hoursHeader")}</th>
             </tr>
           </thead>
           <tbody>
@@ -240,9 +257,16 @@ export function AvailabilityBuilder({
                         </td>
                         <td className="p-2">
                           <div className="flex items-center gap-2">
-                            <Badge variant={a.status === "confirmed" ? "default" : a.status === "declined" ? "outline" : "secondary"}>
-                              {eas(a.status)}
-                            </Badge>
+                            {a.confirmedHours != null ? (
+                              <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
+                                <CheckCircle2 className="size-3" />
+                                {t("confirmedByClient")}
+                              </Badge>
+                            ) : (
+                              <Badge variant={a.status === "confirmed" ? "default" : a.status === "declined" ? "outline" : "secondary"}>
+                                {eas(a.status)}
+                              </Badge>
+                            )}
                             {a.status === "pending" && !d.past ? (
                               <AssignmentActions assignmentId={a.id} />
                             ) : null}
@@ -253,6 +277,15 @@ export function AvailabilityBuilder({
                         </td>
                         <td className="p-2 whitespace-nowrap font-medium text-primary">
                           {a.endTime}
+                        </td>
+                        <td className="p-2 whitespace-nowrap text-end">
+                          {a.confirmedHours != null ? (
+                            <span className="font-semibold text-emerald-600">
+                              {hoursFmt.format(a.confirmedHours)} {t("hoursUnit")}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -271,6 +304,7 @@ export function AvailabilityBuilder({
                     </td>
                     <td className="p-1"></td>
                     {TypeCells(d.date, 0)}
+                    <td className="p-1"></td>
                   </tr>
                   {extra.map((slot) => (
                     <tr key={slot} className={cn("border-b", rowCls)}>
@@ -290,12 +324,31 @@ export function AvailabilityBuilder({
                       </td>
                       <td className="p-1"></td>
                       {TypeCells(d.date, slot)}
+                      <td className="p-1"></td>
                     </tr>
                   ))}
                 </Fragment>
               );
             })}
           </tbody>
+          {totals.shifts > 0 ? (
+            <tfoot>
+              <tr className="border-t-2 bg-emerald-500/10">
+                <td colSpan={5} className="p-3">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Clock className="size-4 text-emerald-600" />
+                    {t("monthTotal")}
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {t("monthTotalHint", { count: totals.shifts })}
+                  </p>
+                </td>
+                <td className="whitespace-nowrap p-3 text-end align-middle text-lg font-bold text-emerald-600">
+                  {hoursFmt.format(totals.hours)} {t("hoursUnit")}
+                </td>
+              </tr>
+            </tfoot>
+          ) : null}
         </table>
       </div>
 
