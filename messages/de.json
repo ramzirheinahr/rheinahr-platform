@@ -198,6 +198,7 @@
     "skillsHint": "Kommagetrennt, z. B. Demenzbetreuung, Palliativpflege",
     "yearsExperience": "Berufserfahrung (Jahre)",
     "employedSince": "Bei RheinAhr seit",
+    "requiredHours": "Soll-Stunden",
     "bio": "Kurzprofil",
     "bioHint": "Kurze Vorstellung für Kunden",
     "uploadsHint": "Foto und Dokumente können nach dem Anlegen hochgeladen werden.",
@@ -481,7 +482,8 @@
     "you": "Sie",
     "context": {
       "assignment": "Einsatz",
-      "orderRequest": "Auftragsanfrage"
+      "orderRequest": "Auftragsanfrage",
+      "leaveRequest": "Urlaubsantrag"
     },
     "openOrder": "Auftrag öffnen",
     "openAssignment": "Einsatz öffnen"
@@ -491,6 +493,13 @@
     "subtitle": "Markieren Sie, wann Sie verfügbar sind – pro Schicht oder ganztägig. Nicht markierte Tage gelten als nicht verfügbar.",
     "available": "Verfügbar",
     "unavailable": "Nicht verfügbar",
+    "leaveRequested": "Urlaub angefragt",
+    "leaveApproved": "Urlaub (Bitte nicht stören)",
+    "leavePending": "Urlaubsantrag ausstehend",
+    "requestLeave": "Urlaub beantragen",
+    "selectLeaveDates": "Bitte wählen Sie die Tage aus:",
+    "submitLeave": "Antrag senden",
+    "previewLeave": "Urlaubsantrag prüfen",
     "fullDay": "Ganztägig verfügbar",
     "custom": "Benutzerdef.",
     "assigned": "Eingeplant",
@@ -503,7 +512,9 @@
     "saveError": "Aktion fehlgeschlagen.",
     "hoursHeader": "Std.",
     "hoursUnit": "Std.",
-    "confirmedByClient": "Vom Kunden bestätigt",
+    "requiredHoursLabel": "Soll",
+    "remainingHoursLabel": "Rest",
+    "confirmedByClient": "Signieren",
     "monthTotal": "Geleistete Stunden im Monat (ohne Pausen)",
     "monthTotalHint": "{count, plural, one {# vom Kunden bestätigte Schicht} other {# vom Kunden bestätigte Schichten}}",
     "availableHeader": "Verfügbarkeit"
@@ -607,6 +618,8 @@
     "candBusy": "Belegt (gleicher Tag)",
     "candUnavailable": "Nicht verfügbar",
     "noCandidates": "Keine passende Pflegekraft gefunden.",
-    "assignWorker": "Mitarbeiter zuweisen"
+    "assignWorker": "Mitarbeiter zuweisen",
+    "requiredHoursLabel": "Soll",
+    "remainingHoursLabel": "Rest"
   }
 }

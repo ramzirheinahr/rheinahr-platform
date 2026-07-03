@@ -198,6 +198,7 @@
     "skillsHint": "Comma-separated, e.g. dementia care, palliative care",
     "yearsExperience": "Experience (years)",
     "employedSince": "Employed since",
+    "requiredHours": "Required hours",
     "bio": "Short profile",
     "bioHint": "Short introduction shown to clients",
     "uploadsHint": "Photo and documents can be uploaded after creating the profile.",
@@ -481,7 +482,8 @@
     "you": "You",
     "context": {
       "assignment": "Assignment",
-      "orderRequest": "Order request"
+      "orderRequest": "Order request",
+      "leaveRequest": "Leave Request"
     },
     "openOrder": "Open order",
     "openAssignment": "Open assignment"
@@ -491,6 +493,13 @@
     "subtitle": "Mark when you are available – per shift or all day. Days left blank count as unavailable.",
     "available": "Available",
     "unavailable": "Unavailable",
+    "leaveRequested": "Leave requested",
+    "leaveApproved": "Leave (Do Not Disturb)",
+    "leavePending": "Leave request pending",
+    "requestLeave": "Request leave",
+    "selectLeaveDates": "Please select the dates:",
+    "submitLeave": "Submit request",
+    "previewLeave": "Review request",
     "fullDay": "Available all day",
     "custom": "Custom",
     "assigned": "Scheduled",
@@ -503,6 +512,8 @@
     "saveError": "Action failed.",
     "hoursHeader": "Hours",
     "hoursUnit": "h",
+    "requiredHoursLabel": "Required",
+    "remainingHoursLabel": "Remaining",
     "confirmedByClient": "Confirmed by client",
     "monthTotal": "Hours worked this month (breaks deducted)",
     "monthTotalHint": "{count, plural, one {# shift confirmed by the client} other {# shifts confirmed by the client}}",
@@ -607,6 +618,8 @@
     "candBusy": "Busy (same day)",
     "candUnavailable": "Unavailable",
     "noCandidates": "No matching care worker found.",
-    "assignWorker": "Assign worker"
+    "assignWorker": "Assign worker",
+    "requiredHoursLabel": "Required",
+    "remainingHoursLabel": "Remaining"
   }
 }

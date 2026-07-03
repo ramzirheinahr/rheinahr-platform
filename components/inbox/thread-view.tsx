@@ -7,6 +7,7 @@ import { isAgencyRole, loadConversation } from "@/lib/inbox";
 import { ConversationThread } from "@/components/inbox/conversation-thread";
 import type { PortalBasePath } from "@/components/inbox/inbox-view";
 import type { SessionUser } from "@/lib/auth";
+import { LeaveReviewDialog } from "@/components/inbox/leave-review-dialog";
 
 // Shared single-thread screen: back link, counterpart header, optional
 // context deep-link (order / assignment), then the live thread.
@@ -86,6 +87,9 @@ export async function ThreadView({
             <ExternalLink className="size-4" />
             {t(detail.context === "assignment" && viewer.role === "worker" ? "openAssignment" : "openOrder")}
           </Button>
+        ) : null}
+        {agency && detail.leaveRequestId ? (
+          <LeaveReviewDialog leaveRequestId={detail.leaveRequestId} />
         ) : null}
       </div>
 

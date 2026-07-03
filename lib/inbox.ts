@@ -18,7 +18,7 @@ export function isAgencyRole(role: Role): boolean {
 
 export type InboxViewer = { id: string; role: Role };
 
-export type ConversationContext = "assignment" | "orderRequest" | null;
+export type ConversationContext = "assignment" | "orderRequest" | "leaveRequest" | null;
 
 export type ConversationListItem = {
   id: string;
@@ -50,6 +50,7 @@ export type ConversationDetail = {
   // Context deep-link targets (rendered role-appropriately by the pages).
   assignmentId: string | null;
   orderRef: string | null; // requestGroupId (or order id) for order detail pages
+  leaveRequestId: string | null;
   messages: ConversationMessage[];
 };
 
@@ -106,9 +107,11 @@ function counterpartOf(
 function conversationContext(c: {
   assignmentId: string | null;
   requestGroupId: string | null;
+  leaveRequestId: string | null;
 }): ConversationContext {
   if (c.assignmentId) return "assignment";
   if (c.requestGroupId) return "orderRequest";
+  if (c.leaveRequestId) return "leaveRequest";
   return null;
 }
 
@@ -220,6 +223,7 @@ export async function listConversations(
       subject: true,
       assignmentId: true,
       requestGroupId: true,
+      leaveRequestId: true,
       lastMessageAt: true,
       participants: participantInclude,
       messages: {
@@ -291,6 +295,7 @@ export async function loadConversation(
       subject: true,
       assignmentId: true,
       requestGroupId: true,
+      leaveRequestId: true,
       assignment: {
         select: { order: { select: { id: true, requestGroupId: true } } },
       },
@@ -322,6 +327,7 @@ export async function loadConversation(
     counterpartName: counterpart.name ?? "",
     counterpartRole: counterpart.role,
     assignmentId: c.assignmentId,
+    leaveRequestId: c.leaveRequestId,
     orderRef:
       c.requestGroupId ??
       c.assignment?.order.requestGroupId ??

@@ -91,6 +91,7 @@ export default async function EditWorkerPage({
           bio: worker.bio,
           yearsExperience: worker.yearsExperience,
           employedSince: toDateInput(worker.employedSince),
+          requiredHours: worker.requiredHours,
         }}
       />
 

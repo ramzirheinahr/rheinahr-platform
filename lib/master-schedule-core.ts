@@ -134,11 +134,17 @@ export type GridDay = {
   avail: string; // "FSN" … "" (fully unavailable)
   hasBlocks: boolean; // any explicit unavailability saved for the day
   jobs: GridJob[];
+  leave?: {
+    status: "pending" | "approved" | "rejected";
+    hours: number;
+  };
 };
 
 export type GridWorkerRow = {
   workerId: string;
   name: string;
+  requiredHours: number;
+  confirmedHours: number;
   days: GridDay[]; // index = day-1
 };
 

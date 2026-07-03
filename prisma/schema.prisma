@@ -79,6 +79,12 @@ enum AssignmentStatus {
   declined
 }
 
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+}
+
 enum ConfirmationMethod {
   electronic // signature pad / click-to-confirm
   upload // signed scanned document
@@ -159,6 +165,7 @@ model Worker {
   qualification  Qualification
   certifications String[]      @default([])
   contractType   ContractType  @map("contract_type")
+  requiredHours  Float         @default(151.67) @map("required_hours")
   phone          String?
   address        String?
   // Languages spoken by the worker as ISO 639-1 codes (any world language).
@@ -182,6 +189,7 @@ model Worker {
   availability WorkerAvailability[]
   assignments  Assignment[]
   documents    WorkerDocument[]
+  leaveRequests LeaveRequest[]
 
   @@index([qualification])
   @@map("workers")
@@ -304,11 +312,13 @@ model Conversation {
   subject        String? // free-text; context threads store e.g. "12.07.2026 · Facility"
   assignmentId   String?  @unique @map("assignment_id")
   requestGroupId String?  @map("request_group_id")
+  leaveRequestId String?  @unique @map("leave_request_id")
   createdById    String?  @map("created_by")
   lastMessageAt  DateTime @default(now()) @map("last_message_at")
   createdAt      DateTime @default(now()) @map("created_at")
 
   assignment   Assignment?               @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  leaveRequest LeaveRequest?             @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
   createdBy    User?                     @relation(fields: [createdById], references: [id], onDelete: SetNull)
   participants ConversationParticipant[]
   messages     Message[]
@@ -316,6 +326,35 @@ model Conversation {
   @@index([lastMessageAt])
   @@index([requestGroupId])
   @@map("conversations")
+}
+
+model LeaveRequest {
+  id          String        @id @default(uuid())
+  workerId    String        @map("worker_id")
+  status      LeaveStatus   @default(pending)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  days   LeaveDay[]
+  conversation Conversation?
+
+  @@index([workerId, status])
+  @@map("leave_requests")
+}
+
+model LeaveDay {
+  id             String       @id @default(uuid())
+  leaveRequestId String       @map("leave_request_id")
+  date           DateTime     @db.Date
+  hours          Float        @default(7.0)
+  status         LeaveStatus  @default(pending)
+
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([leaveRequestId, date])
+  @@index([date, status])
+  @@map("leave_days")
 }
 
 // Membership + per-user read cursor. Agency staff get a row lazily (first

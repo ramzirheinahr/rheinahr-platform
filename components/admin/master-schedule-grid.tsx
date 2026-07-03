@@ -59,7 +59,13 @@ export function MasterScheduleGrid({
 }) {
   const t = useTranslations("masterSchedule");
   const oqShift = useTranslations("orderRequest");
+  const av = useTranslations("availability");
   const locale = useLocale();
+
+  const hoursFmt = useMemo(
+    () => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
+    [locale],
+  );
 
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const holidays = useMemo(() => germanHolidays(year), [year]);
@@ -139,16 +145,37 @@ export function MasterScheduleGrid({
                     rowSpan={2}
                     className="sticky start-0 z-10 border border-rose-900/50 bg-rose-900 p-1.5 text-start align-middle text-xs font-medium text-white"
                   >
-                    {r.name}
+                    <div className="font-semibold">{r.name}</div>
+                    <div className="mt-1 flex flex-col gap-0.5 text-[9px] font-normal opacity-90">
+                      <div className="flex justify-between gap-1">
+                        <span>{t("requiredHoursLabel")}:</span>
+                        <span>{hoursFmt.format(r.requiredHours)}</span>
+                      </div>
+                      <div className="flex justify-between gap-1">
+                        <span>{av("confirmedByClient")}:</span>
+                        <span>{hoursFmt.format(r.confirmedHours)}</span>
+                      </div>
+                      <div className="flex justify-between gap-1 border-t border-white/20 pt-0.5">
+                        <span>{t("remainingHoursLabel")}:</span>
+                        <span>{hoursFmt.format(Math.max(0, r.requiredHours - r.confirmedHours))}</span>
+                      </div>
+                    </div>
                   </th>
                   {r.days.map((cell, i) => {
                     const d = days[i];
                     const confirmedJob = cell.jobs.find((j) => j.clientConfirmed);
+                    const isPendingLeave = cell.leave?.status === "pending";
+                    const isApprovedLeave = cell.leave?.status === "approved";
+                    let title = "";
+                    if (isPendingLeave) title = t("leavePending") || "Urlaubsantrag ausstehend";
+                    if (isApprovedLeave) title = t("leaveApproved") || "Urlaub (Bitte nicht stören)";
+
                     return (
                       <td
                         key={i}
                         role="button"
                         tabIndex={0}
+                        title={title || undefined}
                         onClick={() => setTarget({ workerId: r.workerId, day: d.day })}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") setTarget({ workerId: r.workerId, day: d.day });
@@ -156,10 +183,12 @@ export function MasterScheduleGrid({
                         className={cn(
                           "h-6 cursor-pointer border p-0.5 text-center align-middle font-medium hover:ring-2 hover:ring-ring/60 hover:ring-inset",
                           bodyTint(d),
-                          confirmedJob && "bg-emerald-600 font-bold text-white",
+                          confirmedJob && !isApprovedLeave && "bg-emerald-600 font-bold text-white",
+                          isPendingLeave && "bg-amber-500 font-bold text-white",
+                          isApprovedLeave && "bg-rose-600 font-bold text-white",
                         )}
                       >
-                        {confirmedJob ? confirmedJob.ward || "0" : cell.avail}
+                        {isApprovedLeave ? "U" : isPendingLeave ? "U?" : confirmedJob ? confirmedJob.ward || "0" : cell.avail}
                       </td>
                     );
                   })}
@@ -182,16 +211,22 @@ export function MasterScheduleGrid({
                           bodyTint(d),
                         )}
                       >
-                        {cell.jobs.map((j) => (
-                          <span
-                            key={j.assignmentId}
-                            title={`${j.facilityName} · ${j.startTime}–${j.endTime}`}
-                            className={cn("px-0.5", j.status === "pending" && "opacity-50")}
-                          >
-                            {j.letter}
-                            {j.code}
+                        {cell.leave?.status === "approved" ? (
+                          <span title={t("leaveApproved") || "Urlaub"} className="text-rose-600">
+                            {hoursFmt.format(cell.leave.hours)}h
                           </span>
-                        ))}
+                        ) : (
+                          cell.jobs.map((j) => (
+                            <span
+                              key={j.assignmentId}
+                              title={`${j.facilityName} · ${j.startTime}–${j.endTime}`}
+                              className={cn("px-0.5", j.status === "pending" && "opacity-50")}
+                            >
+                              {j.letter}
+                              {j.code}
+                            </span>
+                          ))
+                        )}
                       </td>
                     );
                   })}

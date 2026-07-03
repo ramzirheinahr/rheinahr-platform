@@ -175,6 +175,18 @@ export function WorkerCreateForm({
             <Label htmlFor="employedSince">{t("employedSince")}</Label>
             <Input id="employedSince" name="employedSince" type="date" />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="requiredHours">{t("requiredHours")}</Label>
+            <Input
+              id="requiredHours"
+              name="requiredHours"
+              type="number"
+              step="0.01"
+              min={0}
+              max={744}
+              defaultValue={151.67}
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="bio">{t("bio")}</Label>

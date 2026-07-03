@@ -134,6 +134,7 @@ export const workerSchema = z.object({
   bio: z.string().max(2000).optional(),
   yearsExperience: optionalInt,
   employedSince: optionalDate,
+  requiredHours: z.coerce.number().min(0).max(744).optional().default(151.67),
 });
 
 export const clientSchema = z.object({

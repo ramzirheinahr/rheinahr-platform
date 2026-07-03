@@ -39,7 +39,7 @@ export default async function AdminWorkerSchedulePage({
   if (month < 1 || month > 12) month = now.getUTCMonth() + 1;
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
-  const [{ rows: assignments }, initialBlocks] = await Promise.all([
+  const [{ rows: assignments, leaveDays, totals }, initialBlocks] = await Promise.all([
     getWorkerMonthSchedule(worker.id, year, month),
     getWorkerMonthAvailability(worker.id, year, month),
   ]);
@@ -115,6 +115,8 @@ export default async function AdminWorkerSchedulePage({
             address: a.address,
             confirmedHours: a.confirmedHours,
           }))}
+          requiredHours={totals.requiredHours}
+          leaveDays={leaveDays}
         />
       </section>
     </div>

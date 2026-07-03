@@ -38,6 +38,7 @@ export async function getMasterSchedule(
       select: {
         id: true,
         fullName: true,
+        requiredHours: true,
         availability: {
           where: { status: "available", date: { gte: monthStart, lt: monthEnd } },
           select: { date: true, startTime: true, endTime: true },
@@ -63,8 +64,19 @@ export async function getMasterSchedule(
                 client: { select: { shortCode: true, facilityName: true } },
               },
             },
-            serviceConfirmation: { select: { id: true } },
+            serviceConfirmation: { select: { id: true, hoursWorked: true } },
           },
+        },
+        leaveRequests: {
+          where: {
+            days: { some: { date: { gte: monthStart, lt: monthEnd } } }
+          },
+          select: {
+            days: {
+              where: { date: { gte: monthStart, lt: monthEnd } },
+              select: { date: true, status: true, hours: true }
+            }
+          }
         },
       },
     }),
@@ -134,7 +146,36 @@ export async function getMasterSchedule(
       d.jobs.sort((x, y) => x.startTime.localeCompare(y.startTime));
     }
 
-    return { workerId: w.id, name: w.fullName, days };
+    for (const req of w.leaveRequests) {
+      for (const ld of req.days) {
+        const day = ld.date.getUTCDate();
+        days[day - 1].leave = {
+          status: ld.status,
+          hours: ld.hours,
+        };
+      }
+    }
+
+    let confirmedHours = w.assignments.reduce((sum, a) => {
+      if (a.serviceConfirmation?.hoursWorked) {
+        return sum + Number(a.serviceConfirmation.hoursWorked);
+      }
+      return sum;
+    }, 0);
+
+    for (const d of days) {
+      if (d.leave?.status === "approved") {
+        confirmedHours += d.leave.hours;
+      }
+    }
+
+    return { 
+      workerId: w.id, 
+      name: w.fullName, 
+      requiredHours: w.requiredHours,
+      confirmedHours,
+      days 
+    };
   });
 
   const unassigned: UnassignedShift[] = [];

@@ -198,6 +198,7 @@
     "skillsHint": "افصل بينها بفواصل، مثل: رعاية الخرف، الرعاية التلطيفية",
     "yearsExperience": "سنوات الخبرة",
     "employedSince": "يعمل لدى RheinAhr منذ",
+    "requiredHours": "ساعات العمل المطلوبة",
     "bio": "نبذة مختصرة",
     "bioHint": "تعريف مختصر يظهر للزبائن",
     "uploadsHint": "يمكن رفع الصورة والوثائق بعد إنشاء الملف.",
@@ -481,7 +482,8 @@
     "you": "أنت",
     "context": {
       "assignment": "مهمة عمل",
-      "orderRequest": "طلب خدمة"
+      "orderRequest": "طلب خدمة",
+      "leaveRequest": "طلب إجازة"
     },
     "openOrder": "فتح الطلب",
     "openAssignment": "فتح المهمة"
@@ -491,6 +493,13 @@
     "subtitle": "حدّد متى تكون متاحاً – لكل فترة أو طوال اليوم. الأيام غير المحدّدة تُعتبر غير متاحة.",
     "available": "متاح",
     "unavailable": "غير متاح",
+    "leaveRequested": "تم طلب الإجازة",
+    "leaveApproved": "إجازة عدم الازعاج",
+    "leavePending": "إجازة قيد المتابعة",
+    "requestLeave": "طلب إجازة",
+    "selectLeaveDates": "الرجاء تحديد الأيام:",
+    "submitLeave": "إرسال طلب",
+    "previewLeave": "مراجعة الطلب",
     "fullDay": "متاح طوال اليوم",
     "custom": "مخصّص",
     "assigned": "مُجدوَل",
@@ -503,6 +512,8 @@
     "saveError": "فشل الإجراء.",
     "hoursHeader": "الساعات",
     "hoursUnit": "ساعة",
+    "requiredHoursLabel": "المطلوب",
+    "remainingHoursLabel": "المتبقي",
     "confirmedByClient": "وقّعها الزبون",
     "monthTotal": "مجموع ساعات العمل هذا الشهر (بعد خصم الاستراحة)",
     "monthTotalHint": "{count, plural, one {وردية واحدة مؤكدة من الزبون} two {ورديتان مؤكدتان من الزبون} few {# ورديات مؤكدة من الزبون} other {# وردية مؤكدة من الزبون}}",
@@ -607,6 +618,8 @@
     "candBusy": "مشغول (نفس اليوم)",
     "candUnavailable": "غير متاح",
     "noCandidates": "لا يوجد كادر رعاية مطابق.",
-    "assignWorker": "تعيين موظف"
+    "assignWorker": "تعيين موظف",
+    "requiredHoursLabel": "المطلوب",
+    "remainingHoursLabel": "المتبقي"
   }
 }

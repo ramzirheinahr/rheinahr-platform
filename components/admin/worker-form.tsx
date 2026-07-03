@@ -36,6 +36,7 @@ export type WorkerData = {
   bio: string | null;
   yearsExperience: number | null;
   employedSince: string | null; // yyyy-mm-dd
+  requiredHours: number;
 };
 
 const textareaClass =
@@ -197,6 +198,18 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
               name="employedSince"
               type="date"
               defaultValue={worker.employedSince ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="requiredHours">{t("requiredHours")}</Label>
+            <Input
+              id="requiredHours"
+              name="requiredHours"
+              type="number"
+              step="0.01"
+              min={0}
+              max={744}
+              defaultValue={worker.requiredHours ?? 151.67}
             />
           </div>
         </div>

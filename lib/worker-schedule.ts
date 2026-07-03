@@ -20,7 +20,15 @@ export type WorkerScheduleRow = {
   confirmedHours: number | null; // client-confirmed net hours, null until signed
 };
 
+export type WorkerLeaveDay = {
+  id: string;
+  date: string;
+  status: "pending" | "approved" | "rejected";
+  hours: number;
+};
+
 export type WorkerScheduleTotals = {
+  requiredHours: number;
   confirmedHours: number;
   confirmedShifts: number;
 };
@@ -29,7 +37,12 @@ export async function getWorkerMonthSchedule(
   workerId: string,
   year: number,
   month: number,
-): Promise<{ rows: WorkerScheduleRow[]; totals: WorkerScheduleTotals }> {
+): Promise<{ rows: WorkerScheduleRow[]; leaveDays: WorkerLeaveDay[]; totals: WorkerScheduleTotals }> {
+  const worker = await prisma.worker.findUnique({
+    where: { id: workerId },
+    select: { requiredHours: true },
+  });
+  
   const assignments = await prisma.assignment
     .findMany({
       where: {
@@ -57,6 +70,29 @@ export async function getWorkerMonthSchedule(
     })
     .catch(() => []);
 
+  const leaveDaysData = await prisma.leaveDay.findMany({
+    where: {
+      leaveRequest: { workerId },
+      date: {
+        gte: new Date(Date.UTC(year, month - 1, 1)),
+        lt: new Date(Date.UTC(year, month, 1)),
+      },
+    },
+    select: {
+      id: true,
+      date: true,
+      status: true,
+      hours: true,
+    },
+  }).catch(() => []);
+
+  const leaveDays: WorkerLeaveDay[] = leaveDaysData.map(ld => ({
+    id: ld.id,
+    date: ld.date.toISOString().slice(0, 10),
+    status: ld.status,
+    hours: ld.hours,
+  }));
+
   const rows: WorkerScheduleRow[] = assignments.map((a) => ({
     id: a.id,
     status: a.status,
@@ -74,11 +110,17 @@ export async function getWorkerMonthSchedule(
   }));
 
   const confirmed = rows.filter((r) => r.confirmedHours != null);
+  const approvedLeaves = leaveDays.filter((l) => l.status === "approved");
+  
   return {
     rows,
+    leaveDays,
     totals: {
-      confirmedHours: confirmed.reduce((sum, r) => sum + (r.confirmedHours ?? 0), 0),
-      confirmedShifts: confirmed.length,
+      requiredHours: worker?.requiredHours ?? 151.67,
+      confirmedHours: 
+        confirmed.reduce((sum, r) => sum + (r.confirmedHours ?? 0), 0) +
+        approvedLeaves.reduce((sum, l) => sum + l.hours, 0),
+      confirmedShifts: confirmed.length + approvedLeaves.length,
     },
   };
 }

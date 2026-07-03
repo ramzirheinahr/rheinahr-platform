@@ -8,9 +8,18 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
 import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
-import { Save, Plus, X, CheckCircle2, Clock } from "lucide-react";
+import { Save, Plus, X, CheckCircle2, Clock, Download, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { submitLeaveRequest } from "@/app/[locale]/worker/leave/actions";
 
 type BType = "none" | "full" | "early" | "late" | "night" | "custom";
 type Block = { type: BType; start: string; end: string };
@@ -55,6 +64,8 @@ export function AvailabilityBuilder({
   initialBlocks,
   assignments = [],
   workerId,
+  leaveDays = [],
+  requiredHours,
 }: {
   year: number;
   month: number;
@@ -63,6 +74,8 @@ export function AvailabilityBuilder({
   // Set when an admin edits on the worker's behalf (phone-in changes); the
   // worker's own page omits it and the action resolves the worker from the session.
   workerId?: string;
+  requiredHours?: number;
+  leaveDays?: { id: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
 }) {
   const t = useTranslations("availability");
   const oq = useTranslations("orderRequest");
@@ -71,6 +84,9 @@ export function AvailabilityBuilder({
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [leavePending, startLeaveTransition] = useTransition();
+  const [leaveDates, setLeaveDates] = useState<string[]>([]);
+  const [isLeaveOpen, setIsLeaveOpen] = useState(false);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const holidays = useMemo(() => germanHolidays(year), [year]);
@@ -177,6 +193,27 @@ export function AvailabilityBuilder({
     });
   }
 
+  function toggleLeaveDate(d: string) {
+    setLeaveDates((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
+    );
+  }
+
+  function submitLeave() {
+    if (leaveDates.length === 0) return;
+    startLeaveTransition(async () => {
+      const res = await submitLeaveRequest(leaveDates);
+      if (res.ok) {
+        toast.success(t("leaveRequested") || "Urlaub angefragt");
+        setIsLeaveOpen(false);
+        setLeaveDates([]);
+        router.refresh();
+      } else {
+        toast.error(res.error || "Fehler");
+      }
+    });
+  }
+
   function TypeCells(date: string, slot: number) {
     const b = get(date, slot);
     const timed = b.type !== "none" && b.type !== "full";
@@ -219,12 +256,63 @@ export function AvailabilityBuilder({
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-medium">
+          {new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(locale, {
+            month: "long",
+            year: "numeric",
+          })}
+        </h2>
+        <Dialog open={isLeaveOpen} onOpenChange={setIsLeaveOpen}>
+          <DialogTrigger
+            render={
+              <Button variant="outline" className="gap-2">
+                <Calendar className="size-4" />
+                {t("requestLeave") || "Urlaub beantragen"}
+              </Button>
+            }
+          />
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("requestLeave") || "Urlaub beantragen"}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                {t("selectLeaveDates") || "Bitte wählen Sie die Tage aus:"}
+              </p>
+              <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2">
+                {days.filter(d => !d.past).map(d => (
+                  <label key={d.date} className="flex items-center gap-2 text-sm p-1 hover:bg-muted/50 rounded cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={leaveDates.includes(d.date)}
+                      onChange={() => toggleLeaveDate(d.date)}
+                      className="rounded border-input"
+                    />
+                    <span>{d.date} ({d.label})</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsLeaveOpen(false)} disabled={leavePending}>
+                {c("cancel")}
+              </Button>
+              <Button onClick={submitLeave} disabled={leavePending || leaveDates.length === 0}>
+                {leavePending ? c("loading") : (t("submitLeave") || "Antrag senden")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
               <th className="p-2 text-start">Datum</th>
               <th className="p-2 text-start">{t("shiftOrTask")}</th>
+              <th className="p-2 text-start">{oq("ward")}</th>
               <th className="p-2 text-start">{t("availableHeader")}</th>
               <th className="p-2 text-start">{oq("von")}</th>
               <th className="p-2 text-start">{oq("bis")}</th>
@@ -237,10 +325,50 @@ export function AvailabilityBuilder({
               const count = effCount(d.date);
               const extra = Array.from({ length: count - 1 }, (_, k) => k + 1);
               const dayAssignments = (assignments || []).filter((a) => a.date === d.date);
+              const dayLeaves = (leaveDays || []).filter((l) => l.date === d.date && l.status !== "rejected");
               let isFirstRow = true;
 
               return (
                 <Fragment key={d.date}>
+                  {dayLeaves.map(l => {
+                    const isFirst = isFirstRow;
+                    isFirstRow = false;
+                    const isPending = l.status === "pending";
+                    return (
+                      <tr key={l.id} className={cn("border-b", isPending ? "bg-amber-500/10" : "bg-rose-500/10")}>
+                        <td className="whitespace-nowrap p-2 font-medium">
+                          {isFirst ? (
+                            <div className="flex items-center gap-1.5">
+                              <span>{d.label}</span>
+                              {d.holiday ? <span className="text-rose-600">•</span> : null}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="p-2" colSpan={5}>
+                          <div className="flex items-center gap-2">
+                            {isPending ? (
+                              <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-transparent">
+                                {t("leavePending") || "Urlaubsantrag ausstehend"}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-rose-600 text-white hover:bg-rose-700 border-transparent">
+                                {t("leaveApproved") || "Urlaub (Bitte nicht stören)"}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2 whitespace-nowrap text-end">
+                          {l.status === "approved" ? (
+                            <span className="font-semibold text-emerald-600">
+                              {hoursFmt.format(l.hours)} {t("hoursUnit")}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {dayAssignments.map((a) => {
                     const isFirst = isFirstRow;
                     isFirstRow = false;
@@ -257,15 +385,26 @@ export function AvailabilityBuilder({
                         <td className="p-2">
                           <div className="font-medium text-primary">{a.facilityName}</div>
                           {a.address ? <div className="text-xs text-muted-foreground">{a.address}</div> : null}
-                          {a.notes ? <div className="text-xs text-muted-foreground">{oq("ward")}: {a.notes}</div> : null}
+                        </td>
+                        <td className="p-2">
+                          {a.notes ? <div className="text-sm font-medium">{a.notes}</div> : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="p-2">
                           <div className="flex items-center gap-2">
                             {a.confirmedHours != null ? (
-                              <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
-                                <CheckCircle2 className="size-3" />
-                                {t("confirmedByClient")}
-                              </Badge>
+                              <div className="flex items-center gap-1.5">
+                                <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
+                                  <CheckCircle2 className="size-3" />
+                                  {t("confirmedByClient")}
+                                </Badge>
+                                <a 
+                                  href={`/api/confirmations/${a.id}/pdf`}
+                                  className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground"
+                                  title="Download PDF"
+                                >
+                                  <Download className="size-3.5" />
+                                </a>
+                              </div>
                             ) : (
                               <Badge variant={a.status === "confirmed" ? "default" : a.status === "declined" ? "outline" : "secondary"}>
                                 {eas(a.status)}
@@ -307,6 +446,7 @@ export function AvailabilityBuilder({
                       </div>
                     </td>
                     <td className="p-1"></td>
+                    <td className="p-1"></td>
                     {TypeCells(d.date, 0)}
                     <td className="p-1"></td>
                   </tr>
@@ -327,6 +467,7 @@ export function AvailabilityBuilder({
                         </div>
                       </td>
                       <td className="p-1"></td>
+                      <td className="p-1"></td>
                       {TypeCells(d.date, slot)}
                       <td className="p-1"></td>
                     </tr>
@@ -335,10 +476,10 @@ export function AvailabilityBuilder({
               );
             })}
           </tbody>
-          {totals.shifts > 0 ? (
+          {totals.shifts > 0 || requiredHours !== undefined ? (
             <tfoot>
               <tr className="border-t-2 bg-emerald-500/10">
-                <td colSpan={5} className="p-3">
+                <td colSpan={6} className="p-3">
                   <div className="flex items-center gap-2 font-semibold">
                     <Clock className="size-4 text-emerald-600" />
                     {t("monthTotal")}
@@ -347,8 +488,25 @@ export function AvailabilityBuilder({
                     {t("monthTotalHint", { count: totals.shifts })}
                   </p>
                 </td>
-                <td className="whitespace-nowrap p-3 text-end align-middle text-lg font-bold text-emerald-600">
-                  {hoursFmt.format(totals.hours)} {t("hoursUnit")}
+                <td className="whitespace-nowrap p-3 text-end align-middle">
+                  <div className="flex flex-col items-end gap-1">
+                    {requiredHours !== undefined && (
+                      <div className="flex justify-between w-32 text-sm">
+                        <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
+                        <span className="font-medium text-foreground">{hoursFmt.format(requiredHours)} {t("hoursUnit")}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between w-32 text-sm">
+                      <span className="text-muted-foreground">{t("confirmedByClient")}:</span>
+                      <span className="font-bold text-emerald-600">{hoursFmt.format(totals.hours)} {t("hoursUnit")}</span>
+                    </div>
+                    {requiredHours !== undefined && (
+                      <div className="flex justify-between w-32 text-sm border-t border-emerald-500/20 pt-1 mt-1">
+                        <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
+                        <span className="font-semibold text-foreground">{hoursFmt.format(Math.max(0, requiredHours - totals.hours))} {t("hoursUnit")}</span>
+                      </div>
+                    )}
+                  </div>
                 </td>
               </tr>
             </tfoot>

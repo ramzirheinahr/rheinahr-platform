@@ -39,9 +39,9 @@ export default async function WorkerSchedulePage({
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
   const worker = await getWorker();
-  const { rows: assignments } = worker
+  const { rows: assignments, leaveDays, totals } = worker
     ? await getWorkerMonthSchedule(worker.id, year, month)
-    : { rows: [] };
+    : { rows: [], leaveDays: [], totals: { requiredHours: 151.67, confirmedHours: 0, confirmedShifts: 0 } };
   const initialBlocks = worker
     ? await getWorkerMonthAvailability(worker.id, year, month)
     : [];
@@ -105,6 +105,8 @@ export default async function WorkerSchedulePage({
             address: a.address,
             confirmedHours: a.confirmedHours,
           }))}
+          requiredHours={totals.requiredHours}
+          leaveDays={leaveDays}
         />
       </section>
     </div>
