@@ -529,7 +529,9 @@
     "confirmedByClient": "Signiert",
     "monthTotal": "Geleistete Stunden im Monat (ohne Pausen)",
     "monthTotalHint": "{count, plural, one {# vom Kunden bestätigte Schicht} other {# vom Kunden bestätigte Schichten}}",
-    "availableHeader": "Verfügbarkeit"
+    "availableHeader": "Verfügbarkeit",
+    "weekendLegend": "Wochenende",
+    "holidayLegend": "Feiertag"
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",
@@ -632,6 +634,8 @@
     "noCandidates": "Keine passende Pflegekraft gefunden.",
     "assignWorker": "Mitarbeiter zuweisen",
     "requiredHoursLabel": "Soll",
-    "remainingHoursLabel": "Rest"
+    "remainingHoursLabel": "Rest",
+    "leavePending": "Urlaubsantrag ausstehend",
+    "leaveApproved": "Urlaub (Bitte nicht stören)"
   }
 }

@@ -529,7 +529,9 @@
     "confirmedByClient": "Confirmed by client",
     "monthTotal": "Hours worked this month (breaks deducted)",
     "monthTotalHint": "{count, plural, one {# shift confirmed by the client} other {# shifts confirmed by the client}}",
-    "availableHeader": "Availability"
+    "availableHeader": "Availability",
+    "weekendLegend": "Weekend",
+    "holidayLegend": "Holiday"
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",
@@ -632,6 +634,8 @@
     "noCandidates": "No matching care worker found.",
     "assignWorker": "Assign worker",
     "requiredHoursLabel": "Required",
-    "remainingHoursLabel": "Remaining"
+    "remainingHoursLabel": "Remaining",
+    "leavePending": "Leave request pending",
+    "leaveApproved": "Leave (Do Not Disturb)"
   }
 }

@@ -10,10 +10,8 @@ export const dynamic = "force-dynamic";
 
 // Renders the signed Leistungsnachweis as a PDF. Access: admin/super_admin,
 // the owning client, or the assigned worker.
-export async function GET(
-  _req: Request,
-  { params }: { params: { assignmentId: string } },
-) {
+export async function GET(_req: Request, props: { params: Promise<{ assignmentId: string }> }) {
+  const params = await props.params;
   const { assignmentId } = params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });

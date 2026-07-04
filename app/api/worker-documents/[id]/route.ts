@@ -7,10 +7,8 @@ import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 
 // Short-lived signed URL (redirect) for a worker's uploaded document. Access:
 // admin or the worker themselves — clients never see the raw certificate files.
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { id } = params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });

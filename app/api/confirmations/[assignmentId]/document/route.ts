@@ -6,10 +6,8 @@ import { audit } from "@/lib/audit";
 
 // Returns a short-lived signed URL (redirect) for an uploaded Leistungsnachweis
 // document. Access: admin/super_admin, the owning client, or the assigned worker.
-export async function GET(
-  _req: Request,
-  { params }: { params: { assignmentId: string } },
-) {
+export async function GET(_req: Request, props: { params: Promise<{ assignmentId: string }> }) {
+  const params = await props.params;
   const { assignmentId } = params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });

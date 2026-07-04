@@ -12,10 +12,8 @@ export const dynamic = "force-dynamic";
 // exact document before signing it — mirrors the "show PDF, then sign" flow.
 // Available for a worker-confirmed assignment that has not been confirmed yet.
 // Access: admin/super_admin, the owning client, or the assigned worker.
-export async function GET(
-  req: Request,
-  { params }: { params: { assignmentId: string } },
-) {
+export async function GET(req: Request, props: { params: Promise<{ assignmentId: string }> }) {
+  const params = await props.params;
   const { assignmentId } = params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });

@@ -529,7 +529,9 @@
     "confirmedByClient": "وقّعها الزبون",
     "monthTotal": "مجموع ساعات العمل هذا الشهر (بعد خصم الاستراحة)",
     "monthTotalHint": "{count, plural, one {وردية واحدة مؤكدة من الزبون} two {ورديتان مؤكدتان من الزبون} few {# ورديات مؤكدة من الزبون} other {# وردية مؤكدة من الزبون}}",
-    "availableHeader": "التوفر"
+    "availableHeader": "التوفر",
+    "weekendLegend": "عطلة نهاية الأسبوع",
+    "holidayLegend": "عطلة رسمية"
   },
   "cookies": {
     "message": "نستخدم فقط ملفات تعريف ارتباط ضرورية تقنيًا لتمكين تسجيل الدخول وتشغيل المنصة.",
@@ -632,6 +634,8 @@
     "noCandidates": "لا يوجد كادر رعاية مطابق.",
     "assignWorker": "تعيين موظف",
     "requiredHoursLabel": "المطلوب",
-    "remainingHoursLabel": "المتبقي"
+    "remainingHoursLabel": "المتبقي",
+    "leavePending": "إجازة قيد المتابعة",
+    "leaveApproved": "إجازة عدم الإزعاج"
   }
 }
