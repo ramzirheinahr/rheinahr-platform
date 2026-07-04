@@ -136,6 +136,53 @@ export async function updateOrderRequest(
   return { ok: true };
 }
 
+// Delete a whole request (all shifts sharing the requestGroupId). Allowed under
+// the same editable window as editing (until 4h before the first shift, and not
+// once a shift ran/was confirmed). Cascades assignments + service confirmations
+// via the Order relation; the change-request conversation, if any, is removed
+// too. Admins are notified so they can drop anything already in their pipeline.
+export async function deleteOrderRequest(
+  requestGroupId: string,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "client") return { ok: false, error: "forbidden" };
+
+  const client = await prisma.client.findUnique({
+    where: { userId: user.id },
+    select: { id: true, facilityName: true },
+  });
+  if (!client) return { ok: false, error: "saveError" };
+
+  const existing = await prisma.order.findMany({
+    where: { requestGroupId, clientId: client.id },
+    select: { id: true, status: true, shiftDate: true, startTime: true, endTime: true },
+  });
+  if (existing.length === 0) return { ok: false, error: "forbidden" };
+  if (!isRequestEditable(existing)) return { ok: false, error: "locked" };
+
+  await prisma.$transaction([
+    prisma.order.deleteMany({ where: { requestGroupId, clientId: client.id } }),
+    prisma.conversation.deleteMany({ where: { requestGroupId } }),
+  ]);
+
+  await notifyAdmins(
+    "order_status_changed",
+    `${client.facilityName}: Anfrage gelöscht – ${existing.length} Schicht(en)`,
+  );
+
+  await audit({
+    userId: user.id,
+    action: "order.request.delete",
+    entity: "Order",
+    entityId: requestGroupId,
+    metadata: { shifts: existing.length },
+  });
+
+  revalidatePath("/client/orders");
+  revalidatePath("/admin/orders");
+  return { ok: true };
+}
+
 // Calendar request: one submission creates many shifts (orders) sharing a
 // requestGroupId. Each shift keeps its own qualification, time and headcount
 // and enters the normal pipeline (matching → assignment → confirmation).

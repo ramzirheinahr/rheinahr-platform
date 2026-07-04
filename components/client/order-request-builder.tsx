@@ -25,6 +25,7 @@ import {
   updateOrderRequestAsAdmin,
 } from "@/app/[locale]/admin/orders/actions";
 import { ShiftMetaCell, type ShiftMeta } from "@/components/orders/shift-meta-cell";
+import { DeleteRequestButton } from "@/components/orders/delete-request-button";
 
 export type InitialRequest = {
   requestGroupId: string;
@@ -715,7 +716,14 @@ export function OrderRequestBuilder({
           </span>
         </div>
         {ro ? null : (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {initial ? (
+              <DeleteRequestButton
+                requestGroupId={initial.requestGroupId}
+                adminEdit={adminEdit}
+              />
+            ) : null}
+            <span className="hidden sm:block sm:flex-1" />
             <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId)} className="gap-2">
               <Send className="size-4" />
               {pending ? c("loading") : t("submit")}

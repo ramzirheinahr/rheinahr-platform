@@ -184,6 +184,61 @@ export async function updateOrderRequestAsAdmin(
   return { ok: true };
 }
 
+// Admin deleting a whole request (all shifts sharing the requestGroupId).
+// Admins are not bound to the client's cutoff — a request can be removed at any
+// time. Cascades assignments + service confirmations via the Order relation;
+// the change-request conversation, if any, is removed too. The client is
+// notified that the request was removed from their account.
+export async function deleteOrderRequestAsAdmin(
+  requestGroupId: string,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const existing = await prisma.order.findMany({
+    where: { requestGroupId },
+    select: { id: true, clientId: true },
+  });
+  if (existing.length === 0) return { ok: false, error: "saveError" };
+
+  const client = await prisma.client.findUnique({
+    where: { id: existing[0].clientId },
+    select: { userId: true, facilityName: true },
+  });
+
+  await prisma.$transaction([
+    prisma.order.deleteMany({ where: { requestGroupId } }),
+    prisma.conversation.deleteMany({ where: { requestGroupId } }),
+  ]);
+
+  if (client?.userId) {
+    await prisma.notification.create({
+      data: {
+        userId: client.userId,
+        type: "order_status_changed",
+        channel: "in_app",
+        content: `${client.facilityName}: Anfrage gelöscht – ${existing.length} Schicht(en)`,
+      },
+    });
+  }
+
+  await audit({
+    userId: admin.id,
+    action: "order.request.delete",
+    entity: "Order",
+    entityId: requestGroupId,
+    metadata: { byAdmin: true, shifts: existing.length },
+  });
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/client/orders");
+  return { ok: true };
+}
+
 export async function updateOrderStatus(
   orderId: string,
   status: string,
