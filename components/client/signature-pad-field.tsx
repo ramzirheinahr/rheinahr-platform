@@ -7,11 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Eraser } from "lucide-react";
 
 // Signature capture (CLAUDE.md MVP signature_pad). Writes the PNG data URL into
-// a hidden input so the surrounding <form> submits it as `name`.
-export function SignaturePadField({ name }: { name: string }) {
+// a hidden input so the surrounding <form> submits it as `name`, and reports the
+// current value via `onChange` so callers can require a signature.
+export function SignaturePadField({
+  name,
+  onChange,
+}: {
+  name: string;
+  onChange?: (value: string) => void;
+}) {
   const t = useTranslations("confirmations");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const padRef = useRef<SignaturePad | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const [value, setValue] = useState("");
 
   useEffect(() => {
@@ -26,7 +35,11 @@ export function SignaturePadField({ name }: { name: string }) {
 
     const pad = new SignaturePad(canvas, { penColor: "#1e3a8a" });
     padRef.current = pad;
-    const onEnd = () => setValue(pad.isEmpty() ? "" : pad.toDataURL("image/png"));
+    const onEnd = () => {
+      const next = pad.isEmpty() ? "" : pad.toDataURL("image/png");
+      setValue(next);
+      onChangeRef.current?.(next);
+    };
     pad.addEventListener("endStroke", onEnd);
 
     return () => {
@@ -38,6 +51,7 @@ export function SignaturePadField({ name }: { name: string }) {
   function clear() {
     padRef.current?.clear();
     setValue("");
+    onChangeRef.current?.("");
   }
 
   return (

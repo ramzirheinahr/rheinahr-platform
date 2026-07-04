@@ -26,6 +26,9 @@ export type LeistungsnachweisData = {
   ipAddress?: string | null;
   orderId: string;
   assignmentId: string;
+  // Draft = unsigned preview shown to the client before they confirm. The
+  // finalized document (draft: false) carries the embedded signature + audit.
+  draft?: boolean;
 };
 
 const styles = StyleSheet.create({
@@ -53,7 +56,23 @@ const styles = StyleSheet.create({
     width: 260,
   },
   sigImage: { height: 70, objectFit: "contain" },
+  sigLine: {
+    height: 70,
+    borderBottomWidth: 1,
+    borderBottomColor: "#9ca3af",
+    borderBottomStyle: "dashed",
+  },
   sigCaption: { fontSize: 8, color: "#6b7280", marginTop: 6 },
+  draftBanner: {
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+    backgroundColor: "#fffbeb",
+    borderRadius: 4,
+    padding: 8,
+    fontSize: 9,
+    color: "#92400e",
+  },
   footer: {
     position: "absolute",
     bottom: 32,
@@ -93,32 +112,50 @@ function LeistungsnachweisDocument({ d }: { d: LeistungsnachweisData }) {
 
         <Text style={styles.title}>Leistungsnachweis</Text>
 
+        {d.draft ? (
+          <Text style={styles.draftBanner}>
+            ENTWURF / VORSCHAU — Dieses Dokument ist noch nicht bestätigt. Bitte
+            prüfen Sie die Angaben und bestätigen Sie die Leistung anschließend
+            elektronisch.
+          </Text>
+        ) : null}
+
         <Field label="Einrichtung" value={d.facilityName} />
         <Field label="Fachkraft" value={d.workerName} />
         <Field label="Qualifikation" value={d.qualificationLabel} />
         <Field label="Datum" value={d.shiftDate} />
         <Field label="Schicht" value={`${d.startTime} – ${d.endTime}`} />
         <Field label="Geleistete Stunden" value={`${d.hours} h`} />
-        <Field label="Bestätigungsart" value={d.methodLabel} />
-        <Field label="Bestätigt durch" value={d.confirmedByEmail} />
-        <Field label="Bestätigt am" value={d.confirmedAt} />
-        {d.ipAddress ? <Field label="IP-Adresse" value={d.ipAddress} /> : null}
+        {d.draft ? null : (
+          <>
+            <Field label="Bestätigungsart" value={d.methodLabel} />
+            <Field label="Bestätigt durch" value={d.confirmedByEmail} />
+            <Field label="Bestätigt am" value={d.confirmedAt} />
+            {d.ipAddress ? <Field label="IP-Adresse" value={d.ipAddress} /> : null}
+          </>
+        )}
 
-        {d.isElectronic && d.signatureData ? (
+        {d.isElectronic ? (
           <View style={styles.sigBox}>
-            {/* react-pdf Image is not an HTML <img>; alt-text rule does not apply. */}
-            {/* eslint-disable-next-line jsx-a11y/alt-text */}
-            <Image style={styles.sigImage} src={d.signatureData} />
+            {d.draft || !d.signatureData ? (
+              <View style={styles.sigLine} />
+            ) : (
+              // react-pdf Image is not an HTML <img>; alt-text rule does not apply.
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image style={styles.sigImage} src={d.signatureData} />
+            )}
             <Text style={styles.sigCaption}>
-              Elektronische Unterschrift — {d.facilityName}
+              {d.draft
+                ? `Elektronische Unterschrift — ${d.facilityName}`
+                : `Elektronische Unterschrift — ${d.facilityName}, ${d.confirmedAt}`}
             </Text>
           </View>
         ) : null}
 
         <Text style={styles.footer}>
-          Dieser Leistungsnachweis wurde digital erstellt und ist ohne
-          Unterschrift gültig. Zeitstempel und IP-Adresse wurden gemäß DSGVO
-          protokolliert. Auftrag-ID: {d.orderId} · Einsatz-ID: {d.assignmentId}
+          {d.draft
+            ? `Entwurf des Leistungsnachweises — noch nicht rechtsverbindlich bestätigt. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`
+            : `Dieser Leistungsnachweis wurde digital erstellt und ist ohne handschriftliche Unterschrift gültig. Zeitstempel und IP-Adresse wurden gemäß DSGVO protokolliert. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`}
         </Text>
       </Page>
     </Document>

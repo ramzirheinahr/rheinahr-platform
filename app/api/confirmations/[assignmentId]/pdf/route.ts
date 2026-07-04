@@ -37,6 +37,7 @@ export async function GET(
           method: true,
           hoursWorked: true,
           signatureData: true,
+          documentUrl: true,
           confirmedAt: true,
           ipAddress: true,
           confirmedBy: { select: { email: true } },
@@ -54,11 +55,39 @@ export async function GET(
     a.worker.userId === user.id;
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
+  const shiftDateIso = a.order.shiftDate.toISOString().slice(0, 10);
+
+  // Electronic confirmations archive an immutable signed PDF at confirm time —
+  // serve that authoritative artifact instead of re-rendering.
+  if (sc.method === "electronic" && sc.documentUrl?.includes("/signed/")) {
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.storage
+      .from("confirmations")
+      .download(sc.documentUrl);
+    if (!error && data) {
+      await audit({
+        userId: user.id,
+        action: "leistungsnachweis.pdf",
+        entity: "Assignment",
+        entityId: assignmentId,
+      });
+      return new NextResponse(new Uint8Array(await data.arrayBuffer()), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="leistungsnachweis-${shiftDateIso}.pdf"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    // Fall through to re-render if the stored copy is unavailable.
+  }
+
   const pdf = await renderLeistungsnachweisPdf({
     facilityName: a.order.client.facilityName,
     workerName: a.worker.fullName,
     qualificationLabel: qualLabel[a.worker.qualification],
-    shiftDate: a.order.shiftDate.toISOString().slice(0, 10),
+    shiftDate: shiftDateIso,
     startTime: a.order.startTime,
     endTime: a.order.endTime,
     hours: Number(sc.hoursWorked ?? 0),
@@ -82,9 +111,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="leistungsnachweis-${a.order.shiftDate
-        .toISOString()
-        .slice(0, 10)}.pdf"`,
+      "Content-Disposition": `attachment; filename="leistungsnachweis-${shiftDateIso}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

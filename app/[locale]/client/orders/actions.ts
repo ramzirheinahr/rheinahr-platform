@@ -289,6 +289,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
           id: true,
           requestGroupId: true,
           shiftDate: true,
+          startTime: true,
+          endTime: true,
           client: { select: { userId: true, facilityName: true } },
         },
       },
@@ -304,9 +306,15 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   }
   if (assignment.serviceConfirmation) return { ok: false, error: "alreadyConfirmed" };
 
-  // Method B — upload the signed scan to the private Storage bucket.
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+
+  // The finalized artifact path: the generated signed PDF (electronic) or the
+  // uploaded signed scan (upload). Both archive as tamper-proof `documentUrl`.
   let documentUrl: string | undefined;
+
   if (data.method === "upload") {
+    // Method B — upload the signed scan to the private Storage bucket.
     const file = formData.get("document");
     if (!(file instanceof File) || file.size === 0) {
       return { ok: false, error: "fileRequired" };
@@ -322,10 +330,54 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
       });
     if (error) return { ok: false, error: "saveError" };
     documentUrl = path;
-  }
+  } else {
+    // Method A — the client draws an electronic signature; bake it into the
+    // finalized Leistungsnachweis PDF and archive that immutable document.
+    if (!data.signatureData) return { ok: false, error: "signatureRequired" };
 
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+    const [{ renderLeistungsnachweisPdf }, { qualLabel, methodLabel }] =
+      await Promise.all([
+        import("@/lib/pdf/leistungsnachweis"),
+        import("@/lib/invoicing"),
+      ]);
+
+    const worker = await prisma.worker.findUnique({
+      where: { id: assignment.workerId },
+      select: { fullName: true, qualification: true },
+    });
+    if (!worker) return { ok: false, error: "saveError" };
+
+    const pdf = await renderLeistungsnachweisPdf({
+      facilityName: assignment.order.client.facilityName,
+      workerName: worker.fullName,
+      qualificationLabel: qualLabel[worker.qualification],
+      shiftDate: assignment.order.shiftDate.toISOString().slice(0, 10),
+      startTime: assignment.order.startTime,
+      endTime: assignment.order.endTime,
+      hours: data.hoursWorked,
+      methodLabel: methodLabel.electronic,
+      isElectronic: true,
+      signatureData: data.signatureData,
+      confirmedByEmail: user.email,
+      confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+      ipAddress: ip,
+      orderId: assignment.order.id,
+      assignmentId: data.assignmentId,
+      draft: false,
+    });
+
+    const path = `${data.assignmentId}/signed/leistungsnachweis-${Date.now()}.pdf`;
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, new Uint8Array(pdf), {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+    if (error) return { ok: false, error: "saveError" };
+    documentUrl = path;
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.serviceConfirmation.create({
