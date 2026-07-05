@@ -527,56 +527,55 @@ export function AvailabilityBuilder({
                   </p>
                 </td>
                 <td className="whitespace-nowrap p-3 text-end align-middle">
-                  <div className="flex flex-col items-end gap-1">
-                    {requiredHours !== undefined && (
-                      <>
+                  {(() => {
+                    // Order (per request): accepted (yellow) → confirmed (green) →
+                    // their sum → carryover → required → remaining. Remaining is
+                    // the signed balance = worked − soll, so it goes NEGATIVE when
+                    // the worker is still short (e.g. 20 worked of 100 → −80).
+                    const worked = totals.acceptedHours + totals.hours;
+                    const remaining = worked - (requiredHours ?? 0) - carryoverHours;
+                    const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
+                    return (
+                      <div className="flex flex-col items-end gap-1">
+                        {totals.acceptedHours > 0 && (
+                          <div className="flex justify-between w-52 text-sm">
+                            <span className="text-muted-foreground">{t("acceptedTotal")}:</span>
+                            <span className="font-bold text-amber-600">{hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between w-52 text-sm">
-                          <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
-                          <span className="font-medium text-foreground">{hoursFmt.format(requiredHours)} {t("hoursUnit")}</span>
+                          <span className="text-muted-foreground">{t("confirmedTotal")}:</span>
+                          <span className="font-bold text-emerald-600">{hoursFmt.format(totals.hours)} {t("hoursUnit")}</span>
+                        </div>
+                        <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
+                          <span className="text-muted-foreground">{t("workedTotal")}:</span>
+                          <span className="font-semibold text-foreground">{hoursFmt.format(worked)} {t("hoursUnit")}</span>
                         </div>
                         {carryoverHours !== 0 && (
                           <div className="flex justify-between w-52 text-sm">
                             <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
                             <span className={cn("font-medium", carryoverHours < 0 ? "text-emerald-600" : "text-foreground")}>
-                              {carryoverHours > 0 ? "+" : ""}{hoursFmt.format(carryoverHours)} {t("hoursUnit")}
+                              {signed(carryoverHours)} {t("hoursUnit")}
                             </span>
                           </div>
                         )}
-                        {carryoverHours !== 0 && (
-                          <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
-                            <span className="text-muted-foreground">{t("totalRequiredLabel")}:</span>
-                            <span className="font-semibold text-foreground">{hoursFmt.format(requiredHours + carryoverHours)} {t("hoursUnit")}</span>
-                          </div>
+                        {requiredHours !== undefined && (
+                          <>
+                            <div className="flex justify-between w-52 text-sm">
+                              <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
+                              <span className="font-medium text-foreground">{hoursFmt.format(requiredHours)} {t("hoursUnit")}</span>
+                            </div>
+                            <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
+                              <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
+                              <span className={cn("font-bold", remaining < 0 ? "text-destructive" : "text-emerald-600")}>
+                                {signed(remaining)} {t("hoursUnit")}
+                              </span>
+                            </div>
+                          </>
                         )}
-                      </>
-                    )}
-                    {totals.acceptedHours > 0 && (
-                      <div className="flex justify-between w-52 text-sm">
-                        <span className="text-muted-foreground">{t("acceptedTotal")}:</span>
-                        <span className="font-bold text-amber-600">{hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between w-52 text-sm">
-                      <span className="text-muted-foreground">{t("confirmedTotal")}:</span>
-                      <span className="font-bold text-emerald-600">{hoursFmt.format(totals.hours)} {t("hoursUnit")}</span>
-                    </div>
-                    {requiredHours !== undefined && (() => {
-                      // Signed hours-account balance: soll (required + carryover)
-                      // minus confirmed. Negative = worked ahead (credit) → carries
-                      // to next month; positive = still owed.
-                      const remaining = requiredHours + carryoverHours - totals.hours;
-                      return (
-                        <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
-                          <span className="text-muted-foreground">
-                            {remaining < 0 ? t("creditLabel") : t("remainingHoursLabel")}:
-                          </span>
-                          <span className={cn("font-semibold", remaining < 0 ? "text-emerald-600" : "text-foreground")}>
-                            {hoursFmt.format(remaining)} {t("hoursUnit")}
-                          </span>
-                        </div>
-                      );
-                    })()}
-                  </div>
+                    );
+                  })()}
                 </td>
               </tr>
             </tfoot>

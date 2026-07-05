@@ -572,7 +572,8 @@
     "carryoverLabel": "Übertrag",
     "totalRequiredLabel": "Gesamt-Soll",
     "creditLabel": "Guthaben",
-    "acceptedTotal": "Bestätigt (offen)"
+    "acceptedTotal": "Bestätigt (offen)",
+    "workedTotal": "Summe"
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",
