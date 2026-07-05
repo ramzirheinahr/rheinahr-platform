@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit";
 import { diffRequestShifts, isRequestEditable, isRequestCancelable } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
 import { orderRequestSchema, type OrderRequestInput } from "@/lib/validations";
+import { orderLink, inboxLink, workerShiftLink } from "@/lib/notify";
 import type { Qualification } from "@prisma/client";
 
 export type ActionState = { ok: boolean; error?: string };
@@ -16,6 +17,7 @@ export type ActionState = { ok: boolean; error?: string };
 async function notifyAdmins(
   type: "new_order" | "order_status_changed" | "new_message",
   content: string,
+  link?: string,
 ) {
   const admins = await prisma.user.findMany({
     where: { role: { in: ["admin", "super_admin"] }, active: true },
@@ -28,6 +30,7 @@ async function notifyAdmins(
       type,
       channel: "in_app" as const,
       content,
+      link: link ?? null,
     })),
   });
 }
@@ -116,6 +119,7 @@ export async function updateOrderRequest(
   await notifyAdmins(
     "order_status_changed",
     `${client.facilityName}: Anfrage geändert – ${changes} Schicht(en) betroffen`,
+    orderLink("admin", requestGroupId),
   );
 
   await audit({
@@ -174,6 +178,7 @@ export async function cancelOrderRequest(
   await notifyAdmins(
     "order_status_changed",
     `${client.facilityName}: Anfrage storniert – ${existing.length} Schicht(en)`,
+    orderLink("admin", requestGroupId),
   );
 
   // Message into the request's inbox thread so it reaches the office mailbox.
@@ -200,7 +205,11 @@ export async function cancelOrderRequest(
       data: { lastReadAt: now },
     }),
   ]);
-  await notifyAdmins("new_message", `${client.facilityName} (${dateLabel}): ${body}`);
+  await notifyAdmins(
+    "new_message",
+    `${client.facilityName} (${dateLabel}): ${body}`,
+    inboxLink("admin", conversation.id),
+  );
 
   await audit({
     userId: user.id,
@@ -255,6 +264,7 @@ export async function createOrderRequest(
   await notifyAdmins(
     "new_order",
     `${client.facilityName}: ${shifts.length} Schicht(en)`,
+    orderLink("admin", requestGroupId),
   );
 
   await audit({
@@ -325,6 +335,7 @@ export async function sendRequestMessage(
   await notifyAdmins(
     "new_message",
     `${client.facilityName} (${formatDateDE(first.shiftDate)}): ${previewText}`,
+    inboxLink("admin", conversation.id),
   );
 
   await audit({
@@ -504,8 +515,9 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
           { role: { in: ["admin", "super_admin"] }, active: true },
         ],
       },
-      select: { id: true },
+      select: { id: true, role: true },
     });
+    const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
     if (recipients.length) {
       await tx.notification.createMany({
         data: recipients.map((r) => ({
@@ -513,6 +525,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
           type: "service_confirmed" as const,
           channel: "in_app" as const,
           content: `${assignment.order.client.facilityName} · ${formatDateDE(assignment.order.shiftDate)} · ${data.hoursWorked} Std.`,
+          // Worker opens their shift sheet; office opens the order request.
+          link: r.role === "worker" ? workerShiftLink() : orderLink(r.role, reqGroup),
         })),
       });
     }

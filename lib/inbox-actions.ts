@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { isAgencyRole } from "@/lib/inbox";
+import { inboxLink } from "@/lib/notify";
+import type { Role } from "@prisma/client";
 
 export type InboxActionState = {
   ok: boolean;
@@ -28,14 +30,19 @@ async function activeAdminIds(exclude?: string): Promise<string[]> {
   return admins.map((a) => a.id).filter((id) => id !== exclude);
 }
 
-async function notifyNewMessage(userIds: string[], content: string) {
-  if (userIds.length === 0) return;
+// Each recipient's notification deep-links to the thread in *their* portal.
+async function notifyNewMessage(
+  recipients: { userId: string; link: string }[],
+  content: string,
+) {
+  if (recipients.length === 0) return;
   await prisma.notification.createMany({
-    data: userIds.map((userId) => ({
-      userId,
+    data: recipients.map((r) => ({
+      userId: r.userId,
       type: "new_message" as const,
       channel: "in_app" as const,
       content,
+      link: r.link,
     })),
   });
 }
@@ -60,16 +67,16 @@ export async function startConversation(input: {
   const now = new Date();
 
   if (isAgencyRole(user.role)) {
-    let recipients: { id: string }[] = [];
+    let recipients: { id: string; role: Role }[] = [];
 
     if (input.broadcastTarget) {
-      const rolesToFetch = 
+      const rolesToFetch =
         input.broadcastTarget === "all" ? ["client", "worker"] :
         input.broadcastTarget === "workers" ? ["worker"] : ["client"];
-      
+
       recipients = await prisma.user.findMany({
-        where: { active: true, role: { in: rolesToFetch as import("@prisma/client").Role[] } },
-        select: { id: true },
+        where: { active: true, role: { in: rolesToFetch as Role[] } },
+        select: { id: true, role: true },
       });
     } else {
       const ids = z.array(z.string().uuid()).min(1).max(5000).safeParse(input.recipientIds);
@@ -77,13 +84,16 @@ export async function startConversation(input: {
 
       recipients = await prisma.user.findMany({
         where: { id: { in: ids.data }, active: true, role: { in: ["client", "worker"] } },
-        select: { id: true },
+        select: { id: true, role: true },
       });
     }
 
     if (recipients.length === 0) return { ok: false, error: "invalid" };
 
     const created: string[] = [];
+    // Per-recipient thread → each notification deep-links to that recipient's
+    // own conversation in their portal.
+    const notifyList: { userId: string; link: string }[] = [];
     for (const recipient of recipients) {
       const conversation = await prisma.conversation.create({
         data: {
@@ -101,12 +111,13 @@ export async function startConversation(input: {
         select: { id: true },
       });
       created.push(conversation.id);
+      notifyList.push({
+        userId: recipient.id,
+        link: inboxLink(recipient.role, conversation.id),
+      });
     }
 
-    await notifyNewMessage(
-      recipients.map((r) => r.id),
-      preview(body.data),
-    );
+    await notifyNewMessage(notifyList, preview(body.data));
     await audit({
       userId: user.id,
       action: "conversation.create",
@@ -129,7 +140,11 @@ export async function startConversation(input: {
     select: { id: true },
   });
 
-  await notifyNewMessage(await activeAdminIds(), preview(body.data));
+  const adminLink = inboxLink("admin", conversation.id);
+  await notifyNewMessage(
+    (await activeAdminIds()).map((userId) => ({ userId, link: adminLink })),
+    preview(body.data),
+  );
   await audit({
     userId: user.id,
     action: "conversation.create",
@@ -183,13 +198,20 @@ export async function sendConversationMessage(
   ]);
 
   // Notify the other side: agency → the client/worker participants;
-  // client/worker → every active agency member.
-  const recipientIds = isAgencyRole(user.role)
+  // client/worker → every active agency member. Each deep-links to the thread
+  // in the recipient's own portal.
+  const recipients = isAgencyRole(user.role)
     ? conversation.participants
         .filter((p) => !isAgencyRole(p.user.role) && p.userId !== user.id)
-        .map((p) => p.userId)
-    : await activeAdminIds(user.id);
-  await notifyNewMessage(recipientIds, preview(body.data));
+        .map((p) => ({
+          userId: p.userId,
+          link: inboxLink(p.user.role, conversationId),
+        }))
+    : (await activeAdminIds(user.id)).map((userId) => ({
+        userId,
+        link: inboxLink("admin", conversationId),
+      }));
+  await notifyNewMessage(recipients, preview(body.data));
 
   await audit({
     userId: user.id,

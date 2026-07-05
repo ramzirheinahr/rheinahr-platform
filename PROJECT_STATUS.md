@@ -185,6 +185,22 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
 - **Reports** dashboard · **Invoicing** CSV/DATEV export + PDF · legal **Impressum/Datenschutz**
   (German) · cookie banner · **GDPR data export** (`/api/me/export`) · **PWA** (installable,
   offline shell) · professional **landing** + **/roadmap** page (German, for stakeholder).
+- **Live, clickable notifications** (2026‑07): every notification row now stores a
+  portal‑relative deep `link` (`Notification.link`, nullable — `lib/notify.ts`
+  helpers `orderLink`/`inboxLink`/`workerShiftLink`). The bell items and a new
+  dedicated **notifications page** (`/{admin,client,worker}/notifications`, "Alle
+  anzeigen"/seeAll footer link in the bell → shared
+  `components/portal/notifications-{page,list}.tsx`) are all clickable: message
+  notifications open the inbox thread, order notifications open the request. Click
+  marks that one read (`markNotificationRead`). Portals update **without a manual
+  refresh** via `components/portal/live-portal-updates.tsx` (replaces the old
+  `live-inbox-refresher`): Supabase Realtime on `notifications`(filtered by
+  user)+`messages` for instant updates **plus** a 20 s visibility‑aware polling
+  fallback (`router.refresh`) so it works even if Realtime isn't enabled on the
+  project. Admin/office is notified of every event with a link: new order, order
+  edit, order cancel, worker acceptance (`worker_confirmed`), client service
+  sign‑off (`service_confirmed`). **Note:** for truly instant (vs ≤20 s) delivery,
+  enable Supabase Realtime for the `notifications` and `messages` tables.
 - **Top progress bar** (YouTube‑style) on every navigation.
 
 ## 7. Data‑model notes (recent)

@@ -12,12 +12,12 @@ import {
 import {
   diffRequestShifts,
   isRequestCancelable,
-  candidatesForShift,
   candidatesForOrders,
   type BulkCandidate,
   type BulkShift,
 } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
+import { orderLink, workerShiftLink } from "@/lib/notify";
 import type { OrderStatus, Qualification } from "@prisma/client";
 
 export type ActionState = { ok: boolean; error?: string };
@@ -76,6 +76,7 @@ export async function createOrderRequestForClient(
         type: "new_order",
         channel: "in_app",
         content: `${client.facilityName}: ${shifts.length} Schicht(en)`,
+        link: orderLink("client", requestGroupId),
       },
     });
   }
@@ -230,6 +231,7 @@ export async function cancelOrderRequestAsAdmin(
         type: "order_status_changed",
         channel: "in_app",
         content: `${client.facilityName}: Anfrage storniert – ${existing.length} Schicht(en)`,
+        link: orderLink("client", requestGroupId),
       },
     });
   }
@@ -323,6 +325,7 @@ export async function assignWorker(
           type: "worker_assigned",
           channel: "in_app",
           content: `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime}`,
+          link: workerShiftLink(),
         },
       });
     });
@@ -389,36 +392,55 @@ export async function bulkAssignWorkers(
     return { ok: false, error: "saveError" };
   }
 
-  const [orders, workers] = await Promise.all([
-    prisma.order.findMany({
-      where: { id: { in: orderIds } },
-      select: {
-        id: true,
-        status: true,
-        shiftDate: true,
-        startTime: true,
-        endTime: true,
-        requiredQualification: true,
-        quantity: true,
-        assignments: { select: { workerId: true, status: true } },
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const overlaps = (bs: string, be: string, s: string, e: string) =>
+    toMin(bs) < toMin(e) && toMin(s) < toMin(be);
+  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+
+  const orders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    select: {
+      id: true,
+      status: true,
+      shiftDate: true,
+      startTime: true,
+      endTime: true,
+      requiredQualification: true,
+      quantity: true,
+      assignments: { select: { workerId: true, status: true } },
+    },
+  });
+  if (orders.length === 0) return { ok: false, error: "saveError" };
+
+  const dates = [
+    ...new Map(orders.map((o) => [o.shiftDate.getTime(), o.shiftDate])).values(),
+  ];
+
+  // Everything needed to judge each worker × shift in ONE query: their declared
+  // availability and existing bookings on the relevant days. Conflicts are then
+  // resolved in memory (no per-shift candidate query → no N+1).
+  const workers = await prisma.worker.findMany({
+    where: { id: { in: workerIds }, user: { active: true } },
+    select: {
+      id: true,
+      userId: true,
+      qualification: true,
+      availability: {
+        where: { date: { in: dates }, status: "available" },
+        select: { date: true, startTime: true, endTime: true },
       },
-    }),
-    prisma.worker.findMany({
-      where: { id: { in: workerIds } },
-      select: { id: true, userId: true, qualification: true },
-    }),
-  ]);
+      assignments: {
+        where: { status: { not: "declined" }, order: { shiftDate: { in: dates } } },
+        select: { orderId: true, order: { select: { shiftDate: true } } },
+      },
+    },
+  });
   const workerById = new Map(workers.map((w) => [w.id, w]));
 
-  type NewOffer = {
-    orderId: string;
-    workerId: string;
-    userId: string;
-    shiftDate: Date;
-    startTime: string;
-    endTime: string;
-  };
-  const offers: NewOffer[] = [];
+  const offers: { orderId: string; workerId: string; userId: string; content: string }[] = [];
   const advanceIds: string[] = [];
   let skipped = 0;
 
@@ -429,44 +451,37 @@ export async function bulkAssignWorkers(
       skipped += workerIds.length;
       continue;
     }
-    // Per-shift eligibility (available/busy/unavailable); excludes wrong-qual and
-    // workers already on this shift.
-    const cands = await candidatesForShift({
-      id: order.id,
-      shiftDate: order.shiftDate,
-      startTime: order.startTime,
-      endTime: order.endTime,
-      requiredQualification: order.requiredQualification,
-    });
-    const statusByWorker = new Map(cands.map((c) => [c.workerId, c.status]));
     const alreadyOn = new Set(
       order.assignments.filter((a) => a.status !== "declined").map((a) => a.workerId),
     );
+    const key = dayKey(order.shiftDate);
+    const content = `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime}`;
 
     let addedForOrder = 0;
     for (const wid of workerIds) {
       const w = workerById.get(wid);
-      if (
-        !w ||
-        w.qualification !== order.requiredQualification ||
-        alreadyOn.has(wid)
-      ) {
+      if (!w || w.qualification !== order.requiredQualification || alreadyOn.has(wid)) {
         skipped += 1;
         continue;
       }
-      const status = statusByWorker.get(wid);
-      if (status === undefined || (status !== "available" && !force)) {
+      // Mirror candidatesForShift: worker must have declared availability for the
+      // window; "busy" = any other non-declined booking the same day.
+      const declared = w.availability.some(
+        (a) =>
+          dayKey(a.date) === key &&
+          ((a.startTime === null && a.endTime === null) ||
+            (a.startTime !== null &&
+              a.endTime !== null &&
+              overlaps(a.startTime, a.endTime, order.startTime, order.endTime))),
+      );
+      const busy = w.assignments.some(
+        (a) => a.orderId !== order.id && dayKey(a.order.shiftDate) === key,
+      );
+      if (!(declared && !busy) && !force) {
         skipped += 1;
         continue;
       }
-      offers.push({
-        orderId: order.id,
-        workerId: wid,
-        userId: w.userId,
-        shiftDate: order.shiftDate,
-        startTime: order.startTime,
-        endTime: order.endTime,
-      });
+      offers.push({ orderId: order.id, workerId: wid, userId: w.userId, content });
       addedForOrder += 1;
     }
     if (
@@ -479,27 +494,33 @@ export async function bulkAssignWorkers(
 
   if (offers.length === 0) return { ok: true, created: 0, skipped };
 
-  await prisma.$transaction(async (tx) => {
-    for (const off of offers) {
-      await tx.assignment.create({
-        data: { orderId: off.orderId, workerId: off.workerId, status: "pending" },
-      });
-      await tx.notification.create({
-        data: {
-          userId: off.userId,
-          type: "worker_assigned",
-          channel: "in_app",
-          content: `${formatDateDE(off.shiftDate)} ${off.startTime}–${off.endTime}`,
-        },
-      });
-    }
-    if (advanceIds.length) {
-      await tx.order.updateMany({
-        where: { id: { in: advanceIds } },
-        data: { status: "assigned" },
-      });
-    }
+  // Bulk writes: a handful of queries no matter how many offers — avoids the
+  // long interactive transaction that hit Prisma's 5s timeout and rolled the
+  // whole thing back on "select all × many workers".
+  const createdRes = await prisma.assignment.createMany({
+    data: offers.map((o) => ({
+      orderId: o.orderId,
+      workerId: o.workerId,
+      status: "pending" as const,
+    })),
+    skipDuplicates: true, // a prior declined offer for the same pair stays put
   });
+  await prisma.notification.createMany({
+    data: offers.map((o) => ({
+      userId: o.userId,
+      type: "worker_assigned" as const,
+      channel: "in_app" as const,
+      content: o.content,
+      link: workerShiftLink(),
+    })),
+  });
+  if (advanceIds.length) {
+    await prisma.order.updateMany({
+      where: { id: { in: advanceIds } },
+      data: { status: "assigned" },
+    });
+  }
+  const created = createdRes.count;
 
   await audit({
     userId: admin.id,
@@ -509,14 +530,12 @@ export async function bulkAssignWorkers(
     metadata: {
       orders: orderIds.length,
       workers: workerIds.length,
-      created: offers.length,
+      created,
       skipped,
       force,
     },
   });
 
-  const groups = new Set(orderIds);
-  for (const gid of groups) revalidatePath(`/admin/orders/${gid}`);
   revalidatePath("/admin/orders");
-  return { ok: true, created: offers.length, skipped };
+  return { ok: true, created, skipped };
 }

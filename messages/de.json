@@ -482,7 +482,8 @@
   "notifications": {
     "title": "Benachrichtigungen",
     "empty": "Keine Benachrichtigungen.",
-    "markAllRead": "Alle als gelesen markieren"
+    "markAllRead": "Alle als gelesen markieren",
+    "seeAll": "Alle anzeigen"
   },
   "messages": {
     "title": "Nachrichten",

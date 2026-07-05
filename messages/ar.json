@@ -482,7 +482,8 @@
   "notifications": {
     "title": "الإشعارات",
     "empty": "لا توجد إشعارات.",
-    "markAllRead": "تعليم الكل كمقروء"
+    "markAllRead": "تعليم الكل كمقروء",
+    "seeAll": "عرض الكل"
   },
   "messages": {
     "title": "الرسائل",

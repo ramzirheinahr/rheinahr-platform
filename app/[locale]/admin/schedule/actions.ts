@@ -9,6 +9,7 @@ import { lettersToBlocks, SHIFT_PRESETS, type ShiftKey } from "@/lib/master-sche
 import { candidatesForShift, type Candidate } from "@/lib/orders";
 import { qualifications } from "@/lib/validations";
 import { formatDateDE } from "@/lib/utils";
+import { orderLink, workerShiftLink } from "@/lib/notify";
 import type { Qualification } from "@prisma/client";
 
 // Cell-level edits on the master schedule grid. Every edit here mutates the
@@ -229,6 +230,7 @@ export async function assignFromGrid(input: {
           type: "worker_assigned",
           channel: "in_app",
           content: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+          link: workerShiftLink(),
         },
       });
     });
@@ -293,10 +295,11 @@ export async function createOpenOrderFromGrid(input: {
   const preset = SHIFT_PRESETS[shift];
   const day = new Date(`${date}T00:00:00.000Z`);
 
+  const newRequestGroupId = crypto.randomUUID();
   await prisma.order.create({
     data: {
       clientId,
-      requestGroupId: crypto.randomUUID(),
+      requestGroupId: newRequestGroupId,
       requiredQualification: qualification,
       shiftDate: day,
       startTime: preset.start,
@@ -314,6 +317,7 @@ export async function createOpenOrderFromGrid(input: {
         type: "new_order",
         channel: "in_app",
         content: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+        link: orderLink("client", newRequestGroupId),
       },
     });
   }
@@ -441,6 +445,7 @@ export async function assignWorkerToOrder(
           type: "worker_assigned",
           channel: "in_app",
           content: `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime} · ${order.client.facilityName}`,
+          link: workerShiftLink(),
         },
       });
     });
@@ -517,6 +522,7 @@ export async function unassignFromGrid(assignmentId: string): Promise<ActionStat
         type: "order_status_changed",
         channel: "in_app",
         content: `${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime} · ${assignment.order.client.facilityName}`,
+        link: workerShiftLink(),
       },
     });
   });

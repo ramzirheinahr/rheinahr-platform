@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { orderLink } from "@/lib/notify";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -27,6 +28,7 @@ export async function respondAssignment(
       order: {
         select: {
           id: true,
+          requestGroupId: true,
           shiftDate: true,
           startTime: true,
           endTime: true,
@@ -74,8 +76,9 @@ export async function respondAssignment(
               { role: { in: ["admin", "super_admin"] }, active: true },
             ],
           },
-          select: { id: true },
+          select: { id: true, role: true },
         });
+        const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
         if (recipients.length) {
           await tx.notification.createMany({
             data: recipients.map((r) => ({
@@ -85,6 +88,7 @@ export async function respondAssignment(
               content: `${assignment.worker.fullName}: ${assignment.order.shiftDate
                 .toISOString()
                 .slice(0, 10)} ${assignment.order.startTime}–${assignment.order.endTime}`,
+              link: orderLink(r.role, reqGroup),
             })),
           });
         }

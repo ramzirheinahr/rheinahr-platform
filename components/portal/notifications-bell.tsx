@@ -11,13 +11,17 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Bell } from "lucide-react";
-import { markAllNotificationsRead } from "@/lib/notification-actions";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/notification-actions";
 import type { NotificationType } from "@prisma/client";
 
 export type NotificationItem = {
   id: string;
   type: NotificationType;
   content: string;
+  link: string | null;
   createdAt: string; // ISO
   read: boolean;
 };
@@ -25,10 +29,14 @@ export type NotificationItem = {
 export function NotificationsBell({
   items,
   inboxHref,
+  allHref,
 }: {
   items: NotificationItem[];
-  // Portal inbox path — "new message" notifications deep-link there.
+  // Portal inbox path — legacy fallback for "new message" notifications that
+  // predate stored deep links.
   inboxHref?: string | null;
+  // Portal "all notifications" page.
+  allHref: string;
 }) {
   const t = useTranslations("notifications");
   const et = useTranslations("enums.notificationType");
@@ -41,6 +49,14 @@ export function NotificationsBell({
       await markAllNotificationsRead();
       router.refresh();
     });
+  }
+
+  // Best target for a notification: its stored deep link, else the inbox for
+  // legacy message notifications.
+  function hrefFor(n: NotificationItem): string | null {
+    if (n.link) return n.link;
+    if (n.type === "new_message" && inboxHref) return inboxHref;
+    return null;
   }
 
   return (
@@ -91,6 +107,7 @@ export function NotificationsBell({
                   ) : null}
                 </>
               );
+              const href = hrefFor(n);
               return (
                 <li
                   key={n.id}
@@ -98,8 +115,15 @@ export function NotificationsBell({
                     n.read ? "" : "bg-muted/40"
                   }`}
                 >
-                  {n.type === "new_message" && inboxHref ? (
-                    <Link href={inboxHref} className="block px-3 py-2 hover:bg-muted">
+                  {href ? (
+                    <Link
+                      href={href}
+                      className="block px-3 py-2 hover:bg-muted"
+                      onClick={() => {
+                        // Mark read without blocking navigation.
+                        if (!n.read) void markNotificationRead(n.id);
+                      }}
+                    >
                       {inner}
                     </Link>
                   ) : (
@@ -110,6 +134,15 @@ export function NotificationsBell({
             })}
           </ul>
         )}
+
+        <div className="border-t">
+          <Link
+            href={allHref}
+            className="block px-3 py-2 text-center text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {t("seeAll")}
+          </Link>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

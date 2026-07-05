@@ -7,13 +7,14 @@ import {
   type NotificationItem,
 } from "@/components/portal/notifications-bell";
 import { Logo } from "@/components/logo";
-import { LiveInboxRefresher } from "@/components/portal/live-inbox-refresher";
+import { LivePortalUpdates } from "@/components/portal/live-portal-updates";
 import { Separator } from "@/components/ui/separator";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Download } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { portalPath } from "@/lib/auth";
 import { countUnreadConversations } from "@/lib/inbox";
 import type { Role } from "@prisma/client";
 
@@ -23,12 +24,20 @@ async function getNotifications(userId: string): Promise<NotificationItem[]> {
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: 15,
-      select: { id: true, type: true, content: true, createdAt: true, readAt: true },
+      select: {
+        id: true,
+        type: true,
+        content: true,
+        link: true,
+        createdAt: true,
+        readAt: true,
+      },
     });
     return rows.map((r) => ({
       id: r.id,
       type: r.type,
       content: r.content,
+      link: r.link,
       createdAt: r.createdAt.toISOString(),
       read: r.readAt !== null,
     }));
@@ -65,7 +74,7 @@ export async function PortalShell({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <LiveInboxRefresher userId={userId} />
+      <LivePortalUpdates userId={userId} />
       <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2 sm:gap-3">
           <Logo className="h-7 w-auto sm:h-8" priority />
@@ -76,7 +85,11 @@ export async function PortalShell({
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
-          <NotificationsBell items={notifications} inboxHref={inboxHref} />
+          <NotificationsBell
+            items={notifications}
+            inboxHref={inboxHref}
+            allHref={`${portalPath(role)}/notifications`}
+          />
           <a
             href="/api/me/export"
             download
