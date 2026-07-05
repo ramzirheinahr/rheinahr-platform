@@ -26,7 +26,7 @@ async function assertAdmin() {
 }
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const lettersSchema = z.string().regex(/^(?!.*(.).*\1)[FSN]{0,3}$/); // subset of F,S,N, no repeats
+const lettersSchema = z.string().regex(/^(OFF|(?!.*(.).*\1)[FSN]{0,3})$/); // subset of F,S,N, no repeats
 const shiftKeySchema = z.enum(["early", "late", "night"]);
 
 const toMin = (t: string) => {
@@ -66,17 +66,22 @@ export async function saveDayAvailabilityFromGrid(
   const day = new Date(`${date}T00:00:00.000Z`);
   // Positive availability: the letters are the declared-available windows.
   // Empty selection clears the day (undeclared → not available).
-  const blocks = lettersToBlocks(letters);
+  let dbBlocks: { startTime: string | null; endTime: string | null; status: "available" | "unavailable" }[] = [];
+  if (letters === "OFF") {
+    dbBlocks = [{ startTime: null, endTime: null, status: "unavailable" }];
+  } else {
+    dbBlocks = lettersToBlocks(letters).map(b => ({ ...b, status: "available" }));
+  }
 
   await prisma.$transaction([
     prisma.workerAvailability.deleteMany({ where: { workerId, date: day } }),
-    ...(blocks.length
+    ...(dbBlocks.length
       ? [
           prisma.workerAvailability.createMany({
-            data: blocks.map((b) => ({
+            data: dbBlocks.map((b) => ({
               workerId,
               date: day,
-              status: "available" as const,
+              status: b.status,
               startTime: b.startTime,
               endTime: b.endTime,
             })),

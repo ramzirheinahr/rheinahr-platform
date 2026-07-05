@@ -213,11 +213,11 @@ export function MasterScheduleGrid({
                           if (e.key === "Enter") setTarget({ workerId: r.workerId, day: d.day });
                         }}
                         className={cn(
-                          "h-6 cursor-pointer border p-0.5 text-center align-middle font-medium hover:ring-2 hover:ring-ring/60 hover:ring-inset",
+                          "h-6 cursor-pointer border p-0.5 text-center align-middle font-bold text-sm hover:ring-2 hover:ring-ring/60 hover:ring-inset",
                           bodyTint(d),
-                          confirmedJob && !isApprovedLeave && "bg-emerald-600 font-bold text-white",
-                          isPendingLeave && "bg-amber-500 font-bold text-white",
-                          isApprovedLeave && "bg-rose-600 font-bold text-white",
+                          confirmedJob && !isApprovedLeave && "bg-emerald-600 text-white",
+                          isPendingLeave && "bg-amber-500 text-white",
+                          isApprovedLeave && "bg-rose-600 text-white",
                         )}
                       >
                         {isApprovedLeave ? "U" : isPendingLeave ? "U?" : confirmedJob ? confirmedJob.ward || "0" : cell.avail === "OFF" ? <span className="text-red-500 font-bold" title={t("dayOffRequested") || "Ruhetag angefragt"}>OFF</span> : cell.avail}
@@ -239,7 +239,7 @@ export function MasterScheduleGrid({
                           if (e.key === "Enter") setTarget({ workerId: r.workerId, day: d.day });
                         }}
                         className={cn(
-                          "h-6 cursor-pointer whitespace-nowrap border p-0.5 text-center align-middle font-semibold text-red-600 hover:ring-2 hover:ring-ring/60 hover:ring-inset",
+                          "h-6 cursor-pointer whitespace-nowrap border p-0.5 text-center align-middle font-bold text-sm text-red-600 hover:ring-2 hover:ring-ring/60 hover:ring-inset",
                           bodyTint(d),
                         )}
                       >
@@ -723,19 +723,22 @@ function CellEditor({
   }).format(new Date(`${date}T00:00:00Z`));
 
   // ── Availability (top line) ──
-  const [letters, setLetters] = useState<Set<string>>(new Set(cell.avail.split("")));
+  const [letters, setLetters] = useState<Set<string>>(
+    new Set(cell.avail === "OFF" ? ["OFF"] : cell.avail.split(""))
+  );
   const toggleLetter = (l: string) =>
     setLetters((s) => {
       const n = new Set(s);
+      n.delete("OFF");
       if (n.has(l)) n.delete(l);
       else n.add(l);
       return n;
     });
   const availDirty =
-    ["F", "S", "N"].filter((l) => letters.has(l)).join("") !== cell.avail;
+    (letters.has("OFF") ? "OFF" : ["F", "S", "N"].filter((l) => letters.has(l)).join("")) !== cell.avail;
 
   function saveAvail() {
-    const value = ["F", "S", "N"].filter((l) => letters.has(l)).join("");
+    const value = letters.has("OFF") ? "OFF" : ["F", "S", "N"].filter((l) => letters.has(l)).join("");
     startTransition(async () => {
       const res = await saveDayAvailabilityFromGrid(row.workerId, date, value);
       if (res.ok) {
@@ -843,6 +846,18 @@ function CellEditor({
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setLetters(new Set(["OFF"]))}
+            className={cn(
+              "flex-1 rounded-md border px-2 py-1.5 text-sm font-medium transition-colors",
+              letters.has("OFF")
+                ? "border-red-500 bg-red-500/10 text-red-500"
+                : "text-muted-foreground hover:bg-muted",
+            )}
+          >
+            OFF · {t("dayOffRequested") || "Ruhetag"}
+          </button>
         </div>
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">{t("availabilityHint")}</p>
