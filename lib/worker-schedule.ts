@@ -146,18 +146,19 @@ export async function getWorkerMonthAvailability(
     .findMany({
       where: {
         workerId,
-        status: "available",
+        status: { in: ["available", "unavailable"] },
         date: {
           gte: new Date(Date.UTC(year, month - 1, 1)),
           lt: new Date(Date.UTC(year, month, 1)),
         },
       },
-      select: { date: true, startTime: true, endTime: true },
+      select: { date: true, startTime: true, endTime: true, status: true },
     })
     .catch(() => []);
   return blocks.map((b) => ({
     date: b.date.toISOString().slice(0, 10),
-    startTime: b.startTime,
-    endTime: b.endTime,
+    startTime: b.status === "unavailable" ? null : b.startTime,
+    endTime: b.status === "unavailable" ? null : b.endTime,
+    status: b.status,
   }));
 }

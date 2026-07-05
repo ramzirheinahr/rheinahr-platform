@@ -68,7 +68,7 @@ export async function saveAvailability(
       data: clean.map((b) => ({
         workerId: worker.id,
         date: new Date(`${b.date}T00:00:00.000Z`),
-        status: "available" as const,
+        status: (b.startTime === null && b.endTime === null) ? "unavailable" : "available",
         startTime: b.startTime,
         endTime: b.endTime,
       })),

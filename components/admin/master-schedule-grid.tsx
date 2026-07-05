@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { BookText, CheckCircle2, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { BookText, CheckCircle2, Plus, Trash2, TriangleAlert, Download } from "lucide-react";
 import {
   layoutUnassigned,
   SHIFT_PRESETS,
@@ -168,16 +168,26 @@ export function MasterScheduleGrid({
                           <span>{r.carryoverHours > 0 ? "+" : ""}{hoursFmt.format(r.carryoverHours)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between gap-1">
+                      {r.acceptedHours > 0 && (
+                        <div className="flex justify-between gap-1 text-amber-300">
+                          <span>{av("acceptedTotal")}:</span>
+                          <span className="font-bold">{hoursFmt.format(r.acceptedHours)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-1 text-emerald-300">
                         <span>{av("confirmedTotal")}:</span>
-                        <span>{hoursFmt.format(r.confirmedHours)}</span>
+                        <span className="font-bold">{hoursFmt.format(r.confirmedHours)}</span>
                       </div>
                       {(() => {
-                        const remaining = r.requiredHours + r.carryoverHours - r.confirmedHours;
+                        const worked = r.acceptedHours + r.confirmedHours;
+                        const remaining = worked - (r.requiredHours + r.carryoverHours);
+                        const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
                         return (
                           <div className="flex justify-between gap-1 border-t border-white/20 pt-0.5">
-                            <span>{remaining < 0 ? av("creditLabel") : t("remainingHoursLabel")}:</span>
-                            <span>{hoursFmt.format(remaining)}</span>
+                            <span>{av("remainingHoursLabel")}:</span>
+                            <span className={cn("font-bold", remaining < 0 ? "text-rose-300" : "text-emerald-300")}>
+                              {signed(remaining)}
+                            </span>
                           </div>
                         );
                       })()}
@@ -210,7 +220,7 @@ export function MasterScheduleGrid({
                           isApprovedLeave && "bg-rose-600 font-bold text-white",
                         )}
                       >
-                        {isApprovedLeave ? "U" : isPendingLeave ? "U?" : confirmedJob ? confirmedJob.ward || "0" : cell.avail}
+                        {isApprovedLeave ? "U" : isPendingLeave ? "U?" : confirmedJob ? confirmedJob.ward || "0" : cell.avail === "OFF" ? <span className="text-red-500 font-bold" title={t("dayOffRequested") || "Ruhetag angefragt"}>OFF</span> : cell.avail}
                       </td>
                     );
                   })}
@@ -873,10 +883,19 @@ function CellEditor({
                     </div>
                   </div>
                   {j.clientConfirmed ? (
-                    <Badge className="shrink-0 gap-1 border-transparent bg-emerald-600 text-white">
-                      <CheckCircle2 className="size-3" />
-                      {t("confirmedShort")}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
+                        <CheckCircle2 className="size-3" />
+                        {t("confirmedShort")}
+                      </Badge>
+                      <a
+                        href={`/api/confirmations/${j.assignmentId}/pdf`}
+                        className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground"
+                        title="Download PDF"
+                      >
+                        <Download className="size-3.5" />
+                      </a>
+                    </div>
                   ) : (
                     <Button
                       variant="ghost"

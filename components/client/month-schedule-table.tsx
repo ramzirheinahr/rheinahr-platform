@@ -3,7 +3,7 @@ import type { ClientScheduleRow, ClientScheduleTotals } from "@/lib/client-sched
 import { germanHolidays } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, Download } from "lucide-react";
 
 // One facility's month as the familiar schedule table — every day of the
 // month (weekend/NRW-holiday tint), each deployment with worker, times,
@@ -110,10 +110,19 @@ export async function MonthScheduleTable({
                 </td>
                 <td className="p-2">
                   {a.confirmedHours != null ? (
-                    <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
-                      <CheckCircle2 className="size-3" />
-                      {av("confirmedByClient")}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
+                        <CheckCircle2 className="size-3" />
+                        {av("confirmedByClient")}
+                      </Badge>
+                      <a
+                        href={`/api/confirmations/${a.id}/pdf`}
+                        className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground"
+                        title="Download PDF"
+                      >
+                        <Download className="size-3.5" />
+                      </a>
+                    </div>
                   ) : (
                     <Badge
                       variant={

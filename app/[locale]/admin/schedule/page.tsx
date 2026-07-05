@@ -6,7 +6,7 @@ import { LiveRefresher } from "@/components/portal/live-refresher";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, FileDown, Sheet } from "lucide-react";
+import { Calendar, FileDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Qualification } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -75,15 +75,6 @@ export default async function AdminMasterSchedulePage({
           >
             <FileDown className="size-4" />
             {cs("downloadPdf")}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            render={<a href={`${exportBase}&format=csv`} />}
-          >
-            <Sheet className="size-4" />
-            {cs("downloadExcel")}
           </Button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Qualification } from "@prisma/client";
+import { netShiftHours } from "@/lib/pricing";
 import {
   availabilityLetters,
   facilityCode,
@@ -41,8 +42,8 @@ export async function getMasterSchedule(
         requiredHours: true,
         carryoverHours: true,
         availability: {
-          where: { status: "available", date: { gte: monthStart, lt: monthEnd } },
-          select: { date: true, startTime: true, endTime: true },
+          where: { date: { gte: monthStart, lt: monthEnd } },
+          select: { date: true, startTime: true, endTime: true, status: true },
         },
         assignments: {
           where: {
@@ -118,15 +119,19 @@ export async function getMasterSchedule(
       jobs: [],
     }));
 
-    const blocksByDay = new Map<number, AvailBlockLite[]>();
+    const blocksByDay = new Map<number, (AvailBlockLite & { status: string })[]>();
     for (const b of w.availability) {
       const day = b.date.getUTCDate();
       const list = blocksByDay.get(day) ?? [];
-      list.push({ startTime: b.startTime, endTime: b.endTime });
+      list.push({ startTime: b.startTime, endTime: b.endTime, status: b.status });
       blocksByDay.set(day, list);
     }
     blocksByDay.forEach((blocks, day) => {
-      days[day - 1].avail = availabilityLetters(blocks);
+      if (blocks.some(b => b.status === "unavailable")) {
+        days[day - 1].avail = "OFF";
+      } else {
+        days[day - 1].avail = availabilityLetters(blocks);
+      }
       days[day - 1].hasBlocks = true;
     });
 
@@ -168,6 +173,13 @@ export async function getMasterSchedule(
       return sum;
     }, 0);
 
+    let acceptedHours = w.assignments.reduce((sum, a) => {
+      if (a.status === "confirmed" && !a.serviceConfirmation) {
+        return sum + netShiftHours(a.order.startTime, a.order.endTime);
+      }
+      return sum;
+    }, 0);
+
     for (const d of days) {
       if (d.leave?.status === "approved") {
         confirmedHours += d.leave.hours;
@@ -180,6 +192,7 @@ export async function getMasterSchedule(
       requiredHours: w.requiredHours,
       carryoverHours: w.carryoverHours,
       confirmedHours,
+      acceptedHours,
       days
     };
   });
