@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { orderLink } from "@/lib/notify";
+import { pushToUsers } from "@/lib/push";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -108,6 +109,32 @@ export async function respondAssignment(
     entityId: assignmentId,
     metadata: { actorRole: user.role },
   });
+
+  // Mobile push to the office + client when the worker accepts.
+  if (accept) {
+    const body = `${assignment.worker.fullName}: ${assignment.order.shiftDate
+      .toISOString()
+      .slice(0, 10)} ${assignment.order.startTime}–${assignment.order.endTime}`;
+    const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+    const admins = await prisma.user.findMany({
+      where: { role: { in: ["admin", "super_admin"] }, active: true },
+      select: { id: true },
+    });
+    const clientUserId = assignment.order.client.userId;
+    await Promise.all([
+      clientUserId
+        ? pushToUsers([clientUserId], {
+            title: "Einsatz bestätigt",
+            body,
+            url: orderLink("client", reqGroup),
+          })
+        : Promise.resolve(),
+      pushToUsers(
+        admins.map((a) => a.id),
+        { title: "Einsatz bestätigt", body, url: orderLink("admin", reqGroup) },
+      ),
+    ]);
+  }
 
   revalidatePath("/worker");
   revalidatePath(`/admin/orders/${assignment.order.id}`);

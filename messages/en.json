@@ -231,7 +231,9 @@
     "profilePreviewHint": "This is how clients see this worker's profile.",
     "hoursAction": "Hours",
     "scheduleHint": "Schedule and client-confirmed hours for this care worker.",
-    "scheduleEmpty": "No assignments in this month."
+    "scheduleEmpty": "No assignments in this month.",
+    "carryoverHours": "Carryover (hours)",
+    "carryoverHoursHint": "Hours balance from previous months: positive = owed, negative = credit."
   },
   "clients": {
     "title": "Facilities",
@@ -329,7 +331,11 @@
     "nOff": "{n} off",
     "forceOverrideHint": "Assign even on conflicts (override busy / unavailable workers).",
     "assignToShifts": "Offer to {workers} worker(s) on {shifts} shift(s)",
-    "bulkResult": "{created} assignment(s) created, {skipped} skipped."
+    "bulkResult": "{created} assignment(s) created, {skipped} skipped.",
+    "selectAllWorkers": "Select all",
+    "deselectAllWorkers": "Deselect all",
+    "searchWorkers": "Search workers …",
+    "noSearchMatch": "No matching worker"
   },
   "orderRequest": {
     "prev": "Back",
@@ -483,7 +489,13 @@
     "title": "Notifications",
     "empty": "No notifications.",
     "markAllRead": "Mark all as read",
-    "seeAll": "See all"
+    "seeAll": "See all",
+    "pushEnable": "Enable mobile notifications",
+    "pushOn": "Notifications on",
+    "pushEnabled": "Notifications enabled.",
+    "pushDisabled": "Notifications disabled.",
+    "pushBlocked": "Permission denied. Allow it in your browser settings.",
+    "pushError": "Action failed."
   },
   "messages": {
     "title": "Messages",
@@ -554,7 +566,12 @@
     "monthTotalHint": "{count, plural, one {# shift confirmed by the client} other {# shifts confirmed by the client}}",
     "availableHeader": "Availability",
     "weekendLegend": "Weekend",
-    "holidayLegend": "Holiday"
+    "holidayLegend": "Holiday",
+    "confirmedByWorker": "Confirmed",
+    "confirmedTotal": "Confirmed",
+    "carryoverLabel": "Carryover",
+    "totalRequiredLabel": "Total required",
+    "creditLabel": "Credit"
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",

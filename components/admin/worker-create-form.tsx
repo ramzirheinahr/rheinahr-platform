@@ -187,6 +187,17 @@ export function WorkerCreateForm({
               defaultValue={151.67}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="carryoverHours">{t("carryoverHours")}</Label>
+            <Input
+              id="carryoverHours"
+              name="carryoverHours"
+              type="number"
+              step="0.01"
+              defaultValue={0}
+            />
+            <p className="text-xs text-muted-foreground">{t("carryoverHoursHint")}</p>
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="bio">{t("bio")}</Label>

@@ -92,6 +92,7 @@ export default async function EditWorkerPage({
           yearsExperience: worker.yearsExperience,
           employedSince: toDateInput(worker.employedSince),
           requiredHours: worker.requiredHours,
+          carryoverHours: worker.carryoverHours,
         }}
       />
 

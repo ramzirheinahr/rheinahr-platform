@@ -39,6 +39,7 @@ export async function getMasterSchedule(
         id: true,
         fullName: true,
         requiredHours: true,
+        carryoverHours: true,
         availability: {
           where: { status: "available", date: { gte: monthStart, lt: monthEnd } },
           select: { date: true, startTime: true, endTime: true },
@@ -169,12 +170,13 @@ export async function getMasterSchedule(
       }
     }
 
-    return { 
-      workerId: w.id, 
-      name: w.fullName, 
+    return {
+      workerId: w.id,
+      name: w.fullName,
       requiredHours: w.requiredHours,
+      carryoverHours: w.carryoverHours,
       confirmedHours,
-      days 
+      days
     };
   });
 

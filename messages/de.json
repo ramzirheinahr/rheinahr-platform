@@ -231,7 +231,9 @@
     "profilePreviewHint": "So sehen Kunden das Profil dieses Mitarbeiters.",
     "hoursAction": "Stunden",
     "scheduleHint": "Dienstplan und vom Kunden bestätigte Stunden dieser Pflegekraft.",
-    "scheduleEmpty": "Keine Einsätze in diesem Monat."
+    "scheduleEmpty": "Keine Einsätze in diesem Monat.",
+    "carryoverHours": "Übertrag (Stunden)",
+    "carryoverHoursHint": "Stundensaldo aus Vormonaten: positiv = Soll, negativ = Guthaben."
   },
   "clients": {
     "title": "Einrichtungen",
@@ -329,7 +331,11 @@
     "nOff": "{n} nicht verfügbar",
     "forceOverrideHint": "Auch bei Konflikten zuweisen (belegte / nicht verfügbare Fachkräfte überschreiben).",
     "assignToShifts": "{workers} Fachkraft/Fachkräfte auf {shifts} Schicht(en) anbieten",
-    "bulkResult": "{created} Zuweisung(en) erstellt, {skipped} übersprungen."
+    "bulkResult": "{created} Zuweisung(en) erstellt, {skipped} übersprungen.",
+    "selectAllWorkers": "Alle auswählen",
+    "deselectAllWorkers": "Auswahl aufheben",
+    "searchWorkers": "Fachkraft suchen …",
+    "noSearchMatch": "Keine passende Fachkraft"
   },
   "orderRequest": {
     "prev": "Zurück",
@@ -483,7 +489,13 @@
     "title": "Benachrichtigungen",
     "empty": "Keine Benachrichtigungen.",
     "markAllRead": "Alle als gelesen markieren",
-    "seeAll": "Alle anzeigen"
+    "seeAll": "Alle anzeigen",
+    "pushEnable": "Mobile Benachrichtigungen aktivieren",
+    "pushOn": "Benachrichtigungen aktiv",
+    "pushEnabled": "Benachrichtigungen aktiviert.",
+    "pushDisabled": "Benachrichtigungen deaktiviert.",
+    "pushBlocked": "Berechtigung verweigert. Bitte im Browser erlauben.",
+    "pushError": "Aktion fehlgeschlagen."
   },
   "messages": {
     "title": "Nachrichten",
@@ -554,7 +566,12 @@
     "monthTotalHint": "{count, plural, one {# vom Kunden bestätigte Schicht} other {# vom Kunden bestätigte Schichten}}",
     "availableHeader": "Verfügbarkeit",
     "weekendLegend": "Wochenende",
-    "holidayLegend": "Feiertag"
+    "holidayLegend": "Feiertag",
+    "confirmedByWorker": "Bestätigt",
+    "confirmedTotal": "Bestätigt",
+    "carryoverLabel": "Übertrag",
+    "totalRequiredLabel": "Gesamt-Soll",
+    "creditLabel": "Guthaben"
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",

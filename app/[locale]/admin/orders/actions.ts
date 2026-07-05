@@ -18,6 +18,7 @@ import {
 } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink } from "@/lib/notify";
+import { pushToUsers } from "@/lib/push";
 import type { OrderStatus, Qualification } from "@prisma/client";
 
 export type ActionState = { ok: boolean; error?: string };
@@ -78,6 +79,11 @@ export async function createOrderRequestForClient(
         content: `${client.facilityName}: ${shifts.length} Schicht(en)`,
         link: orderLink("client", requestGroupId),
       },
+    });
+    await pushToUsers([client.userId], {
+      title: "Neue Anfrage",
+      body: `${client.facilityName}: ${shifts.length} Schicht(en)`,
+      url: orderLink("client", requestGroupId),
     });
   }
 
@@ -342,6 +348,12 @@ export async function assignWorker(
     metadata: { workerId },
   });
 
+  await pushToUsers([worker.userId], {
+    title: "Neuer Einsatz",
+    body: `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime}`,
+    url: workerShiftLink(),
+  });
+
   revalidatePath(`/admin/orders/${orderId}`);
   revalidatePath("/admin/orders");
   return { ok: true };
@@ -535,6 +547,19 @@ export async function bulkAssignWorkers(
       force,
     },
   });
+
+  // One push per worker summarising how many shifts they were offered.
+  const perWorker = new Map<string, number>();
+  for (const o of offers) perWorker.set(o.userId, (perWorker.get(o.userId) ?? 0) + 1);
+  await Promise.all(
+    [...perWorker].map(([userId, n]) =>
+      pushToUsers([userId], {
+        title: "Neue Einsätze",
+        body: n === 1 ? offers.find((o) => o.userId === userId)!.content : `${n} neue Schicht(en)`,
+        url: workerShiftLink(),
+      }),
+    ),
+  );
 
   revalidatePath("/admin/orders");
   return { ok: true, created, skipped };

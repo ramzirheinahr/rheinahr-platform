@@ -231,7 +231,9 @@
     "profilePreviewHint": "هكذا يرى الزبائن ملف هذا الموظف.",
     "hoursAction": "الساعات",
     "scheduleHint": "جدول الورديات والساعات المؤكدة من الزبائن لكادر الرعاية هذا.",
-    "scheduleEmpty": "لا توجد ورديات في هذا الشهر."
+    "scheduleEmpty": "لا توجد ورديات في هذا الشهر.",
+    "carryoverHours": "الرصيد المُرحَّل (ساعات)",
+    "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = مطلوب منه، سالب = رصيد فائض."
   },
   "clients": {
     "title": "المنشآت",
@@ -329,7 +331,11 @@
     "nOff": "{n} غير متاح",
     "forceOverrideHint": "التعيين حتى مع التعارض (تجاوز الموظفين المشغولين/غير المتاحين).",
     "assignToShifts": "العرض على {workers} موظف في {shifts} وردية",
-    "bulkResult": "تم إنشاء {created} تعيين، وتخطّي {skipped}."
+    "bulkResult": "تم إنشاء {created} تعيين، وتخطّي {skipped}.",
+    "selectAllWorkers": "تحديد كل الموظفين",
+    "deselectAllWorkers": "إلغاء تحديد الكل",
+    "searchWorkers": "ابحث عن موظف…",
+    "noSearchMatch": "لا يوجد موظف مطابق"
   },
   "orderRequest": {
     "prev": "السابق",
@@ -483,7 +489,13 @@
     "title": "الإشعارات",
     "empty": "لا توجد إشعارات.",
     "markAllRead": "تعليم الكل كمقروء",
-    "seeAll": "عرض الكل"
+    "seeAll": "عرض الكل",
+    "pushEnable": "تفعيل إشعارات الموبايل",
+    "pushOn": "الإشعارات مفعّلة",
+    "pushEnabled": "تم تفعيل الإشعارات.",
+    "pushDisabled": "تم إيقاف الإشعارات.",
+    "pushBlocked": "تم رفض الإذن. فعّله من إعدادات المتصفح.",
+    "pushError": "فشل الإجراء."
   },
   "messages": {
     "title": "الرسائل",
@@ -554,7 +566,12 @@
     "monthTotalHint": "{count, plural, one {وردية واحدة مؤكدة من الزبون} two {ورديتان مؤكدتان من الزبون} few {# ورديات مؤكدة من الزبون} other {# وردية مؤكدة من الزبون}}",
     "availableHeader": "التوفر",
     "weekendLegend": "عطلة نهاية الأسبوع",
-    "holidayLegend": "عطلة رسمية"
+    "holidayLegend": "عطلة رسمية",
+    "confirmedByWorker": "مؤكد",
+    "confirmedTotal": "مؤكد",
+    "carryoverLabel": "رصيد سابق",
+    "totalRequiredLabel": "إجمالي المطلوب",
+    "creditLabel": "رصيد إضافي"
   },
   "cookies": {
     "message": "نستخدم فقط ملفات تعريف ارتباط ضرورية تقنيًا لتمكين تسجيل الدخول وتشغيل المنصة.",

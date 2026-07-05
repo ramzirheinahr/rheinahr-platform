@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { isAgencyRole } from "@/lib/inbox";
 import { inboxLink } from "@/lib/notify";
+import { pushToUsers } from "@/lib/push";
 import type { Role } from "@prisma/client";
 
 export type InboxActionState = {
@@ -45,6 +46,12 @@ async function notifyNewMessage(
       link: r.link,
     })),
   });
+  // Mobile push per recipient (their own deep link). tag=inbox coalesces bursts.
+  await Promise.all(
+    recipients.map((r) =>
+      pushToUsers([r.userId], { title: "Neue Nachricht", body: content, url: r.link, tag: "inbox" }),
+    ),
+  );
 }
 
 // Starts one or more threads. Agency staff pick the recipients (one private

@@ -29,6 +29,10 @@ export type WorkerLeaveDay = {
 
 export type WorkerScheduleTotals = {
   requiredHours: number;
+  // Signed hours-account balance brought forward from earlier months (positive =
+  // still owed, negative = worked-ahead credit). Added to requiredHours for the
+  // month's total soll; the remaining (soll − confirmed) may go negative.
+  carryoverHours: number;
   confirmedHours: number;
   confirmedShifts: number;
 };
@@ -40,7 +44,7 @@ export async function getWorkerMonthSchedule(
 ): Promise<{ rows: WorkerScheduleRow[]; leaveDays: WorkerLeaveDay[]; totals: WorkerScheduleTotals }> {
   const worker = await prisma.worker.findUnique({
     where: { id: workerId },
-    select: { requiredHours: true },
+    select: { requiredHours: true, carryoverHours: true },
   });
   
   const assignments = await prisma.assignment
@@ -117,7 +121,8 @@ export async function getWorkerMonthSchedule(
     leaveDays,
     totals: {
       requiredHours: worker?.requiredHours ?? 151.67,
-      confirmedHours: 
+      carryoverHours: worker?.carryoverHours ?? 0,
+      confirmedHours:
         confirmed.reduce((sum, r) => sum + (r.confirmedHours ?? 0), 0) +
         approvedLeaves.reduce((sum, l) => sum + l.hours, 0),
       confirmedShifts: confirmed.length + approvedLeaves.length,

@@ -135,6 +135,8 @@ export const workerSchema = z.object({
   yearsExperience: optionalInt,
   employedSince: optionalDate,
   requiredHours: z.coerce.number().min(0).max(744).optional().default(151.67),
+  // Hours-account carryover (signed): positive = deficit owed, negative = credit.
+  carryoverHours: z.coerce.number().min(-9999).max(9999).optional().default(0),
 });
 
 export const clientSchema = z.object({

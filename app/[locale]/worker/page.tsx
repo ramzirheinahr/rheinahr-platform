@@ -9,6 +9,7 @@ import {
   getWorkerMonthAvailability,
 } from "@/lib/worker-schedule";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { LiveRefresher } from "@/components/portal/live-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function WorkerSchedulePage({
   const worker = await getWorker();
   const { rows: assignments, leaveDays, totals } = worker
     ? await getWorkerMonthSchedule(worker.id, year, month)
-    : { rows: [], leaveDays: [], totals: { requiredHours: 151.67, confirmedHours: 0, confirmedShifts: 0 } };
+    : { rows: [], leaveDays: [], totals: { requiredHours: 151.67, carryoverHours: 0, confirmedHours: 0, confirmedShifts: 0 } };
   const initialBlocks = worker
     ? await getWorkerMonthAvailability(worker.id, year, month)
     : [];
@@ -56,6 +57,7 @@ export default async function WorkerSchedulePage({
 
   return (
     <div className="space-y-8">
+      <LiveRefresher tables={["orders", "assignments", "service_confirmations"]} />
       <div>
         <h1 className="text-2xl font-semibold">{p("schedule")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{p("scheduleSubtitle")}</p>
@@ -103,9 +105,11 @@ export default async function WorkerSchedulePage({
             notes: a.notes,
             facilityName: a.facilityName,
             address: a.address,
+            scheduledHours: a.scheduledHours,
             confirmedHours: a.confirmedHours,
           }))}
           requiredHours={totals.requiredHours}
+          carryoverHours={totals.carryoverHours}
           leaveDays={leaveDays}
         />
       </section>

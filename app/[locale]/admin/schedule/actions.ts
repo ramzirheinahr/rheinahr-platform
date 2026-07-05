@@ -10,6 +10,7 @@ import { candidatesForShift, type Candidate } from "@/lib/orders";
 import { qualifications } from "@/lib/validations";
 import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink } from "@/lib/notify";
+import { pushToUsers } from "@/lib/push";
 import type { Qualification } from "@prisma/client";
 
 // Cell-level edits on the master schedule grid. Every edit here mutates the
@@ -247,6 +248,12 @@ export async function assignFromGrid(input: {
     metadata: { date, shift, clientId, via: "master-schedule", forced: !!force },
   });
 
+  await pushToUsers([worker.userId], {
+    title: "Neuer Einsatz",
+    body: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+    url: workerShiftLink(),
+  });
+
   revalidatePath("/admin/schedule");
   revalidatePath("/admin/orders");
   revalidatePath("/worker");
@@ -319,6 +326,11 @@ export async function createOpenOrderFromGrid(input: {
         content: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
         link: orderLink("client", newRequestGroupId),
       },
+    });
+    await pushToUsers([client.userId], {
+      title: "Neue Anfrage",
+      body: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+      url: orderLink("client", newRequestGroupId),
     });
   }
 
@@ -459,6 +471,12 @@ export async function assignWorkerToOrder(
     entity: "Order",
     entityId: orderId,
     metadata: { workerId, via: "master-schedule-unassigned", forced: force },
+  });
+
+  await pushToUsers([worker.userId], {
+    title: "Neuer Einsatz",
+    body: `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime} · ${order.client.facilityName}`,
+    url: workerShiftLink(),
   });
 
   revalidatePath("/admin/schedule");

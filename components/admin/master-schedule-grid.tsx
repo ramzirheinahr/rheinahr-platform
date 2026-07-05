@@ -160,14 +160,25 @@ export function MasterScheduleGrid({
                         <span>{t("requiredHoursLabel")}:</span>
                         <span>{hoursFmt.format(r.requiredHours)}</span>
                       </div>
+                      {r.carryoverHours !== 0 && (
+                        <div className="flex justify-between gap-1">
+                          <span>{av("carryoverLabel")}:</span>
+                          <span>{r.carryoverHours > 0 ? "+" : ""}{hoursFmt.format(r.carryoverHours)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between gap-1">
-                        <span>{av("confirmedByClient")}:</span>
+                        <span>{av("confirmedTotal")}:</span>
                         <span>{hoursFmt.format(r.confirmedHours)}</span>
                       </div>
-                      <div className="flex justify-between gap-1 border-t border-white/20 pt-0.5">
-                        <span>{t("remainingHoursLabel")}:</span>
-                        <span>{hoursFmt.format(Math.max(0, r.requiredHours - r.confirmedHours))}</span>
-                      </div>
+                      {(() => {
+                        const remaining = r.requiredHours + r.carryoverHours - r.confirmedHours;
+                        return (
+                          <div className="flex justify-between gap-1 border-t border-white/20 pt-0.5">
+                            <span>{remaining < 0 ? av("creditLabel") : t("remainingHoursLabel")}:</span>
+                            <span>{hoursFmt.format(remaining)}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </th>
                   {r.days.map((cell, i) => {

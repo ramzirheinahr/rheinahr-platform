@@ -113,9 +113,11 @@ export default async function AdminWorkerSchedulePage({
             notes: a.notes,
             facilityName: a.facilityName,
             address: a.address,
+            scheduledHours: a.scheduledHours,
             confirmedHours: a.confirmedHours,
           }))}
           requiredHours={totals.requiredHours}
+          carryoverHours={totals.carryoverHours}
           leaveDays={leaveDays}
         />
       </section>

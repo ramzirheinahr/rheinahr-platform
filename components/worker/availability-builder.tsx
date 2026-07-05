@@ -33,6 +33,9 @@ export type Assignment = {
   notes: string | null;
   facilityName: string;
   address: string | null;
+  // Planned net hours (break deducted). Shown yellow as "accepted" once the
+  // worker confirms, before the client signs.
+  scheduledHours?: number | null;
   // Client-confirmed net hours (break already deducted) — null until the
   // facility signs the Leistungsnachweis.
   confirmedHours?: number | null;
@@ -66,6 +69,7 @@ export function AvailabilityBuilder({
   workerId,
   leaveDays = [],
   requiredHours,
+  carryoverHours = 0,
 }: {
   year: number;
   month: number;
@@ -75,6 +79,7 @@ export function AvailabilityBuilder({
   // worker's own page omits it and the action resolves the worker from the session.
   workerId?: string;
   requiredHours?: number;
+  carryoverHours?: number;
   leaveDays?: { id: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
 }) {
   const t = useTranslations("availability");
@@ -413,7 +418,7 @@ export function AvailabilityBuilder({
                                   <CheckCircle2 className="size-3" />
                                   {t("confirmedByClient")}
                                 </Badge>
-                                <a 
+                                <a
                                   href={`/api/confirmations/${a.id}/pdf`}
                                   className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground"
                                   title="Download PDF"
@@ -421,8 +426,15 @@ export function AvailabilityBuilder({
                                   <Download className="size-3.5" />
                                 </a>
                               </div>
+                            ) : a.status === "confirmed" ? (
+                              // Worker accepted — hours count as "confirmed" (yellow)
+                              // until the client signs the Leistungsnachweis (→ green).
+                              <Badge className="gap-1 border-transparent bg-amber-500 text-white">
+                                <CheckCircle2 className="size-3" />
+                                {t("confirmedByWorker")}
+                              </Badge>
                             ) : (
-                              <Badge variant={a.status === "confirmed" ? "default" : a.status === "declined" ? "outline" : "secondary"}>
+                              <Badge variant={a.status === "declined" ? "outline" : "secondary"}>
                                 {eas(a.status)}
                               </Badge>
                             )}
@@ -441,6 +453,10 @@ export function AvailabilityBuilder({
                           {a.confirmedHours != null ? (
                             <span className="font-semibold text-emerald-600">
                               {hoursFmt.format(a.confirmedHours)} {t("hoursUnit")}
+                            </span>
+                          ) : a.status === "confirmed" && a.scheduledHours != null ? (
+                            <span className="font-semibold text-amber-600">
+                              {hoursFmt.format(a.scheduledHours)} {t("hoursUnit")}
                             </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -507,21 +523,47 @@ export function AvailabilityBuilder({
                 <td className="whitespace-nowrap p-3 text-end align-middle">
                   <div className="flex flex-col items-end gap-1">
                     {requiredHours !== undefined && (
-                      <div className="flex justify-between w-32 text-sm">
-                        <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
-                        <span className="font-medium text-foreground">{hoursFmt.format(requiredHours)} {t("hoursUnit")}</span>
-                      </div>
+                      <>
+                        <div className="flex justify-between w-52 text-sm">
+                          <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
+                          <span className="font-medium text-foreground">{hoursFmt.format(requiredHours)} {t("hoursUnit")}</span>
+                        </div>
+                        {carryoverHours !== 0 && (
+                          <div className="flex justify-between w-52 text-sm">
+                            <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
+                            <span className={cn("font-medium", carryoverHours < 0 ? "text-emerald-600" : "text-foreground")}>
+                              {carryoverHours > 0 ? "+" : ""}{hoursFmt.format(carryoverHours)} {t("hoursUnit")}
+                            </span>
+                          </div>
+                        )}
+                        {carryoverHours !== 0 && (
+                          <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
+                            <span className="text-muted-foreground">{t("totalRequiredLabel")}:</span>
+                            <span className="font-semibold text-foreground">{hoursFmt.format(requiredHours + carryoverHours)} {t("hoursUnit")}</span>
+                          </div>
+                        )}
+                      </>
                     )}
-                    <div className="flex justify-between w-32 text-sm">
-                      <span className="text-muted-foreground">{t("confirmedByClient")}:</span>
+                    <div className="flex justify-between w-52 text-sm">
+                      <span className="text-muted-foreground">{t("confirmedTotal")}:</span>
                       <span className="font-bold text-emerald-600">{hoursFmt.format(totals.hours)} {t("hoursUnit")}</span>
                     </div>
-                    {requiredHours !== undefined && (
-                      <div className="flex justify-between w-32 text-sm border-t border-emerald-500/20 pt-1 mt-1">
-                        <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
-                        <span className="font-semibold text-foreground">{hoursFmt.format(Math.max(0, requiredHours - totals.hours))} {t("hoursUnit")}</span>
-                      </div>
-                    )}
+                    {requiredHours !== undefined && (() => {
+                      // Signed hours-account balance: soll (required + carryover)
+                      // minus confirmed. Negative = worked ahead (credit) → carries
+                      // to next month; positive = still owed.
+                      const remaining = requiredHours + carryoverHours - totals.hours;
+                      return (
+                        <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
+                          <span className="text-muted-foreground">
+                            {remaining < 0 ? t("creditLabel") : t("remainingHoursLabel")}:
+                          </span>
+                          <span className={cn("font-semibold", remaining < 0 ? "text-emerald-600" : "text-foreground")}>
+                            {hoursFmt.format(remaining)} {t("hoursUnit")}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </td>
               </tr>

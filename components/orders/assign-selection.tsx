@@ -13,6 +13,7 @@ import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -21,12 +22,26 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { UserPlus, X, CheckSquare, Users } from "lucide-react";
+import { UserPlus, X, CheckSquare, Users, Search } from "lucide-react";
 import {
   getBulkCandidates,
   bulkAssignWorkers,
 } from "@/app/[locale]/admin/orders/actions";
 import type { BulkCandidate, BulkShift } from "@/lib/orders";
+
+// Smart, forgiving filter: the query is split into tokens and each token must
+// match the START of some word in the text (or appear anywhere as a fallback).
+// So "ah mu" matches "Ahmed Muster" — type part of the first word, a space, then
+// part of the next, in any order, without needing the full name.
+function smartMatch(text: string, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const hay = text.toLowerCase();
+  const words = hay.split(/[\s@._-]+/).filter(Boolean);
+  return q.split(/\s+/).every(
+    (tok) => words.some((w) => w.startsWith(tok)) || hay.includes(tok),
+  );
+}
 
 // ── Multi-select context ──────────────────────────────────────────────────
 // Lets the admin tick several shift cells (by orderId) across the whole request
@@ -147,12 +162,29 @@ function BulkAssignDialog({
   const [candidates, setCandidates] = useState<BulkCandidate[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [force, setForce] = useState(false);
+  const [query, setQuery] = useState("");
   const [pending, startTransition] = useTransition();
+
+  const filtered = candidates.filter((cand) =>
+    smartMatch(`${cand.fullName} ${cand.email}`, query),
+  );
+  const allFilteredPicked =
+    filtered.length > 0 && filtered.every((cand) => picked.has(cand.workerId));
+
+  function toggleAllFiltered() {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (allFilteredPicked) filtered.forEach((cand) => next.delete(cand.workerId));
+      else filtered.forEach((cand) => next.add(cand.workerId));
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
     setPicked(new Set());
     setForce(false);
+    setQuery("");
     setLoading(true);
     getBulkCandidates(orderIds)
       .then((res) => {
@@ -214,17 +246,48 @@ function BulkAssignDialog({
 
         {/* Candidate workers */}
         <div className="space-y-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <Users className="size-4 text-muted-foreground" />
-            {t("chooseWorkers")}
-          </h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <Users className="size-4 text-muted-foreground" />
+              {t("chooseWorkers")}
+            </h3>
+            {!loading && candidates.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1.5"
+                onClick={toggleAllFiltered}
+                disabled={filtered.length === 0}
+              >
+                <CheckSquare className="size-4" />
+                {allFilteredPicked ? t("deselectAllWorkers") : t("selectAllWorkers")}
+              </Button>
+            ) : null}
+          </div>
+
+          {!loading && candidates.length > 0 ? (
+            <div className="relative">
+              <Search className="pointer-events-none absolute inset-y-0 start-2.5 my-auto size-4 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("searchWorkers")}
+                className="ps-8"
+                aria-label={t("searchWorkers")}
+              />
+            </div>
+          ) : null}
+
           {loading ? (
             <p className="py-6 text-center text-sm text-muted-foreground">{c("loading")}</p>
           ) : candidates.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">{t("noEligible")}</p>
+          ) : filtered.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("noSearchMatch")}</p>
           ) : (
             <ul className="divide-y rounded-md border">
-              {candidates.map((cand) => {
+              {filtered.map((cand) => {
                 const checked = picked.has(cand.workerId);
                 return (
                   <li key={cand.workerId}>

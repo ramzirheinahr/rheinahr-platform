@@ -144,6 +144,8 @@ export type GridWorkerRow = {
   workerId: string;
   name: string;
   requiredHours: number;
+  // Signed hours-account balance carried from earlier months (see Worker model).
+  carryoverHours: number;
   confirmedHours: number;
   days: GridDay[]; // index = day-1
 };

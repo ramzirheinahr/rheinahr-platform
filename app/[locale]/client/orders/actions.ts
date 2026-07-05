@@ -10,9 +10,16 @@ import { diffRequestShifts, isRequestEditable, isRequestCancelable } from "@/lib
 import { formatDateDE } from "@/lib/utils";
 import { orderRequestSchema, type OrderRequestInput } from "@/lib/validations";
 import { orderLink, inboxLink, workerShiftLink } from "@/lib/notify";
+import { pushToUsers } from "@/lib/push";
 import type { Qualification } from "@prisma/client";
 
 export type ActionState = { ok: boolean; error?: string };
+
+const PUSH_TITLE = {
+  new_order: "Neue Anfrage",
+  order_status_changed: "Anfrage aktualisiert",
+  new_message: "Neue Nachricht",
+} as const;
 
 async function notifyAdmins(
   type: "new_order" | "order_status_changed" | "new_message",
@@ -33,6 +40,10 @@ async function notifyAdmins(
       link: link ?? null,
     })),
   });
+  await pushToUsers(
+    admins.map((a) => a.id),
+    { title: PUSH_TITLE[type], body: content, url: link },
+  );
 }
 
 // Edit a request: apply only the actual changes. Allowed until 4h before the
@@ -540,6 +551,25 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     ipAddress: ip,
     metadata: { method: data.method, hours: data.hoursWorked, actorRole: user.role },
   });
+
+  // Mobile push: worker + office (mirrors the in-app service_confirmed notice).
+  const confirmBody = `${assignment.order.client.facilityName} · ${formatDateDE(assignment.order.shiftDate)} · ${data.hoursWorked} Std.`;
+  const confirmGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  const pushAdmins = await prisma.user.findMany({
+    where: { role: { in: ["admin", "super_admin"] }, active: true },
+    select: { id: true },
+  });
+  await Promise.all([
+    pushToUsers([assignment.worker.userId], {
+      title: "Leistung bestätigt",
+      body: confirmBody,
+      url: workerShiftLink(),
+    }),
+    pushToUsers(
+      pushAdmins.map((a) => a.id),
+      { title: "Leistung bestätigt", body: confirmBody, url: orderLink("admin", confirmGroup) },
+    ),
+  ]);
 
   revalidatePath("/client/orders");
   revalidatePath(`/client/orders/${assignment.order.requestGroupId ?? assignment.order.id}`);

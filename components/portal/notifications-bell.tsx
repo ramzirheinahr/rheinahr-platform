@@ -11,6 +11,7 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Bell } from "lucide-react";
+import { PushToggle } from "@/components/portal/push-toggle";
 import {
   markAllNotificationsRead,
   markNotificationRead,
@@ -135,6 +136,9 @@ export function NotificationsBell({
           </ul>
         )}
 
+        <div className="border-t">
+          <PushToggle />
+        </div>
         <div className="border-t">
           <Link
             href={allHref}

@@ -52,6 +52,7 @@ function parseProfile(formData: FormData) {
     yearsExperience: formData.get("yearsExperience") || undefined,
     employedSince: formData.get("employedSince") || undefined,
     requiredHours: formData.get("requiredHours") || undefined,
+    carryoverHours: formData.get("carryoverHours") || undefined,
   });
 }
 
@@ -76,6 +77,7 @@ function toWorkerColumns(d: ProfileInput) {
     yearsExperience: d.yearsExperience ?? null,
     employedSince: d.employedSince ?? null,
     requiredHours: d.requiredHours,
+    carryoverHours: d.carryoverHours,
   };
 }
 

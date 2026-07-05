@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { getMasterSchedule } from "@/lib/master-schedule";
 import { qualifications } from "@/lib/validations";
 import { MasterScheduleGrid } from "@/components/admin/master-schedule-grid";
+import { LiveRefresher } from "@/components/portal/live-refresher";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,8 @@ export default async function AdminMasterSchedulePage({
 
   return (
     <div className="space-y-6">
+      {/* Live: grid reflects other users' shift/availability/leave changes instantly. */}
+      <LiveRefresher tables={["orders", "assignments", "worker_availability", "leave_days"]} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{t("title")}</h1>

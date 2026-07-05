@@ -37,6 +37,7 @@ export type WorkerData = {
   yearsExperience: number | null;
   employedSince: string | null; // yyyy-mm-dd
   requiredHours: number;
+  carryoverHours: number;
 };
 
 const textareaClass =
@@ -211,6 +212,17 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
               max={744}
               defaultValue={worker.requiredHours ?? 151.67}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="carryoverHours">{t("carryoverHours")}</Label>
+            <Input
+              id="carryoverHours"
+              name="carryoverHours"
+              type="number"
+              step="0.01"
+              defaultValue={worker.carryoverHours ?? 0}
+            />
+            <p className="text-xs text-muted-foreground">{t("carryoverHoursHint")}</p>
           </div>
         </div>
         <div className="space-y-2">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { CancelRequestButton } from "@/components/orders/cancel-request-button";
 import { AssignSelectionProvider } from "@/components/orders/assign-selection";
+import { LiveRefresher } from "@/components/portal/live-refresher";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft, Pencil } from "lucide-react";
@@ -115,6 +116,7 @@ export default async function AdminRequestDetail({
 
   return (
     <div className="space-y-6">
+      <LiveRefresher tables={["orders", "assignments", "service_confirmations"]} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" className="gap-2" render={<Link href="/admin/orders" />}>

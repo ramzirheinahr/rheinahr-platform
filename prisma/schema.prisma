@@ -151,11 +151,30 @@ model User {
   sentMessages         Message[]
   conversations        ConversationParticipant[]
   createdConversations Conversation[]
+  pushSubscriptions    PushSubscription[]
 
   createdBy    User?  @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers User[] @relation("UserCreatedBy")
 
   @@map("users")
+}
+
+// A browser/device Web Push subscription for a user (one row per device). The
+// endpoint is the push service URL; p256dh/auth are the client's encryption
+// keys. Dead endpoints (404/410 on send) are pruned by the sender.
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model Worker {
@@ -166,6 +185,10 @@ model Worker {
   certifications String[]      @default([])
   contractType   ContractType  @map("contract_type")
   requiredHours  Float         @default(151.67) @map("required_hours")
+  // Signed hours-account balance carried from earlier months/years (Arbeitszeit-
+  // konto): positive = hours the worker still owes (deficit), negative = surplus
+  // worked ahead (credit). Added to this month's required to get the total soll.
+  carryoverHours Float         @default(0) @map("carryover_hours")
   phone          String?
   address        String?
   // Languages spoken by the worker as ISO 639-1 codes (any world language).
