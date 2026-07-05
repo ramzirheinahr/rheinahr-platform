@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { orderLink } from "@/lib/notify";
+import { orderLink, inboxLink } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
+import { formatDateDE } from "@/lib/utils";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -139,5 +141,124 @@ export async function respondAssignment(
   revalidatePath("/worker");
   revalidatePath(`/admin/orders/${assignment.order.id}`);
   revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+  return { ok: true };
+}
+
+// The worker asks the office to be taken off a shift they already accepted,
+// with a note explaining why. This does NOT release the shift — it flags a
+// pending request the admin approves (→ released to the grey pool) or rejects.
+// The note reaches the office as an inbox message + notification + push, and the
+// shift shows "awaiting reply" in the schedule and the admin hours page.
+export async function requestShiftCancellation(
+  assignmentId: string,
+  note: string,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "worker") return { ok: false, error: "forbidden" };
+
+  const parsedNote = z.string().trim().max(1000).safeParse(note);
+  if (!parsedNote.success) return { ok: false, error: "saveError" };
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      worker: { select: { userId: true, fullName: true } },
+      serviceConfirmation: { select: { id: true } },
+      order: {
+        select: {
+          id: true,
+          requestGroupId: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          client: { select: { facilityName: true } },
+        },
+      },
+    },
+  });
+  if (!assignment || assignment.worker.userId !== user.id) {
+    return { ok: false, error: "forbidden" };
+  }
+  // Signed shifts are a legal record — can't be cancelled here.
+  if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
+  if (assignment.status === "declined") return { ok: false, error: "saveError" };
+
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: {
+      cancelRequested: true,
+      cancelNote: parsedNote.data || null,
+      cancelRequestedAt: new Date(),
+    },
+  });
+
+  const label = `${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime}`;
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  const summary = `${assignment.worker.fullName}: Abmeldung angefragt – ${label}`;
+
+  const admins = await prisma.user.findMany({
+    where: { role: { in: ["admin", "super_admin"] }, active: true },
+    select: { id: true },
+  });
+
+  // In-app notification to every admin (deep-links to the order request).
+  if (admins.length) {
+    await prisma.notification.createMany({
+      data: admins.map((a) => ({
+        userId: a.id,
+        type: "order_status_changed" as const,
+        channel: "in_app" as const,
+        content: summary,
+        link: orderLink("admin", reqGroup),
+      })),
+    });
+  }
+
+  // The note lands in the assignment's inbox thread so the office can reply.
+  const { getOrCreateAssignmentConversation } = await import("@/lib/inbox");
+  const conversation = await getOrCreateAssignmentConversation(assignmentId);
+  const body = parsedNote.data
+    ? `Abmeldung angefragt (${label}): ${parsedNote.data}`
+    : `Abmeldung angefragt (${label}).`;
+  const now = new Date();
+  if (conversation) {
+    await prisma.$transaction([
+      prisma.message.create({
+        data: { conversationId: conversation.id, senderId: user.id, body },
+      }),
+      prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: now },
+      }),
+      prisma.conversationParticipant.update({
+        where: {
+          conversationId_userId: { conversationId: conversation.id, userId: user.id },
+        },
+        data: { lastReadAt: now },
+      }),
+    ]);
+  }
+
+  await pushToUsers(
+    admins.map((a) => a.id),
+    {
+      title: "Abmeldung angefragt",
+      body: summary,
+      url: conversation ? inboxLink("admin", conversation.id) : orderLink("admin", reqGroup),
+    },
+  );
+
+  await audit({
+    userId: user.id,
+    action: "assignment.cancelRequest",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: { hasNote: Boolean(parsedNote.data) },
+  });
+
+  revalidatePath("/worker");
+  revalidatePath("/admin/schedule");
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+  revalidatePath(`/admin/orders/${reqGroup}`);
   return { ok: true };
 }

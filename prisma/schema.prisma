@@ -314,6 +314,12 @@ model Assignment {
   status      AssignmentStatus @default(pending)
   assignedAt  DateTime         @default(now()) @map("assigned_at")
   confirmedAt DateTime?        @map("confirmed_at")
+  // Worker-initiated cancellation request: the worker asks the office to be
+  // taken off this shift (with a note). Admin approves (→ assignment released,
+  // order back to pending/grey) or rejects (→ flags cleared).
+  cancelRequested   Boolean   @default(false) @map("cancel_requested")
+  cancelNote        String?   @map("cancel_note")
+  cancelRequestedAt DateTime? @map("cancel_requested_at")
 
   order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)

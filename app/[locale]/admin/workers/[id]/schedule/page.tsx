@@ -115,6 +115,8 @@ export default async function AdminWorkerSchedulePage({
             address: a.address,
             scheduledHours: a.scheduledHours,
             confirmedHours: a.confirmedHours,
+            cancelRequested: a.cancelRequested,
+            cancelNote: a.cancelNote,
           }))}
           requiredHours={totals.requiredHours}
           carryoverHours={totals.carryoverHours}

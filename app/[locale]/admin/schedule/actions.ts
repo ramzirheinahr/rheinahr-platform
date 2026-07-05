@@ -485,21 +485,19 @@ export async function assignWorkerToOrder(
   return { ok: true };
 }
 
-// Remove a grid assignment. A signed Leistungsnachweis makes the deployment a
-// legal/financial record — those can never be removed here. If the order ends
-// up with no workers it falls back to "pending" so it re-enters the pipeline
-// (never deleted: the client may still see/expect the request).
-export async function unassignFromGrid(assignmentId: string): Promise<ActionState> {
-  let admin;
-  try {
-    admin = await assertAdmin();
-  } catch {
-    return { ok: false, error: "forbidden" };
-  }
+// Shared release: delete the assignment and, if the order is left with no other
+// workers, fall it back to "pending" so it re-enters the pipeline and shows in
+// the grey "offene Dienste" pool (never deleted — the client still expects it).
+// A signed Leistungsnachweis makes the deployment a legal record → never removed.
+async function releaseAssignmentCore(
+  assignmentId: string,
+  adminId: string,
+  notice: { title: string; body: string },
+  via: string,
+): Promise<ActionState> {
   if (!z.string().uuid().safeParse(assignmentId).success) {
     return { ok: false, error: "saveError" };
   }
-
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
     select: {
@@ -510,7 +508,6 @@ export async function unassignFromGrid(assignmentId: string): Promise<ActionStat
       order: {
         select: {
           id: true,
-          quantity: true,
           status: true,
           shiftDate: true,
           startTime: true,
@@ -529,32 +526,171 @@ export async function unassignFromGrid(assignmentId: string): Promise<ActionStat
   await prisma.$transaction(async (tx) => {
     await tx.assignment.delete({ where: { id: assignment.id } });
     if (others.length === 0 && !["completed", "confirmed", "cancelled"].includes(assignment.order.status)) {
-      await tx.order.update({
-        where: { id: assignment.order.id },
-        data: { status: "pending" },
-      });
+      await tx.order.update({ where: { id: assignment.order.id }, data: { status: "pending" } });
     }
     await tx.notification.create({
       data: {
         userId: assignment.worker.userId,
         type: "order_status_changed",
         channel: "in_app",
-        content: `${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime} · ${assignment.order.client.facilityName}`,
+        content: notice.body,
         link: workerShiftLink(),
       },
     });
   });
 
+  await pushToUsers([assignment.worker.userId], {
+    title: notice.title,
+    body: notice.body,
+    url: workerShiftLink(),
+  });
+
   await audit({
-    userId: admin.id,
+    userId: adminId,
     action: "assignment.delete",
     entity: "Assignment",
     entityId: assignmentId,
-    metadata: { workerId: assignment.workerId, via: "master-schedule" },
+    metadata: { workerId: assignment.workerId, via },
   });
 
   revalidatePath("/admin/schedule");
   revalidatePath("/admin/orders");
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+  revalidatePath("/worker");
+  return { ok: true };
+}
+
+// Remove a grid assignment (cell trash button). Releases the shift to the grey
+// pool for reassignment.
+export async function unassignFromGrid(assignmentId: string): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  const a = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      order: {
+        select: {
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          client: { select: { facilityName: true } },
+        },
+      },
+    },
+  });
+  const body = a
+    ? `${formatDateDE(a.order.shiftDate)} ${a.order.startTime}–${a.order.endTime} · ${a.order.client.facilityName}`
+    : "Einsatz freigegeben";
+  return releaseAssignmentCore(
+    assignmentId,
+    admin.id,
+    { title: "Einsatz freigegeben", body },
+    "master-schedule",
+  );
+}
+
+// Admin releases a worker from a shift on purpose (full authority) — same effect
+// as unassign; used from the worker hours page.
+export async function releaseAssignment(assignmentId: string): Promise<ActionState> {
+  return unassignFromGrid(assignmentId);
+}
+
+// Admin APPROVES a worker's cancellation request → release the shift to grey.
+export async function approveShiftCancellation(assignmentId: string): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  const a = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      order: {
+        select: {
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          client: { select: { facilityName: true } },
+        },
+      },
+    },
+  });
+  const label = a
+    ? `${formatDateDE(a.order.shiftDate)} ${a.order.startTime}–${a.order.endTime} · ${a.order.client.facilityName}`
+    : "";
+  return releaseAssignmentCore(
+    assignmentId,
+    admin.id,
+    { title: "Abmeldung genehmigt", body: `Abmeldung genehmigt – ${label}` },
+    "cancel-approve",
+  );
+}
+
+// Admin REJECTS a cancellation request → clear the flags, worker stays on the
+// shift and is told the request was declined.
+export async function rejectShiftCancellation(assignmentId: string): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  if (!z.string().uuid().safeParse(assignmentId).success) {
+    return { ok: false, error: "saveError" };
+  }
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      workerId: true,
+      worker: { select: { userId: true } },
+      order: {
+        select: {
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          client: { select: { facilityName: true } },
+        },
+      },
+    },
+  });
+  if (!assignment) return { ok: false, error: "saveError" };
+
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: { cancelRequested: false, cancelNote: null, cancelRequestedAt: null },
+  });
+
+  const body = `Abmeldung abgelehnt – ${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime} · ${assignment.order.client.facilityName}`;
+  await prisma.notification.create({
+    data: {
+      userId: assignment.worker.userId,
+      type: "order_status_changed",
+      channel: "in_app",
+      content: body,
+      link: workerShiftLink(),
+    },
+  });
+  await pushToUsers([assignment.worker.userId], {
+    title: "Abmeldung abgelehnt",
+    body,
+    url: workerShiftLink(),
+  });
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.cancelReject",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: { workerId: assignment.workerId },
+  });
+
+  revalidatePath("/admin/schedule");
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
   revalidatePath("/worker");
   return { ok: true };
 }

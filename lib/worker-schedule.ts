@@ -18,6 +18,8 @@ export type WorkerScheduleRow = {
   address: string | null;
   scheduledHours: number; // planned net hours (break deducted)
   confirmedHours: number | null; // client-confirmed net hours, null until signed
+  cancelRequested: boolean; // worker asked the office to be taken off this shift
+  cancelNote: string | null;
 };
 
 export type WorkerLeaveDay = {
@@ -111,6 +113,8 @@ export async function getWorkerMonthSchedule(
       a.serviceConfirmation?.hoursWorked != null
         ? Number(a.serviceConfirmation.hoursWorked)
         : null,
+    cancelRequested: a.cancelRequested,
+    cancelNote: a.cancelNote,
   }));
 
   const confirmed = rows.filter((r) => r.confirmedHours != null);

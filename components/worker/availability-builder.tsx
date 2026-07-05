@@ -11,6 +11,7 @@ import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
 import { Plus, Calendar, CheckCircle2, Download, MapPin, Save, X, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
+import { ShiftCancelControls } from "@/components/worker/shift-cancel-controls";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,9 @@ export type Assignment = {
   // Client-confirmed net hours (break already deducted) — null until the
   // facility signs the Leistungsnachweis.
   confirmedHours?: number | null;
+  // Worker asked the office to be taken off this shift (pending admin decision).
+  cancelRequested?: boolean;
+  cancelNote?: string | null;
 };
 
 export type InitialBlock = { date: string; startTime: string | null; endTime: string | null };
@@ -446,6 +450,17 @@ export function AvailabilityBuilder({
                             )}
                             {a.status === "pending" && !d.past ? (
                               <AssignmentActions assignmentId={a.id} />
+                            ) : null}
+                            {a.status !== "pending" ? (
+                              <ShiftCancelControls
+                                assignmentId={a.id}
+                                admin={Boolean(workerId)}
+                                status={a.status}
+                                signed={a.confirmedHours != null}
+                                isPast={d.past}
+                                cancelRequested={a.cancelRequested}
+                                cancelNote={a.cancelNote}
+                              />
                             ) : null}
                           </div>
                         </td>

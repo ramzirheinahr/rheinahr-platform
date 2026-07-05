@@ -33,6 +33,8 @@ import {
   createOpenOrderFromGrid,
   saveDayAvailabilityFromGrid,
   unassignFromGrid,
+  approveShiftCancellation,
+  rejectShiftCancellation,
 } from "@/app/[locale]/admin/schedule/actions";
 
 // The company's Excel Dienstplan, digital: two lines per worker per day —
@@ -239,8 +241,18 @@ export function MasterScheduleGrid({
                           cell.jobs.map((j) => (
                             <span
                               key={j.assignmentId}
-                              title={`${j.facilityName} · ${j.startTime}–${j.endTime}`}
-                              className={cn("px-0.5", j.status === "pending" && "opacity-50")}
+                              title={
+                                j.cancelRequested
+                                  ? `${av("cancelRequestedBadge")} · ${j.facilityName} · ${j.startTime}–${j.endTime}`
+                                  : `${j.facilityName} · ${j.startTime}–${j.endTime}`
+                              }
+                              className={cn(
+                                "px-0.5",
+                                j.status === "pending" && "opacity-50",
+                                // Amber ring flags a pending worker cancellation request.
+                                j.cancelRequested &&
+                                  "rounded bg-amber-400/30 text-amber-700 ring-1 ring-amber-500",
+                              )}
                             >
                               {j.letter}
                               {j.code}
@@ -688,6 +700,7 @@ function CellEditor({
   const t = useTranslations("masterSchedule");
   const oq = useTranslations("orderRequest");
   const c = useTranslations("common");
+  const av = useTranslations("availability");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -769,6 +782,20 @@ function CellEditor({
     });
   }
 
+  function resolveCancel(assignmentId: string, approve: boolean) {
+    startTransition(async () => {
+      const res = approve
+        ? await approveShiftCancellation(assignmentId)
+        : await rejectShiftCancellation(assignmentId);
+      if (res.ok) {
+        toast.success(approve ? av("cancelApproved") : av("cancelRejected"));
+        router.refresh();
+      } else {
+        toast.error(t("saveError"));
+      }
+    });
+  }
+
   const shiftLabel: Record<ShiftKey, string> = {
     early: oq("preset_early"),
     late: oq("preset_late"),
@@ -826,38 +853,76 @@ function CellEditor({
             {cell.jobs.map((j) => (
               <li
                 key={j.assignmentId}
-                className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">
-                    <span className="font-mono font-bold text-red-600">
-                      {j.letter}
-                      {j.code}
-                    </span>{" "}
-                    · {j.facilityName}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {j.startTime}–{j.endTime}
-                    {j.ward ? <> · {oq("ward")}: {j.ward}</> : null}
-                  </div>
-                </div>
-                {j.clientConfirmed ? (
-                  <Badge className="shrink-0 gap-1 border-transparent bg-emerald-600 text-white">
-                    <CheckCircle2 className="size-3" />
-                    {t("confirmedShort")}
-                  </Badge>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0 text-destructive hover:bg-destructive/10"
-                    disabled={pending}
-                    onClick={() => remove(j.assignmentId)}
-                    aria-label={c("delete")}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                className={cn(
+                  "space-y-1.5 rounded-md border px-2 py-1.5",
+                  j.cancelRequested && "border-amber-500/60 bg-amber-500/5",
                 )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">
+                      <span className="font-mono font-bold text-red-600">
+                        {j.letter}
+                        {j.code}
+                      </span>{" "}
+                      · {j.facilityName}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {j.startTime}–{j.endTime}
+                      {j.ward ? <> · {oq("ward")}: {j.ward}</> : null}
+                    </div>
+                  </div>
+                  {j.clientConfirmed ? (
+                    <Badge className="shrink-0 gap-1 border-transparent bg-emerald-600 text-white">
+                      <CheckCircle2 className="size-3" />
+                      {t("confirmedShort")}
+                    </Badge>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0 text-destructive hover:bg-destructive/10"
+                      disabled={pending}
+                      onClick={() => remove(j.assignmentId)}
+                      aria-label={c("delete")}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Pending worker cancellation request → note + approve/reject. */}
+                {j.cancelRequested && !j.clientConfirmed ? (
+                  <div className="space-y-1.5 border-t border-amber-500/30 pt-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+                      <TriangleAlert className="size-3.5" />
+                      {av("cancelRequestedBadge")}
+                    </div>
+                    {j.cancelNote ? (
+                      <p className="text-xs text-muted-foreground">“{j.cancelNote}”</p>
+                    ) : null}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="h-7 flex-1 gap-1"
+                        disabled={pending}
+                        onClick={() => resolveCancel(j.assignmentId, true)}
+                      >
+                        <CheckCircle2 className="size-3.5" />
+                        {av("approveCancel")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 flex-1 gap-1"
+                        disabled={pending}
+                        onClick={() => resolveCancel(j.assignmentId, false)}
+                      >
+                        {av("rejectCancel")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>

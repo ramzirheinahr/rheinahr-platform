@@ -128,6 +128,8 @@ export type GridJob = {
   ward: string | null; // Wohnbereich/Station from Order.notes
   status: "pending" | "confirmed";
   clientConfirmed: boolean; // Leistungsnachweis signed
+  cancelRequested: boolean; // worker asked to be taken off (awaiting admin)
+  cancelNote: string | null;
 };
 
 export type GridDay = {

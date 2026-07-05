@@ -55,6 +55,8 @@ export async function getMasterSchedule(
           select: {
             id: true,
             status: true,
+            cancelRequested: true,
+            cancelNote: true,
             order: {
               select: {
                 id: true,
@@ -141,6 +143,8 @@ export async function getMasterSchedule(
         ward: a.order.notes,
         status: a.status as "pending" | "confirmed",
         clientConfirmed: a.serviceConfirmation !== null,
+        cancelRequested: a.cancelRequested,
+        cancelNote: a.cancelNote,
       });
     }
     for (const d of days) {
