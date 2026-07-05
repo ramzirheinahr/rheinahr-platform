@@ -571,7 +571,8 @@
     "confirmedTotal": "مؤكد",
     "carryoverLabel": "رصيد سابق",
     "totalRequiredLabel": "إجمالي المطلوب",
-    "creditLabel": "رصيد إضافي"
+    "creditLabel": "رصيد إضافي",
+    "acceptedTotal": "مؤكد (بانتظار التوقيع)"
   },
   "cookies": {
     "message": "نستخدم فقط ملفات تعريف ارتباط ضرورية تقنيًا لتمكين تسجيل الدخول وتشغيل المنصة.",

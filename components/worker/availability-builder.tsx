@@ -104,11 +104,17 @@ export function AvailabilityBuilder({
   const totals = useMemo(() => {
     const confirmed = (assignments || []).filter((a) => a.confirmedHours != null);
     const leaves = (leaveDays || []).filter((l) => l.status === "approved" && l.hours != null);
+    // Accepted by the worker but not yet client-signed → the yellow figure.
+    const accepted = (assignments || []).filter(
+      (a) => a.status === "confirmed" && a.confirmedHours == null && a.scheduledHours != null,
+    );
     return {
-      hours: 
+      hours:
         confirmed.reduce((sum, a) => sum + (a.confirmedHours ?? 0), 0) +
         leaves.reduce((sum, l) => sum + (l.hours ?? 0), 0),
       shifts: confirmed.length,
+      acceptedHours: accepted.reduce((sum, a) => sum + (a.scheduledHours ?? 0), 0),
+      acceptedShifts: accepted.length,
     };
   }, [assignments, leaveDays]);
 
@@ -508,7 +514,7 @@ export function AvailabilityBuilder({
               );
             })}
           </tbody>
-          {totals.shifts > 0 || requiredHours !== undefined ? (
+          {totals.shifts > 0 || totals.acceptedHours > 0 || requiredHours !== undefined ? (
             <tfoot>
               <tr className="border-t-2 bg-emerald-500/10">
                 <td colSpan={6} className="p-3">
@@ -543,6 +549,12 @@ export function AvailabilityBuilder({
                           </div>
                         )}
                       </>
+                    )}
+                    {totals.acceptedHours > 0 && (
+                      <div className="flex justify-between w-52 text-sm">
+                        <span className="text-muted-foreground">{t("acceptedTotal")}:</span>
+                        <span className="font-bold text-amber-600">{hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}</span>
+                      </div>
                     )}
                     <div className="flex justify-between w-52 text-sm">
                       <span className="text-muted-foreground">{t("confirmedTotal")}:</span>

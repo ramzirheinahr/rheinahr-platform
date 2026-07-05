@@ -571,7 +571,8 @@
     "confirmedTotal": "Confirmed",
     "carryoverLabel": "Carryover",
     "totalRequiredLabel": "Total required",
-    "creditLabel": "Credit"
+    "creditLabel": "Credit",
+    "acceptedTotal": "Confirmed (pending)"
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",
