@@ -22,7 +22,9 @@
     "search": "بحث",
     "none": "—",
     "exportData": "تصدير بياناتي",
-    "view": "عرض"
+    "view": "عرض",
+    "expandMenu": "توسيع القائمة",
+    "collapseMenu": "طي القائمة"
   },
   "landing": {
     "nav": {
@@ -308,7 +310,26 @@
     "messageHint": "يمكنك تعديل الطلبية بنفسك حتى 4 ساعات قبل أول وردية. بعد ذلك أرسل لنا طلب التعديل من هنا وسنعاود التواصل معك فورًا.",
     "messagePlaceholder": "رسالتك بخصوص هذه الطلبية …",
     "messageSend": "إرسال",
-    "messageSent": "تم إرسال الرسالة."
+    "messageSent": "تم إرسال الرسالة.",
+    "cancelRequest": "إلغاء الطلبية",
+    "cancelConfirmTitle": "هل تريد إلغاء هذه الطلبية؟",
+    "cancelConfirmDesc": "سيتم إلغاء الطلبية وكل وردياتها (بعلامة حمراء) مع بقائها محفوظة. سيُخطَر المكتب بذلك.",
+    "cancelledToast": "تم إلغاء الطلبية.",
+    "cancelLocked": "لا يمكن الإلغاء – هناك وردية مؤكدة أو جارية بالفعل.",
+    "selectShift": "تحديد الوردية",
+    "selectedCount": "{count} وردية محددة",
+    "selectAll": "تحديد الكل ({count})",
+    "assignSelected": "تعيين موظفين",
+    "clearSelection": "إلغاء التحديد",
+    "bulkAssignTitle": "تعيين عدة ورديات",
+    "bulkAssignDesc": "عرض {count} وردية محددة على عدة موظفين.",
+    "chooseWorkers": "اختر الموظفين",
+    "nAvailable": "{n} متاح",
+    "nBusy": "{n} مشغول",
+    "nOff": "{n} غير متاح",
+    "forceOverrideHint": "التعيين حتى مع التعارض (تجاوز الموظفين المشغولين/غير المتاحين).",
+    "assignToShifts": "العرض على {workers} موظف في {shifts} وردية",
+    "bulkResult": "تم إنشاء {created} تعيين، وتخطّي {skipped}."
   },
   "orderRequest": {
     "prev": "السابق",
@@ -362,7 +383,8 @@
     "cat_holiday": "عطلة",
     "netTotal": "المجموع الصافي",
     "vat": "+ ١٩٪ ضريبة القيمة المضافة",
-    "grossTotal": "المجموع الإجمالي"
+    "grossTotal": "المجموع الإجمالي",
+    "cancelShift": "إزالة الوردية"
   },
   "confirmations": {
     "title": "إثباتات الخدمة",
@@ -636,6 +658,12 @@
     "requiredHoursLabel": "المطلوب",
     "remainingHoursLabel": "المتبقي",
     "leavePending": "إجازة قيد المتابعة",
-    "leaveApproved": "إجازة عدم الإزعاج"
+    "leaveApproved": "إجازة عدم الإزعاج",
+    "addRow": "إضافة صف",
+    "newOrderTitle": "إنشاء طلب وردية",
+    "newOrderAria": "إنشاء وردية مفتوحة",
+    "quantity": "العدد",
+    "createOrder": "إنشاء الوردية",
+    "orderCreated": "تم إنشاء الوردية."
   }
 }

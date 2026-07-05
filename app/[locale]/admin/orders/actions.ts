@@ -9,7 +9,14 @@ import {
   orderRequestSchema,
   type OrderRequestInput,
 } from "@/lib/validations";
-import { diffRequestShifts } from "@/lib/orders";
+import {
+  diffRequestShifts,
+  isRequestCancelable,
+  candidatesForShift,
+  candidatesForOrders,
+  type BulkCandidate,
+  type BulkShift,
+} from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
 import type { OrderStatus, Qualification } from "@prisma/client";
 
@@ -184,12 +191,12 @@ export async function updateOrderRequestAsAdmin(
   return { ok: true };
 }
 
-// Admin deleting a whole request (all shifts sharing the requestGroupId).
-// Admins are not bound to the client's cutoff — a request can be removed at any
-// time. Cascades assignments + service confirmations via the Order relation;
-// the change-request conversation, if any, is removed too. The client is
-// notified that the request was removed from their account.
-export async function deleteOrderRequestAsAdmin(
+// Admin cancelling a whole request (all shifts sharing the requestGroupId) — a
+// SOFT cancel: the records stay in the database (status → cancelled), nothing is
+// deleted. Admins are not bound to the client's cutoff, but a request whose
+// shifts already ran/were confirmed cannot be cancelled. The client is notified
+// that the request was cancelled on their account.
+export async function cancelOrderRequestAsAdmin(
   requestGroupId: string,
 ): Promise<ActionState> {
   let admin;
@@ -201,19 +208,20 @@ export async function deleteOrderRequestAsAdmin(
 
   const existing = await prisma.order.findMany({
     where: { requestGroupId },
-    select: { id: true, clientId: true },
+    select: { id: true, clientId: true, status: true },
   });
   if (existing.length === 0) return { ok: false, error: "saveError" };
+  if (!isRequestCancelable(existing)) return { ok: false, error: "locked" };
 
   const client = await prisma.client.findUnique({
     where: { id: existing[0].clientId },
     select: { userId: true, facilityName: true },
   });
 
-  await prisma.$transaction([
-    prisma.order.deleteMany({ where: { requestGroupId } }),
-    prisma.conversation.deleteMany({ where: { requestGroupId } }),
-  ]);
+  await prisma.order.updateMany({
+    where: { requestGroupId, status: { not: "cancelled" } },
+    data: { status: "cancelled" },
+  });
 
   if (client?.userId) {
     await prisma.notification.create({
@@ -221,20 +229,21 @@ export async function deleteOrderRequestAsAdmin(
         userId: client.userId,
         type: "order_status_changed",
         channel: "in_app",
-        content: `${client.facilityName}: Anfrage gelöscht – ${existing.length} Schicht(en)`,
+        content: `${client.facilityName}: Anfrage storniert – ${existing.length} Schicht(en)`,
       },
     });
   }
 
   await audit({
     userId: admin.id,
-    action: "order.request.delete",
+    action: "order.request.cancel",
     entity: "Order",
     entityId: requestGroupId,
     metadata: { byAdmin: true, shifts: existing.length },
   });
 
   revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${requestGroupId}`);
   revalidatePath("/client/orders");
   return { ok: true };
 }
@@ -333,4 +342,181 @@ export async function assignWorker(
   revalidatePath(`/admin/orders/${orderId}`);
   revalidatePath("/admin/orders");
   return { ok: true };
+}
+
+// Load the workers eligible for a set of selected shifts, with per-worker
+// availability counts, so the bulk-assign dialog can offer several shifts to
+// several workers at once. Admin-only.
+export async function getBulkCandidates(orderIds: string[]): Promise<
+  { ok: true; shifts: BulkShift[]; candidates: BulkCandidate[] } | { ok: false; error: string }
+> {
+  try {
+    await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  if (!Array.isArray(orderIds) || orderIds.length === 0) {
+    return { ok: false, error: "saveError" };
+  }
+  const { shifts, candidates } = await candidatesForOrders(orderIds);
+  return { ok: true, shifts, candidates };
+}
+
+// Bulk "offer to all": create a pending assignment for every selected worker on
+// every selected shift they qualify for. Conflicting shifts (worker booked
+// elsewhere = busy, or not declared available = unavailable) are skipped unless
+// `force` is set. Already-assigned pairs and fully-confirmed shifts are skipped.
+// Each new assignment notifies the worker; workers accept/decline and the
+// shift's headcount caps acceptance (respondAssignment). Returns how many
+// offers were created vs skipped.
+export async function bulkAssignWorkers(
+  orderIds: string[],
+  workerIds: string[],
+  force: boolean,
+): Promise<ActionState & { created?: number; skipped?: number }> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  if (
+    !Array.isArray(orderIds) ||
+    !Array.isArray(workerIds) ||
+    orderIds.length === 0 ||
+    workerIds.length === 0
+  ) {
+    return { ok: false, error: "saveError" };
+  }
+
+  const [orders, workers] = await Promise.all([
+    prisma.order.findMany({
+      where: { id: { in: orderIds } },
+      select: {
+        id: true,
+        status: true,
+        shiftDate: true,
+        startTime: true,
+        endTime: true,
+        requiredQualification: true,
+        quantity: true,
+        assignments: { select: { workerId: true, status: true } },
+      },
+    }),
+    prisma.worker.findMany({
+      where: { id: { in: workerIds } },
+      select: { id: true, userId: true, qualification: true },
+    }),
+  ]);
+  const workerById = new Map(workers.map((w) => [w.id, w]));
+
+  type NewOffer = {
+    orderId: string;
+    workerId: string;
+    userId: string;
+    shiftDate: Date;
+    startTime: string;
+    endTime: string;
+  };
+  const offers: NewOffer[] = [];
+  const advanceIds: string[] = [];
+  let skipped = 0;
+
+  for (const order of orders) {
+    const confirmed = order.assignments.filter((a) => a.status === "confirmed").length;
+    // No point offering a cancelled or already-fully-confirmed shift.
+    if (order.status === "cancelled" || confirmed >= order.quantity) {
+      skipped += workerIds.length;
+      continue;
+    }
+    // Per-shift eligibility (available/busy/unavailable); excludes wrong-qual and
+    // workers already on this shift.
+    const cands = await candidatesForShift({
+      id: order.id,
+      shiftDate: order.shiftDate,
+      startTime: order.startTime,
+      endTime: order.endTime,
+      requiredQualification: order.requiredQualification,
+    });
+    const statusByWorker = new Map(cands.map((c) => [c.workerId, c.status]));
+    const alreadyOn = new Set(
+      order.assignments.filter((a) => a.status !== "declined").map((a) => a.workerId),
+    );
+
+    let addedForOrder = 0;
+    for (const wid of workerIds) {
+      const w = workerById.get(wid);
+      if (
+        !w ||
+        w.qualification !== order.requiredQualification ||
+        alreadyOn.has(wid)
+      ) {
+        skipped += 1;
+        continue;
+      }
+      const status = statusByWorker.get(wid);
+      if (status === undefined || (status !== "available" && !force)) {
+        skipped += 1;
+        continue;
+      }
+      offers.push({
+        orderId: order.id,
+        workerId: wid,
+        userId: w.userId,
+        shiftDate: order.shiftDate,
+        startTime: order.startTime,
+        endTime: order.endTime,
+      });
+      addedForOrder += 1;
+    }
+    if (
+      addedForOrder > 0 &&
+      ["pending", "review", "availability_check"].includes(order.status)
+    ) {
+      advanceIds.push(order.id);
+    }
+  }
+
+  if (offers.length === 0) return { ok: true, created: 0, skipped };
+
+  await prisma.$transaction(async (tx) => {
+    for (const off of offers) {
+      await tx.assignment.create({
+        data: { orderId: off.orderId, workerId: off.workerId, status: "pending" },
+      });
+      await tx.notification.create({
+        data: {
+          userId: off.userId,
+          type: "worker_assigned",
+          channel: "in_app",
+          content: `${formatDateDE(off.shiftDate)} ${off.startTime}–${off.endTime}`,
+        },
+      });
+    }
+    if (advanceIds.length) {
+      await tx.order.updateMany({
+        where: { id: { in: advanceIds } },
+        data: { status: "assigned" },
+      });
+    }
+  });
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.bulkCreate",
+    entity: "Order",
+    entityId: orderIds[0],
+    metadata: {
+      orders: orderIds.length,
+      workers: workerIds.length,
+      created: offers.length,
+      skipped,
+      force,
+    },
+  });
+
+  const groups = new Set(orderIds);
+  for (const gid of groups) revalidatePath(`/admin/orders/${gid}`);
+  revalidatePath("/admin/orders");
+  return { ok: true, created: offers.length, skipped };
 }

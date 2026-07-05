@@ -26,13 +26,14 @@ export default async function AdminLayout({
   // work only their own type) plus an "all types" overview. Accounts are managed
   // inside the worker/client pages (create + edit), so there's no accounts entry.
   const nav = [
-    { href: "/admin", label: t("dashboard") },
-    { href: "/admin/inbox", label: t("inbox") },
-    { href: "/admin/orders", label: t("orders") },
-    { href: "/admin/schedule", label: t("masterSchedule") },
+    { href: "/admin", label: t("dashboard"), icon: "dashboard" },
+    { href: "/admin/inbox", label: t("inbox"), icon: "inbox" },
+    { href: "/admin/orders", label: t("orders"), icon: "orders" },
+    { href: "/admin/schedule", label: t("masterSchedule"), icon: "schedule" },
     {
       href: "/admin/workers",
       label: t("workers"),
+      icon: "workers",
       children: [
         { href: "/admin/workers", label: tw("allTypes") },
         ...qualifications.map((q) => ({
@@ -41,9 +42,9 @@ export default async function AdminLayout({
         })),
       ],
     },
-    { href: "/admin/clients", label: t("clients") },
-    { href: "/admin/reports", label: tr("title") },
-    { href: "/admin/invoicing", label: ti("title") },
+    { href: "/admin/clients", label: t("clients"), icon: "clients" },
+    { href: "/admin/reports", label: tr("title"), icon: "reports" },
+    { href: "/admin/invoicing", label: ti("title"), icon: "invoicing" },
   ];
 
   return (

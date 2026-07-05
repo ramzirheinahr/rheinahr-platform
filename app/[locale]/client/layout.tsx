@@ -19,10 +19,10 @@ export default async function ClientLayout({
   const t = await getTranslations("portal");
 
   const nav = [
-    { href: "/client", label: t("dashboard") },
-    { href: "/client/inbox", label: t("inbox") },
-    { href: "/client/orders", label: t("orders") },
-    { href: "/client/schedule", label: t("clientSchedule") },
+    { href: "/client", label: t("dashboard"), icon: "dashboard" },
+    { href: "/client/inbox", label: t("inbox"), icon: "inbox" },
+    { href: "/client/orders", label: t("orders"), icon: "orders" },
+    { href: "/client/schedule", label: t("clientSchedule"), icon: "schedule" },
   ];
 
   return (

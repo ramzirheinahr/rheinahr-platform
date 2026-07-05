@@ -131,6 +131,7 @@ export default async function AdminMasterSchedulePage({
         <MasterScheduleGrid
           year={year}
           month={month}
+          qualification={qualification}
           rows={rows}
           facilities={facilities}
           unassigned={unassigned}

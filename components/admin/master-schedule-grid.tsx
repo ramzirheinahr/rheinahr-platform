@@ -18,16 +18,19 @@ import {
 import { BookText, CheckCircle2, Plus, Trash2, TriangleAlert } from "lucide-react";
 import {
   layoutUnassigned,
+  SHIFT_PRESETS,
   type GridFacility,
   type GridWorkerRow,
   type ShiftKey,
   type UnassignedShift,
 } from "@/lib/master-schedule-core";
 import type { Candidate } from "@/lib/orders";
+import type { Qualification } from "@prisma/client";
 import {
   assignFromGrid,
   assignWorkerToOrder,
   candidatesForOrder,
+  createOpenOrderFromGrid,
   saveDayAvailabilityFromGrid,
   unassignFromGrid,
 } from "@/app/[locale]/admin/schedule/actions";
@@ -47,12 +50,14 @@ const field =
 export function MasterScheduleGrid({
   year,
   month,
+  qualification,
   rows,
   facilities,
   unassigned,
 }: {
   year: number;
   month: number;
+  qualification: Qualification;
   rows: GridWorkerRow[];
   facilities: GridFacility[];
   unassigned: UnassignedShift[];
@@ -106,6 +111,10 @@ export function MasterScheduleGrid({
   const targetRow = target ? rows.find((r) => r.workerId === target.workerId) : undefined;
   // Grey-section assign dialog: the open shift the admin clicked.
   const [openShift, setOpenShift] = useState<UnassignedShift | null>(null);
+  // Grey-section "create order": the empty cell (day) the admin clicked.
+  const [newOrderDay, setNewOrderDay] = useState<number | null>(null);
+  // Extra blank rows in the grey section so several new orders can be entered.
+  const [extraRows, setExtraRows] = useState(1);
 
   if (rows.length === 0) {
     return <p className="rounded-lg border p-6 text-sm text-muted-foreground">{t("empty")}</p>;
@@ -234,68 +243,85 @@ export function MasterScheduleGrid({
               </Fragment>
             ))}
           </tbody>
-          {/* Grey section — requested shifts still without a worker. Click a
-              cell to pick one (mirrors the paper sheet's "offene Dienste"). */}
-          {unassignedRows.length > 0 ? (
-            <tbody className="bg-muted">
-              <tr>
-                <th className="sticky start-0 z-10 border border-border bg-muted p-1.5 text-start text-[11px] font-semibold text-muted-foreground">
-                  {t("openShifts")}
-                </th>
-                {days.map((d) => (
-                  <td
-                    key={d.day}
-                    className={cn("border border-border bg-muted", greyTint(d))}
-                  />
-                ))}
-              </tr>
-              {unassignedRows.map((row, ri) => (
-                <tr key={ri}>
-                  <th className="sticky start-0 z-10 border border-border bg-muted p-1 ps-3 text-start text-[10px] font-normal text-muted-foreground">
-                    {ri === 0 ? t("openShiftsRow") : ""}
-                  </th>
-                  {row.map((cellShift, i) => {
-                    const d = days[i];
-                    return (
-                      <td
-                        key={i}
-                        role={cellShift ? "button" : undefined}
-                        tabIndex={cellShift ? 0 : undefined}
-                        onClick={cellShift ? () => setOpenShift(cellShift) : undefined}
-                        onKeyDown={
-                          cellShift
-                            ? (e) => {
-                                if (e.key === "Enter") setOpenShift(cellShift);
-                              }
-                            : undefined
-                        }
-                        title={
-                          cellShift
-                            ? `${cellShift.facilityName} · ${cellShift.startTime}–${cellShift.endTime}`
-                            : undefined
-                        }
-                        className={cn(
-                          "h-6 whitespace-nowrap border border-border bg-muted p-0.5 text-center align-middle font-semibold text-foreground/80",
-                          greyTint(d),
-                          cellShift && "cursor-pointer hover:ring-2 hover:ring-ring/60 hover:ring-inset",
-                        )}
-                      >
-                        {cellShift ? (
-                          <>
-                            {cellShift.letter}
-                            {cellShift.code}
-                            {cellShift.remaining > 1 ? (
-                              <sup className="ms-0.5 text-[8px]">×{cellShift.remaining}</sup>
-                            ) : null}
-                          </>
-                        ) : null}
-                      </td>
-                    );
-                  })}
-                </tr>
+          {/* Grey section — requested shifts still without a worker. A shift
+              cell opens the assign dialog; an EMPTY cell opens "create order",
+              so the admin can fill a client's request straight on the sheet.
+              Extra blank rows (+ button) allow several new orders at once. */}
+          <tbody className="bg-muted">
+            <tr>
+              <th className="sticky start-0 z-10 border border-border bg-muted p-1.5 text-start text-[11px] font-semibold text-muted-foreground">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span>{t("openShifts")}</span>
+                  <button
+                    type="button"
+                    onClick={() => setExtraRows((n) => n + 1)}
+                    aria-label={t("addRow")}
+                    title={t("addRow")}
+                    className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                </div>
+              </th>
+              {days.map((d) => (
+                <td
+                  key={d.day}
+                  className={cn("border border-border bg-muted", greyTint(d))}
+                />
               ))}
-            </tbody>
-          ) : null}
+            </tr>
+            {[
+              ...unassignedRows,
+              ...Array.from({ length: extraRows }, () => [] as (UnassignedShift | null)[]),
+            ].map((row, ri) => (
+              <tr key={ri}>
+                <th className="sticky start-0 z-10 border border-border bg-muted p-1 ps-3 text-start text-[10px] font-normal text-muted-foreground">
+                  {ri === 0 ? t("openShiftsRow") : ""}
+                </th>
+                {days.map((d, i) => {
+                  const cellShift = row[i] ?? null;
+                  return (
+                    <td
+                      key={i}
+                      role="button"
+                      tabIndex={0}
+                      onClick={
+                        cellShift
+                          ? () => setOpenShift(cellShift)
+                          : () => setNewOrderDay(d.day)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        if (cellShift) setOpenShift(cellShift);
+                        else setNewOrderDay(d.day);
+                      }}
+                      title={
+                        cellShift
+                          ? `${cellShift.facilityName} · ${cellShift.startTime}–${cellShift.endTime}`
+                          : t("newOrderAria")
+                      }
+                      className={cn(
+                        "group h-6 cursor-pointer whitespace-nowrap border border-border bg-muted p-0.5 text-center align-middle font-semibold text-foreground/80 hover:ring-2 hover:ring-ring/60 hover:ring-inset",
+                        greyTint(d),
+                      )}
+                    >
+                      {cellShift ? (
+                        <>
+                          {cellShift.letter}
+                          {cellShift.code}
+                          {cellShift.remaining > 1 ? (
+                            <sup className="ms-0.5 text-[8px]">×{cellShift.remaining}</sup>
+                          ) : null}
+                        </>
+                      ) : (
+                        <Plus className="mx-auto size-3 text-muted-foreground/0 group-hover:text-muted-foreground/70" />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
 
@@ -321,6 +347,21 @@ export function MasterScheduleGrid({
               key={openShift.orderId}
               shift={openShift}
               onDone={() => setOpenShift(null)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={newOrderDay !== null} onOpenChange={(open) => !open && setNewOrderDay(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+          {newOrderDay !== null ? (
+            <NewOrderEditor
+              key={newOrderDay}
+              date={`${year}-${pad(month)}-${pad(newOrderDay)}`}
+              qualification={qualification}
+              facilities={facilities}
+              locale={locale}
+              onDone={() => setNewOrderDay(null)}
             />
           ) : null}
         </DialogContent>
@@ -486,6 +527,136 @@ function OpenShiftEditor({
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Grey-section "create order" dialog: fill a client's request straight on the
+// sheet. Picks facility + shift window + ward + headcount for the clicked day
+// and the current qualification tab, then creates a real open Order.
+function NewOrderEditor({
+  date,
+  qualification,
+  facilities,
+  locale,
+  onDone,
+}: {
+  date: string;
+  qualification: Qualification;
+  facilities: GridFacility[];
+  locale: string;
+  onDone: () => void;
+}) {
+  const t = useTranslations("masterSchedule");
+  const oq = useTranslations("orderRequest");
+  const c = useTranslations("common");
+  const eq = useTranslations("enums.qualification");
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  const [shift, setShift] = useState<ShiftKey>("early");
+  const [clientId, setClientId] = useState("");
+  const [ward, setWard] = useState("");
+  const [quantity, setQuantity] = useState(1);
+
+  const dateLabel = new Intl.DateTimeFormat(locale, {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T00:00:00Z`));
+
+  const shiftLabel: Record<ShiftKey, string> = {
+    early: oq("preset_early"),
+    late: oq("preset_late"),
+    night: oq("preset_night"),
+  };
+
+  function create() {
+    if (!clientId) return;
+    startTransition(async () => {
+      const res = await createOpenOrderFromGrid({
+        clientId,
+        date,
+        shift,
+        qualification,
+        ward: ward.trim() || undefined,
+        quantity,
+      });
+      if (res.ok) {
+        toast.success(t("orderCreated"));
+        router.refresh();
+        onDone();
+      } else {
+        toast.error(t("saveError"));
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-5">
+      <DialogHeader>
+        <DialogTitle>{t("newOrderTitle")}</DialogTitle>
+        <DialogDescription>
+          {dateLabel} · {eq(qualification)}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
+        <select
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          className={field}
+          aria-label={t("facility")}
+        >
+          <option value="">{t("selectFacility")}</option>
+          {facilities.map((f) => (
+            <option key={f.clientId} value={f.clientId}>
+              {f.code} — {f.name}
+            </option>
+          ))}
+        </select>
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={shift}
+            onChange={(e) => setShift(e.target.value as ShiftKey)}
+            className={field}
+            aria-label={t("shift")}
+          >
+            {(["early", "late", "night"] as const).map((k) => (
+              <option key={k} value={k}>
+                {SHIFT_LETTER[k]} · {shiftLabel[k]} ({SHIFT_PRESETS[k].start}–{SHIFT_PRESETS[k].end})
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={quantity}
+            onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+            className={field}
+            aria-label={t("quantity")}
+            title={t("quantity")}
+          />
+        </div>
+        <input
+          value={ward}
+          onChange={(e) => setWard(e.target.value)}
+          placeholder={oq("ward")}
+          className={field}
+        />
+        <Button
+          size="sm"
+          className="w-full gap-1.5"
+          disabled={pending || !clientId}
+          onClick={create}
+        >
+          <Plus className="size-4" />
+          {pending ? c("loading") : t("createOrder")}
+        </Button>
+      </div>
     </div>
   );
 }

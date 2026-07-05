@@ -1,6 +1,7 @@
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { LogoutButton } from "@/components/portal/logout-button";
 import { PortalNav, type NavItem } from "@/components/portal/portal-nav";
+import { PortalSidebar } from "@/components/portal/portal-sidebar";
 import {
   NotificationsBell,
   type NotificationItem,
@@ -96,9 +97,7 @@ export async function PortalShell({
       </nav>
 
       <div className="flex flex-1">
-        <aside className="hidden w-56 shrink-0 border-e p-4 md:block">
-          <PortalNav items={navWithBadge} />
-        </aside>
+        <PortalSidebar items={navWithBadge} />
         <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>

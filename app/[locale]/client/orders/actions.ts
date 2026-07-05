@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { diffRequestShifts, isRequestEditable } from "@/lib/orders";
+import { diffRequestShifts, isRequestEditable, isRequestCancelable } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
 import { orderRequestSchema, type OrderRequestInput } from "@/lib/validations";
 import type { Qualification } from "@prisma/client";
@@ -136,12 +136,14 @@ export async function updateOrderRequest(
   return { ok: true };
 }
 
-// Delete a whole request (all shifts sharing the requestGroupId). Allowed under
-// the same editable window as editing (until 4h before the first shift, and not
-// once a shift ran/was confirmed). Cascades assignments + service confirmations
-// via the Order relation; the change-request conversation, if any, is removed
-// too. Admins are notified so they can drop anything already in their pipeline.
-export async function deleteOrderRequest(
+// Cancel a whole request (all shifts sharing the requestGroupId) — a SOFT
+// cancel: the records stay in the database (status → cancelled) so the history
+// is preserved; nothing is deleted. Allowed until a shift is confirmed / running
+// / completed (isRequestCancelable), which is broader than the edit cutoff since
+// cancelling is non-destructive. The office (admins) is alerted twice: an in-app
+// notification AND a message in the request's inbox thread, so it lands in their
+// mailbox and can't be missed.
+export async function cancelOrderRequest(
   requestGroupId: string,
 ): Promise<ActionState> {
   const user = await getCurrentUser();
@@ -155,30 +157,61 @@ export async function deleteOrderRequest(
 
   const existing = await prisma.order.findMany({
     where: { requestGroupId, clientId: client.id },
-    select: { id: true, status: true, shiftDate: true, startTime: true, endTime: true },
+    orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
+    select: { id: true, status: true, shiftDate: true },
   });
   if (existing.length === 0) return { ok: false, error: "forbidden" };
-  if (!isRequestEditable(existing)) return { ok: false, error: "locked" };
+  if (!isRequestCancelable(existing)) return { ok: false, error: "locked" };
 
-  await prisma.$transaction([
-    prisma.order.deleteMany({ where: { requestGroupId, clientId: client.id } }),
-    prisma.conversation.deleteMany({ where: { requestGroupId } }),
-  ]);
+  await prisma.order.updateMany({
+    where: { requestGroupId, clientId: client.id, status: { not: "cancelled" } },
+    data: { status: "cancelled" },
+  });
 
+  const dateLabel = formatDateDE(existing[0].shiftDate);
+
+  // In-app notification to every admin.
   await notifyAdmins(
     "order_status_changed",
-    `${client.facilityName}: Anfrage gelöscht – ${existing.length} Schicht(en)`,
+    `${client.facilityName}: Anfrage storniert – ${existing.length} Schicht(en)`,
   );
+
+  // Message into the request's inbox thread so it reaches the office mailbox.
+  const { getOrCreateRequestConversation } = await import("@/lib/inbox");
+  const conversation = await getOrCreateRequestConversation(
+    requestGroupId,
+    user.id,
+    dateLabel,
+  );
+  const now = new Date();
+  const body = `Diese Anfrage (${dateLabel}, ${existing.length} Schicht(en)) wurde storniert.`;
+  await prisma.$transaction([
+    prisma.message.create({
+      data: { conversationId: conversation.id, senderId: user.id, body },
+    }),
+    prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { lastMessageAt: now },
+    }),
+    prisma.conversationParticipant.update({
+      where: {
+        conversationId_userId: { conversationId: conversation.id, userId: user.id },
+      },
+      data: { lastReadAt: now },
+    }),
+  ]);
+  await notifyAdmins("new_message", `${client.facilityName} (${dateLabel}): ${body}`);
 
   await audit({
     userId: user.id,
-    action: "order.request.delete",
+    action: "order.request.cancel",
     entity: "Order",
     entityId: requestGroupId,
     metadata: { shifts: existing.length },
   });
 
   revalidatePath("/client/orders");
+  revalidatePath(`/client/orders/${requestGroupId}`);
   revalidatePath("/admin/orders");
   return { ok: true };
 }
@@ -309,9 +342,16 @@ const BUCKET = "confirmations";
 
 // The client digitally confirms a performed shift (Leistungsnachweis).
 // Tamper-evident: records who, when, and the request IP (GDPR audit path).
+// Admins/super_admins may confirm on the client's behalf (e.g. facility signed
+// on paper / by phone) — for any shift regardless of date (past/present/future).
+// The audit log keeps the acting user (actorRole), so on-behalf confirmations
+// stay traceable.
 export async function confirmService(formData: FormData): Promise<ActionState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== "client") return { ok: false, error: "forbidden" };
+  const isStaff = user?.role === "admin" || user?.role === "super_admin";
+  if (!user || (!isStaff && user.role !== "client")) {
+    return { ok: false, error: "forbidden" };
+  }
 
   const { serviceConfirmationSchema } = await import("@/lib/validations");
 
@@ -346,7 +386,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   });
   if (
     !assignment ||
-    assignment.order.client.userId !== user.id ||
+    (!isStaff && assignment.order.client.userId !== user.id) ||
     assignment.status !== "confirmed"
   ) {
     return { ok: false, error: "forbidden" };
@@ -484,12 +524,13 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     entity: "Assignment",
     entityId: data.assignmentId,
     ipAddress: ip,
-    metadata: { method: data.method, hours: data.hoursWorked },
+    metadata: { method: data.method, hours: data.hoursWorked, actorRole: user.role },
   });
 
   revalidatePath("/client/orders");
   revalidatePath(`/client/orders/${assignment.order.requestGroupId ?? assignment.order.id}`);
-  revalidatePath(`/admin/orders/${assignment.order.id}`);
+  // Admin request detail is keyed by requestGroupId, not orderId.
+  revalidatePath(`/admin/orders/${assignment.order.requestGroupId ?? assignment.order.id}`);
   // The worker's schedule shows the signed-off hours immediately.
   revalidatePath("/worker");
   return { ok: true };

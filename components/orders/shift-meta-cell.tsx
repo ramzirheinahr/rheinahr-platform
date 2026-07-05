@@ -15,7 +15,9 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AssignWorkerButton } from "@/components/admin/assign-worker-button";
 import { ConfirmServiceDialog } from "@/components/client/confirm-service-dialog";
+import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
+import { useAssignSelection } from "@/components/orders/assign-selection";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, MessageSquare, Users, UserRound } from "lucide-react";
 import type { AssignmentStatus, OrderStatus } from "@prisma/client";
@@ -29,6 +31,9 @@ export type ShiftMeta = {
   quantity: number;
   label: string; // "dd.mm.yyyy · HH:mm–HH:mm" dialog heading
   isPast?: boolean;
+  // Admin bulk-assign: this shift can still take workers (not cancelled/full) →
+  // a multi-select checkbox is shown next to its chip.
+  selectable?: boolean;
   scheduledHours?: number;
   assignments?: {
     id: string;
@@ -69,6 +74,7 @@ export function ShiftMetaCell({
 }) {
   const t = useTranslations("orders");
   const eas = useTranslations("enums.assignmentStatus");
+  const selection = useAssignSelection();
 
   const assignments = meta.assignments ?? [];
   const active = assignments.filter((a) => a.status !== "declined").length;
@@ -132,9 +138,21 @@ export function ShiftMetaCell({
     busy: t("wBusy"),
     unavailable: t("wOff"),
   };
+  const showCheckbox = Boolean(selection && meta.selectable);
 
   return (
-    <Dialog>
+    <div className="flex items-center gap-2">
+      {showCheckbox ? (
+        <input
+          type="checkbox"
+          checked={selection!.isSelected(meta.orderId)}
+          onChange={() => selection!.toggle(meta.orderId)}
+          aria-label={t("selectShift")}
+          title={t("selectShift")}
+          className="size-4 shrink-0 accent-primary"
+        />
+      ) : null}
+      <Dialog>
       <DialogTrigger
         render={
           <button
@@ -189,6 +207,19 @@ export function ShiftMetaCell({
                       >
                         {eas(a.status)}
                       </Badge>
+                      {/* Admin accepts/declines the shift on the worker's
+                          behalf (e.g. confirmed by phone). */}
+                      {a.status === "pending" && (
+                        <AssignmentActions assignmentId={a.id} />
+                      )}
+                      {/* Admin confirms the Leistungsnachweis on the client's
+                          behalf — any confirmed shift, past/present/future. */}
+                      {a.status === "confirmed" && !a.hasConfirmation && (
+                        <ConfirmServiceDialog
+                          assignmentId={a.id}
+                          scheduledHours={meta.scheduledHours ?? 0}
+                        />
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -242,6 +273,7 @@ export function ShiftMetaCell({
           </div>
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+    </div>
   );
 }

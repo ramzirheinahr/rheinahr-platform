@@ -3,7 +3,19 @@
 import { usePathname, Link } from "@/i18n/navigation";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ChevronDown } from "lucide-react";
+import {
+  ChevronDown,
+  LayoutDashboard,
+  Inbox,
+  ClipboardList,
+  CalendarDays,
+  Users,
+  Building2,
+  BarChart3,
+  Receipt,
+  FileText,
+  type LucideIcon,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -13,20 +25,39 @@ import {
 
 // A nav entry. `children`, when present, turns the entry into a dropdown (e.g.
 // "Care staff" → one page per qualification). `badge` renders an unread-count
-// chip (e.g. the inbox).
+// chip (e.g. the inbox). `icon` is a serializable key (Server→Client) mapped to
+// a lucide icon here.
 export type NavItem = {
   href: string;
   label: string;
+  icon?: string;
   children?: NavItem[];
   badge?: number;
+};
+
+// Icon keys are set in the layouts (server components) and resolved here so the
+// non-serializable icon components never cross the Server→Client boundary.
+const ICONS: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  inbox: Inbox,
+  orders: ClipboardList,
+  schedule: CalendarDays,
+  workers: Users,
+  clients: Building2,
+  reports: BarChart3,
+  invoicing: Receipt,
+  documents: FileText,
 };
 
 export function PortalNav({
   items,
   orientation = "vertical",
+  collapsed = false,
 }: {
   items: NavItem[];
   orientation?: "vertical" | "horizontal";
+  // Icon-only rail (vertical desktop sidebar collapsed).
+  collapsed?: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -37,6 +68,7 @@ export function PortalNav({
     cn(
       "rounded-md px-3 py-2 text-sm transition-colors",
       horizontal && "whitespace-nowrap",
+      collapsed && "justify-center px-0",
       active
         ? "bg-primary text-primary-foreground"
         : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -53,21 +85,29 @@ export function PortalNav({
     return pathname === path && (q ?? null) === (currentQ ?? null);
   };
 
+  const iconFor = (item: NavItem) => (item.icon ? ICONS[item.icon] : undefined);
+
   return (
     <nav className={cn("flex gap-1", horizontal ? "flex-row" : "flex-col")}>
       {items.map((item) => {
+        const Icon = iconFor(item);
+
         if (item.children?.length) {
           return (
             <DropdownMenu key={item.href}>
               <DropdownMenuTrigger
+                title={collapsed ? item.label : undefined}
                 className={cn(
                   linkClass(onPath(item.href)),
-                  "flex items-center gap-1",
-                  horizontal ? "" : "justify-between",
+                  "flex items-center gap-2",
+                  horizontal ? "" : collapsed ? "justify-center" : "justify-between",
                 )}
               >
-                {item.label}
-                <ChevronDown className="size-4" />
+                <span className="flex min-w-0 items-center gap-2">
+                  {Icon ? <Icon className="size-4 shrink-0" /> : null}
+                  {collapsed ? null : <span className="truncate">{item.label}</span>}
+                </span>
+                {collapsed ? null : <ChevronDown className="size-4 shrink-0" />}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-48">
                 {item.children.map((child) => (
@@ -88,14 +128,22 @@ export function PortalNav({
           <Link
             key={item.href}
             href={item.href}
+            title={collapsed ? item.label : undefined}
             className={cn(
               linkClass(onPath(item.href)),
               "flex items-center gap-2",
-              !horizontal && "justify-between",
+              !horizontal && !collapsed && "justify-between",
             )}
           >
-            {item.label}
-            {item.badge ? (
+            <span className="relative flex min-w-0 items-center gap-2">
+              {Icon ? <Icon className="size-4 shrink-0" /> : null}
+              {collapsed ? null : <span className="truncate">{item.label}</span>}
+              {/* Collapsed rail: a dot marks unread instead of the number chip. */}
+              {collapsed && item.badge ? (
+                <span className="absolute -end-1 -top-1 size-2 rounded-full bg-destructive" />
+              ) : null}
+            </span>
+            {!collapsed && item.badge ? (
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold leading-none text-white">
                 {item.badge > 99 ? "99+" : item.badge}
               </span>

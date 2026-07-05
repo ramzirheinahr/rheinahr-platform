@@ -25,7 +25,6 @@ import {
   updateOrderRequestAsAdmin,
 } from "@/app/[locale]/admin/orders/actions";
 import { ShiftMetaCell, type ShiftMeta } from "@/components/orders/shift-meta-cell";
-import { DeleteRequestButton } from "@/components/orders/delete-request-button";
 
 export type InitialRequest = {
   requestGroupId: string;
@@ -227,10 +226,24 @@ export function OrderRequestBuilder({
   function addSlot(date: string) {
     setSlotCounts((p) => ({ ...p, [date]: Math.min(3, effCount(date) + 1) }));
   }
-  function removeLast(date: string) {
+  // Cancel/zero a single shift: remove that row and pull the later shifts of the
+  // day up one slot (max 3), so there are never gaps. Zeroing the only shift of
+  // a day just empties its first row. On save the diff drops the removed order
+  // (and any assignments) — see diffRequestShifts.
+  function removeShiftRow(date: string, slot: number) {
     const n = effCount(date);
-    clear(date, n - 1);
-    setSlotCounts((p) => ({ ...p, [date]: n - 1 }));
+    setCells((prev) => {
+      const next = { ...prev };
+      for (let s = slot; s < 2; s++) {
+        const above = next[`${date}:${s + 1}`];
+        if (above) next[`${date}:${s}`] = above;
+        else delete next[`${date}:${s}`];
+      }
+      delete next[`${date}:2`];
+      return next;
+    });
+    for (let s = slot; s <= 2; s++) bump(date, s); // re-mount time inputs
+    setSlotCounts((p) => ({ ...p, [date]: Math.max(1, n - 1) }));
   }
   // Row-level copy/paste: copy a filled day's shifts, paste them onto empty days
   // so clients can replicate a recurring shift pattern without retyping.
@@ -571,16 +584,31 @@ export function OrderRequestBuilder({
                         </span>
                         <span>{d.label}</span>
                         {d.holiday ? <span className="text-rose-600">•</span> : null}
-                        {!lockedDay && !ro && count === 1 ? (
-                          <button
-                            type="button"
-                            onClick={() => addSlot(d.date)}
-                            aria-label={t("shift2")}
-                            title={t("shift2")}
-                            className="ms-auto flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                          >
-                            <Plus className="size-3.5" />
-                          </button>
+                        {!lockedDay && !ro ? (
+                          <span className="ms-auto flex items-center gap-1">
+                            {dayHasContent(d.date) ? (
+                              <button
+                                type="button"
+                                onClick={() => removeShiftRow(d.date, 0)}
+                                aria-label={t("cancelShift")}
+                                title={t("cancelShift")}
+                                className="flex size-5 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            ) : null}
+                            {count === 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => addSlot(d.date)}
+                                aria-label={t("shift2")}
+                                title={t("shift2")}
+                                className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                              >
+                                <Plus className="size-3.5" />
+                              </button>
+                            ) : null}
+                          </span>
                         ) : null}
                       </div>
                     </td>
@@ -590,12 +618,12 @@ export function OrderRequestBuilder({
                     <tr key={slot} className={cn("border-b", rowCls)}>
                       <td className="whitespace-nowrap p-1 ps-3 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1.5">
-                          {!ro && slot === count - 1 ? (
+                          {!ro && !lockedDay ? (
                             <button
                               type="button"
-                              onClick={() => removeLast(d.date)}
-                              aria-label={c("delete")}
-                              title={c("delete")}
+                              onClick={() => removeShiftRow(d.date, slot)}
+                              aria-label={t("cancelShift")}
+                              title={t("cancelShift")}
                               className="flex size-5 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
                             >
                               <X className="size-3.5" />
@@ -717,12 +745,6 @@ export function OrderRequestBuilder({
         </div>
         {ro ? null : (
           <div className="flex flex-wrap items-center gap-2">
-            {initial ? (
-              <DeleteRequestButton
-                requestGroupId={initial.requestGroupId}
-                adminEdit={adminEdit}
-              />
-            ) : null}
             <span className="hidden sm:block sm:flex-1" />
             <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId)} className="gap-2">
               <Send className="size-4" />

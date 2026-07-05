@@ -7,7 +7,9 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { lettersToBlocks, SHIFT_PRESETS, type ShiftKey } from "@/lib/master-schedule-core";
 import { candidatesForShift, type Candidate } from "@/lib/orders";
+import { qualifications } from "@/lib/validations";
 import { formatDateDE } from "@/lib/utils";
+import type { Qualification } from "@prisma/client";
 
 // Cell-level edits on the master schedule grid. Every edit here mutates the
 // SAME entities the order/availability pages use (WorkerAvailability, Order,
@@ -246,6 +248,87 @@ export async function assignFromGrid(input: {
   revalidatePath("/admin/schedule");
   revalidatePath("/admin/orders");
   revalidatePath("/worker");
+  return { ok: true };
+}
+
+// Create a new OPEN requested shift straight from the grey "offene Dienste"
+// section — the admin fills a client request directly on the sheet (no worker
+// yet). It becomes a real Order (status pending) that shows in /admin/orders and
+// as an open shift in the grey section, ready to be staffed. The facility's user
+// is notified an order was placed on their account.
+export async function createOpenOrderFromGrid(input: {
+  clientId: string;
+  date: string;
+  shift: ShiftKey;
+  qualification: Qualification;
+  ward?: string;
+  quantity?: number;
+}): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const parsed = z
+    .object({
+      clientId: z.string().uuid(),
+      date: dateSchema,
+      shift: shiftKeySchema,
+      qualification: z.enum(qualifications),
+      ward: z.string().max(120).optional(),
+      quantity: z.coerce.number().int().min(1).max(50).optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "saveError" };
+  const { clientId, date, shift, qualification, ward, quantity } = parsed.data;
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true, userId: true, facilityName: true },
+  });
+  if (!client) return { ok: false, error: "saveError" };
+
+  const preset = SHIFT_PRESETS[shift];
+  const day = new Date(`${date}T00:00:00.000Z`);
+
+  await prisma.order.create({
+    data: {
+      clientId,
+      requestGroupId: crypto.randomUUID(),
+      requiredQualification: qualification,
+      shiftDate: day,
+      startTime: preset.start,
+      endTime: preset.end,
+      quantity: quantity ?? 1,
+      notes: ward || null,
+      status: "pending",
+    },
+  });
+
+  if (client.userId) {
+    await prisma.notification.create({
+      data: {
+        userId: client.userId,
+        type: "new_order",
+        channel: "in_app",
+        content: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+      },
+    });
+  }
+
+  await audit({
+    userId: admin.id,
+    action: "order.request.create",
+    entity: "Order",
+    entityId: clientId,
+    metadata: { date, shift, qualification, quantity: quantity ?? 1, via: "master-schedule" },
+  });
+
+  revalidatePath("/admin/schedule");
+  revalidatePath("/admin/orders");
+  revalidatePath("/client/orders");
   return { ok: true };
 }
 

@@ -8,7 +8,7 @@ import {
   type Surcharges,
   type Rates,
 } from "@/lib/pricing";
-import { formatDateDE } from "@/lib/utils";
+import { formatDateDE, cn } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
@@ -112,15 +112,21 @@ export default async function ClientOrdersPage() {
                 ? formatDateDE(first.shiftDate)
                 : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
             const confirmed = g.shifts.filter((s) => s.status === "confirmed").length;
+            const cancelled = g.shifts.every((s) => s.status === "cancelled");
             const total = requestNetTotal(g.shifts, surcharges, rates);
             return (
               <Link
                 key={g.key}
                 href={`/client/orders/${g.key}`}
-                className="flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-muted/40"
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-muted/40",
+                  cancelled && "border-destructive/40 bg-destructive/5",
+                )}
               >
                 <div>
-                  <div className="font-medium">{range}</div>
+                  <div className={cn("font-medium", cancelled && "text-destructive line-through")}>
+                    {range}
+                  </div>
                   <div className="text-sm text-muted-foreground">
                     {g.shifts.length} {t("shiftsCount")} · {confirmed}/{g.shifts.length} ✓ ·{" "}
                     {fmtEur(total)} {t("net")}

@@ -1,11 +1,13 @@
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { candidatesForShift } from "@/lib/orders";
-import { resolveSurcharges, resolveRates } from "@/lib/pricing";
+import { candidatesForShift, isRequestCancelable } from "@/lib/orders";
+import { resolveSurcharges, resolveRates, netShiftHours } from "@/lib/pricing";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
+import { CancelRequestButton } from "@/components/orders/cancel-request-button";
+import { AssignSelectionProvider } from "@/components/orders/assign-selection";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft, Pencil } from "lucide-react";
@@ -79,15 +81,25 @@ export default async function AdminRequestDetail({
   // builder's cells (`${date}:${slot}` — same order as `initial.shifts`).
   const shiftMeta: Record<string, ShiftMeta> = {};
   const slotByDate: Record<string, number> = {};
+  const selectableOrderIds: string[] = [];
   orders.forEach((o, i) => {
     const date = d(o.shiftDate);
     const slot = slotByDate[date] ?? 0;
     slotByDate[date] = slot + 1;
+    // A shift can still take workers (→ multi-select checkbox) unless it's
+    // cancelled/completed/service-confirmed or already fully worker-confirmed.
+    const confirmedCount = o.assignments.filter((a) => a.status === "confirmed").length;
+    const selectable =
+      !["cancelled", "completed", "confirmed"].includes(o.status) &&
+      confirmedCount < o.quantity;
+    if (selectable) selectableOrderIds.push(o.id);
     shiftMeta[`${date}:${slot}`] = {
       orderId: o.id,
       status: o.status,
       quantity: o.quantity,
       label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
+      selectable,
+      scheduledHours: netShiftHours(o.startTime, o.endTime),
       assignments: o.assignments.map((a) => ({
         id: a.id,
         workerName: a.worker.fullName,
@@ -95,6 +107,7 @@ export default async function AdminRequestDetail({
         hours: a.serviceConfirmation
           ? Number(a.serviceConfirmation.hoursWorked)
           : null,
+        hasConfirmation: !!a.serviceConfirmation,
       })),
       candidates: candidates[i],
     };
@@ -115,23 +128,31 @@ export default async function AdminRequestDetail({
             </p>
           </div>
         </div>
-        <Button className="gap-2" render={<Link href={`/admin/orders/${id}/edit`} />}>
-          <Pencil className="size-4" />
-          {c("edit")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {isRequestCancelable(orders) ? (
+            <CancelRequestButton requestGroupId={id} admin />
+          ) : null}
+          <Button className="gap-2" render={<Link href={`/admin/orders/${id}/edit`} />}>
+            <Pencil className="size-4" />
+            {c("edit")}
+          </Button>
+        </div>
       </div>
 
       {/* The request in the same shape as when it was created; each shift row
-          carries its status chip, which opens the assignment dialog. */}
-      <OrderRequestBuilder
-        initial={initial}
-        surcharges={resolveSurcharges(orders[0].client)}
-        rates={resolveRates(orders[0].client)}
-        readOnly
-        backHref={`/admin/orders/${id}`}
-        shiftMeta={shiftMeta}
-        assignable
-      />
+          carries its status chip, which opens the assignment dialog. Ticking
+          several shifts reveals a bulk-assign bar (AssignSelectionProvider). */}
+      <AssignSelectionProvider selectableOrderIds={selectableOrderIds}>
+        <OrderRequestBuilder
+          initial={initial}
+          surcharges={resolveSurcharges(orders[0].client)}
+          rates={resolveRates(orders[0].client)}
+          readOnly
+          backHref={`/admin/orders/${id}`}
+          shiftMeta={shiftMeta}
+          assignable
+        />
+      </AssignSelectionProvider>
     </div>
   );
 }

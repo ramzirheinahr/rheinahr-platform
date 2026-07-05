@@ -2,12 +2,13 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { isRequestEditable } from "@/lib/orders";
+import { isRequestEditable, isRequestCancelable } from "@/lib/orders";
 import { resolveSurcharges, resolveRates, netShiftHours } from "@/lib/pricing";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { RequestMessageButton } from "@/components/client/request-message-button";
+import { CancelRequestButton } from "@/components/orders/cancel-request-button";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft, Pencil } from "lucide-react";
@@ -68,6 +69,7 @@ export default async function ClientRequestDetail({
   if (orders.length === 0) notFound();
 
   const editable = isRequestEditable(orders);
+  const cancelable = isRequestCancelable(orders);
   const first = formatDateDE(orders[0].shiftDate);
   const last = formatDateDE(orders[orders.length - 1].shiftDate);
   const range = first === last ? first : `${first} – ${last}`;
@@ -137,17 +139,20 @@ export default async function ClientRequestDetail({
             </p>
           </div>
         </div>
-        {editable ? (
-          <Button
-            className="gap-2"
-            render={<Link href={`/client/orders/${requestId}/edit`} />}
-          >
-            <Pencil className="size-4" />
-            {c("edit")}
-          </Button>
-        ) : (
-          <RequestMessageButton requestGroupId={requestId} />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {cancelable ? <CancelRequestButton requestGroupId={requestId} /> : null}
+          {editable ? (
+            <Button
+              className="gap-2"
+              render={<Link href={`/client/orders/${requestId}/edit`} />}
+            >
+              <Pencil className="size-4" />
+              {c("edit")}
+            </Button>
+          ) : (
+            <RequestMessageButton requestGroupId={requestId} />
+          )}
+        </div>
       </div>
 
       <OrderRequestBuilder

@@ -22,7 +22,9 @@
     "search": "Search",
     "none": "—",
     "exportData": "Export my data",
-    "view": "View"
+    "view": "View",
+    "expandMenu": "Expand menu",
+    "collapseMenu": "Collapse menu"
   },
   "landing": {
     "nav": {
@@ -308,7 +310,26 @@
     "messageHint": "You can edit the order yourself until 4 hours before the first shift. After that, send us your change request here — we will get back to you promptly.",
     "messagePlaceholder": "Your message about this order …",
     "messageSend": "Send",
-    "messageSent": "Message sent."
+    "messageSent": "Message sent.",
+    "cancelRequest": "Cancel request",
+    "cancelConfirmTitle": "Cancel this request?",
+    "cancelConfirmDesc": "The request and all its shifts will be cancelled (marked red) but kept on record. The office will be notified.",
+    "cancelledToast": "Request cancelled.",
+    "cancelLocked": "Cannot cancel – a shift is already confirmed or in progress.",
+    "selectShift": "Select shift",
+    "selectedCount": "{count} shift(s) selected",
+    "selectAll": "Select all ({count})",
+    "assignSelected": "Assign workers",
+    "clearSelection": "Clear selection",
+    "bulkAssignTitle": "Assign multiple shifts",
+    "bulkAssignDesc": "Offer {count} selected shift(s) to several workers.",
+    "chooseWorkers": "Choose workers",
+    "nAvailable": "{n} available",
+    "nBusy": "{n} busy",
+    "nOff": "{n} off",
+    "forceOverrideHint": "Assign even on conflicts (override busy / unavailable workers).",
+    "assignToShifts": "Offer to {workers} worker(s) on {shifts} shift(s)",
+    "bulkResult": "{created} assignment(s) created, {skipped} skipped."
   },
   "orderRequest": {
     "prev": "Back",
@@ -362,7 +383,8 @@
     "cat_holiday": "Holiday",
     "netTotal": "Net total",
     "vat": "plus 19% VAT",
-    "grossTotal": "Gross total"
+    "grossTotal": "Gross total",
+    "cancelShift": "Remove shift"
   },
   "confirmations": {
     "title": "Service confirmations",
@@ -636,6 +658,12 @@
     "requiredHoursLabel": "Required",
     "remainingHoursLabel": "Remaining",
     "leavePending": "Leave request pending",
-    "leaveApproved": "Leave (Do Not Disturb)"
+    "leaveApproved": "Leave (Do Not Disturb)",
+    "addRow": "Add row",
+    "newOrderTitle": "Create shift request",
+    "newOrderAria": "Create open shift",
+    "quantity": "Count",
+    "createOrder": "Create shift",
+    "orderCreated": "Shift request created."
   }
 }

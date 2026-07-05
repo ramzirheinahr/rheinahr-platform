@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { formatDateDE } from "@/lib/utils";
 import type { Qualification } from "@prisma/client";
 
 // Per the AÜG contracts, a request stays editable — even after the admin has
@@ -40,6 +41,18 @@ export function isRequestEditable(orders: OrderEditLite[]): boolean {
     ...orders.map((o) => o.shiftDate.getTime() + toMin(o.startTime) * 60_000),
   );
   return berlinNowMs() <= firstStart - EDIT_CUTOFF_HOURS * 3_600_000;
+}
+
+// A request can be cancelled (soft) as long as none of its shifts is already
+// confirmed / running / completed, and it is not already fully cancelled.
+// Cancelling keeps the records (status → cancelled) — unlike editing it is not
+// bound to the 4h cutoff, since the client should be able to call it off late.
+export function isRequestCancelable(orders: { status: string }[]): boolean {
+  if (orders.length === 0) return false;
+  if (orders.every((o) => o.status === "cancelled")) return false;
+  return !orders.some((o) =>
+    ["in_progress", "completed", "confirmed"].includes(o.status),
+  );
 }
 
 export type ExistingShift = {
@@ -186,4 +199,81 @@ export async function candidatesForShift(order: {
   return list.sort(
     (a, b) => rank[a.status] - rank[b.status] || a.fullName.localeCompare(b.fullName),
   );
+}
+
+export type BulkShift = {
+  id: string;
+  label: string; // "dd.mm.yyyy · HH:mm–HH:mm"
+  requiredQualification: Qualification;
+};
+
+export type BulkCandidate = {
+  workerId: string;
+  fullName: string;
+  email: string;
+  qualification: Qualification;
+  availableCount: number; // selected shifts they can take
+  busyCount: number; // selected shifts where they're booked elsewhere
+  unavailableCount: number; // selected shifts they didn't declare for
+  eligibleOrderIds: string[]; // selected shifts matching their qualification (not already on)
+};
+
+// Candidates aggregated across several selected shifts (bulk assignment). Reuses
+// candidatesForShift per order, then folds each worker's per-shift status into
+// counts. A worker only appears if they qualify for at least one selected shift
+// and aren't already assigned to all of them. Since a worker has a single
+// qualification, they only surface for the selected shifts of that qualification.
+export async function candidatesForOrders(orderIds: string[]): Promise<{
+  shifts: BulkShift[];
+  candidates: BulkCandidate[];
+}> {
+  const orders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
+    select: {
+      id: true,
+      shiftDate: true,
+      startTime: true,
+      endTime: true,
+      requiredQualification: true,
+    },
+  });
+  if (orders.length === 0) return { shifts: [], candidates: [] };
+
+  const perOrder = await Promise.all(orders.map((o) => candidatesForShift(o)));
+
+  const map = new Map<string, BulkCandidate>();
+  orders.forEach((o, i) => {
+    for (const cand of perOrder[i]) {
+      let agg = map.get(cand.workerId);
+      if (!agg) {
+        agg = {
+          workerId: cand.workerId,
+          fullName: cand.fullName,
+          email: cand.email,
+          qualification: o.requiredQualification,
+          availableCount: 0,
+          busyCount: 0,
+          unavailableCount: 0,
+          eligibleOrderIds: [],
+        };
+        map.set(cand.workerId, agg);
+      }
+      agg.eligibleOrderIds.push(o.id);
+      if (cand.status === "available") agg.availableCount += 1;
+      else if (cand.status === "busy") agg.busyCount += 1;
+      else agg.unavailableCount += 1;
+    }
+  });
+
+  const shifts: BulkShift[] = orders.map((o) => ({
+    id: o.id,
+    label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
+    requiredQualification: o.requiredQualification,
+  }));
+
+  const candidates = Array.from(map.values()).sort(
+    (a, b) => b.availableCount - a.availableCount || a.fullName.localeCompare(b.fullName),
+  );
+  return { shifts, candidates };
 }

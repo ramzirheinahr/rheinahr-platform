@@ -22,7 +22,9 @@
     "search": "Suchen",
     "none": "—",
     "exportData": "Meine Daten exportieren",
-    "view": "Ansehen"
+    "view": "Ansehen",
+    "expandMenu": "Menü einblenden",
+    "collapseMenu": "Menü einklappen"
   },
   "landing": {
     "nav": {
@@ -308,7 +310,26 @@
     "messageHint": "Bis 4 Stunden vor der ersten Schicht können Sie die Bestellung selbst bearbeiten. Danach senden Sie uns hier Ihren Änderungswunsch — wir melden uns umgehend.",
     "messagePlaceholder": "Ihre Nachricht zu dieser Bestellung …",
     "messageSend": "Senden",
-    "messageSent": "Nachricht gesendet."
+    "messageSent": "Nachricht gesendet.",
+    "cancelRequest": "Anfrage stornieren",
+    "cancelConfirmTitle": "Anfrage wirklich stornieren?",
+    "cancelConfirmDesc": "Die Anfrage und alle Schichten werden storniert (rot markiert), bleiben aber gespeichert. Das Büro wird benachrichtigt.",
+    "cancelledToast": "Anfrage wurde storniert.",
+    "cancelLocked": "Stornierung nicht möglich – eine Schicht ist bereits bestätigt oder läuft.",
+    "selectShift": "Schicht auswählen",
+    "selectedCount": "{count} Schicht(en) ausgewählt",
+    "selectAll": "Alle auswählen ({count})",
+    "assignSelected": "Mitarbeiter zuweisen",
+    "clearSelection": "Auswahl aufheben",
+    "bulkAssignTitle": "Mehrere Schichten zuweisen",
+    "bulkAssignDesc": "{count} ausgewählte Schicht(en) mehreren Fachkräften anbieten.",
+    "chooseWorkers": "Fachkräfte auswählen",
+    "nAvailable": "{n} verfügbar",
+    "nBusy": "{n} belegt",
+    "nOff": "{n} nicht verfügbar",
+    "forceOverrideHint": "Auch bei Konflikten zuweisen (belegte / nicht verfügbare Fachkräfte überschreiben).",
+    "assignToShifts": "{workers} Fachkraft/Fachkräfte auf {shifts} Schicht(en) anbieten",
+    "bulkResult": "{created} Zuweisung(en) erstellt, {skipped} übersprungen."
   },
   "orderRequest": {
     "prev": "Zurück",
@@ -362,7 +383,8 @@
     "cat_holiday": "Feiertag",
     "netTotal": "Summe netto",
     "vat": "zzgl. 19 % USt",
-    "grossTotal": "Summe brutto"
+    "grossTotal": "Summe brutto",
+    "cancelShift": "Schicht entfernen"
   },
   "confirmations": {
     "title": "Leistungsnachweise",
@@ -636,6 +658,12 @@
     "requiredHoursLabel": "Soll",
     "remainingHoursLabel": "Rest",
     "leavePending": "Urlaubsantrag ausstehend",
-    "leaveApproved": "Urlaub (Bitte nicht stören)"
+    "leaveApproved": "Urlaub (Bitte nicht stören)",
+    "addRow": "Zeile hinzufügen",
+    "newOrderTitle": "Neuen Dienst anlegen",
+    "newOrderAria": "Offenen Dienst anlegen",
+    "quantity": "Anzahl",
+    "createOrder": "Dienst anlegen",
+    "orderCreated": "Dienst wurde angelegt."
   }
 }
