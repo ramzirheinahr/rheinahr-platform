@@ -405,7 +405,8 @@
     "searchClient": "Search client…",
     "noClientMatch": "No client found",
     "cat_night": "Night",
-    "nightNote": "Night surcharge {night} ({from}–{to})."
+    "nightNote": "Night surcharge {night} ({from}–{to}).",
+    "stackNote": "When several surcharges coincide (e.g. Sunday + holiday, or Sunday + night), the percentages are added together."
   },
   "confirmations": {
     "title": "Service confirmations",

@@ -13,12 +13,13 @@ import {
   DEFAULT_RATES,
   DEFAULT_NIGHT_WINDOW,
   VAT_RATE,
-  shiftCategoryHours,
-  categoryMultiplier,
-  SURCHARGE_CATEGORIES,
+  shiftSurchargeHours,
+  comboMultiplier,
+  comboKey,
   type Surcharges,
   type Rates,
   type NightWindow,
+  type SurchargeComponent,
 } from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
 import {
@@ -343,24 +344,30 @@ export function OrderRequestBuilder({
       }
       return h.has(dateStr);
     };
-    // Split every shift's net hours across surcharge buckets per hour, so
+    // Split every shift's net hours by the SET of surcharges per hour, so
     // overnight shifts are billed per calendar day (Sat→Sun at midnight) and
-    // weekday night hours carry the night surcharge.
-    const hours: Record<(typeof SURCHARGE_CATEGORIES)[number], number> = {
-      base: 0,
-      sat: 0,
-      sun: 0,
-      holiday: 0,
-      night: 0,
-    };
+    // coinciding surcharges (e.g. Sunday + holiday, Sunday + night) are summed.
+    const groups = new Map<string, { components: SurchargeComponent[]; hours: number }>();
     for (const s of activeShifts) {
-      const cats = shiftCategoryHours(s.date, s.start, s.end, s.pause, isHoliday, nightWin);
-      for (const cat of SURCHARGE_CATEGORIES) hours[cat] += cats[cat] * s.quantity;
+      const g = shiftSurchargeHours(s.date, s.start, s.end, s.pause, isHoliday, nightWin);
+      for (const [key, val] of g) {
+        const cur = groups.get(key);
+        if (cur) cur.hours += val.hours * s.quantity;
+        else groups.set(key, { components: val.components, hours: val.hours * s.quantity });
+      }
     }
-    const rows = SURCHARGE_CATEGORIES.map((key) => {
-      const mult = categoryMultiplier(key, sc);
-      return { key, hours: hours[key], mult, amount: hours[key] * rate * mult };
-    });
+    const rows = [...groups.values()]
+      .map((g) => {
+        const mult = comboMultiplier(g.components, sc);
+        return {
+          key: comboKey(g.components),
+          components: g.components,
+          hours: g.hours,
+          mult,
+          amount: g.hours * rate * mult,
+        };
+      })
+      .sort((a, b) => a.mult - b.mult);
     const total = rows.reduce((s, r) => s + r.amount, 0);
     return { rows, total };
   }, [activeShifts, rate, sc, nightWin]);
@@ -719,7 +726,10 @@ export function OrderRequestBuilder({
                             .map((r) => (
                               <div key={r.key} className="flex justify-between gap-2">
                                 <span className="text-muted-foreground">
-                                  {t(`cat_${r.key}`)}: {fmtH(r.hours)} × {fmtEur(rate)}
+                                  {r.components.length
+                                    ? r.components.map((cc) => t(`cat_${cc}`)).join(" + ")
+                                    : t("cat_base")}
+                                  : {fmtH(r.hours)} × {fmtEur(rate)}
                                   {r.mult !== 1 ? ` × ${r.mult.toLocaleString(locale, { maximumFractionDigits: 2 })}` : ""}
                                 </span>
                                 <span className="whitespace-nowrap font-medium text-foreground">
@@ -764,6 +774,7 @@ export function OrderRequestBuilder({
               to: nightWin.end,
             })}
           </span>
+          <span className="block text-xs">{t("stackNote")}</span>
         </div>
         {ro ? null : (
           <div className="flex flex-wrap items-center gap-2">

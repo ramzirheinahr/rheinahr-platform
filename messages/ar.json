@@ -405,7 +405,8 @@
     "searchClient": "ابحث عن زبون…",
     "noClientMatch": "لا يوجد زبون مطابق",
     "cat_night": "ليلي",
-    "nightNote": "البدل الليلي {night} ({from}–{to})."
+    "nightNote": "البدل الليلي {night} ({from}–{to}).",
+    "stackNote": "عند اجتماع أكثر من بدل في نفس الوقت (مثل الأحد + عطلة رسمية، أو الأحد + ليلي) تُجمع النِّسب معاً."
   },
   "confirmations": {
     "title": "إثباتات الخدمة",

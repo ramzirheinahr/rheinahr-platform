@@ -103,30 +103,37 @@ export function netShiftHours(start: string, end: string, breakMin = DEFAULT_BRE
   return Math.max(0, (dur - breakMin) / 60);
 }
 
-// The mutually-exclusive surcharge buckets one hour can fall into.
-export type SurchargeCategory = "base" | "sat" | "sun" | "holiday" | "night";
-export const SURCHARGE_CATEGORIES: SurchargeCategory[] = [
-  "base",
-  "sat",
-  "sun",
-  "holiday",
-  "night",
-];
+// The individual surcharges that can apply to one hour. They are NOT mutually
+// exclusive: when several coincide, their percentages are SUMMED (agency ↔ client
+// agreement) — e.g. a public holiday on a Sunday = Sunday + holiday, and a
+// Sunday-night hour = Sunday + night. (Saturday and Sunday can't both apply since
+// an hour belongs to a single calendar day.)
+export type SurchargeComponent = "sat" | "sun" | "holiday" | "night";
+// Display order when several coincide.
+export const SURCHARGE_COMPONENTS: SurchargeComponent[] = ["holiday", "sun", "sat", "night"];
 
-// Rate multiplier for a category given a client's surcharges (1 = base rate).
-export function categoryMultiplier(cat: SurchargeCategory, sc: Surcharges): number {
-  switch (cat) {
+function surchargeValue(c: SurchargeComponent, sc: Surcharges): number {
+  switch (c) {
     case "sat":
-      return 1 + sc.sat;
+      return sc.sat;
     case "sun":
-      return 1 + sc.sun;
+      return sc.sun;
     case "holiday":
-      return 1 + sc.holiday;
+      return sc.holiday;
     case "night":
-      return 1 + sc.night;
-    default:
-      return 1;
+      return sc.night;
   }
+}
+
+// Combined multiplier for a set of coinciding surcharges (1 = base rate). The
+// component fractions are ADDED, e.g. holiday(1.0) + sun(0.5) → ×2.5.
+export function comboMultiplier(components: SurchargeComponent[], sc: Surcharges): number {
+  return 1 + components.reduce((sum, c) => sum + surchargeValue(c, sc), 0);
+}
+
+// Stable key for a set of surcharges ("base" when none apply).
+export function comboKey(components: SurchargeComponent[]): string {
+  return components.length ? components.join("+") : "base";
 }
 
 // Is a minute-of-day inside the (overnight-aware) night window?
@@ -135,27 +142,21 @@ function nightContains(min: number, w: { s: number; e: number }): boolean {
   return w.s < w.e ? min >= w.s && min < w.e : min >= w.s || min < w.e;
 }
 
-// Split one shift's NET hours across surcharge categories, minute by minute, so
-// overnight shifts are billed correctly PER CALENDAR DAY: e.g. Sat 20:00–Sun
-// 06:00 is Saturday hours until midnight and SUNDAY hours after midnight, and a
-// plain weekday night gets the night surcharge. Priority per minute:
-// holiday > Sunday > Saturday > night > base. The break is spread proportionally
-// so the category hours always sum to netShiftHours(start, end, break).
-export function shiftCategoryHours(
+export type SurchargeGroup = { components: SurchargeComponent[]; hours: number };
+
+// Split one shift's NET hours by the SET of surcharges that apply, minute by
+// minute. Overnight shifts are handled PER CALENDAR DAY (Sat 20:00–Sun 06:00 →
+// Saturday hours until midnight, Sunday hours after), and coinciding surcharges
+// are grouped together so they can be summed. The break is spread proportionally
+// so the grouped hours sum to netShiftHours(start, end, break). Keyed by comboKey.
+export function shiftSurchargeHours(
   shiftDate: string, // YYYY-MM-DD — the shift's START day (UTC)
   start: string,
   end: string,
   breakMin: number,
   isHoliday: (dateStr: string) => boolean,
   night: NightWindow = DEFAULT_NIGHT_WINDOW,
-): Record<SurchargeCategory, number> {
-  const out: Record<SurchargeCategory, number> = {
-    base: 0,
-    sat: 0,
-    sun: 0,
-    holiday: 0,
-    night: 0,
-  };
+): Map<string, SurchargeGroup> {
   const startMin = toMin(start);
   let dur = (toMin(end) - startMin + 1440) % 1440;
   if (dur === 0) dur = 1440;
@@ -174,34 +175,34 @@ export function shiftCategoryHours(
     });
   }
 
-  const gross: Record<SurchargeCategory, number> = {
-    base: 0,
-    sat: 0,
-    sun: 0,
-    holiday: 0,
-    night: 0,
-  };
+  // Gross minutes per surcharge combination.
+  const grossByKey = new Map<string, { components: SurchargeComponent[]; minutes: number }>();
   for (let i = 0; i < dur; i++) {
     const abs = startMin + i;
     const meta = dayMeta[Math.floor(abs / 1440)];
     const mod = abs % 1440;
-    let cat: SurchargeCategory;
-    if (meta.holiday) cat = "holiday";
-    else if (meta.dow === 0) cat = "sun";
-    else if (meta.dow === 6) cat = "sat";
-    else if (nightContains(mod, w)) cat = "night";
-    else cat = "base";
-    gross[cat] += 1;
+    const components: SurchargeComponent[] = [];
+    if (meta.holiday) components.push("holiday");
+    if (meta.dow === 0) components.push("sun");
+    else if (meta.dow === 6) components.push("sat");
+    if (nightContains(mod, w)) components.push("night");
+    const key = comboKey(components);
+    const entry = grossByKey.get(key);
+    if (entry) entry.minutes += 1;
+    else grossByKey.set(key, { components, minutes: 1 });
   }
 
   const factor = dur > 0 ? Math.max(0, dur - breakMin) / dur : 0;
-  for (const cat of SURCHARGE_CATEGORIES) out[cat] = (gross[cat] / 60) * factor;
+  const out = new Map<string, SurchargeGroup>();
+  for (const [key, v] of grossByKey) {
+    out.set(key, { components: v.components, hours: (v.minutes / 60) * factor });
+  }
   return out;
 }
 
 // Net order value (EUR) for a set of persisted shifts — mirrors the price the
-// builder shows live: per-category net hours × headcount × qualification rate,
-// each uplifted by its Zuschlag (Sat/Sun/holiday/night, computed per hour).
+// builder shows live: per-hour net hours × headcount × qualification rate,
+// uplifted by the SUM of that hour's coinciding Zuschläge (Sat/Sun/holiday/night).
 export function requestNetTotal(
   shifts: {
     shiftDate: Date;
@@ -228,7 +229,7 @@ export function requestNetTotal(
   let total = 0;
   for (const s of shifts) {
     const date = s.shiftDate.toISOString().slice(0, 10);
-    const cats = shiftCategoryHours(
+    const groups = shiftSurchargeHours(
       date,
       s.startTime,
       s.endTime,
@@ -238,8 +239,8 @@ export function requestNetTotal(
     );
     const rate = rateFor(s.requiredQualification, rates);
     let perWorker = 0;
-    for (const cat of SURCHARGE_CATEGORIES) {
-      perWorker += cats[cat] * categoryMultiplier(cat, sc);
+    for (const g of groups.values()) {
+      perWorker += g.hours * comboMultiplier(g.components, sc);
     }
     total += perWorker * s.quantity * rate;
   }

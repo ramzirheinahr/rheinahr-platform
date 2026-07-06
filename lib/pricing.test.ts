@@ -3,15 +3,29 @@ import {
   resolveRates,
   rateFor,
   requestNetTotal,
-  shiftCategoryHours,
+  shiftSurchargeHours,
+  comboMultiplier,
   netShiftHours,
   resolveNightWindow,
   DEFAULT_SURCHARGES,
   DEFAULT_NIGHT_WINDOW,
   HOURLY_RATES,
+  type SurchargeComponent,
 } from "./pricing";
 
 const notHoliday = () => false;
+
+// Sum of net hours across all surcharge groups of a shift.
+function totalHours(groups: Map<string, { components: SurchargeComponent[]; hours: number }>) {
+  return [...groups.values()].reduce((s, g) => s + g.hours, 0);
+}
+// Net hours whose combined multiplier equals the given components' sum.
+function hoursFor(
+  groups: Map<string, { components: SurchargeComponent[]; hours: number }>,
+  key: string,
+) {
+  return groups.get(key)?.hours ?? 0;
+}
 
 describe("resolveRates", () => {
   it("no client → platform defaults", () => {
@@ -67,45 +81,56 @@ describe("requestNetTotal honours client rates", () => {
   });
 });
 
-describe("shiftCategoryHours — per-hour surcharge split", () => {
+describe("shiftSurchargeHours — per-hour surcharge grouping (summed model)", () => {
   it("weekday overnight shift is all night hours (20:00–06:00)", () => {
     // 2026-07-06 is a Monday. 20:00 → next-day 06:00 = 10h gross, 0.5h break.
-    const cats = shiftCategoryHours("2026-07-06", "20:00", "06:00", 30, notHoliday);
-    expect(cats.night).toBeCloseTo(9.5, 5);
-    expect(cats.base + cats.sat + cats.sun + cats.holiday).toBeCloseTo(0, 5);
+    const g = shiftSurchargeHours("2026-07-06", "20:00", "06:00", 30, notHoliday);
+    expect(hoursFor(g, "night")).toBeCloseTo(9.5, 5);
+    expect(totalHours(g)).toBeCloseTo(9.5, 5);
   });
 
-  it("Saturday night splits at midnight → Sunday hours after 00:00", () => {
+  it("Saturday night splits at midnight and STACKS with night", () => {
     // 2026-07-11 is a Saturday. Sat 20:00 → Sun 06:00.
-    const cats = shiftCategoryHours("2026-07-11", "20:00", "06:00", 30, notHoliday);
-    // Weekend beats night: 4h Saturday + 6h Sunday, break spread proportionally.
+    const g = shiftSurchargeHours("2026-07-11", "20:00", "06:00", 30, notHoliday);
     const factor = (600 - 30) / 600;
-    expect(cats.sat).toBeCloseTo(4 * factor, 5);
-    expect(cats.sun).toBeCloseTo(6 * factor, 5);
-    expect(cats.night).toBeCloseTo(0, 5);
+    // Before midnight: Saturday + night. After midnight: Sunday + night.
+    expect(hoursFor(g, "sat+night")).toBeCloseTo(4 * factor, 5);
+    expect(hoursFor(g, "sun+night")).toBeCloseTo(6 * factor, 5);
+    // Sunday-night hour multiplier = 1 + 0.5 + 0.25 = 1.75.
+    expect(comboMultiplier(g.get("sun+night")!.components, DEFAULT_SURCHARGES)).toBeCloseTo(
+      1.75,
+      5,
+    );
+    expect(comboMultiplier(g.get("sat+night")!.components, DEFAULT_SURCHARGES)).toBeCloseTo(
+      1.5,
+      5,
+    );
   });
 
-  it("category hours always sum to the net shift hours", () => {
+  it("grouped hours always sum to the net shift hours", () => {
     for (const [s, e] of [
       ["06:30", "14:00"],
       ["20:30", "07:00"],
       ["13:30", "21:00"],
     ] as const) {
-      const cats = shiftCategoryHours("2026-07-11", s, e, 30, notHoliday);
-      const sum = cats.base + cats.sat + cats.sun + cats.holiday + cats.night;
-      expect(sum).toBeCloseTo(netShiftHours(s, e), 5);
+      const g = shiftSurchargeHours("2026-07-11", s, e, 30, notHoliday);
+      expect(totalHours(g)).toBeCloseTo(netShiftHours(s, e), 5);
     }
   });
 
-  it("holiday wins over everything", () => {
-    const isHol = (d: string) => d === "2026-07-06";
-    const cats = shiftCategoryHours("2026-07-06", "20:00", "23:00", 0, isHol);
-    expect(cats.holiday).toBeCloseTo(3, 5);
-    expect(cats.night).toBeCloseTo(0, 5);
+  it("holiday on a Sunday STACKS (sun + holiday)", () => {
+    const isHol = (d: string) => d === "2026-07-12"; // 2026-07-12 is a Sunday
+    const g = shiftSurchargeHours("2026-07-12", "10:00", "13:00", 0, isHol);
+    expect(hoursFor(g, "holiday+sun")).toBeCloseTo(3, 5);
+    // 1 + 1.0 (holiday) + 0.5 (sun) = 2.5.
+    expect(comboMultiplier(g.get("holiday+sun")!.components, DEFAULT_SURCHARGES)).toBeCloseTo(
+      2.5,
+      5,
+    );
   });
 });
 
-describe("requestNetTotal — night surcharge", () => {
+describe("requestNetTotal — summed surcharges", () => {
   it("weekday night shift bills the night surcharge", () => {
     const shift = {
       shiftDate: new Date("2026-07-06T00:00:00Z"), // Monday
@@ -116,6 +141,18 @@ describe("requestNetTotal — night surcharge", () => {
     };
     // 9.5 net hours, all night, +25 %.
     const expected = 9.5 * HOURLY_RATES.pflegehelfer * (1 + DEFAULT_SURCHARGES.night);
+    expect(requestNetTotal([shift])).toBeCloseTo(expected, 5);
+  });
+
+  it("midday Sunday shift bills the Sunday surcharge (holiday stacking tested above)", () => {
+    const shift = {
+      shiftDate: new Date("2026-07-12T00:00:00Z"), // Sunday, midday (no night)
+      startTime: "10:00",
+      endTime: "13:00", // 3h gross − 0.5h default break = 2.5h net
+      quantity: 1,
+      requiredQualification: "pflegefachkraft",
+    };
+    const expected = 2.5 * HOURLY_RATES.pflegefachkraft * (1 + DEFAULT_SURCHARGES.sun);
     expect(requestNetTotal([shift])).toBeCloseTo(expected, 5);
   });
 });

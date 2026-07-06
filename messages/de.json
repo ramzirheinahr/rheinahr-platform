@@ -405,7 +405,8 @@
     "searchClient": "Kunde suchen…",
     "noClientMatch": "Kein Kunde gefunden",
     "cat_night": "Nacht",
-    "nightNote": "Nachtzuschlag {night} ({from}–{to} Uhr)."
+    "nightNote": "Nachtzuschlag {night} ({from}–{to} Uhr).",
+    "stackNote": "Treffen mehrere Zuschläge zusammen (z. B. Sonntag + Feiertag oder Sonntag + Nacht), werden die Prozentsätze addiert."
   },
   "confirmations": {
     "title": "Leistungsnachweise",
