@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { resolveSurcharges, resolveRates } from "@/lib/pricing";
+import { resolveSurcharges, resolveRates, resolveNightWindow } from "@/lib/pricing";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,9 @@ export default async function NewOrderPage() {
             surchargeSat: true,
             surchargeSun: true,
             surchargeHoliday: true,
+        surchargeNight: true,
+        nightStart: true,
+        nightEnd: true,
         hourlyRates: true,
           },
         })
@@ -42,7 +45,7 @@ export default async function NewOrderPage() {
         </Button>
         <h1 className="text-2xl font-semibold">{t("newOrder")}</h1>
       </div>
-      <OrderRequestBuilder surcharges={resolveSurcharges(client)} rates={resolveRates(client)} />
+      <OrderRequestBuilder surcharges={resolveSurcharges(client)} rates={resolveRates(client)} nightWindow={resolveNightWindow(client)} />
     </div>
   );
 }

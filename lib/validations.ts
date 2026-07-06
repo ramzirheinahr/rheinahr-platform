@@ -154,6 +154,16 @@ export const clientSchema = z.object({
   surchargeSat: z.coerce.number().min(0).max(500).optional(),
   surchargeSun: z.coerce.number().min(0).max(500).optional(),
   surchargeHoliday: z.coerce.number().min(0).max(500).optional(),
+  surchargeNight: z.coerce.number().min(0).max(500).optional(),
+  // Night window (HH:mm). Blank → platform default (20:00–06:00).
+  nightStart: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined),
+    z.string().regex(timeRegex).optional(),
+  ),
+  nightEnd: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined),
+    z.string().regex(timeRegex).optional(),
+  ),
   // Per-qualification hourly rates (EUR netto). Empty → platform default.
   ratePflegefachkraft: optionalRate,
   ratePflegehelfer: optionalRate,

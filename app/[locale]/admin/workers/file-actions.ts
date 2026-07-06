@@ -10,10 +10,32 @@ import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 import type { DocumentCategory } from "@prisma/client";
 
 type ActionState = { ok: boolean; error?: string };
+// Result of requesting a direct-to-storage upload: a one-time signed URL the
+// browser uploads the file to, bypassing the Server Action / serverless request
+// body limits (Next.js default 1 MB; Vercel 4.5 MB) that were failing on larger
+// PDFs. The file never passes through our function — only this small ticket does.
+type UploadTicket =
+  | { ok: true; path: string; token: string }
+  | { ok: false; error: string };
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const DOC_TYPES = [...IMAGE_TYPES, "application/pdf"];
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB (matches the bucket limit)
+
+// Confirm an object actually exists at `path` before we record it, so a client
+// that requests a ticket but never uploads can't create a dangling row.
+async function objectExists(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  path: string,
+): Promise<boolean> {
+  const idx = path.lastIndexOf("/");
+  const dir = path.slice(0, idx);
+  const name = path.slice(idx + 1);
+  const { data } = await supabase.storage
+    .from(WORKER_FILES_BUCKET)
+    .list(dir, { search: name, limit: 100 });
+  return Boolean(data?.some((o) => o.name === name));
+}
 
 // Admin/super_admin may manage any worker's files; a worker may manage only their
 // own. Returns the worker (id + userId) when allowed, else null.
@@ -33,27 +55,40 @@ function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
 }
 
-// Upload (or replace) the worker's profile photo.
-export async function uploadWorkerPhoto(
+// Step 1 — issue a signed upload URL for a new profile photo. Validates
+// authorization + type + size on the tiny metadata only; the file is uploaded
+// straight to Storage by the browser (see the component).
+export async function createWorkerPhotoUpload(
   workerId: string,
-  formData: FormData,
+  meta: { fileName: string; fileType: string; fileSize: number },
+): Promise<UploadTicket> {
+  const ctx = await authorizeWorker(workerId);
+  if (!ctx) return { ok: false, error: "forbidden" };
+  if (!meta.fileSize || meta.fileSize <= 0) return { ok: false, error: "fileRequired" };
+  if (!IMAGE_TYPES.includes(meta.fileType)) return { ok: false, error: "fileType" };
+  if (meta.fileSize > MAX_BYTES) return { ok: false, error: "fileTooLarge" };
+
+  const supabase = createSupabaseAdminClient();
+  const path = `photos/${workerId}/${Date.now()}-${safeName(meta.fileName)}`;
+  const { data, error } = await supabase.storage
+    .from(WORKER_FILES_BUCKET)
+    .createSignedUploadUrl(path);
+  if (error || !data) return { ok: false, error: "saveError" };
+  return { ok: true, path: data.path, token: data.token };
+}
+
+// Step 2 — once the browser has uploaded the file, record it as the worker's
+// photo and drop the previous one. The path is pinned to this worker's folder.
+export async function finalizeWorkerPhoto(
+  workerId: string,
+  path: string,
 ): Promise<ActionState> {
   const ctx = await authorizeWorker(workerId);
   if (!ctx) return { ok: false, error: "forbidden" };
-
-  const file = formData.get("photo");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "fileRequired" };
-  }
-  if (!IMAGE_TYPES.includes(file.type)) return { ok: false, error: "fileType" };
-  if (file.size > MAX_BYTES) return { ok: false, error: "fileTooLarge" };
+  if (!path.startsWith(`photos/${workerId}/`)) return { ok: false, error: "saveError" };
 
   const supabase = createSupabaseAdminClient();
-  const path = `photos/${workerId}/${Date.now()}-${safeName(file.name)}`;
-  const { error } = await supabase.storage
-    .from(WORKER_FILES_BUCKET)
-    .upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
-  if (error) return { ok: false, error: "saveError" };
+  if (!(await objectExists(supabase, path))) return { ok: false, error: "saveError" };
 
   // Best-effort removal of the previous photo so we don't orphan files.
   if (ctx.worker.photoPath) {
@@ -98,38 +133,52 @@ export async function deleteWorkerPhoto(workerId: string): Promise<ActionState> 
   return { ok: true };
 }
 
-// Upload a certificate / ID / vaccination document for a worker.
-export async function uploadWorkerDocument(
+// Step 1 — issue a signed upload URL for a certificate / ID / vaccination doc.
+export async function createWorkerDocumentUpload(
   workerId: string,
-  formData: FormData,
+  meta: { category: string; fileName: string; fileType: string; fileSize: number },
+): Promise<UploadTicket> {
+  const ctx = await authorizeWorker(workerId);
+  if (!ctx) return { ok: false, error: "forbidden" };
+  if (!(documentCategories as readonly string[]).includes(meta.category)) {
+    return { ok: false, error: "saveError" };
+  }
+  if (!meta.fileSize || meta.fileSize <= 0) return { ok: false, error: "fileRequired" };
+  if (!DOC_TYPES.includes(meta.fileType)) return { ok: false, error: "fileType" };
+  if (meta.fileSize > MAX_BYTES) return { ok: false, error: "fileTooLarge" };
+
+  const supabase = createSupabaseAdminClient();
+  const path = `documents/${workerId}/${Date.now()}-${safeName(meta.fileName)}`;
+  const { data, error } = await supabase.storage
+    .from(WORKER_FILES_BUCKET)
+    .createSignedUploadUrl(path);
+  if (error || !data) return { ok: false, error: "saveError" };
+  return { ok: true, path: data.path, token: data.token };
+}
+
+// Step 2 — record the uploaded document once the browser finished the upload.
+export async function finalizeWorkerDocument(
+  workerId: string,
+  meta: { category: string; fileName: string; path: string },
 ): Promise<ActionState> {
   const ctx = await authorizeWorker(workerId);
   if (!ctx) return { ok: false, error: "forbidden" };
-
-  const category = String(formData.get("category") ?? "");
-  if (!(documentCategories as readonly string[]).includes(category)) {
+  if (!(documentCategories as readonly string[]).includes(meta.category)) {
     return { ok: false, error: "saveError" };
   }
-  const file = formData.get("document");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "fileRequired" };
+  if (!meta.path.startsWith(`documents/${workerId}/`)) {
+    return { ok: false, error: "saveError" };
   }
-  if (!DOC_TYPES.includes(file.type)) return { ok: false, error: "fileType" };
-  if (file.size > MAX_BYTES) return { ok: false, error: "fileTooLarge" };
 
   const supabase = createSupabaseAdminClient();
-  const path = `documents/${workerId}/${Date.now()}-${safeName(file.name)}`;
-  const { error } = await supabase.storage
-    .from(WORKER_FILES_BUCKET)
-    .upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
-  if (error) return { ok: false, error: "saveError" };
+  if (!(await objectExists(supabase, meta.path))) return { ok: false, error: "saveError" };
 
   await prisma.workerDocument.create({
     data: {
       workerId,
-      category: category as DocumentCategory,
-      fileName: file.name.slice(0, 200),
-      filePath: path,
+      category: meta.category as DocumentCategory,
+      fileName: meta.fileName.slice(0, 200),
+      filePath: meta.path,
     },
   });
   await audit({
@@ -137,7 +186,7 @@ export async function uploadWorkerDocument(
     action: "worker.document.upload",
     entity: "Worker",
     entityId: workerId,
-    metadata: { category },
+    metadata: { category: meta.category },
   });
 
   revalidatePath(`/admin/workers/${workerId}/edit`);

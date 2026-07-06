@@ -31,6 +31,10 @@ type ClientData = {
   surchargeSat: number | null;
   surchargeSun: number | null;
   surchargeHoliday: number | null;
+  surchargeNight: number | null;
+  // Night window (HH:mm) or null → platform default (20:00–06:00).
+  nightStart: string | null;
+  nightEnd: string | null;
   // Per-qualification hourly rate overrides (EUR), missing = platform default.
   hourlyRates: Partial<Record<(typeof qualifications)[number], number | null>>;
 };
@@ -113,7 +117,7 @@ export function ClientForm({ client }: { client: ClientData }) {
       <fieldset className="space-y-3 rounded-lg border p-4">
         <legend className="px-1 text-sm font-medium">{t("surcharges")}</legend>
         <p className="text-xs text-muted-foreground">{t("surchargesHint")}</p>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
             <Label htmlFor="surchargeSat">{t("surchargeSat")}</Label>
             <Input
@@ -156,7 +160,42 @@ export function ClientForm({ client }: { client: ClientData }) {
               defaultValue={toPct(client.surchargeHoliday)}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="surchargeNight">{t("surchargeNight")}</Label>
+            <Input
+              id="surchargeNight"
+              name="surchargeNight"
+              type="number"
+              min={0}
+              max={500}
+              step={1}
+              inputMode="decimal"
+              placeholder="25"
+              defaultValue={toPct(client.surchargeNight)}
+            />
+          </div>
         </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="nightStart">{t("nightStart")}</Label>
+            <Input
+              id="nightStart"
+              name="nightStart"
+              type="time"
+              defaultValue={client.nightStart ?? "20:00"}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nightEnd">{t("nightEnd")}</Label>
+            <Input
+              id="nightEnd"
+              name="nightEnd"
+              type="time"
+              defaultValue={client.nightEnd ?? "06:00"}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">{t("nightWindowHint")}</p>
       </fieldset>
 
       <HourlyRatesFieldset values={client.hourlyRates} />

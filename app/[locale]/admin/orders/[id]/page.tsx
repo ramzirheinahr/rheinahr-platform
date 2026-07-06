@@ -2,7 +2,12 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { candidatesForShift, isRequestCancelable } from "@/lib/orders";
-import { resolveSurcharges, resolveRates, netShiftHours } from "@/lib/pricing";
+import {
+  resolveSurcharges,
+  resolveRates,
+  resolveNightWindow,
+  netShiftHours,
+} from "@/lib/pricing";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
@@ -36,6 +41,9 @@ export default async function AdminRequestDetail({
           surchargeSat: true,
           surchargeSun: true,
           surchargeHoliday: true,
+        surchargeNight: true,
+        nightStart: true,
+        nightEnd: true,
         hourlyRates: true,
         },
       },
@@ -149,6 +157,7 @@ export default async function AdminRequestDetail({
           initial={initial}
           surcharges={resolveSurcharges(orders[0].client)}
           rates={resolveRates(orders[0].client)}
+          nightWindow={resolveNightWindow(orders[0].client)}
           readOnly
           backHref={`/admin/orders/${id}`}
           shiftMeta={shiftMeta}

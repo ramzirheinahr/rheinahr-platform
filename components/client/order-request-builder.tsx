@@ -11,9 +11,14 @@ import {
   rateFor,
   DEFAULT_SURCHARGES,
   DEFAULT_RATES,
+  DEFAULT_NIGHT_WINDOW,
   VAT_RATE,
+  shiftCategoryHours,
+  categoryMultiplier,
+  SURCHARGE_CATEGORIES,
   type Surcharges,
   type Rates,
+  type NightWindow,
 } from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
 import {
@@ -103,6 +108,7 @@ export function OrderRequestBuilder({
   clients,
   surcharges,
   rates,
+  nightWindow,
   readOnly = false,
   adminEdit = false,
   backHref,
@@ -113,11 +119,19 @@ export function OrderRequestBuilder({
   // When provided, the builder runs in admin mode: the admin must pick the
   // target client and the request is created on that client's account. Each
   // client carries its own billing surcharges and hourly rates.
-  clients?: { id: string; name: string; surcharges: Surcharges; rates: Rates }[];
+  clients?: {
+    id: string;
+    name: string;
+    surcharges: Surcharges;
+    rates: Rates;
+    night: NightWindow;
+  }[];
   // Client mode: the logged-in client's resolved surcharges.
   surcharges?: Surcharges;
   // Client mode: the logged-in client's resolved per-qualification hourly rates.
   rates?: Rates;
+  // Client mode: the logged-in client's night-surcharge window.
+  nightWindow?: NightWindow;
   // Review mode: same table shape, all inputs locked, no submit.
   readOnly?: boolean;
   // Admin adjusting an existing request → route the save to the admin action.
@@ -310,6 +324,9 @@ export function OrderRequestBuilder({
   const rt: Rates = isAdmin
     ? selectedClient?.rates ?? DEFAULT_RATES
     : rates ?? DEFAULT_RATES;
+  const nightWin: NightWindow = isAdmin
+    ? selectedClient?.night ?? DEFAULT_NIGHT_WINDOW
+    : nightWindow ?? DEFAULT_NIGHT_WINDOW;
 
   // Billing (netto): each shift is hours × headcount × base rate, uplifted by
   // the day's Zuschlag (Sat/Sun/holiday). Holidays are resolved per shift year.
@@ -317,39 +334,36 @@ export function OrderRequestBuilder({
   const rate = useMemo(() => rateFor(qual, rt), [qual, rt]);
   const billing = useMemo(() => {
     const holidayCache = new Map<number, Map<string, string>>();
-    const holidaysForYear = (y: number) => {
+    const isHoliday = (dateStr: string) => {
+      const y = Number(dateStr.slice(0, 4));
       let h = holidayCache.get(y);
       if (!h) {
         h = germanHolidays(y);
         holidayCache.set(y, h);
       }
-      return h;
+      return h.has(dateStr);
     };
-    const hours = { base: 0, sat: 0, sun: 0, holiday: 0 };
+    // Split every shift's net hours across surcharge buckets per hour, so
+    // overnight shifts are billed per calendar day (Sat→Sun at midnight) and
+    // weekday night hours carry the night surcharge.
+    const hours: Record<(typeof SURCHARGE_CATEGORIES)[number], number> = {
+      base: 0,
+      sat: 0,
+      sun: 0,
+      holiday: 0,
+      night: 0,
+    };
     for (const s of activeShifts) {
-      const net = (netHours(s.start, s.end, s.pause) ?? 0) * s.quantity;
-      const y = Number(s.date.slice(0, 4));
-      const dow = new Date(`${s.date}T00:00:00Z`).getUTCDay();
-      const cat = holidaysForYear(y).has(s.date)
-        ? "holiday"
-        : dow === 0
-          ? "sun"
-          : dow === 6
-            ? "sat"
-            : "base";
-      hours[cat] += net;
+      const cats = shiftCategoryHours(s.date, s.start, s.end, s.pause, isHoliday, nightWin);
+      for (const cat of SURCHARGE_CATEGORIES) hours[cat] += cats[cat] * s.quantity;
     }
-    const rows = (
-      [
-        { key: "base", hours: hours.base, mult: 1 },
-        { key: "sat", hours: hours.sat, mult: 1 + sc.sat },
-        { key: "sun", hours: hours.sun, mult: 1 + sc.sun },
-        { key: "holiday", hours: hours.holiday, mult: 1 + sc.holiday },
-      ] as const
-    ).map((r) => ({ ...r, amount: r.hours * rate * r.mult }));
+    const rows = SURCHARGE_CATEGORIES.map((key) => {
+      const mult = categoryMultiplier(key, sc);
+      return { key, hours: hours[key], mult, amount: hours[key] * rate * mult };
+    });
     const total = rows.reduce((s, r) => s + r.amount, 0);
     return { rows, total };
-  }, [activeShifts, rate, sc.sat, sc.sun, sc.holiday]);
+  }, [activeShifts, rate, sc, nightWin]);
   const totalPrice = billing.total;
   const fmtEur = (n: number) =>
     n.toLocaleString(locale, { style: "currency", currency: "EUR" });
@@ -741,6 +755,13 @@ export function OrderRequestBuilder({
               sat: pct(sc.sat),
               sun: pct(sc.sun),
               hol: pct(sc.holiday),
+            })}
+          </span>
+          <span className="block text-xs">
+            {t("nightNote", {
+              night: pct(sc.night),
+              from: nightWin.start,
+              to: nightWin.end,
             })}
           </span>
         </div>

@@ -265,7 +265,13 @@
     "shortCodeHint": "2–3 characters, shown on the duty roster (e.g. WB).",
     "codeInUse": "This code is already used by another facility.",
     "hourlyRates": "Hourly rates (net, €)",
-    "hourlyRatesHint": "Per qualification. Leave blank to use the platform default rate."
+    "hourlyRatesHint": "Per qualification. Leave blank to use the platform default rate.",
+    "surchargeNight": "Night surcharge (%)",
+    "nightStart": "Night from",
+    "nightEnd": "Night to",
+    "nightWindowHint": "Time window for the night surcharge (default 20:00–06:00). Hours within this window are billed with the night surcharge.",
+    "searchPlaceholder": "Search facility…",
+    "noSearchMatch": "No matches."
   },
   "orders": {
     "title": "Orders",
@@ -397,7 +403,9 @@
     "grossTotal": "Gross total",
     "cancelShift": "Remove shift",
     "searchClient": "Search client…",
-    "noClientMatch": "No client found"
+    "noClientMatch": "No client found",
+    "cat_night": "Night",
+    "nightNote": "Night surcharge {night} ({from}–{to})."
   },
   "confirmations": {
     "title": "Service confirmations",

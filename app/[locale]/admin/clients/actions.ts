@@ -38,6 +38,9 @@ function parseProfile(formData: FormData) {
     surchargeSat: formData.get("surchargeSat") || undefined,
     surchargeSun: formData.get("surchargeSun") || undefined,
     surchargeHoliday: formData.get("surchargeHoliday") || undefined,
+    surchargeNight: formData.get("surchargeNight") || undefined,
+    nightStart: formData.get("nightStart") || undefined,
+    nightEnd: formData.get("nightEnd") || undefined,
     ratePflegefachkraft: formData.get("ratePflegefachkraft") || undefined,
     ratePflegehelfer: formData.get("ratePflegehelfer") || undefined,
     rateBetreuungskraft: formData.get("rateBetreuungskraft") || undefined,
@@ -138,6 +141,9 @@ export async function createClient(formData: FormData): Promise<ActionState> {
           surchargeSat: pctToFrac(data.surchargeSat),
           surchargeSun: pctToFrac(data.surchargeSun),
           surchargeHoliday: pctToFrac(data.surchargeHoliday),
+          surchargeNight: pctToFrac(data.surchargeNight),
+          nightStart: data.nightStart ?? null,
+          nightEnd: data.nightEnd ?? null,
           hourlyRates: ratesJson(data) ?? undefined,
         },
       });
@@ -187,6 +193,9 @@ export async function updateClient(
         surchargeSat: pctToFrac(data.surchargeSat),
         surchargeSun: pctToFrac(data.surchargeSun),
         surchargeHoliday: pctToFrac(data.surchargeHoliday),
+        surchargeNight: pctToFrac(data.surchargeNight),
+        nightStart: data.nightStart ?? null,
+        nightEnd: data.nightEnd ?? null,
         hourlyRates: ratesJson(data) ?? Prisma.JsonNull,
         // Keep the account display name in sync with the profile.
         user: {

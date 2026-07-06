@@ -15,11 +15,18 @@ import {
 } from "@/components/ui/select";
 import { FileText, Upload, Trash2, Check, ExternalLink } from "lucide-react";
 import { documentCategories } from "@/lib/validations";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 import {
-  uploadWorkerDocument,
+  createWorkerDocumentUpload,
+  finalizeWorkerDocument,
   deleteWorkerDocument,
   setWorkerDocumentVerified,
 } from "@/app/[locale]/admin/workers/file-actions";
+
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const DOC_TYPES = [...IMAGE_TYPES, "application/pdf"];
+const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export type WorkerDoc = {
   id: string;
@@ -55,18 +62,58 @@ export function WorkerDocuments({
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fd = new FormData();
-    fd.append("category", category);
-    fd.append("document", file);
+    const reset = () => {
+      if (inputRef.current) inputRef.current.value = "";
+    };
+    // Validate up front so we don't request a ticket for an invalid file.
+    if (!DOC_TYPES.includes(file.type)) {
+      toast.error(t("fileType"));
+      reset();
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      toast.error(t("fileTooLarge"));
+      reset();
+      return;
+    }
+    const cat = category;
     start(async () => {
-      const res = await uploadWorkerDocument(workerId, fd);
+      // 1) Ask the server for a one-time signed upload URL (tiny payload).
+      const ticket = await createWorkerDocumentUpload(workerId, {
+        category: cat,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+      });
+      if (!ticket.ok) {
+        toast.error(t(errKey(ticket.error)));
+        reset();
+        return;
+      }
+      // 2) Upload the file straight to Storage from the browser — no size limit
+      //    from the Server Action / serverless function.
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.storage
+        .from(WORKER_FILES_BUCKET)
+        .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });
+      if (error) {
+        toast.error(t("saveError"));
+        reset();
+        return;
+      }
+      // 3) Record the document.
+      const res = await finalizeWorkerDocument(workerId, {
+        category: cat,
+        fileName: file.name,
+        path: ticket.path,
+      });
       if (res.ok) {
         toast.success(t("documentUploaded"));
         router.refresh();
       } else {
         toast.error(t(errKey(res.error)));
       }
-      if (inputRef.current) inputRef.current.value = "";
+      reset();
     });
   }
 

@@ -5,10 +5,16 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { UserRound, Upload, Trash2 } from "lucide-react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 import {
-  uploadWorkerPhoto,
+  createWorkerPhotoUpload,
+  finalizeWorkerPhoto,
   deleteWorkerPhoto,
 } from "@/app/[locale]/admin/workers/file-actions";
+
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 const errKey = (e?: string) =>
   e === "fileType" || e === "fileTooLarge" || e === "fileRequired" || e === "forbidden"
@@ -34,10 +40,42 @@ export function WorkerPhoto({
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fd = new FormData();
-    fd.append("photo", file);
+    const reset = () => {
+      if (inputRef.current) inputRef.current.value = "";
+    };
+    if (!IMAGE_TYPES.includes(file.type)) {
+      toast.error(t("fileType"));
+      reset();
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      toast.error(t("fileTooLarge"));
+      reset();
+      return;
+    }
     start(async () => {
-      const res = await uploadWorkerPhoto(workerId, fd);
+      // Direct-to-Storage upload via a one-time signed URL (avoids the Server
+      // Action / serverless request-body limits that failed on larger files).
+      const ticket = await createWorkerPhotoUpload(workerId, {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+      });
+      if (!ticket.ok) {
+        toast.error(t(errKey(ticket.error)));
+        reset();
+        return;
+      }
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.storage
+        .from(WORKER_FILES_BUCKET)
+        .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });
+      if (error) {
+        toast.error(t("saveError"));
+        reset();
+        return;
+      }
+      const res = await finalizeWorkerPhoto(workerId, ticket.path);
       if (res.ok) {
         setPhoto(true);
         setV((x) => x + 1);
@@ -45,7 +83,7 @@ export function WorkerPhoto({
       } else {
         toast.error(t(errKey(res.error)));
       }
-      if (inputRef.current) inputRef.current.value = "";
+      reset();
     });
   }
 

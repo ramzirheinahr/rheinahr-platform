@@ -265,7 +265,13 @@
     "shortCodeHint": "2–3 Zeichen, erscheint im Dienstplan (z. B. WB).",
     "codeInUse": "Dieses Kürzel wird bereits von einer anderen Einrichtung verwendet.",
     "hourlyRates": "Stundensätze (netto, €)",
-    "hourlyRatesHint": "Pro Qualifikation. Leer lassen für den Standardsatz der Plattform."
+    "hourlyRatesHint": "Pro Qualifikation. Leer lassen für den Standardsatz der Plattform.",
+    "surchargeNight": "Nachtzuschlag (%)",
+    "nightStart": "Nacht von",
+    "nightEnd": "Nacht bis",
+    "nightWindowHint": "Zeitfenster für den Nachtzuschlag (Standard 20:00–06:00). Stunden in diesem Fenster werden mit dem Nachtzuschlag berechnet.",
+    "searchPlaceholder": "Einrichtung suchen…",
+    "noSearchMatch": "Keine Treffer."
   },
   "orders": {
     "title": "Aufträge",
@@ -397,7 +403,9 @@
     "grossTotal": "Summe brutto",
     "cancelShift": "Schicht entfernen",
     "searchClient": "Kunde suchen…",
-    "noClientMatch": "Kein Kunde gefunden"
+    "noClientMatch": "Kein Kunde gefunden",
+    "cat_night": "Nacht",
+    "nightNote": "Nachtzuschlag {night} ({from}–{to} Uhr)."
   },
   "confirmations": {
     "title": "Leistungsnachweise",

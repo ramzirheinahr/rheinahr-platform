@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { isRequestEditable, isRequestCancelable } from "@/lib/orders";
-import { resolveSurcharges, resolveRates, netShiftHours } from "@/lib/pricing";
+import {
+  resolveSurcharges,
+  resolveRates,
+  resolveNightWindow,
+  netShiftHours,
+} from "@/lib/pricing";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
@@ -37,6 +42,9 @@ export default async function ClientRequestDetail({
         surchargeSat: true,
         surchargeSun: true,
         surchargeHoliday: true,
+        surchargeNight: true,
+        nightStart: true,
+        nightEnd: true,
         hourlyRates: true,
       },
     })
@@ -161,6 +169,7 @@ export default async function ClientRequestDetail({
         initial={initial}
         surcharges={resolveSurcharges(client)}
         rates={resolveRates(client)}
+        nightWindow={resolveNightWindow(client)}
         readOnly
         backHref="/client/orders"
         shiftMeta={shiftMeta}

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
-import { resolveSurcharges, resolveRates } from "@/lib/pricing";
+import { resolveSurcharges, resolveRates, resolveNightWindow } from "@/lib/pricing";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,9 @@ async function getClients() {
         surchargeSat: true,
         surchargeSun: true,
         surchargeHoliday: true,
+        surchargeNight: true,
+        nightStart: true,
+        nightEnd: true,
         hourlyRates: true,
       },
     });
@@ -51,6 +54,7 @@ export default async function AdminNewOrderPage() {
           name: cl.facilityName,
           surcharges: resolveSurcharges(cl),
           rates: resolveRates(cl),
+          night: resolveNightWindow(cl),
         }))}
       />
     </div>

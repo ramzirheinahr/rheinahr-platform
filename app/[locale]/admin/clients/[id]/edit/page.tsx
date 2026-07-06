@@ -76,6 +76,9 @@ export default async function EditClientPage({
           surchargeSat: client.surchargeSat,
           surchargeSun: client.surchargeSun,
           surchargeHoliday: client.surchargeHoliday,
+          surchargeNight: client.surchargeNight,
+          nightStart: client.nightStart,
+          nightEnd: client.nightEnd,
           hourlyRates: resolveRateOverrides(client.hourlyRates),
         }}
       />

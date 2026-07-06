@@ -1,6 +1,11 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
-import { requestNetTotal, resolveSurcharges, resolveRates } from "@/lib/pricing";
+import {
+  requestNetTotal,
+  resolveSurcharges,
+  resolveRates,
+  resolveNightWindow,
+} from "@/lib/pricing";
 import { formatDateDE } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
@@ -25,6 +30,9 @@ type Row = {
     surchargeSat: number | null;
     surchargeSun: number | null;
     surchargeHoliday: number | null;
+    surchargeNight: number | null;
+    nightStart: string | null;
+    nightEnd: string | null;
     hourlyRates: unknown;
   };
 };
@@ -48,6 +56,9 @@ async function getOrders(): Promise<Row[]> {
             surchargeSat: true,
             surchargeSun: true,
             surchargeHoliday: true,
+        surchargeNight: true,
+        nightStart: true,
+        nightEnd: true,
         hourlyRates: true,
           },
         },
@@ -93,6 +104,7 @@ export default async function AdminOrdersPage() {
       g.shifts,
       resolveSurcharges(first.client),
       resolveRates(first.client),
+      resolveNightWindow(first.client),
     );
     return {
       key: g.key,

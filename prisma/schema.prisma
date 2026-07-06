@@ -271,6 +271,12 @@ model Client {
   surchargeSat     Float?    @map("surcharge_sat")
   surchargeSun     Float?    @map("surcharge_sun")
   surchargeHoliday Float?    @map("surcharge_holiday")
+  // Night surcharge (fraction, default +25 %) applied to hours inside the night
+  // window below. Null falls back to the platform default in lib/pricing.ts.
+  surchargeNight   Float?    @map("surcharge_night")
+  // Night window as HH:mm (overnight-aware, e.g. 20:00–06:00). Null = default.
+  nightStart       String?   @map("night_start")
+  nightEnd         String?   @map("night_end")
   // Per-client hourly rates (EUR netto) keyed by qualification, e.g.
   // { "pflegefachkraft": 54.9 }. Only overridden qualifications are stored;
   // missing keys fall back to HOURLY_RATES in lib/pricing.ts.

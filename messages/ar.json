@@ -265,7 +265,13 @@
     "shortCodeHint": "٢–٣ أحرف، يظهر في جدول الورديات (مثل WB).",
     "codeInUse": "هذا الرمز مستخدم بالفعل لمنشأة أخرى.",
     "hourlyRates": "أسعار الساعة (صافي، €)",
-    "hourlyRatesHint": "لكل مؤهل. اتركه فارغاً لاستخدام السعر الافتراضي للمنصة."
+    "hourlyRatesHint": "لكل مؤهل. اتركه فارغاً لاستخدام السعر الافتراضي للمنصة.",
+    "surchargeNight": "بدل ليلي (٪)",
+    "nightStart": "الليل من",
+    "nightEnd": "الليل إلى",
+    "nightWindowHint": "الفترة الزمنية للبدل الليلي (افتراضياً 20:00–06:00). تُحتسب الساعات ضمن هذه الفترة بالبدل الليلي.",
+    "searchPlaceholder": "ابحث عن مؤسسة…",
+    "noSearchMatch": "لا توجد نتائج."
   },
   "orders": {
     "title": "الطلبات",
@@ -397,7 +403,9 @@
     "grossTotal": "المجموع الإجمالي",
     "cancelShift": "إزالة الوردية",
     "searchClient": "ابحث عن زبون…",
-    "noClientMatch": "لا يوجد زبون مطابق"
+    "noClientMatch": "لا يوجد زبون مطابق",
+    "cat_night": "ليلي",
+    "nightNote": "البدل الليلي {night} ({from}–{to})."
   },
   "confirmations": {
     "title": "إثباتات الخدمة",

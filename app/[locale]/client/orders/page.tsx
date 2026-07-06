@@ -5,8 +5,10 @@ import {
   requestNetTotal,
   resolveSurcharges,
   resolveRates,
+  resolveNightWindow,
   type Surcharges,
   type Rates,
+  type NightWindow,
 } from "@/lib/pricing";
 import { formatDateDE, cn } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
@@ -28,8 +30,18 @@ type Row = {
   status: OrderStatus;
 };
 
-async function getOrders(): Promise<{ rows: Row[]; surcharges: Surcharges; rates: Rates }> {
-  const empty = { rows: [], surcharges: resolveSurcharges(null), rates: resolveRates(null) };
+async function getOrders(): Promise<{
+  rows: Row[];
+  surcharges: Surcharges;
+  rates: Rates;
+  night: NightWindow;
+}> {
+  const empty = {
+    rows: [],
+    surcharges: resolveSurcharges(null),
+    rates: resolveRates(null),
+    night: resolveNightWindow(null),
+  };
   const user = await getCurrentUser();
   if (!user) return empty;
   try {
@@ -40,6 +52,9 @@ async function getOrders(): Promise<{ rows: Row[]; surcharges: Surcharges; rates
         surchargeSat: true,
         surchargeSun: true,
         surchargeHoliday: true,
+        surchargeNight: true,
+        nightStart: true,
+        nightEnd: true,
         hourlyRates: true,
       },
     });
@@ -58,7 +73,12 @@ async function getOrders(): Promise<{ rows: Row[]; surcharges: Surcharges; rates
         status: true,
       },
     });
-    return { rows, surcharges: resolveSurcharges(client), rates: resolveRates(client) };
+    return {
+      rows,
+      surcharges: resolveSurcharges(client),
+      rates: resolveRates(client),
+      night: resolveNightWindow(client),
+    };
   } catch {
     return empty;
   }
@@ -83,7 +103,7 @@ function groupOrders(rows: Row[]) {
 export default async function ClientOrdersPage() {
   const t = await getTranslations("orders");
   const locale = await getLocale();
-  const { rows, surcharges, rates } = await getOrders();
+  const { rows, surcharges, rates, night } = await getOrders();
   const groups = groupOrders(rows);
   const fmtEur = (n: number) =>
     n.toLocaleString(locale, { style: "currency", currency: "EUR" });
@@ -113,7 +133,7 @@ export default async function ClientOrdersPage() {
                 : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
             const confirmed = g.shifts.filter((s) => s.status === "confirmed").length;
             const cancelled = g.shifts.every((s) => s.status === "cancelled");
-            const total = requestNetTotal(g.shifts, surcharges, rates);
+            const total = requestNetTotal(g.shifts, surcharges, rates, night);
             return (
               <Link
                 key={g.key}
