@@ -78,6 +78,11 @@ export function ShiftMetaCell({
 
   const assignments = meta.assignments ?? [];
   const active = assignments.filter((a) => a.status !== "declined").length;
+  // The scheduled window, parsed from the "…· HH:mm–HH:mm" label, so the confirm
+  // dialog can offer a time correction prefilled with the planned times.
+  const timeMatch = meta.label.match(/(\d{2}:\d{2})[–-](\d{2}:\d{2})/);
+  const scheduledStart = timeMatch?.[1];
+  const scheduledEnd = timeMatch?.[2];
 
   if (!assignable) {
     const confirmedWorkers = assignments.filter((a) => a.status === "confirmed" && a.worker);
@@ -119,7 +124,12 @@ export function ShiftMetaCell({
                   </Button>
                 </WorkerProfileDialog>
                 {meta.isPast && !a.hasConfirmation && (
-                  <ConfirmServiceDialog assignmentId={a.id} scheduledHours={meta.scheduledHours ?? 0} />
+                  <ConfirmServiceDialog
+                    assignmentId={a.id}
+                    scheduledHours={meta.scheduledHours ?? 0}
+                    scheduledStart={scheduledStart}
+                    scheduledEnd={scheduledEnd}
+                  />
                 )}
                 {meta.isPast && a.hasConfirmation && (
                   <CheckCircle2 className="size-4 text-primary" />
@@ -218,6 +228,8 @@ export function ShiftMetaCell({
                         <ConfirmServiceDialog
                           assignmentId={a.id}
                           scheduledHours={meta.scheduledHours ?? 0}
+                          scheduledStart={scheduledStart}
+                          scheduledEnd={scheduledEnd}
                         />
                       )}
                       <Button

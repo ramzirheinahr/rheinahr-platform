@@ -137,6 +137,7 @@ export type GridDay = {
   hasBlocks: boolean; // any explicit unavailability saved for the day
   jobs: GridJob[];
   leave?: {
+    requestId: string;
     status: "pending" | "approved" | "rejected";
     hours: number;
   };

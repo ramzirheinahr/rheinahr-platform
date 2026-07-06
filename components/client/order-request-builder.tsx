@@ -25,6 +25,7 @@ import {
   updateOrderRequestAsAdmin,
 } from "@/app/[locale]/admin/orders/actions";
 import { ShiftMetaCell, type ShiftMeta } from "@/components/orders/shift-meta-cell";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 export type InitialRequest = {
   requestGroupId: string;
@@ -486,16 +487,16 @@ export function OrderRequestBuilder({
             <span>
               {t("client")} <span className="text-destructive">*</span>
             </span>
-            <select
+            <SearchableSelect
+              className="w-64"
               value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className={cn(field, "w-64", !clientId && "text-muted-foreground")}
-            >
-              <option value="">{t("selectClient")}</option>
-              {clients!.map((cl) => (
-                <option key={cl.id} value={cl.id}>{cl.name}</option>
-              ))}
-            </select>
+              onChange={setClientId}
+              options={clients!.map((cl) => ({ value: cl.id, label: cl.name }))}
+              placeholder={t("selectClient")}
+              searchPlaceholder={t("searchClient")}
+              emptyText={t("noClientMatch")}
+              ariaLabel={t("client")}
+            />
           </label>
         ) : null}
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">

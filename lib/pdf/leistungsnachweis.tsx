@@ -21,6 +21,8 @@ export type LeistungsnachweisData = {
   methodLabel: string;
   isElectronic: boolean;
   signatureData?: string | null;
+  // Typed full name of the confirmer for the electronic (Textform) confirmation.
+  signerName?: string | null;
   confirmedByEmail: string;
   confirmedAt: string; // formatted
   ipAddress?: string | null;
@@ -56,6 +58,12 @@ const styles = StyleSheet.create({
     width: 260,
   },
   sigImage: { height: 70, objectFit: "contain" },
+  eSignName: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Oblique",
+    color: "#1e3a8a",
+    paddingVertical: 22,
+  },
   sigLine: {
     height: 70,
     borderBottomWidth: 1,
@@ -137,17 +145,20 @@ function LeistungsnachweisDocument({ d }: { d: LeistungsnachweisData }) {
 
         {d.isElectronic ? (
           <View style={styles.sigBox}>
-            {d.draft || !d.signatureData ? (
-              <View style={styles.sigLine} />
-            ) : (
-              // react-pdf Image is not an HTML <img>; alt-text rule does not apply.
+            {d.signatureData && !d.draft ? (
+              // Optional legacy drawn signature. react-pdf Image is not an HTML
+              // <img>; alt-text rule does not apply.
               // eslint-disable-next-line jsx-a11y/alt-text
               <Image style={styles.sigImage} src={d.signatureData} />
+            ) : d.draft ? (
+              <View style={styles.sigLine} />
+            ) : (
+              <Text style={styles.eSignName}>{d.signerName ?? d.confirmedByEmail}</Text>
             )}
             <Text style={styles.sigCaption}>
               {d.draft
-                ? `Elektronische Unterschrift — ${d.facilityName}`
-                : `Elektronische Unterschrift — ${d.facilityName}, ${d.confirmedAt}`}
+                ? `Elektronische Bestätigung (Textform) — ${d.facilityName}`
+                : `Elektronisch bestätigt in Textform (§ 126b BGB) durch ${d.signerName ?? d.confirmedByEmail} — ${d.facilityName}, ${d.confirmedAt}${d.ipAddress ? `, IP ${d.ipAddress}` : ""}`}
             </Text>
           </View>
         ) : null}

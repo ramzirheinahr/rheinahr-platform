@@ -5,11 +5,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { qualifications } from "@/lib/validations";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
-import { Plus, Pencil, Clock } from "lucide-react";
-
-type WorkerRow = Awaited<ReturnType<typeof getWorkers>>[number];
+import { WorkersTable, type WorkerTableRow } from "@/components/admin/workers-table";
+import { Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +15,8 @@ async function getWorkers(qualification?: Qualification) {
     const where: Prisma.WorkerWhereInput = qualification ? { qualification } : {};
     return await prisma.worker.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      // Alphabetical by name (case-insensitive) so the roster reads like a phone book.
+      orderBy: { fullName: "asc" },
       include: { user: { select: { email: true } } },
     });
   } catch {
@@ -54,50 +52,15 @@ export default async function WorkersPage({
     ? `/admin/workers/new?qualification=${qualification}`
     : "/admin/workers/new";
 
-  const columns: Column<WorkerRow>[] = [
-    { header: t("fullName"), primary: true, cell: (w) => w.fullName },
-    { header: t("email"), cell: (w) => w.user.email },
-    // Hide the qualification column when the list is already filtered to one type.
-    ...(qualification
-      ? []
-      : [
-          {
-            header: t("qualification"),
-            cell: (w: WorkerRow) => (
-              <Badge variant="secondary">{eq(w.qualification)}</Badge>
-            ),
-          } as Column<WorkerRow>,
-        ]),
-    { header: t("contractType"), cell: (w) => ec(w.contractType) },
-    { header: t("phone"), cell: (w) => w.phone || c("none") },
-    {
-      header: c("actions"),
-      className: "text-end",
-      action: true,
-      cell: (w) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2"
-            render={<Link href={`/admin/workers/${w.id}/schedule`} />}
-          >
-            <Clock className="size-4" />
-            {t("hoursAction")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2"
-            render={<Link href={`/admin/workers/${w.id}/edit`} />}
-          >
-            <Pencil className="size-4" />
-            {c("edit")}
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  const rows: WorkerTableRow[] = workers.map((w) => ({
+    id: w.id,
+    fullName: w.fullName,
+    email: w.user.email,
+    qualification: w.qualification,
+    qualificationLabel: eq(w.qualification),
+    contractLabel: ec(w.contractType),
+    phone: w.phone || c("none"),
+  }));
 
   return (
     <div className="space-y-6">
@@ -112,12 +75,7 @@ export default async function WorkersPage({
         )}
       </div>
 
-      <ResponsiveTable
-        columns={columns}
-        rows={workers}
-        getRowKey={(w) => w.id}
-        empty={t("empty")}
-      />
+      <WorkersTable rows={rows} showQualColumn={!qualification} />
     </div>
   );
 }

@@ -233,7 +233,9 @@
     "scheduleHint": "Dienstplan und vom Kunden bestätigte Stunden dieser Pflegekraft.",
     "scheduleEmpty": "Keine Einsätze in diesem Monat.",
     "carryoverHours": "Übertrag (Stunden)",
-    "carryoverHoursHint": "Stundensaldo aus Vormonaten: positiv = Soll, negativ = Guthaben."
+    "carryoverHoursHint": "Stundensaldo aus Vormonaten: positiv = Soll, negativ = Guthaben.",
+    "searchPlaceholder": "Pflegekraft suchen…",
+    "noSearchMatch": "Keine Treffer."
   },
   "clients": {
     "title": "Einrichtungen",
@@ -335,7 +337,10 @@
     "selectAllWorkers": "Alle auswählen",
     "deselectAllWorkers": "Auswahl aufheben",
     "searchWorkers": "Fachkraft suchen …",
-    "noSearchMatch": "Keine passende Fachkraft"
+    "noSearchMatch": "Keine passende Fachkraft",
+    "filterStatus": "Status",
+    "clearFilter": "Filter zurücksetzen",
+    "noStatusMatch": "Keine Anfragen mit diesem Status."
   },
   "orderRequest": {
     "prev": "Zurück",
@@ -390,7 +395,9 @@
     "netTotal": "Summe netto",
     "vat": "zzgl. 19 % USt",
     "grossTotal": "Summe brutto",
-    "cancelShift": "Schicht entfernen"
+    "cancelShift": "Schicht entfernen",
+    "searchClient": "Kunde suchen…",
+    "noClientMatch": "Kein Kunde gefunden"
   },
   "confirmations": {
     "title": "Leistungsnachweise",
@@ -417,7 +424,18 @@
     "clear": "Löschen",
     "uploadHint": "PNG, JPG oder PDF (max. 10 MB).",
     "fileRequired": "Bitte eine Datei auswählen.",
-    "saveError": "Aktion fehlgeschlagen. Bitte erneut versuchen."
+    "saveError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
+    "nameRequired": "Bitte geben Sie zur Bestätigung Ihren vollständigen Namen ein.",
+    "consentRequired": "Bitte bestätigen Sie die rechtliche Erklärung.",
+    "confirmedWithChange": "Leistung bestätigt. Ihre Zeitkorrektur wurde zur Freigabe an die Verwaltung gesendet.",
+    "adjustTimesToggle": "Schichtzeiten korrigieren (Freigabe durch Verwaltung)",
+    "adjustTimesHint": "Passen Sie die tatsächliche Start-/Endzeit an; die Änderung wird zur Freigabe an die Verwaltung gesendet.",
+    "newStart": "Neuer Beginn",
+    "newEnd": "Neues Ende",
+    "adjustTimesApprovalNote": "Diese Änderung wird zur Freigabe an die Verwaltung gesendet.",
+    "eSignTitle": "Elektronische Bestätigung",
+    "signerName": "Vollständiger Name",
+    "signerNamePlaceholder": "z. B. Anna Schmidt"
   },
   "enums": {
     "qualification": {
@@ -589,7 +607,10 @@
     "cancelRejected": "Anfrage abgelehnt.",
     "release": "Freigeben",
     "released": "Einsatz freigegeben.",
-    "cancelSigned": "Nach Kundensignatur nicht möglich."
+    "cancelSigned": "Nach Kundensignatur nicht möglich.",
+    "leaveSection": "Urlaub",
+    "cancelLeaveEntirely": "Urlaub stornieren",
+    "leaveCancelled": "Urlaub wurde storniert."
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",
@@ -700,6 +721,8 @@
     "newOrderAria": "Offenen Dienst anlegen",
     "quantity": "Anzahl",
     "createOrder": "Dienst anlegen",
-    "orderCreated": "Dienst wurde angelegt."
+    "orderCreated": "Dienst wurde angelegt.",
+    "searchFacility": "Einrichtung suchen…",
+    "noFacilityMatch": "Keine Einrichtung gefunden"
   }
 }

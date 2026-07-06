@@ -76,6 +76,7 @@ export async function getMasterSchedule(
             days: { some: { date: { gte: monthStart, lt: monthEnd } } }
           },
           select: {
+            id: true,
             days: {
               where: { date: { gte: monthStart, lt: monthEnd } },
               select: { date: true, status: true, hours: true }
@@ -160,6 +161,7 @@ export async function getMasterSchedule(
       for (const ld of req.days) {
         const day = ld.date.getUTCDate();
         days[day - 1].leave = {
+          requestId: req.id,
           status: ld.status,
           hours: ld.hours,
         };

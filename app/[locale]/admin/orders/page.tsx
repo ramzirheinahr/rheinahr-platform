@@ -1,11 +1,12 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { requestNetTotal, resolveSurcharges, resolveRates } from "@/lib/pricing";
-import { formatDateDE, cn } from "@/lib/utils";
+import { formatDateDE } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
-import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Plus } from "lucide-react";
+import { OrdersList, type OrderGroupSummary } from "@/components/admin/orders-list";
+import { orderStatuses } from "@/lib/validations";
+import { Plus } from "lucide-react";
 import type { OrderStatus, Qualification } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,29 @@ export default async function AdminOrdersPage() {
   const fmtEur = (n: number) =>
     n.toLocaleString(locale, { style: "currency", currency: "EUR" });
 
+  const summaries: OrderGroupSummary[] = groups.map((g) => {
+    const first = g.shifts[0];
+    const last = g.shifts[g.shifts.length - 1];
+    const range =
+      formatDateDE(first.shiftDate) === formatDateDE(last.shiftDate)
+        ? formatDateDE(first.shiftDate)
+        : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
+    const total = requestNetTotal(
+      g.shifts,
+      resolveSurcharges(first.client),
+      resolveRates(first.client),
+    );
+    return {
+      key: g.key,
+      facilityName: first.client.facilityName,
+      range,
+      shiftsCount: g.shifts.length,
+      netLabel: fmtEur(total),
+      status: first.status,
+      cancelled: g.shifts.every((s) => s.status === "cancelled"),
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -91,48 +115,7 @@ export default async function AdminOrdersPage() {
         </Button>
       </div>
 
-      {groups.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("empty")}
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {groups.map((g) => {
-            const first = g.shifts[0];
-            const last = g.shifts[g.shifts.length - 1];
-            const range =
-              formatDateDE(first.shiftDate) === formatDateDE(last.shiftDate)
-                ? formatDateDE(first.shiftDate)
-                : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
-            const total = requestNetTotal(g.shifts, resolveSurcharges(first.client), resolveRates(first.client));
-            const cancelled = g.shifts.every((s) => s.status === "cancelled");
-            return (
-              <Link
-                key={g.key}
-                href={`/admin/orders/${g.key}`}
-                className={cn(
-                  "flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-muted/40",
-                  cancelled && "border-destructive/40 bg-destructive/5",
-                )}
-              >
-                <div>
-                  <div className={cn("font-medium", cancelled && "text-destructive line-through")}>
-                    {first.client.facilityName}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {range} · {g.shifts.length} {t("shiftsCount")} · {fmtEur(total)}{" "}
-                    {t("net")}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <OrderStatusBadge status={first.status} />
-                  <ChevronRight className="size-4 text-muted-foreground rtl:rotate-180" />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      <OrdersList groups={summaries} statuses={[...orderStatuses] as OrderStatus[]} />
     </div>
   );
 }

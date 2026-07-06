@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ import {
   approveShiftCancellation,
   rejectShiftCancellation,
 } from "@/app/[locale]/admin/schedule/actions";
+import { cancelLeaveEntirely } from "@/app/[locale]/admin/leave/actions";
 
 // The company's Excel Dienstplan, digital: two lines per worker per day —
 // availability letters on top (green ward number once the client signed),
@@ -637,19 +639,19 @@ function NewOrderEditor({
       </DialogHeader>
 
       <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
-        <select
+        <SearchableSelect
           value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          className={field}
-          aria-label={t("facility")}
-        >
-          <option value="">{t("selectFacility")}</option>
-          {facilities.map((f) => (
-            <option key={f.clientId} value={f.clientId}>
-              {f.code} — {f.name}
-            </option>
-          ))}
-        </select>
+          onChange={setClientId}
+          options={facilities.map((f) => ({
+            value: f.clientId,
+            label: `${f.code} — ${f.name}`,
+            hint: f.name,
+          }))}
+          placeholder={t("selectFacility")}
+          searchPlaceholder={t("searchFacility")}
+          emptyText={t("noFacilityMatch")}
+          ariaLabel={t("facility")}
+        />
         <div className="grid grid-cols-2 gap-2">
           <select
             value={shift}
@@ -795,6 +797,20 @@ function CellEditor({
     });
   }
 
+  function cancelLeave() {
+    if (!cell.leave) return;
+    const requestId = cell.leave.requestId;
+    startTransition(async () => {
+      const res = await cancelLeaveEntirely(requestId);
+      if (res.ok) {
+        toast.success(av("leaveCancelled"));
+        router.refresh();
+      } else {
+        toast.error(t("saveError"));
+      }
+    });
+  }
+
   function resolveCancel(assignmentId: string, approve: boolean) {
     startTransition(async () => {
       const res = approve
@@ -866,6 +882,29 @@ function CellEditor({
           </Button>
         </div>
       </section>
+
+      {cell.leave ? (
+        <section className="space-y-2 rounded-md border border-rose-500/40 bg-rose-500/5 p-2.5">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+            {av("leaveSection")}
+          </h3>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm">
+              {av(cell.leave.status === "approved" ? "leaveApproved" : "leavePending")}
+              {" · "}
+              {cell.leave.hours}h
+            </span>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={cancelLeave}
+              disabled={pending}
+            >
+              {av("cancelLeaveEntirely")}
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -986,22 +1025,22 @@ function CellEditor({
               className={field}
             />
           </div>
-          <select
+          <SearchableSelect
             value={clientId}
-            onChange={(e) => {
-              setClientId(e.target.value);
+            onChange={(v) => {
+              setClientId(v);
               setConflict(null);
             }}
-            className={field}
-            aria-label={t("facility")}
-          >
-            <option value="">{t("selectFacility")}</option>
-            {facilities.map((f) => (
-              <option key={f.clientId} value={f.clientId}>
-                {f.code} — {f.name}
-              </option>
-            ))}
-          </select>
+            options={facilities.map((f) => ({
+              value: f.clientId,
+              label: `${f.code} — ${f.name}`,
+              hint: f.name,
+            }))}
+            placeholder={t("selectFacility")}
+            searchPlaceholder={t("searchFacility")}
+            emptyText={t("noFacilityMatch")}
+            ariaLabel={t("facility")}
+          />
 
           {conflict ? (
             <div className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-xs">

@@ -382,7 +382,10 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     method: formData.get("method"),
     hoursWorked: formData.get("hoursWorked"),
     clientNotes: formData.get("clientNotes"),
+    signerName: formData.get("signerName") || undefined,
     signatureData: formData.get("signatureData") || undefined,
+    adjustStart: formData.get("adjustStart") || undefined,
+    adjustEnd: formData.get("adjustEnd") || undefined,
   });
   if (!parsed.success) return { ok: false, error: "saveError" };
   const data = parsed.data;
@@ -440,9 +443,11 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     if (error) return { ok: false, error: "saveError" };
     documentUrl = path;
   } else {
-    // Method A — the client draws an electronic signature; bake it into the
-    // finalized Leistungsnachweis PDF and archive that immutable document.
-    if (!data.signatureData) return { ok: false, error: "signatureRequired" };
+    // Method A — electronic confirmation in Textform (§ 126b BGB): the confirmer
+    // types their name and consents; the binding evidence is the timestamp + IP +
+    // legal statement baked into the immutable Leistungsnachweis PDF. A drawn
+    // signature image is optional (legacy) and no longer required.
+    if (!data.signerName) return { ok: false, error: "nameRequired" };
 
     const [{ renderLeistungsnachweisPdf }, { qualLabel, methodLabel }] =
       await Promise.all([
@@ -467,6 +472,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
       methodLabel: methodLabel.electronic,
       isElectronic: true,
       signatureData: data.signatureData,
+      signerName: data.signerName,
       confirmedByEmail: user.email,
       confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
       ipAddress: ip,
@@ -543,13 +549,72 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     }
   });
 
+  // #6 — the client requested a corrected shift window while confirming. This
+  // needs office approval, so it lands as a message in the request's inbox thread
+  // (plus an in-app notification for every admin). The admin then adjusts the
+  // order times from the request editor. The times on the order are NOT changed
+  // here — only the request is filed.
+  const reqStart = assignment.order.startTime;
+  const reqEnd = assignment.order.endTime;
+  const timeChangeRequested =
+    !!data.adjustStart &&
+    !!data.adjustEnd &&
+    (data.adjustStart !== reqStart || data.adjustEnd !== reqEnd);
+  if (timeChangeRequested && assignment.order.client.userId) {
+    const requestGroupId = assignment.order.requestGroupId ?? assignment.order.id;
+    const dateLabel = formatDateDE(assignment.order.shiftDate);
+    const { getOrCreateRequestConversation } = await import("@/lib/inbox");
+    const conversation = await getOrCreateRequestConversation(
+      requestGroupId,
+      assignment.order.client.userId,
+      dateLabel,
+    );
+    const now = new Date();
+    const noteSuffix = data.clientNotes ? ` – ${data.clientNotes}` : "";
+    const body = `Zeitkorrektur angefragt (${dateLabel}): ${reqStart}–${reqEnd} → ${data.adjustStart}–${data.adjustEnd}. Bitte prüfen und freigeben.${noteSuffix}`;
+    // Mark the sender's own copy read only if they are actually a participant
+    // (the client). An admin confirming on behalf is not on the thread.
+    const senderIsParticipant = user.id === assignment.order.client.userId;
+    await prisma.$transaction([
+      prisma.message.create({
+        data: { conversationId: conversation.id, senderId: user.id, body },
+      }),
+      prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: now },
+      }),
+      ...(senderIsParticipant
+        ? [
+            prisma.conversationParticipant.update({
+              where: {
+                conversationId_userId: { conversationId: conversation.id, userId: user.id },
+              },
+              data: { lastReadAt: now },
+            }),
+          ]
+        : []),
+    ]);
+    await notifyAdmins(
+      "new_message",
+      `${assignment.order.client.facilityName} (${dateLabel}): ${body}`,
+      inboxLink("admin", conversation.id),
+    );
+  }
+
   await audit({
     userId: user.id,
     action: "service.confirm",
     entity: "Assignment",
     entityId: data.assignmentId,
     ipAddress: ip,
-    metadata: { method: data.method, hours: data.hoursWorked, actorRole: user.role },
+    metadata: {
+      method: data.method,
+      hours: data.hoursWorked,
+      actorRole: user.role,
+      ...(timeChangeRequested
+        ? { timeChange: `${reqStart}-${reqEnd} → ${data.adjustStart}-${data.adjustEnd}` }
+        : {}),
+    },
   });
 
   // Mobile push: worker + office (mirrors the in-app service_confirmed notice).

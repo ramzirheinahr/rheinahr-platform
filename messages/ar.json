@@ -233,7 +233,9 @@
     "scheduleHint": "جدول الورديات والساعات المؤكدة من الزبائن لكادر الرعاية هذا.",
     "scheduleEmpty": "لا توجد ورديات في هذا الشهر.",
     "carryoverHours": "الرصيد المُرحَّل (ساعات)",
-    "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = مطلوب منه، سالب = رصيد فائض."
+    "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = مطلوب منه، سالب = رصيد فائض.",
+    "searchPlaceholder": "ابحث عن كادر…",
+    "noSearchMatch": "لا توجد نتائج."
   },
   "clients": {
     "title": "المنشآت",
@@ -335,7 +337,10 @@
     "selectAllWorkers": "تحديد كل الموظفين",
     "deselectAllWorkers": "إلغاء تحديد الكل",
     "searchWorkers": "ابحث عن موظف…",
-    "noSearchMatch": "لا يوجد موظف مطابق"
+    "noSearchMatch": "لا يوجد موظف مطابق",
+    "filterStatus": "الحالة",
+    "clearFilter": "مسح التصفية",
+    "noStatusMatch": "لا توجد طلبيات بهذه الحالة."
   },
   "orderRequest": {
     "prev": "السابق",
@@ -390,7 +395,9 @@
     "netTotal": "المجموع الصافي",
     "vat": "+ ١٩٪ ضريبة القيمة المضافة",
     "grossTotal": "المجموع الإجمالي",
-    "cancelShift": "إزالة الوردية"
+    "cancelShift": "إزالة الوردية",
+    "searchClient": "ابحث عن زبون…",
+    "noClientMatch": "لا يوجد زبون مطابق"
   },
   "confirmations": {
     "title": "إثباتات الخدمة",
@@ -417,7 +424,18 @@
     "clear": "مسح",
     "uploadHint": "PNG أو JPG أو PDF (بحد أقصى 10 ميجابايت).",
     "fileRequired": "يرجى اختيار ملف.",
-    "saveError": "فشل الإجراء. يرجى المحاولة مجددًا."
+    "saveError": "فشل الإجراء. يرجى المحاولة مجددًا.",
+    "nameRequired": "يرجى إدخال الاسم الكامل للتأكيد.",
+    "consentRequired": "يرجى الموافقة على الإقرار القانوني.",
+    "confirmedWithChange": "تم تأكيد الخدمة وإرسال طلب تعديل الوقت إلى الإدارة للموافقة.",
+    "adjustTimesToggle": "تصحيح وقت الوردية (يتطلب موافقة الإدارة)",
+    "adjustTimesHint": "عدّل وقت البداية والنهاية الفعلي؛ سيُرسَل الطلب إلى الإدارة للموافقة.",
+    "newStart": "بداية جديدة",
+    "newEnd": "نهاية جديدة",
+    "adjustTimesApprovalNote": "سيتم إرسال هذا التعديل إلى الإدارة للموافقة عليه.",
+    "eSignTitle": "التوقيع الإلكتروني",
+    "signerName": "الاسم الكامل للموقّع",
+    "signerNamePlaceholder": "مثال: أحمد محمد"
   },
   "enums": {
     "qualification": {
@@ -589,7 +607,10 @@
     "cancelRejected": "تم رفض الطلب.",
     "release": "تحرير",
     "released": "تم تحرير الوردية.",
-    "cancelSigned": "لا يمكن الإلغاء بعد توقيع الزبون."
+    "cancelSigned": "لا يمكن الإلغاء بعد توقيع الزبون.",
+    "leaveSection": "الإجازة",
+    "cancelLeaveEntirely": "إلغاء الإجازة",
+    "leaveCancelled": "تم إلغاء الإجازة."
   },
   "cookies": {
     "message": "نستخدم فقط ملفات تعريف ارتباط ضرورية تقنيًا لتمكين تسجيل الدخول وتشغيل المنصة.",
@@ -700,6 +721,8 @@
     "newOrderAria": "إنشاء وردية مفتوحة",
     "quantity": "العدد",
     "createOrder": "إنشاء الوردية",
-    "orderCreated": "تم إنشاء الوردية."
+    "orderCreated": "تم إنشاء الوردية.",
+    "searchFacility": "ابحث عن مؤسسة…",
+    "noFacilityMatch": "لا توجد مؤسسة مطابقة"
   }
 }

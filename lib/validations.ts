@@ -186,10 +186,18 @@ export const serviceConfirmationSchema = z
   .object({
     assignmentId: z.string().uuid(),
     method: z.enum(confirmationMethods),
+    // Any real number of hours (e.g. 7.8) — no fixed step (see confirm dialog).
     hoursWorked: z.coerce.number().min(0).max(24),
     clientNotes: z.string().max(2000).optional(),
-    // Method A: base64 PNG from the signature pad.
+    // Method A (electronic): the confirmer's typed full name; the legally binding
+    // record is the timestamp + IP + consent baked into the PDF, not a drawn image.
+    signerName: z.string().trim().min(2).max(120).optional(),
+    // Optional legacy drawn signature (base64 PNG) — no longer required.
     signatureData: z.string().startsWith("data:image/").optional(),
+    // Optional client-requested correction of the shift window (needs admin
+    // approval). Both must be provided together; the note explains the change.
+    adjustStart: z.string().regex(timeRegex).optional(),
+    adjustEnd: z.string().regex(timeRegex).optional(),
   });
 
 export type ServiceConfirmationInput = z.infer<typeof serviceConfirmationSchema>;

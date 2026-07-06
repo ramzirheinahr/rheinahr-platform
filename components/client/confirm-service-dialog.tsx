@@ -16,20 +16,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { SignaturePadField } from "@/components/client/signature-pad-field";
-import { FileSignature, FileText, ExternalLink } from "lucide-react";
+import { FileSignature, FileText, ExternalLink, ShieldCheck, Clock } from "lucide-react";
 import { confirmService } from "@/app/[locale]/client/orders/actions";
 
-// Client-side "review the document, then sign" flow (mirrors the reference
-// e-signature UX): the draft Leistungsnachweis PDF is embedded for review, the
-// client draws an electronic signature, consents, and the signed PDF is
-// generated + archived server-side.
+// "Review the document, then confirm" flow. The legally binding electronic
+// confirmation is NOT a drawn signature (which carries no evidentiary value here)
+// but a consented, timestamped record with the confirmer's name and logged IP +
+// date + a legal statement on the document (§ 126a/126b BGB Textform).
 export function ConfirmServiceDialog({
   assignmentId,
   scheduledHours,
+  scheduledStart,
+  scheduledEnd,
 }: {
   assignmentId: string;
   scheduledHours: number;
+  scheduledStart?: string;
+  scheduledEnd?: string;
 }) {
   const t = useTranslations("confirmations");
   const c = useTranslations("common");
@@ -39,32 +42,49 @@ export function ConfirmServiceDialog({
 
   const [hours, setHours] = useState(scheduledHours);
   const [previewHours, setPreviewHours] = useState(scheduledHours); // committed → iframe
-  const [signature, setSignature] = useState("");
+  const [signerName, setSignerName] = useState("");
   const [consent, setConsent] = useState(false);
 
+  // Optional shift-time correction (goes to the office inbox for approval).
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjStart, setAdjStart] = useState(scheduledStart ?? "");
+  const [adjEnd, setAdjEnd] = useState(scheduledEnd ?? "");
+  const timesChanged =
+    adjustOpen &&
+    Boolean(adjStart && adjEnd) &&
+    (adjStart !== (scheduledStart ?? "") || adjEnd !== (scheduledEnd ?? ""));
+
   const previewSrc = `/api/confirmations/${assignmentId}/preview?hours=${previewHours}`;
-  const canSubmit = signature.length > 0 && consent && !pending;
+  const canSubmit = signerName.trim().length >= 2 && consent && !pending;
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!signature) {
-      toast.error(t("signatureRequired"));
+    if (signerName.trim().length < 2) {
+      toast.error(t("nameRequired"));
+      return;
+    }
+    if (!consent) {
+      toast.error(t("consentRequired"));
       return;
     }
     const formData = new FormData(e.currentTarget);
     formData.set("method", "electronic");
+    if (!timesChanged) {
+      formData.delete("adjustStart");
+      formData.delete("adjustEnd");
+    }
     startTransition(async () => {
       const res = await confirmService(formData);
       if (res.ok) {
-        toast.success(t("confirmed"));
+        toast.success(timesChanged ? t("confirmedWithChange") : t("confirmed"));
         setOpen(false);
         router.refresh();
       } else {
         const key =
-          res.error === "signatureRequired"
-            ? "signatureRequired"
-            : res.error === "alreadyConfirmed"
-              ? "alreadyConfirmed"
+          res.error === "alreadyConfirmed"
+            ? "alreadyConfirmed"
+            : res.error === "nameRequired"
+              ? "nameRequired"
               : "saveError";
         toast.error(t(key));
       }
@@ -75,8 +95,11 @@ export function ConfirmServiceDialog({
   function onOpenChange(next: boolean) {
     setOpen(next);
     if (!next) {
-      setSignature("");
+      setSignerName("");
       setConsent(false);
+      setAdjustOpen(false);
+      setAdjStart(scheduledStart ?? "");
+      setAdjEnd(scheduledEnd ?? "");
     }
   }
 
@@ -134,7 +157,7 @@ export function ConfirmServiceDialog({
                 id="hoursWorked"
                 name="hoursWorked"
                 type="number"
-                step="0.25"
+                step="any"
                 min={0}
                 max={24}
                 required
@@ -157,22 +180,81 @@ export function ConfirmServiceDialog({
             </div>
           </div>
 
-          {/* Step 3 — electronic signature */}
-          <section className="space-y-2">
-            <Label>{t("signHere")}</Label>
-            <SignaturePadField name="signatureData" onChange={setSignature} />
-          </section>
+          {/* Step 2b — optional shift-time correction → office approval */}
+          {scheduledStart && scheduledEnd ? (
+            <section className="space-y-2 rounded-lg border p-3">
+              <button
+                type="button"
+                onClick={() => setAdjustOpen((v) => !v)}
+                className="flex w-full items-center gap-2 text-sm font-medium"
+              >
+                <Clock className="size-4 text-muted-foreground" />
+                {t("adjustTimesToggle")}
+              </button>
+              {adjustOpen ? (
+                <div className="space-y-2 pt-1">
+                  <p className="text-xs text-muted-foreground">{t("adjustTimesHint")}</p>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="adjustStart" className="text-xs">{t("newStart")}</Label>
+                      <Input
+                        id="adjustStart"
+                        name="adjustStart"
+                        type="time"
+                        value={adjStart}
+                        onChange={(e) => setAdjStart(e.target.value)}
+                        className="w-32"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="adjustEnd" className="text-xs">{t("newEnd")}</Label>
+                      <Input
+                        id="adjustEnd"
+                        name="adjustEnd"
+                        type="time"
+                        value={adjEnd}
+                        onChange={(e) => setAdjEnd(e.target.value)}
+                        className="w-32"
+                      />
+                    </div>
+                  </div>
+                  {timesChanged ? (
+                    <p className="text-xs text-amber-600">{t("adjustTimesApprovalNote")}</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
-          {/* Step 4 — legal consent */}
-          <label className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-3 text-sm">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-              className="mt-0.5 size-4 accent-primary"
-            />
-            <span className="text-muted-foreground">{t("legalNote")}</span>
-          </label>
+          {/* Step 3 — electronic confirmation (name + logged evidence) */}
+          <section className="space-y-3 rounded-lg border bg-muted/20 p-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <ShieldCheck className="size-4 text-primary" />
+              {t("eSignTitle")}
+            </h3>
+            <div className="space-y-2">
+              <Label htmlFor="signerName">{t("signerName")}</Label>
+              <Input
+                id="signerName"
+                name="signerName"
+                required
+                minLength={2}
+                value={signerName}
+                onChange={(e) => setSignerName(e.target.value)}
+                placeholder={t("signerNamePlaceholder")}
+                className="max-w-sm"
+              />
+            </div>
+            <label className="flex items-start gap-2.5 text-sm">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 size-4 accent-primary"
+              />
+              <span className="text-muted-foreground">{t("legalNote")}</span>
+            </label>
+          </section>
 
           <Button type="submit" className="w-full gap-2" disabled={!canSubmit}>
             <FileSignature className="size-4" />

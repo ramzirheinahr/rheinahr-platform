@@ -233,7 +233,9 @@
     "scheduleHint": "Schedule and client-confirmed hours for this care worker.",
     "scheduleEmpty": "No assignments in this month.",
     "carryoverHours": "Carryover (hours)",
-    "carryoverHoursHint": "Hours balance from previous months: positive = owed, negative = credit."
+    "carryoverHoursHint": "Hours balance from previous months: positive = owed, negative = credit.",
+    "searchPlaceholder": "Search staff…",
+    "noSearchMatch": "No matches."
   },
   "clients": {
     "title": "Facilities",
@@ -335,7 +337,10 @@
     "selectAllWorkers": "Select all",
     "deselectAllWorkers": "Deselect all",
     "searchWorkers": "Search workers …",
-    "noSearchMatch": "No matching worker"
+    "noSearchMatch": "No matching worker",
+    "filterStatus": "Status",
+    "clearFilter": "Clear filter",
+    "noStatusMatch": "No requests with this status."
   },
   "orderRequest": {
     "prev": "Back",
@@ -390,7 +395,9 @@
     "netTotal": "Net total",
     "vat": "plus 19% VAT",
     "grossTotal": "Gross total",
-    "cancelShift": "Remove shift"
+    "cancelShift": "Remove shift",
+    "searchClient": "Search client…",
+    "noClientMatch": "No client found"
   },
   "confirmations": {
     "title": "Service confirmations",
@@ -417,7 +424,18 @@
     "clear": "Clear",
     "uploadHint": "PNG, JPG or PDF (max 10 MB).",
     "fileRequired": "Please choose a file.",
-    "saveError": "Action failed. Please try again."
+    "saveError": "Action failed. Please try again.",
+    "nameRequired": "Please enter your full name to confirm.",
+    "consentRequired": "Please accept the legal statement.",
+    "confirmedWithChange": "Service confirmed. Your time correction was sent to the office for approval.",
+    "adjustTimesToggle": "Correct shift times (needs office approval)",
+    "adjustTimesHint": "Adjust the actual start/end time; the change is sent to the office for approval.",
+    "newStart": "New start",
+    "newEnd": "New end",
+    "adjustTimesApprovalNote": "This change will be sent to the office for approval.",
+    "eSignTitle": "Electronic confirmation",
+    "signerName": "Full name",
+    "signerNamePlaceholder": "e.g. Anna Schmidt"
   },
   "enums": {
     "qualification": {
@@ -589,7 +607,10 @@
     "cancelRejected": "Request rejected.",
     "release": "Release",
     "released": "Shift released.",
-    "cancelSigned": "Not possible after client signature."
+    "cancelSigned": "Not possible after client signature.",
+    "leaveSection": "Leave",
+    "cancelLeaveEntirely": "Cancel leave",
+    "leaveCancelled": "Leave cancelled."
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",
@@ -700,6 +721,8 @@
     "newOrderAria": "Create open shift",
     "quantity": "Count",
     "createOrder": "Create shift",
-    "orderCreated": "Shift request created."
+    "orderCreated": "Shift request created.",
+    "searchFacility": "Search facility…",
+    "noFacilityMatch": "No facility found"
   }
 }
