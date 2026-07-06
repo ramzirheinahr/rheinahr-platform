@@ -659,7 +659,11 @@
     "method": "Methode",
     "confirmedAt": "Bestätigt am",
     "totalHours": "Stunden gesamt",
-    "empty": "Keine bestätigten Leistungen im Zeitraum."
+    "empty": "Keine bestätigten Leistungen im Zeitraum.",
+    "filterClient": "Kunde",
+    "searchClient": "Kunde suchen …",
+    "clearFilter": "Filter zurücksetzen",
+    "noClientMatch": "Keine Leistungen für diesen Kunden."
   },
   "accounts": {
     "accountSection": "Konto & Zugang",

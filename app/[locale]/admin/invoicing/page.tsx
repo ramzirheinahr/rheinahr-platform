@@ -1,9 +1,9 @@
 import { getTranslations } from "next-intl/server";
-import { getConfirmedServices, type InvoiceRow } from "@/lib/invoicing";
+import { getConfirmedServices } from "@/lib/invoicing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
+import { InvoicingList } from "@/components/admin/invoicing-list";
 import { Download } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +18,6 @@ export default async function InvoicingPage({
 }) {
   const sp = await searchParams;
   const t = await getTranslations("invoicing");
-  const eq = await getTranslations("enums.qualification");
-  const ec = await getTranslations("confirmations");
-  const cc = await getTranslations("common");
 
   const now = new Date();
   const y = now.getUTCFullYear();
@@ -31,36 +28,7 @@ export default async function InvoicingPage({
   const to = sp.to && dateRegex.test(sp.to) ? sp.to : defTo;
 
   const rows = await getConfirmedServices({ from, to }).catch(() => []);
-  const totalHours = rows.reduce((sum, r) => sum + r.hours, 0);
   const downloadHref = `/api/exports/confirmations?from=${from}&to=${to}`;
-
-  const columns: Column<InvoiceRow>[] = [
-    { header: t("date"), primary: true, cell: (r) => r.shiftDate },
-    { header: t("facility"), cell: (r) => r.facilityName },
-    { header: t("worker"), cell: (r) => r.workerName },
-    { header: t("qualification"), cell: (r) => eq(r.qualification) },
-    { header: t("hours"), className: "text-end", cell: (r) => r.hours },
-    {
-      header: t("method"),
-      cell: (r) =>
-        ec(r.method === "electronic" ? "methodElectronic" : "methodUpload"),
-    },
-    {
-      header: cc("actions"),
-      className: "text-end",
-      action: true,
-      cell: (r) => (
-        <a
-          href={`/api/confirmations/${r.assignmentId}/pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary underline underline-offset-2"
-        >
-          {ec("pdf")}
-        </a>
-      ),
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -87,19 +55,7 @@ export default async function InvoicingPage({
         </Button>
       </form>
 
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        getRowKey={(r) => r.assignmentId}
-        empty={t("empty")}
-      />
-
-      {rows.length > 0 ? (
-        <div className="flex justify-end gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm font-semibold">
-          <span>{t("totalHours")}:</span>
-          <span>{totalHours}</span>
-        </div>
-      ) : null}
+      <InvoicingList rows={rows} />
     </div>
   );
 }

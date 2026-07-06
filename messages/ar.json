@@ -659,7 +659,11 @@
     "method": "الطريقة",
     "confirmedAt": "تاريخ التأكيد",
     "totalHours": "إجمالي الساعات",
-    "empty": "لا توجد خدمات مؤكدة في هذه الفترة."
+    "empty": "لا توجد خدمات مؤكدة في هذه الفترة.",
+    "filterClient": "الزبون",
+    "searchClient": "ابحث عن زبون …",
+    "clearFilter": "مسح التصفية",
+    "noClientMatch": "لا توجد خدمات لهذا الزبون."
   },
   "accounts": {
     "accountSection": "الحساب وبيانات الدخول",

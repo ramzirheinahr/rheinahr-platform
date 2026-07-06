@@ -50,10 +50,15 @@ export function OrdersList({
     return m;
   }, [groups]);
 
-  const filtered = useMemo(
-    () => (selected.size === 0 ? groups : groups.filter((g) => selected.has(g.status))),
-    [groups, selected],
-  );
+  const filtered = useMemo(() => {
+    // Explicit selection wins — show exactly the chosen statuses.
+    if (selected.size > 0) return groups.filter((g) => selected.has(g.status));
+    // Default view hides finished/cancelled requests to keep the list actionable;
+    // the user can still reveal them by selecting those statuses in the filter.
+    return groups.filter(
+      (g) => !g.cancelled && g.status !== "completed" && g.status !== "cancelled",
+    );
+  }, [groups, selected]);
 
   function toggle(s: OrderStatus) {
     setSelected((prev) => {

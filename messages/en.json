@@ -659,7 +659,11 @@
     "method": "Method",
     "confirmedAt": "Confirmed at",
     "totalHours": "Total hours",
-    "empty": "No confirmed services in this period."
+    "empty": "No confirmed services in this period.",
+    "filterClient": "Client",
+    "searchClient": "Search client…",
+    "clearFilter": "Clear filter",
+    "noClientMatch": "No services for this client."
   },
   "accounts": {
     "accountSection": "Account & access",
