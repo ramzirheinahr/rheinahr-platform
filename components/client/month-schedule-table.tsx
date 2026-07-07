@@ -63,8 +63,71 @@ export async function MonthScheduleTable({
     };
   });
 
+  // Status badge (green confirmed + PDF, else the raw status badge). Shared by
+  // the wide table and the mobile cards so the two never drift.
+  const statusBadge = (a: ClientScheduleRow) =>
+    a.confirmedHours != null ? (
+      <div className="flex items-center gap-1.5">
+        <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
+          <CheckCircle2 className="size-3" />
+          {av("confirmedByClient")}
+        </Badge>
+        <a
+          href={`/api/confirmations/${a.id}/pdf`}
+          className="inline-flex h-6 items-center justify-center rounded-md border border-input bg-background px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          title="Download PDF"
+        >
+          <Download className="size-3.5" />
+        </a>
+      </div>
+    ) : (
+      <Badge
+        variant={
+          a.status === "confirmed"
+            ? "default"
+            : a.status === "declined"
+              ? "outline"
+              : "secondary"
+        }
+      >
+        {eas(a.status)}
+      </Badge>
+    );
+
+  const hoursText = (a: ClientScheduleRow) =>
+    a.billing === "confirmed" ? (
+      <span className="font-semibold text-emerald-600">
+        {hoursFmt.format(a.confirmedHours ?? 0)} {av("hoursUnit")}
+      </span>
+    ) : a.billing === "accepted" ? (
+      <span className="font-semibold text-amber-600">
+        {hoursFmt.format(a.scheduledHours)} {av("hoursUnit")}
+      </span>
+    ) : (
+      <span className="text-muted-foreground">—</span>
+    );
+
+  const priceText = (a: ClientScheduleRow) =>
+    a.billing != null ? (
+      <span
+        className={cn(
+          "font-medium",
+          a.billing === "confirmed" ? "text-emerald-600" : "text-amber-600",
+        )}
+      >
+        {eurFmt.format(a.price)}
+      </span>
+    ) : (
+      <span className="text-muted-foreground">—</span>
+    );
+
+  const daysWithShifts = days.filter((d) => d.shifts.length > 0);
+  const hasTotals = totals.confirmedShifts > 0 || totals.acceptedShifts > 0;
+
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <>
+    {/* Wide table — tablet & desktop. */}
+    <div className="hidden overflow-x-auto rounded-lg border sm:block">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
@@ -227,5 +290,105 @@ export async function MonthScheduleTable({
         ) : null}
       </table>
     </div>
+
+    {/* Mobile — app-like stacked cards. Only days with shifts, plus a totals card. */}
+    <div className="space-y-2.5 sm:hidden">
+      {daysWithShifts.length === 0 ? (
+        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          {t("emptyMonth")}
+        </p>
+      ) : (
+        daysWithShifts.map((d) => (
+          <div
+            key={d.date}
+            className={cn(
+              "overflow-hidden rounded-lg border",
+              (d.weekend || d.holiday) && "border-rose-500/30",
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-center justify-between gap-2 border-b px-3 py-2",
+                d.weekend || d.holiday ? "bg-rose-500/10" : "bg-muted/40",
+              )}
+            >
+              <span className="font-semibold">{d.label}</span>
+              {d.holiday ? (
+                <span className="text-xs font-medium text-rose-600">{d.holiday}</span>
+              ) : null}
+            </div>
+            <ul className="divide-y">
+              {d.shifts.map((a) => (
+                <li key={a.id} className="space-y-2 px-3 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-medium text-primary">{a.workerName}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {eq(a.qualification)}
+                        {a.notes ? (
+                          <>
+                            {" "}
+                            · {oq("ward")}: {a.notes}
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="shrink-0">{statusBadge(a)}</div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <span className="font-medium text-primary">
+                      {a.startTime}–{a.endTime}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      {hoursText(a)}
+                      <span className="text-muted-foreground">·</span>
+                      {priceText(a)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
+
+      {hasTotals ? (
+        <div className="rounded-lg border-2 border-emerald-500/40 bg-emerald-500/10 p-3">
+          <div className="mb-2 flex items-center gap-2 font-semibold">
+            <Clock className="size-4 text-emerald-600" />
+            {av("monthTotal")}
+          </div>
+          <div className="flex flex-col gap-1">
+            {totals.acceptedShifts > 0 ? (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">{t("provisionalTotal")}:</span>
+                <span className="text-end font-semibold text-amber-600">
+                  {hoursFmt.format(totals.acceptedHours)} {av("hoursUnit")} ·{" "}
+                  {eurFmt.format(totals.acceptedPrice)}
+                </span>
+              </div>
+            ) : null}
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">{t("confirmedTotalLabel")}:</span>
+              <span className="text-end font-semibold text-emerald-600">
+                {hoursFmt.format(totals.confirmedHours)} {av("hoursUnit")} ·{" "}
+                {eurFmt.format(totals.confirmedPrice)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-emerald-500/30 pt-1 text-base font-bold">
+              <span>{t("grandTotal")}:</span>
+              <span className="text-end text-emerald-700 dark:text-emerald-400">
+                {hoursFmt.format(totals.totalHours)} {av("hoursUnit")} ·{" "}
+                {eurFmt.format(totals.totalPrice)}
+              </span>
+            </div>
+          </div>
+          {totals.acceptedShifts > 0 ? (
+            <p className="mt-2 text-xs text-amber-600">{t("provisionalHint")}</p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+    </>
   );
 }

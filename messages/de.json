@@ -696,7 +696,8 @@
     "provisionalTotal": "Angenommen (vorläufig)",
     "confirmedTotalLabel": "Vom Kunden bestätigt",
     "grandTotal": "Gesamt (inkl. vorläufig)",
-    "provisionalHint": "Von einer Pflegekraft angenommen, aber vom Kunden noch nicht unterschrieben."
+    "provisionalHint": "Von einer Pflegekraft angenommen, aber vom Kunden noch nicht unterschrieben.",
+    "emptyMonth": "Keine Einsätze in diesem Monat."
   },
   "masterSchedule": {
     "title": "Dienstplan",

@@ -696,7 +696,8 @@
     "provisionalTotal": "مقبولة (مبدئي)",
     "confirmedTotalLabel": "مؤكَّدة من العميل",
     "grandTotal": "الإجمالي (شامل المبدئي)",
-    "provisionalHint": "قبِلَها أحد مقدّمي الرعاية ولكن لم يوقّعها العميل بعد."
+    "provisionalHint": "قبِلَها أحد مقدّمي الرعاية ولكن لم يوقّعها العميل بعد.",
+    "emptyMonth": "لا توجد ورديات في هذا الشهر."
   },
   "masterSchedule": {
     "title": "جدول الورديات",
