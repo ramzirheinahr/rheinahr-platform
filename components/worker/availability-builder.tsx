@@ -65,6 +65,25 @@ const matchType = (b: InitialBlock): Block => {
 const field =
   "w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50";
 
+// Seed the editable grid from the server's availability blocks. Extracted so the
+// same shape is used on mount AND when the props later change (see the re-sync
+// in the component).
+function buildCells(blocks: InitialBlock[]): Record<string, Block> {
+  const map: Record<string, Block> = {};
+  const byDate: Record<string, number> = {};
+  for (const b of blocks) {
+    const slot = byDate[b.date] ?? 0;
+    byDate[b.date] = slot + 1;
+    map[`${b.date}:${slot}`] = matchType(b);
+  }
+  return map;
+}
+function buildCounts(blocks: InitialBlock[]): Record<string, number> {
+  const m: Record<string, number> = {};
+  for (const b of blocks) m[b.date] = (m[b.date] ?? 0) + 1;
+  return m;
+}
+
 export function AvailabilityBuilder({
   year,
   month,
@@ -122,21 +141,32 @@ export function AvailabilityBuilder({
     };
   }, [assignments, leaveDays]);
 
-  const [cells, setCells] = useState<Record<string, Block>>(() => {
-    const map: Record<string, Block> = {};
-    const byDate: Record<string, number> = {};
-    for (const b of initialBlocks) {
-      const slot = byDate[b.date] ?? 0;
-      byDate[b.date] = slot + 1;
-      map[`${b.date}:${slot}`] = matchType(b);
-    }
-    return map;
-  });
-  const [counts, setCounts] = useState<Record<string, number>>(() => {
-    const m: Record<string, number> = {};
-    for (const b of initialBlocks) m[b.date] = (m[b.date] ?? 0) + 1;
-    return m;
-  });
+  const [cells, setCells] = useState<Record<string, Block>>(() => buildCells(initialBlocks));
+  const [counts, setCounts] = useState<Record<string, number>>(() => buildCounts(initialBlocks));
+
+  // Re-seed the grid whenever the server sends a different month or refreshed
+  // availability — after an access-link login resolves the session, a
+  // router.refresh(), or month navigation. The useState initializers above run
+  // only on mount, so without this the saved hours wouldn't appear until a hard
+  // reload remounted the component (assignments render straight from props, so
+  // they were never affected). Deterministic signature → no spurious resets that
+  // would drop in-progress edits.
+  const serverSig = useMemo(
+    () =>
+      `${year}-${month}:` +
+      initialBlocks
+        .map((b) => `${b.date}|${b.startTime ?? ""}|${b.endTime ?? ""}`)
+        .sort()
+        .join(","),
+    [year, month, initialBlocks],
+  );
+  const [syncedSig, setSyncedSig] = useState(serverSig);
+  if (syncedSig !== serverSig) {
+    setSyncedSig(serverSig);
+    setCells(buildCells(initialBlocks));
+    setCounts(buildCounts(initialBlocks));
+  }
+
   const [ver, setVer] = useState<Record<string, number>>({});
   const bump = (k: string) => setVer((p) => ({ ...p, [k]: (p[k] ?? 0) + 1 }));
 
@@ -272,6 +302,118 @@ export function AvailabilityBuilder({
     );
   }
 
+  // Availability controls laid out for the mobile cards (no <td> wrappers) —
+  // same state & handlers as TypeCells, so edits on either layout stay in sync.
+  function TypeControls(date: string, slot: number) {
+    const b = get(date, slot);
+    const timed = b.type !== "none" && b.type !== "full";
+    const k = `${date}:${slot}`;
+    return (
+      <div className="space-y-2">
+        <select
+          value={b.type}
+          onChange={(e) => onType(date, slot, e.target.value as BType)}
+          className={cn(field)}
+        >
+          <option value="none">{oq("presetNone")}</option>
+          <option value="full">{t("fullDay")}</option>
+          <option value="early">{oq("preset_early")}</option>
+          <option value="late">{oq("preset_late")}</option>
+          <option value="night">{oq("preset_night")}</option>
+          <option value="custom">{t("custom")}</option>
+        </select>
+        {timed ? (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs text-muted-foreground">
+              {oq("von")}
+              <input
+                key={`ms-${k}-${ver[k] ?? 0}`}
+                type="time"
+                defaultValue={b.start}
+                onChange={(e) => set(date, slot, { start: e.target.value })}
+                className={cn(field, "mt-1")}
+              />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              {oq("bis")}
+              <input
+                key={`me-${k}-${ver[k] ?? 0}`}
+                type="time"
+                defaultValue={b.end}
+                onChange={(e) => set(date, slot, { end: e.target.value })}
+                className={cn(field, "mt-1")}
+              />
+            </label>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  // Assignment status badge + accept/decline/cancel controls — shared verbatim
+  // between the wide table and the mobile card.
+  function assignmentStatus(a: Assignment, past: boolean) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {a.confirmedHours != null ? (
+          <div className="flex items-center gap-1.5">
+            <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
+              <CheckCircle2 className="size-3" />
+              {t("confirmedByClient")}
+            </Badge>
+            <a
+              href={`/api/confirmations/${a.id}/pdf`}
+              className="inline-flex h-6 items-center justify-center rounded-md border border-input bg-background px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              title="Download PDF"
+            >
+              <Download className="size-3.5" />
+            </a>
+          </div>
+        ) : a.status === "confirmed" ? (
+          <Badge className="gap-1 border-transparent bg-amber-500 text-white">
+            <CheckCircle2 className="size-3" />
+            {t("confirmedByWorker")}
+          </Badge>
+        ) : (
+          <Badge variant={a.status === "declined" ? "outline" : "secondary"}>
+            {eas(a.status)}
+          </Badge>
+        )}
+        {a.status === "pending" && !past ? <AssignmentActions assignmentId={a.id} /> : null}
+        {a.status === "declined" && !past ? (
+          <AssignmentActions assignmentId={a.id} declined />
+        ) : null}
+        {a.status !== "pending" ? (
+          <ShiftCancelControls
+            assignmentId={a.id}
+            admin={Boolean(workerId)}
+            status={a.status}
+            signed={a.confirmedHours != null}
+            isPast={past}
+            cancelRequested={a.cancelRequested}
+            cancelNote={a.cancelNote}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  function assignmentHours(a: Assignment) {
+    if (a.confirmedHours != null)
+      return (
+        <span className="font-semibold text-emerald-600">
+          {hoursFmt.format(a.confirmedHours)} {t("hoursUnit")}
+        </span>
+      );
+    if (a.status === "confirmed" && a.scheduledHours != null)
+      return (
+        <span className="font-semibold text-amber-600">
+          {hoursFmt.format(a.scheduledHours)} {t("hoursUnit")}
+        </span>
+      );
+    return <span className="text-muted-foreground">—</span>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -324,7 +466,7 @@ export function AvailabilityBuilder({
         </Dialog>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="hidden overflow-x-auto rounded-lg border sm:block">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
@@ -600,6 +742,201 @@ export function AvailabilityBuilder({
             </tfoot>
           ) : null}
         </table>
+      </div>
+
+      {/* Mobile — app-like day cards. Same state & handlers as the table above,
+          so editing availability or acting on a shift works identically. */}
+      <div className="space-y-2.5 sm:hidden">
+        {days.map((d) => {
+          const count = effCount(d.date);
+          const slots = Array.from({ length: count }, (_, k) => k);
+          const dayAssignments = (assignments || []).filter((a) => a.date === d.date);
+          const dayLeaves = (leaveDays || []).filter(
+            (l) => l.date === d.date && l.status !== "rejected",
+          );
+          const hasSetAvailability = slots.some((s) => get(d.date, s).type !== "none");
+          const showEditor = !d.past || hasSetAvailability;
+          return (
+            <div
+              key={d.date}
+              className={cn(
+                "overflow-hidden rounded-lg border",
+                d.past && "opacity-70",
+                (d.weekend || d.holiday) && "border-rose-500/30",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex items-center justify-between gap-2 border-b px-3 py-2",
+                  d.weekend || d.holiday ? "bg-rose-500/10" : "bg-muted/40",
+                )}
+              >
+                <span className="font-semibold">{d.label}</span>
+                {d.holiday ? (
+                  <span className="text-xs font-medium text-rose-600">{d.holiday}</span>
+                ) : null}
+              </div>
+              <div className="space-y-3 p-3">
+                {dayLeaves.map((l) => (
+                  <div key={l.id} className="flex items-center justify-between gap-2">
+                    {l.status === "pending" ? (
+                      <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-600">
+                        {t("leavePending") || "Urlaubsantrag ausstehend"}
+                      </Badge>
+                    ) : (
+                      <Badge className="border-transparent bg-rose-600 text-white hover:bg-rose-700">
+                        {t("leaveApproved") || "Urlaub (Bitte nicht stören)"}
+                      </Badge>
+                    )}
+                    {l.status === "approved" ? (
+                      <span className="text-sm font-semibold text-emerald-600">
+                        {hoursFmt.format(l.hours)} {t("hoursUnit")}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+
+                {dayAssignments.map((a) => (
+                  <div key={a.id} className="space-y-2 rounded-md border bg-primary/5 p-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-primary">{a.facilityName}</div>
+                        {a.address ? (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.address)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                          >
+                            {a.address}
+                            <MapPin className="size-3.5 shrink-0" />
+                          </a>
+                        ) : null}
+                        {a.notes ? (
+                          <div className="mt-0.5 text-xs font-medium">{a.notes}</div>
+                        ) : null}
+                      </div>
+                      <span className="shrink-0 text-sm font-medium text-primary">
+                        {a.startTime}–{a.endTime}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {assignmentStatus(a, d.past)}
+                      {assignmentHours(a)}
+                    </div>
+                  </div>
+                ))}
+
+                {showEditor ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {t("availableHeader")}
+                      </span>
+                      {!d.past ? (
+                        <div className="flex items-center gap-1.5">
+                          {count > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => removeLast(d.date)}
+                              aria-label={c("delete")}
+                              className="flex size-6 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
+                            >
+                              <X className="size-4" />
+                            </button>
+                          ) : null}
+                          {count < 3 ? (
+                            <button
+                              type="button"
+                              onClick={() => addSlot(d.date)}
+                              aria-label="+"
+                              className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                            >
+                              <Plus className="size-4" />
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                    {slots.map((s) => (
+                      <div key={s} className="rounded-md border p-2">
+                        {TypeControls(d.date, s)}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Month totals card — mirrors the table footer. */}
+        {totals.shifts > 0 || totals.acceptedHours > 0 || requiredHours !== undefined ? (
+          <div className="rounded-lg border-2 border-emerald-500/40 bg-emerald-500/10 p-3">
+            <div className="mb-2 flex items-center gap-2 font-semibold">
+              <Clock className="size-4 text-emerald-600" />
+              {t("monthTotal")}
+            </div>
+            {(() => {
+              const worked = totals.acceptedHours + totals.hours;
+              const remaining = worked - (requiredHours ?? 0) - carryoverHours;
+              const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
+              return (
+                <div className="flex flex-col gap-1 text-sm">
+                  {totals.acceptedHours > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t("acceptedTotal")}:</span>
+                      <span className="font-bold text-amber-600">
+                        {hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("confirmedTotal")}:</span>
+                    <span className="font-bold text-emerald-600">
+                      {hoursFmt.format(totals.hours)} {t("hoursUnit")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t border-emerald-500/20 pt-1">
+                    <span className="text-muted-foreground">{t("workedTotal")}:</span>
+                    <span className="font-semibold text-foreground">
+                      {hoursFmt.format(worked)} {t("hoursUnit")}
+                    </span>
+                  </div>
+                  {carryoverHours !== 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
+                      <span
+                        className={cn(
+                          "font-medium",
+                          carryoverHours < 0 ? "text-emerald-600" : "text-foreground",
+                        )}
+                      >
+                        {signed(carryoverHours)} {t("hoursUnit")}
+                      </span>
+                    </div>
+                  )}
+                  {requiredHours !== undefined && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
+                        <span className="font-medium text-foreground">
+                          {hoursFmt.format(requiredHours)} {t("hoursUnit")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-t border-emerald-500/20 pt-1 font-bold">
+                        <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
+                        <span className={cn(remaining < 0 ? "text-destructive" : "text-emerald-600")}>
+                          {signed(remaining)} {t("hoursUnit")}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
