@@ -347,7 +347,11 @@
     "filterStatus": "Status",
     "clearFilter": "Clear filter",
     "noStatusMatch": "No requests with this status.",
-    "undoDecline": "Accept after all"
+    "undoDecline": "Accept after all",
+    "cancelInvitation": "Withdraw invitation",
+    "cancelInvitationConfirm": "Really withdraw the shift invitation for {name}? The shift is released again.",
+    "invitationCancelled": "Invitation withdrawn.",
+    "cannotRemoveSigned": "Signed shifts cannot be removed."
   },
   "orderRequest": {
     "prev": "Back",
@@ -445,7 +449,26 @@
     "adjustTimesApprovalNote": "This change will be sent to the office for approval.",
     "eSignTitle": "Electronic confirmation",
     "signerName": "Full name",
-    "signerNamePlaceholder": "e.g. Anna Schmidt"
+    "signerNamePlaceholder": "e.g. Anna Schmidt",
+    "proposeChange": "Change hours",
+    "proposeTitle": "Correct hours",
+    "proposeDesc": "Propose a new number of hours. The client re-confirms the change from their inbox.",
+    "currentHours": "Currently confirmed",
+    "newHours": "New hours",
+    "correctionNote": "Note to the client (optional)",
+    "sendRequest": "Send request",
+    "changeRequested": "Correction request sent to the client.",
+    "noChange": "Please enter a different number of hours.",
+    "notConfirmed": "This shift is not confirmed yet.",
+    "pendingReconfirm": "Change awaiting client re-confirmation",
+    "reconfirmCta": "Confirm changed hours",
+    "reconfirmTitle": "Confirm changed hours",
+    "reconfirmDesc": "Please review the updated service record and confirm it again.",
+    "reconfirmConsent": "I bindingly confirm the changed hours (text form).",
+    "reconfirmButton": "Confirm new hours",
+    "reconfirmed": "Changed hours confirmed.",
+    "rejectCorrection": "Reject",
+    "correctionRejected": "Correction rejected."
   },
   "enums": {
     "qualification": {

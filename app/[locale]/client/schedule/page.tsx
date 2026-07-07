@@ -44,12 +44,9 @@ export default async function ClientSchedulePage({
         totals: {
           confirmedHours: 0,
           confirmedShifts: 0,
-          confirmedPrice: 0,
           acceptedHours: 0,
           acceptedShifts: 0,
-          acceptedPrice: 0,
           totalHours: 0,
-          totalPrice: 0,
         },
       };
 

@@ -658,3 +658,333 @@ export async function getWorkerProfilePreview(workerId: string) {
   const { getWorkerProfileData } = await import("@/lib/worker-profile");
   return getWorkerProfileData(workerId);
 }
+
+// ─────────── Hours correction on an ALREADY-signed shift (proposal → approval) ───────────
+//
+// A signed Leistungsnachweis is a legal record, so the office cannot silently
+// overwrite the hours. Instead the admin PROPOSES a new figure; the original
+// stays valid until the client RE-CONFIRMS it from their inbox, which then
+// re-generates the signed PDF and notifies the worker + office.
+
+const hoursCorrectionSchema = z.object({
+  assignmentId: z.string().uuid(),
+  hours: z.coerce.number().min(0).max(24),
+  note: z.string().trim().max(1000).optional(),
+});
+
+// Admin proposes changed hours on a client-signed shift → client's inbox.
+export async function requestHoursCorrection(input: {
+  assignmentId: string;
+  hours: number;
+  note?: string;
+}): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+    return { ok: false, error: "forbidden" };
+  }
+  const parsed = hoursCorrectionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "saveError" };
+  const { assignmentId, hours, note } = parsed.data;
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      serviceConfirmation: { select: { id: true, hoursWorked: true } },
+      order: {
+        select: {
+          id: true,
+          requestGroupId: true,
+          shiftDate: true,
+          client: { select: { userId: true, facilityName: true } },
+        },
+      },
+      worker: { select: { fullName: true } },
+    },
+  });
+  if (!assignment || !assignment.serviceConfirmation) {
+    return { ok: false, error: "notConfirmed" };
+  }
+  const current =
+    assignment.serviceConfirmation.hoursWorked != null
+      ? Number(assignment.serviceConfirmation.hoursWorked)
+      : null;
+  if (current != null && Math.abs(current - hours) < 0.001) {
+    return { ok: false, error: "noChange" };
+  }
+
+  await prisma.serviceConfirmation.update({
+    where: { id: assignment.serviceConfirmation.id },
+    data: {
+      correctionHours: hours,
+      correctionNote: note || null,
+      correctionRequestedBy: user.id,
+      correctionRequestedAt: new Date(),
+    },
+  });
+
+  const dateLabel = formatDateDE(assignment.order.shiftDate);
+  const requestGroupId = assignment.order.requestGroupId ?? assignment.order.id;
+  const clientUserId = assignment.order.client.userId;
+  if (clientUserId) {
+    const noteSuffix = note ? ` – ${note}` : "";
+    const body = `Stundenkorrektur (${dateLabel}, ${assignment.worker.fullName}): ${current ?? "?"} → ${hours} Std. Bitte im Portal neu bestätigen.${noteSuffix}`;
+    const { getOrCreateRequestConversation } = await import("@/lib/inbox");
+    const conversation = await getOrCreateRequestConversation(
+      requestGroupId,
+      clientUserId,
+      dateLabel,
+    );
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.message.create({
+        data: { conversationId: conversation.id, senderId: user.id, body },
+      }),
+      prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: now },
+      }),
+    ]);
+    await prisma.notification.create({
+      data: {
+        userId: clientUserId,
+        type: "order_status_changed",
+        channel: "in_app",
+        content: `Bitte Stunden neu bestätigen (${dateLabel}): ${hours} Std.`,
+        link: inboxLink("client", conversation.id),
+      },
+    });
+    await pushToUsers([clientUserId], {
+      title: "Stunden neu bestätigen",
+      body: `${assignment.order.client.facilityName} · ${dateLabel} · ${hours} Std.`,
+      url: inboxLink("client", conversation.id),
+    });
+  }
+
+  await audit({
+    userId: user.id,
+    action: "service.correctionRequest",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: { from: current, to: hours, hasNote: !!note },
+  });
+
+  revalidatePath(`/admin/orders/${requestGroupId}`);
+  revalidatePath(`/client/orders/${requestGroupId}`);
+  return { ok: true };
+}
+
+// Client (or admin on their behalf) re-confirms the proposed hours → regenerates
+// the signed Leistungsnachweis, applies the new hours, and notifies worker + office.
+export async function confirmHoursCorrection(input: {
+  assignmentId: string;
+  signerName: string;
+  signatureData?: string;
+}): Promise<ActionState> {
+  const user = await getCurrentUser();
+  const isStaff = user?.role === "admin" || user?.role === "super_admin";
+  if (!user || (!isStaff && user.role !== "client")) return { ok: false, error: "forbidden" };
+  if (
+    !z.string().uuid().safeParse(input.assignmentId).success ||
+    !z.string().trim().min(2).max(120).safeParse(input.signerName).success
+  ) {
+    return { ok: false, error: "nameRequired" };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: input.assignmentId },
+    include: {
+      serviceConfirmation: true,
+      order: {
+        select: {
+          id: true,
+          requestGroupId: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          client: { select: { userId: true, facilityName: true } },
+        },
+      },
+      worker: { select: { userId: true, fullName: true, qualification: true } },
+    },
+  });
+  const sc = assignment?.serviceConfirmation;
+  if (!assignment || !sc || sc.correctionHours == null) return { ok: false, error: "forbidden" };
+  if (!isStaff && assignment.order.client.userId !== user.id) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const newHours = Number(sc.correctionHours);
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+
+  // Regenerate the signed Leistungsnachweis with the corrected hours.
+  const [{ renderLeistungsnachweisPdf }, { qualLabel, methodLabel }] = await Promise.all([
+    import("@/lib/pdf/leistungsnachweis"),
+    import("@/lib/invoicing"),
+  ]);
+  const pdf = await renderLeistungsnachweisPdf({
+    facilityName: assignment.order.client.facilityName,
+    workerName: assignment.worker.fullName,
+    qualificationLabel: qualLabel[assignment.worker.qualification],
+    shiftDate: assignment.order.shiftDate.toISOString().slice(0, 10),
+    startTime: assignment.order.startTime,
+    endTime: assignment.order.endTime,
+    hours: newHours,
+    methodLabel: methodLabel.electronic,
+    isElectronic: true,
+    signatureData: input.signatureData,
+    signerName: input.signerName.trim(),
+    confirmedByEmail: user.email,
+    confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+    ipAddress: ip,
+    orderId: assignment.order.id,
+    assignmentId: assignment.id,
+    draft: false,
+  });
+  const path = `${assignment.id}/signed/leistungsnachweis-${Date.now()}.pdf`;
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, new Uint8Array(pdf), { contentType: "application/pdf", upsert: false });
+  if (error) return { ok: false, error: "saveError" };
+
+  await prisma.serviceConfirmation.update({
+    where: { id: sc.id },
+    data: {
+      hoursWorked: newHours,
+      method: "electronic",
+      signatureData: input.signatureData ?? null,
+      documentUrl: path,
+      confirmedById: user.id,
+      confirmedAt: new Date(),
+      ipAddress: ip,
+      correctionHours: null,
+      correctionNote: null,
+      correctionRequestedBy: null,
+      correctionRequestedAt: null,
+    },
+  });
+
+  const dateLabel = formatDateDE(assignment.order.shiftDate);
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  const body = `Stunden aktualisiert & bestätigt (${dateLabel}): ${newHours} Std.`;
+  const summary = `${assignment.order.client.facilityName} · ${dateLabel} · ${newHours} Std.`;
+
+  // Land the confirmation in the worker's inbox thread (worker ↔ agency).
+  const { getOrCreateAssignmentConversation } = await import("@/lib/inbox");
+  const conversation = await getOrCreateAssignmentConversation(assignment.id);
+  const now = new Date();
+  if (conversation) {
+    await prisma.$transaction([
+      prisma.message.create({
+        data: { conversationId: conversation.id, senderId: user.id, body },
+      }),
+      prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: now },
+      }),
+    ]);
+  }
+
+  const admins = await prisma.user.findMany({
+    where: { role: { in: ["admin", "super_admin"] }, active: true },
+    select: { id: true, role: true },
+  });
+  const recipients = [
+    { id: assignment.worker.userId, role: "worker" as const },
+    ...admins,
+  ];
+  await prisma.notification.createMany({
+    data: recipients.map((r) => ({
+      userId: r.id,
+      type: "service_confirmed" as const,
+      channel: "in_app" as const,
+      content: summary,
+      link: r.role === "worker" ? workerShiftLink() : orderLink(r.role, reqGroup),
+    })),
+  });
+  await Promise.all([
+    pushToUsers([assignment.worker.userId], {
+      title: "Stunden aktualisiert",
+      body: summary,
+      url: workerShiftLink(),
+    }),
+    pushToUsers(
+      admins.map((a) => a.id),
+      { title: "Stunden aktualisiert", body: summary, url: orderLink("admin", reqGroup) },
+    ),
+  ]);
+
+  await audit({
+    userId: user.id,
+    action: "service.correctionConfirm",
+    entity: "Assignment",
+    entityId: assignment.id,
+    ipAddress: ip,
+    metadata: { hours: newHours, actorRole: user.role },
+  });
+
+  revalidatePath("/worker");
+  revalidatePath("/client/orders");
+  revalidatePath(`/client/orders/${reqGroup}`);
+  revalidatePath(`/admin/orders/${reqGroup}`);
+  return { ok: true };
+}
+
+// Client (or admin) declines the proposed correction → clears it, notifies office.
+export async function rejectHoursCorrection(assignmentId: string): Promise<ActionState> {
+  const user = await getCurrentUser();
+  const isStaff = user?.role === "admin" || user?.role === "super_admin";
+  if (!user || (!isStaff && user.role !== "client")) return { ok: false, error: "forbidden" };
+  if (!z.string().uuid().safeParse(assignmentId).success) return { ok: false, error: "saveError" };
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      serviceConfirmation: { select: { id: true, correctionHours: true } },
+      order: {
+        select: {
+          id: true,
+          requestGroupId: true,
+          shiftDate: true,
+          client: { select: { userId: true, facilityName: true } },
+        },
+      },
+    },
+  });
+  const sc = assignment?.serviceConfirmation;
+  if (!assignment || !sc || sc.correctionHours == null) return { ok: false, error: "forbidden" };
+  if (!isStaff && assignment.order.client.userId !== user.id) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  await prisma.serviceConfirmation.update({
+    where: { id: sc.id },
+    data: {
+      correctionHours: null,
+      correctionNote: null,
+      correctionRequestedBy: null,
+      correctionRequestedAt: null,
+    },
+  });
+
+  const dateLabel = formatDateDE(assignment.order.shiftDate);
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  await notifyAdmins(
+    "order_status_changed",
+    `Stundenkorrektur abgelehnt (${dateLabel}, ${assignment.order.client.facilityName}).`,
+    orderLink("admin", reqGroup),
+  );
+  await audit({
+    userId: user.id,
+    action: "service.correctionReject",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: { actorRole: user.role },
+  });
+
+  revalidatePath(`/admin/orders/${reqGroup}`);
+  revalidatePath(`/client/orders/${reqGroup}`);
+  return { ok: true };
+}

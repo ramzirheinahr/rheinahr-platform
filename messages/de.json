@@ -347,7 +347,11 @@
     "filterStatus": "Status",
     "clearFilter": "Filter zurücksetzen",
     "noStatusMatch": "Keine Anfragen mit diesem Status.",
-    "undoDecline": "Doch annehmen"
+    "undoDecline": "Doch annehmen",
+    "cancelInvitation": "Einladung zurückziehen",
+    "cancelInvitationConfirm": "Einsatz-Einladung für {name} wirklich zurückziehen? Die Schicht wird wieder freigegeben.",
+    "invitationCancelled": "Einladung zurückgezogen.",
+    "cannotRemoveSigned": "Bereits unterschriebene Einsätze können nicht entfernt werden."
   },
   "orderRequest": {
     "prev": "Zurück",
@@ -445,7 +449,26 @@
     "adjustTimesApprovalNote": "Diese Änderung wird zur Freigabe an die Verwaltung gesendet.",
     "eSignTitle": "Elektronische Bestätigung",
     "signerName": "Vollständiger Name",
-    "signerNamePlaceholder": "z. B. Anna Schmidt"
+    "signerNamePlaceholder": "z. B. Anna Schmidt",
+    "proposeChange": "Stunden ändern",
+    "proposeTitle": "Stunden korrigieren",
+    "proposeDesc": "Neue Stundenzahl vorschlagen. Der Kunde bestätigt die Änderung erneut in seinem Postfach.",
+    "currentHours": "Aktuell bestätigt",
+    "newHours": "Neue Stunden",
+    "correctionNote": "Notiz an den Kunden (optional)",
+    "sendRequest": "Anfrage senden",
+    "changeRequested": "Korrektur-Anfrage an den Kunden gesendet.",
+    "noChange": "Bitte eine abweichende Stundenzahl eingeben.",
+    "notConfirmed": "Diese Schicht ist noch nicht bestätigt.",
+    "pendingReconfirm": "Änderung wartet auf Kundenbestätigung",
+    "reconfirmCta": "Geänderte Stunden bestätigen",
+    "reconfirmTitle": "Geänderte Stunden bestätigen",
+    "reconfirmDesc": "Bitte prüfen Sie den aktualisierten Leistungsnachweis und bestätigen Sie ihn erneut.",
+    "reconfirmConsent": "Ich bestätige die geänderten Stunden verbindlich (Textform, § 126b BGB).",
+    "reconfirmButton": "Neue Stunden bestätigen",
+    "reconfirmed": "Geänderte Stunden bestätigt.",
+    "rejectCorrection": "Ablehnen",
+    "correctionRejected": "Korrektur abgelehnt."
   },
   "enums": {
     "qualification": {

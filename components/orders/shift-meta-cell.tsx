@@ -15,7 +15,10 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { AssignWorkerButton } from "@/components/admin/assign-worker-button";
 import { ConfirmServiceDialog } from "@/components/client/confirm-service-dialog";
+import { ReconfirmHoursDialog } from "@/components/client/reconfirm-hours-dialog";
+import { RequestHoursCorrectionDialog } from "@/components/admin/request-hours-correction-dialog";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
+import { RemoveAssignmentButton } from "@/components/admin/remove-assignment-button";
 import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
 import { useAssignSelection } from "@/components/orders/assign-selection";
 import { cn } from "@/lib/utils";
@@ -41,6 +44,8 @@ export type ShiftMeta = {
     status: AssignmentStatus;
     hours?: number | null;
     hasConfirmation?: boolean;
+    // Admin proposed corrected hours awaiting the client's re-confirmation.
+    correctionHours?: number | null;
     worker?: {
       id: string;
       fullName: string;
@@ -73,6 +78,7 @@ export function ShiftMetaCell({
   assignable?: boolean;
 }) {
   const t = useTranslations("orders");
+  const cf = useTranslations("confirmations");
   const eas = useTranslations("enums.assignmentStatus");
   const selection = useAssignSelection();
 
@@ -131,9 +137,16 @@ export function ShiftMetaCell({
                     scheduledEnd={scheduledEnd}
                   />
                 )}
-                {meta.isPast && a.hasConfirmation && (
+                {a.hasConfirmation && a.correctionHours != null ? (
+                  // Office proposed changed hours → client re-confirms here.
+                  <ReconfirmHoursDialog
+                    assignmentId={a.id}
+                    currentHours={a.hours ?? null}
+                    newHours={a.correctionHours}
+                  />
+                ) : meta.isPast && a.hasConfirmation ? (
                   <CheckCircle2 className="size-4 text-primary" />
-                )}
+                ) : null}
               </div>
             ))}
           </div>
@@ -236,6 +249,19 @@ export function ShiftMetaCell({
                           scheduledEnd={scheduledEnd}
                         />
                       )}
+                      {/* Signed shift → admin may propose an hours correction
+                          (client re-confirms). Shows a pending marker meanwhile. */}
+                      {a.hasConfirmation &&
+                        (a.correctionHours != null ? (
+                          <span className="text-xs font-medium text-amber-600">
+                            {cf("pendingReconfirm")} · {a.correctionHours}h
+                          </span>
+                        ) : (
+                          <RequestHoursCorrectionDialog
+                            assignmentId={a.id}
+                            currentHours={a.hours ?? null}
+                          />
+                        ))}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -244,6 +270,14 @@ export function ShiftMetaCell({
                       >
                         <MessageSquare className="size-4" />
                       </Button>
+                      {/* Withdraw the invitation / remove the worker (not for
+                          already-signed shifts — a legal record). */}
+                      {!a.hasConfirmation && (
+                        <RemoveAssignmentButton
+                          assignmentId={a.id}
+                          workerName={a.workerName}
+                        />
+                      )}
                     </div>
                   </li>
                 ))}

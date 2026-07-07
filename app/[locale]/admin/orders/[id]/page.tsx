@@ -50,7 +50,7 @@ export default async function AdminRequestDetail({
       assignments: {
         include: {
           worker: { select: { fullName: true } },
-          serviceConfirmation: { select: { hoursWorked: true } },
+          serviceConfirmation: { select: { hoursWorked: true, correctionHours: true } },
         },
       },
     },
@@ -117,6 +117,10 @@ export default async function AdminRequestDetail({
           ? Number(a.serviceConfirmation.hoursWorked)
           : null,
         hasConfirmation: !!a.serviceConfirmation,
+        correctionHours:
+          a.serviceConfirmation?.correctionHours != null
+            ? Number(a.serviceConfirmation.correctionHours)
+            : null,
       })),
       candidates: candidates[i],
     };

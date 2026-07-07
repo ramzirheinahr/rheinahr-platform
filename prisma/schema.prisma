@@ -439,6 +439,14 @@ model ServiceConfirmation {
   clientNotes   String?            @map("client_notes")
   confirmedAt   DateTime           @default(now()) @map("confirmed_at")
   ipAddress     String?            @map("ip_address")
+  // Admin-proposed hours correction on an ALREADY-signed record. While
+  // `correctionHours` is set, the client is asked to re-confirm; on approval
+  // `hoursWorked` is updated and these fields clear. The audit log keeps the
+  // superseded value, so the change stays traceable.
+  correctionHours       Decimal?  @map("correction_hours") @db.Decimal(5, 2)
+  correctionNote        String?   @map("correction_note")
+  correctionRequestedBy String?   @map("correction_requested_by")
+  correctionRequestedAt DateTime? @map("correction_requested_at")
 
   assignment  Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   confirmedBy User?       @relation(fields: [confirmedById], references: [id], onDelete: SetNull)

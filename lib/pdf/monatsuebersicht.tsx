@@ -64,8 +64,7 @@ const styles = StyleSheet.create({
   cWard: { flex: 0.8 },
   cTime: { width: 36 },
   cStatus: { flex: 1 },
-  cHours: { width: 52, textAlign: "right" },
-  cPrice: { width: 60, textAlign: "right" },
+  cHours: { width: 64, textAlign: "right" },
   confirmed: { color: "#059669" },
   accepted: { color: "#b45309" },
   muted: { color: "#9ca3af" },
@@ -93,8 +92,6 @@ const styles = StyleSheet.create({
 
 const deDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const deNum = (n: number) => n.toString().replace(".", ",");
-const deEur = (n: number) =>
-  n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
 const statusText = (r: ClientScheduleRow): string =>
   r.billing === "confirmed"
@@ -124,7 +121,7 @@ function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
 
         <Text style={styles.title}>Monatsübersicht {d.monthLabel}</Text>
         <Text style={styles.subtitle}>
-          {d.facilityName} — Einsätze, Stunden (ohne Pausen) und Nettopreis
+          {d.facilityName} — Einsätze und Stunden (ohne Pausen)
         </Text>
 
         <View style={styles.th} fixed>
@@ -136,7 +133,6 @@ function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
           <Text style={styles.cTime}>Ende</Text>
           <Text style={styles.cStatus}>Status</Text>
           <Text style={styles.cHours}>Stunden</Text>
-          <Text style={styles.cPrice}>Preis netto</Text>
         </View>
 
         {d.rows.map((r) => {
@@ -166,41 +162,38 @@ function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
               <Text style={[styles.cHours, tone]}>
                 {hours != null ? `${deNum(hours)} Std.` : "—"}
               </Text>
-              <Text style={[styles.cPrice, tone]}>
-                {r.billing ? deEur(r.price) : "—"}
-              </Text>
             </View>
           );
         })}
 
         <View style={styles.total} wrap={false}>
-          <Text style={{ flex: 1 }}>Monatssumme (netto, ohne Pausen)</Text>
+          <Text style={{ flex: 1 }}>Monatssumme (ohne Pausen)</Text>
         </View>
         {d.totals.acceptedShifts > 0 ? (
           <View style={styles.totalLine} wrap={false}>
             <Text style={styles.totalLabel}>Angenommen (vorläufig): </Text>
             <Text style={[styles.totalValue, styles.accepted]}>
-              {deNum(d.totals.acceptedHours)} Std. · {deEur(d.totals.acceptedPrice)}
+              {deNum(d.totals.acceptedHours)} Std.
             </Text>
           </View>
         ) : null}
         <View style={styles.totalLine} wrap={false}>
           <Text style={styles.totalLabel}>Vom Kunden bestätigt: </Text>
           <Text style={[styles.totalValue, styles.confirmed]}>
-            {deNum(d.totals.confirmedHours)} Std. · {deEur(d.totals.confirmedPrice)}
+            {deNum(d.totals.confirmedHours)} Std.
           </Text>
         </View>
         <View style={styles.totalLine} wrap={false}>
           <Text style={styles.totalLabel}>Gesamt (inkl. vorläufig): </Text>
           <Text style={[styles.grandValue, styles.confirmed]}>
-            {deNum(d.totals.totalHours)} Std. · {deEur(d.totals.totalPrice)}
+            {deNum(d.totals.totalHours)} Std.
           </Text>
         </View>
 
         <Text style={styles.footer} fixed>
           Digital erstellt am {d.generatedAt}. „Vom Kunden bestätigt“ entspricht den digital
           signierten Leistungsnachweisen; „vorläufig“ sind angenommene, noch nicht
-          unterschriebene Einsätze. Nettopreise ohne USt. (DSGVO-konform protokolliert).
+          unterschriebene Einsätze. (DSGVO-konform protokolliert).
         </Text>
       </Page>
     </Document>

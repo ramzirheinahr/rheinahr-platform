@@ -1,23 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { qualLabel } from "@/lib/invoicing";
-import {
-  netShiftHours,
-  requestNetTotal,
-  resolveRates,
-  resolveSurcharges,
-  resolveNightWindow,
-} from "@/lib/pricing";
+import { netShiftHours } from "@/lib/pricing";
 import type { AssignmentStatus, Qualification } from "@prisma/client";
 
 // One month of everything worked (or planned) at a client's facility — the
-// client-side mirror of the worker schedule table. Two figures matter:
+// client-side mirror of the worker schedule table. Two hour figures matter:
 //   • `confirmedHours` — the net hours the facility SIGNED on the Leistungs-
 //     nachweis (green). These are the invoice basis.
 //   • provisional "accepted" hours (amber) — a worker has taken the shift but
-//     the facility hasn't signed yet, so we bill the SCHEDULED window.
-// `price` is the net € value of the shift computed with the SAME surcharge
-// engine as the order table (requestNetTotal): scheduled window × qualification
-// rate × Sat/Sun/holiday/night uplift, per the client's own rate card.
+//     the facility hasn't signed yet, so we show the SCHEDULED net window.
+// No pricing here — the client view is about hours only.
 export type ClientScheduleRow = {
   id: string;
   status: AssignmentStatus;
@@ -29,7 +21,6 @@ export type ClientScheduleRow = {
   qualification: Qualification;
   confirmedHours: number | null; // client-signed net hours (green)
   scheduledHours: number; // net hours of the planned window (amber basis)
-  price: number; // net € value of this shift (surcharge engine)
   /** Which pot this row counts toward in the totals. */
   billing: "confirmed" | "accepted" | null;
 };
@@ -37,14 +28,11 @@ export type ClientScheduleRow = {
 export type ClientScheduleTotals = {
   confirmedHours: number;
   confirmedShifts: number;
-  confirmedPrice: number;
-  // Accepted-but-not-yet-signed (amber): scheduled hours & provisional price.
+  // Accepted-but-not-yet-signed (amber): scheduled hours.
   acceptedHours: number;
   acceptedShifts: number;
-  acceptedPrice: number;
   // Confirmed + accepted — the "expected this month" figure shown in the footer.
   totalHours: number;
-  totalPrice: number;
 };
 
 export async function getClientMonthSchedule(
@@ -52,53 +40,27 @@ export async function getClientMonthSchedule(
   year: number,
   month: number,
 ): Promise<{ rows: ClientScheduleRow[]; totals: ClientScheduleTotals }> {
-  const [client, assignments] = await Promise.all([
-    prisma.client
-      .findUnique({
-        where: { id: clientId },
-        select: {
-          hourlyRates: true,
-          surchargeSat: true,
-          surchargeSun: true,
-          surchargeHoliday: true,
-          surchargeNight: true,
-          nightStart: true,
-          nightEnd: true,
-        },
-      })
-      .catch(() => null),
-    prisma.assignment
-      .findMany({
-        where: {
-          order: {
-            clientId,
-            shiftDate: {
-              gte: new Date(Date.UTC(year, month - 1, 1)),
-              lt: new Date(Date.UTC(year, month, 1)),
-            },
+  const assignments = await prisma.assignment
+    .findMany({
+      where: {
+        order: {
+          clientId,
+          shiftDate: {
+            gte: new Date(Date.UTC(year, month - 1, 1)),
+            lt: new Date(Date.UTC(year, month, 1)),
           },
         },
-        orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
-        include: {
-          order: {
-            select: {
-              shiftDate: true,
-              startTime: true,
-              endTime: true,
-              notes: true,
-              requiredQualification: true,
-            },
-          },
-          worker: { select: { fullName: true, qualification: true } },
-          serviceConfirmation: { select: { hoursWorked: true } },
+      },
+      orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
+      include: {
+        order: {
+          select: { shiftDate: true, startTime: true, endTime: true, notes: true },
         },
-      })
-      .catch(() => []),
-  ]);
-
-  const rates = resolveRates(client);
-  const surcharges = resolveSurcharges(client);
-  const night = resolveNightWindow(client);
+        worker: { select: { fullName: true, qualification: true } },
+        serviceConfirmation: { select: { hoursWorked: true } },
+      },
+    })
+    .catch(() => []);
 
   const rows: ClientScheduleRow[] = assignments.map((a) => {
     const confirmedHours =
@@ -109,20 +71,6 @@ export async function getClientMonthSchedule(
     // Leistungsnachweis then turns it green.
     const billing: ClientScheduleRow["billing"] =
       confirmedHours != null ? "confirmed" : a.status === "confirmed" ? "accepted" : null;
-    const price = requestNetTotal(
-      [
-        {
-          shiftDate: a.order.shiftDate,
-          startTime: a.order.startTime,
-          endTime: a.order.endTime,
-          quantity: 1,
-          requiredQualification: a.order.requiredQualification,
-        },
-      ],
-      surcharges,
-      rates,
-      night,
-    );
     return {
       id: a.id,
       status: a.status,
@@ -134,7 +82,6 @@ export async function getClientMonthSchedule(
       qualification: a.worker.qualification,
       confirmedHours,
       scheduledHours: netShiftHours(a.order.startTime, a.order.endTime),
-      price,
       billing,
     };
   });
@@ -144,21 +91,16 @@ export async function getClientMonthSchedule(
   const sum = (arr: number[]) => arr.reduce((s, n) => s + n, 0);
 
   const confirmedHours = sum(confirmed.map((r) => r.confirmedHours ?? 0));
-  const confirmedPrice = sum(confirmed.map((r) => r.price));
   const acceptedHours = sum(accepted.map((r) => r.scheduledHours));
-  const acceptedPrice = sum(accepted.map((r) => r.price));
 
   return {
     rows,
     totals: {
       confirmedHours,
       confirmedShifts: confirmed.length,
-      confirmedPrice,
       acceptedHours,
       acceptedShifts: accepted.length,
-      acceptedPrice,
       totalHours: confirmedHours + acceptedHours,
-      totalPrice: confirmedPrice + acceptedPrice,
     },
   };
 }
@@ -191,8 +133,6 @@ function csvCell(value: string | number): string {
 
 const deDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const deNum = (n: number) => n.toString().replace(".", ",");
-const deEur = (n: number) =>
-  n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Semicolon-delimited CSV with UTF-8 BOM — opens directly in Excel (same
 // convention as the DATEV invoicing export). German labels: business exports
@@ -210,7 +150,6 @@ export function clientScheduleCsv(
     "Ende",
     "Status",
     "Stunden (ohne Pausen)",
-    "Preis netto (EUR)",
   ];
   const lines = [headers.join(";")];
   for (const r of rows) {
@@ -225,24 +164,13 @@ export function clientScheduleCsv(
         r.endTime,
         rowStatusLabel(r),
         hrs != null ? deNum(hrs) : "",
-        r.billing != null ? deEur(r.price) : "",
       ]
         .map(csvCell)
         .join(";"),
     );
   }
   lines.push(
-    [
-      "Gesamt (netto, inkl. vorläufig)",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      deNum(totals.totalHours),
-      deEur(totals.totalPrice),
-    ].join(";"),
+    ["Gesamt (inkl. vorläufig)", "", "", "", "", "", "", deNum(totals.totalHours)].join(";"),
   );
   return "﻿" + lines.join("\r\n");
 }

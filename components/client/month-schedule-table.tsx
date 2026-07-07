@@ -40,7 +40,6 @@ export async function MonthScheduleTable({
     timeZone: "UTC",
   });
   const hoursFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
-  const eurFmt = new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" });
 
   const holidays = germanHolidays(year);
   const byDate = new Map<string, ClientScheduleRow[]>();
@@ -107,20 +106,6 @@ export async function MonthScheduleTable({
       <span className="text-muted-foreground">—</span>
     );
 
-  const priceText = (a: ClientScheduleRow) =>
-    a.billing != null ? (
-      <span
-        className={cn(
-          "font-medium",
-          a.billing === "confirmed" ? "text-emerald-600" : "text-amber-600",
-        )}
-      >
-        {eurFmt.format(a.price)}
-      </span>
-    ) : (
-      <span className="text-muted-foreground">—</span>
-    );
-
   const daysWithShifts = days.filter((d) => d.shifts.length > 0);
   const hasTotals = totals.confirmedShifts > 0 || totals.acceptedShifts > 0;
 
@@ -137,7 +122,6 @@ export async function MonthScheduleTable({
             <th className="p-2 text-start">{oq("von")}</th>
             <th className="p-2 text-start">{oq("bis")}</th>
             <th className="p-2 text-end">{av("hoursHeader")}</th>
-            <th className="p-2 text-end">{t("priceHeader")}</th>
           </tr>
         </thead>
         <tbody>
@@ -152,7 +136,7 @@ export async function MonthScheduleTable({
                       {d.holiday ? <span className="text-rose-600">•</span> : null}
                     </div>
                   </td>
-                  <td className="p-2" colSpan={6}></td>
+                  <td className="p-2" colSpan={5}></td>
                 </tr>
               );
             }
@@ -225,20 +209,6 @@ export async function MonthScheduleTable({
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-                <td className="whitespace-nowrap p-2 text-end">
-                  {a.billing != null ? (
-                    <span
-                      className={cn(
-                        "font-medium",
-                        a.billing === "confirmed" ? "text-emerald-600" : "text-amber-600",
-                      )}
-                    >
-                      {eurFmt.format(a.price)}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
               </tr>
             ));
           })}
@@ -258,29 +228,26 @@ export async function MonthScheduleTable({
                   <p className="mt-0.5 text-xs text-amber-600">{t("provisionalHint")}</p>
                 ) : null}
               </td>
-              <td colSpan={3} className="p-3 text-end align-middle">
+              <td colSpan={2} className="p-3 text-end align-middle">
                 <div className="ms-auto flex w-full max-w-xs flex-col gap-1">
                   {totals.acceptedShifts > 0 ? (
                     <div className="flex items-center justify-between gap-4 text-sm">
                       <span className="text-muted-foreground">{t("provisionalTotal")}:</span>
                       <span className="font-semibold text-amber-600">
-                        {hoursFmt.format(totals.acceptedHours)} {av("hoursUnit")} ·{" "}
-                        {eurFmt.format(totals.acceptedPrice)}
+                        {hoursFmt.format(totals.acceptedHours)} {av("hoursUnit")}
                       </span>
                     </div>
                   ) : null}
                   <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="text-muted-foreground">{t("confirmedTotalLabel")}:</span>
                     <span className="font-semibold text-emerald-600">
-                      {hoursFmt.format(totals.confirmedHours)} {av("hoursUnit")} ·{" "}
-                      {eurFmt.format(totals.confirmedPrice)}
+                      {hoursFmt.format(totals.confirmedHours)} {av("hoursUnit")}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-4 border-t border-emerald-500/30 pt-1 text-base font-bold">
                     <span>{t("grandTotal")}:</span>
                     <span className="text-emerald-700 dark:text-emerald-400">
-                      {hoursFmt.format(totals.totalHours)} {av("hoursUnit")} ·{" "}
-                      {eurFmt.format(totals.totalPrice)}
+                      {hoursFmt.format(totals.totalHours)} {av("hoursUnit")}
                     </span>
                   </div>
                 </div>
@@ -339,11 +306,7 @@ export async function MonthScheduleTable({
                     <span className="font-medium text-primary">
                       {a.startTime}–{a.endTime}
                     </span>
-                    <span className="flex items-center gap-2">
-                      {hoursText(a)}
-                      <span className="text-muted-foreground">·</span>
-                      {priceText(a)}
-                    </span>
+                    {hoursText(a)}
                   </div>
                 </li>
               ))}
@@ -363,23 +326,20 @@ export async function MonthScheduleTable({
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-muted-foreground">{t("provisionalTotal")}:</span>
                 <span className="text-end font-semibold text-amber-600">
-                  {hoursFmt.format(totals.acceptedHours)} {av("hoursUnit")} ·{" "}
-                  {eurFmt.format(totals.acceptedPrice)}
+                  {hoursFmt.format(totals.acceptedHours)} {av("hoursUnit")}
                 </span>
               </div>
             ) : null}
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-muted-foreground">{t("confirmedTotalLabel")}:</span>
               <span className="text-end font-semibold text-emerald-600">
-                {hoursFmt.format(totals.confirmedHours)} {av("hoursUnit")} ·{" "}
-                {eurFmt.format(totals.confirmedPrice)}
+                {hoursFmt.format(totals.confirmedHours)} {av("hoursUnit")}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-emerald-500/30 pt-1 text-base font-bold">
               <span>{t("grandTotal")}:</span>
               <span className="text-end text-emerald-700 dark:text-emerald-400">
-                {hoursFmt.format(totals.totalHours)} {av("hoursUnit")} ·{" "}
-                {eurFmt.format(totals.totalPrice)}
+                {hoursFmt.format(totals.totalHours)} {av("hoursUnit")}
               </span>
             </div>
           </div>

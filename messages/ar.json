@@ -347,7 +347,11 @@
     "filterStatus": "الحالة",
     "clearFilter": "مسح التصفية",
     "noStatusMatch": "لا توجد طلبيات بهذه الحالة.",
-    "undoDecline": "قبول رغم الرفض"
+    "undoDecline": "قبول رغم الرفض",
+    "cancelInvitation": "إلغاء الدعوة",
+    "cancelInvitationConfirm": "هل تريد فعلاً إلغاء دعوة الوردية لـ {name}؟ ستُعاد الوردية إلى المتاح.",
+    "invitationCancelled": "تم إلغاء الدعوة.",
+    "cannotRemoveSigned": "لا يمكن إزالة الورديات الموقّعة."
   },
   "orderRequest": {
     "prev": "السابق",
@@ -445,7 +449,26 @@
     "adjustTimesApprovalNote": "سيتم إرسال هذا التعديل إلى الإدارة للموافقة عليه.",
     "eSignTitle": "التوقيع الإلكتروني",
     "signerName": "الاسم الكامل للموقّع",
-    "signerNamePlaceholder": "مثال: أحمد محمد"
+    "signerNamePlaceholder": "مثال: أحمد محمد",
+    "proposeChange": "تعديل الساعات",
+    "proposeTitle": "تصحيح الساعات",
+    "proposeDesc": "اقترح عدد ساعات جديد. يعيد العميل تأكيد التغيير من بريده.",
+    "currentHours": "المؤكَّد حاليًا",
+    "newHours": "الساعات الجديدة",
+    "correctionNote": "ملاحظة للعميل (اختياري)",
+    "sendRequest": "إرسال الطلب",
+    "changeRequested": "تم إرسال طلب التصحيح إلى العميل.",
+    "noChange": "يرجى إدخال عدد ساعات مختلف.",
+    "notConfirmed": "هذه الوردية غير مؤكَّدة بعد.",
+    "pendingReconfirm": "التغيير بانتظار إعادة تأكيد العميل",
+    "reconfirmCta": "تأكيد الساعات المعدّلة",
+    "reconfirmTitle": "تأكيد الساعات المعدّلة",
+    "reconfirmDesc": "يرجى مراجعة إثبات الأداء المُحدَّث وتأكيده مجددًا.",
+    "reconfirmConsent": "أؤكّد الساعات المعدّلة بشكل مُلزم (نموذج نصي).",
+    "reconfirmButton": "تأكيد الساعات الجديدة",
+    "reconfirmed": "تم تأكيد الساعات المعدّلة.",
+    "rejectCorrection": "رفض",
+    "correctionRejected": "تم رفض التصحيح."
   },
   "enums": {
     "qualification": {
