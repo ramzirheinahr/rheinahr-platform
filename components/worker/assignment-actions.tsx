@@ -8,7 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 import { respondAssignment } from "@/app/[locale]/worker/assignments/actions";
 
-export function AssignmentActions({ assignmentId }: { assignmentId: string }) {
+export function AssignmentActions({
+  assignmentId,
+  declined = false,
+}: {
+  assignmentId: string;
+  /** Shift was declined (by mistake) — offer a single "accept after all" button. */
+  declined?: boolean;
+}) {
   const t = useTranslations("orders");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -23,6 +30,21 @@ export function AssignmentActions({ assignmentId }: { assignmentId: string }) {
         toast.error(res.error === "shiftFull" ? t("shiftFull") : t("saveError"));
       }
     });
+  }
+
+  if (declined) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-2"
+        disabled={pending}
+        onClick={() => respond(true)}
+      >
+        <Check className="size-4" />
+        {t("undoDecline")}
+      </Button>
+    );
   }
 
   return (

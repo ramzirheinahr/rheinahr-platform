@@ -346,7 +346,8 @@
     "noSearchMatch": "لا يوجد موظف مطابق",
     "filterStatus": "الحالة",
     "clearFilter": "مسح التصفية",
-    "noStatusMatch": "لا توجد طلبيات بهذه الحالة."
+    "noStatusMatch": "لا توجد طلبيات بهذه الحالة.",
+    "undoDecline": "قبول رغم الرفض"
   },
   "orderRequest": {
     "prev": "السابق",

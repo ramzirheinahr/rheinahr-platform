@@ -7,6 +7,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { lettersToBlocks, SHIFT_PRESETS, type ShiftKey } from "@/lib/master-schedule-core";
 import { candidatesForShift, type Candidate } from "@/lib/orders";
+import { offerAssignment } from "@/lib/assignments";
 import { qualifications } from "@/lib/validations";
 import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink } from "@/lib/notify";
@@ -227,9 +228,8 @@ export async function assignFromGrid(input: {
         orderId = created.id;
       }
 
-      await tx.assignment.create({
-        data: { orderId, workerId, status: "pending" },
-      });
+      // Resurrects a prior decline instead of failing on the unique key.
+      await offerAssignment(tx, orderId, workerId);
       await tx.notification.create({
         data: {
           userId: worker.userId,
@@ -241,7 +241,6 @@ export async function assignFromGrid(input: {
       });
     });
   } catch {
-    // Unique (orderId, workerId) — already on this shift.
     return { ok: false, error: "saveError" };
   }
 
@@ -452,7 +451,7 @@ export async function assignWorkerToOrder(
 
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.assignment.create({ data: { orderId, workerId, status: "pending" } });
+      await offerAssignment(tx, orderId, workerId);
       if (["pending", "review", "availability_check"].includes(order.status)) {
         await tx.order.update({ where: { id: orderId }, data: { status: "assigned" } });
       }

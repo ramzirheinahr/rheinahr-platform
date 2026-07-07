@@ -451,6 +451,10 @@ export function AvailabilityBuilder({
                             {a.status === "pending" && !d.past ? (
                               <AssignmentActions assignmentId={a.id} />
                             ) : null}
+                            {a.status === "declined" && !d.past ? (
+                              // Mistaken decline → let the worker take the shift back.
+                              <AssignmentActions assignmentId={a.id} declined />
+                            ) : null}
                             {a.status !== "pending" ? (
                               <ShiftCancelControls
                                 assignmentId={a.id}

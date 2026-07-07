@@ -17,6 +17,7 @@ import {
   type BulkShift,
 } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
+import { offerAssignmentsBulk } from "@/lib/assignments";
 import { orderLink, workerShiftLink } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import type { OrderStatus, Qualification } from "@prisma/client";
@@ -509,30 +510,31 @@ export async function bulkAssignWorkers(
   // Bulk writes: a handful of queries no matter how many offers — avoids the
   // long interactive transaction that hit Prisma's 5s timeout and rolled the
   // whole thing back on "select all × many workers".
-  const createdRes = await prisma.assignment.createMany({
-    data: offers.map((o) => ({
-      orderId: o.orderId,
-      workerId: o.workerId,
-      status: "pending" as const,
-    })),
-    skipDuplicates: true, // a prior declined offer for the same pair stays put
-  });
-  await prisma.notification.createMany({
-    data: offers.map((o) => ({
-      userId: o.userId,
-      type: "worker_assigned" as const,
-      channel: "in_app" as const,
-      content: o.content,
-      link: workerShiftLink(),
-    })),
-  });
+  // Creates brand-new offers and RESURRECTS ones a worker previously declined
+  // (a re-offer of the same shift must reach them again — the old skipDuplicates
+  // path silently left the stale "declined" row untouched). Only the pairs that
+  // became a fresh pending offer get notified.
+  const { fresh } = await offerAssignmentsBulk(prisma, offers);
+  const freshKeys = new Set(fresh.map((f) => `${f.orderId}:${f.workerId}`));
+  const notify = offers.filter((o) => freshKeys.has(`${o.orderId}:${o.workerId}`));
+  if (notify.length) {
+    await prisma.notification.createMany({
+      data: notify.map((o) => ({
+        userId: o.userId,
+        type: "worker_assigned" as const,
+        channel: "in_app" as const,
+        content: o.content,
+        link: workerShiftLink(),
+      })),
+    });
+  }
   if (advanceIds.length) {
     await prisma.order.updateMany({
       where: { id: { in: advanceIds } },
       data: { status: "assigned" },
     });
   }
-  const created = createdRes.count;
+  const created = notify.length;
 
   await audit({
     userId: admin.id,
@@ -548,14 +550,14 @@ export async function bulkAssignWorkers(
     },
   });
 
-  // One push per worker summarising how many shifts they were offered.
+  // One push per worker summarising how many shifts they were freshly offered.
   const perWorker = new Map<string, number>();
-  for (const o of offers) perWorker.set(o.userId, (perWorker.get(o.userId) ?? 0) + 1);
+  for (const o of notify) perWorker.set(o.userId, (perWorker.get(o.userId) ?? 0) + 1);
   await Promise.all(
     [...perWorker].map(([userId, n]) =>
       pushToUsers([userId], {
         title: "Neue Einsätze",
-        body: n === 1 ? offers.find((o) => o.userId === userId)!.content : `${n} neue Schicht(en)`,
+        body: n === 1 ? notify.find((o) => o.userId === userId)!.content : `${n} neue Schicht(en)`,
         url: workerShiftLink(),
       }),
     ),

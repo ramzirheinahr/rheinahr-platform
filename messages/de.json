@@ -346,7 +346,8 @@
     "noSearchMatch": "Keine passende Fachkraft",
     "filterStatus": "Status",
     "clearFilter": "Filter zurücksetzen",
-    "noStatusMatch": "Keine Anfragen mit diesem Status."
+    "noStatusMatch": "Keine Anfragen mit diesem Status.",
+    "undoDecline": "Doch annehmen"
   },
   "orderRequest": {
     "prev": "Zurück",

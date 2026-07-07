@@ -346,7 +346,8 @@
     "noSearchMatch": "No matching worker",
     "filterStatus": "Status",
     "clearFilter": "Clear filter",
-    "noStatusMatch": "No requests with this status."
+    "noStatusMatch": "No requests with this status.",
+    "undoDecline": "Accept after all"
   },
   "orderRequest": {
     "prev": "Back",

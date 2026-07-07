@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { runSerializable } from "@/lib/assignments";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { orderLink, inboxLink } from "@/lib/notify";
@@ -45,13 +46,24 @@ export async function respondAssignment(
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
+    // SERIALIZABLE: the "confirmed ≤ quantity" invariant is checked-then-written,
+    // so two workers racing for the last slot must not both pass the count. The
+    // DB serialises them and we retry the loser (→ it sees the shift is full).
+    // Accepting is allowed from a `declined` state too, so a worker (or the
+    // office on their behalf) can reverse a shift they turned down by mistake.
+    await runSerializable(async (tx) => {
       if (accept) {
         const orderData = await tx.order.findUnique({
           where: { id: assignment.order.id },
           select: {
             quantity: true,
-            _count: { select: { assignments: { where: { status: "confirmed" } } } },
+            _count: {
+              select: {
+                assignments: {
+                  where: { status: "confirmed", NOT: { id: assignmentId } },
+                },
+              },
+            },
           },
         });
         if (!orderData || orderData._count.assignments >= orderData.quantity) {
@@ -64,6 +76,10 @@ export async function respondAssignment(
         data: {
           status: accept ? "confirmed" : "declined",
           confirmedAt: accept ? new Date() : null,
+          // Re-accepting clears any stale withdrawal request on the row.
+          ...(accept
+            ? { cancelRequested: false, cancelNote: null, cancelRequestedAt: null }
+            : {}),
         },
       });
 

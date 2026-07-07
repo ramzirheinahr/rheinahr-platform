@@ -222,6 +222,10 @@ export function ShiftMetaCell({
                       {a.status === "pending" && (
                         <AssignmentActions assignmentId={a.id} />
                       )}
+                      {/* Reverse a decline made by mistake (on the worker's behalf). */}
+                      {a.status === "declined" && (
+                        <AssignmentActions assignmentId={a.id} declined />
+                      )}
                       {/* Admin confirms the Leistungsnachweis on the client's
                           behalf — any confirmed shift, past/present/future. */}
                       {a.status === "confirmed" && !a.hasConfirmation && (
