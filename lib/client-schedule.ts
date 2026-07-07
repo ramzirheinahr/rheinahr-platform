@@ -1,11 +1,23 @@
 import { prisma } from "@/lib/prisma";
 import { qualLabel } from "@/lib/invoicing";
+import {
+  netShiftHours,
+  requestNetTotal,
+  resolveRates,
+  resolveSurcharges,
+  resolveNightWindow,
+} from "@/lib/pricing";
 import type { AssignmentStatus, Qualification } from "@prisma/client";
 
 // One month of everything worked (or planned) at a client's facility — the
-// client-side mirror of the worker schedule table. `confirmedHours` is what
-// the facility signed on the Leistungsnachweis, i.e. net of the break, so the
-// month total matches the invoice.
+// client-side mirror of the worker schedule table. Two figures matter:
+//   • `confirmedHours` — the net hours the facility SIGNED on the Leistungs-
+//     nachweis (green). These are the invoice basis.
+//   • provisional "accepted" hours (amber) — a worker has taken the shift but
+//     the facility hasn't signed yet, so we bill the SCHEDULED window.
+// `price` is the net € value of the shift computed with the SAME surcharge
+// engine as the order table (requestNetTotal): scheduled window × qualification
+// rate × Sat/Sun/holiday/night uplift, per the client's own rate card.
 export type ClientScheduleRow = {
   id: string;
   status: AssignmentStatus;
@@ -15,12 +27,24 @@ export type ClientScheduleRow = {
   notes: string | null; // Wohnbereich/Station
   workerName: string;
   qualification: Qualification;
-  confirmedHours: number | null;
+  confirmedHours: number | null; // client-signed net hours (green)
+  scheduledHours: number; // net hours of the planned window (amber basis)
+  price: number; // net € value of this shift (surcharge engine)
+  /** Which pot this row counts toward in the totals. */
+  billing: "confirmed" | "accepted" | null;
 };
 
 export type ClientScheduleTotals = {
   confirmedHours: number;
   confirmedShifts: number;
+  confirmedPrice: number;
+  // Accepted-but-not-yet-signed (amber): scheduled hours & provisional price.
+  acceptedHours: number;
+  acceptedShifts: number;
+  acceptedPrice: number;
+  // Confirmed + accepted — the "expected this month" figure shown in the footer.
+  totalHours: number;
+  totalPrice: number;
 };
 
 export async function getClientMonthSchedule(
@@ -28,49 +52,113 @@ export async function getClientMonthSchedule(
   year: number,
   month: number,
 ): Promise<{ rows: ClientScheduleRow[]; totals: ClientScheduleTotals }> {
-  const assignments = await prisma.assignment
-    .findMany({
-      where: {
-        order: {
-          clientId,
-          shiftDate: {
-            gte: new Date(Date.UTC(year, month - 1, 1)),
-            lt: new Date(Date.UTC(year, month, 1)),
+  const [client, assignments] = await Promise.all([
+    prisma.client
+      .findUnique({
+        where: { id: clientId },
+        select: {
+          hourlyRates: true,
+          surchargeSat: true,
+          surchargeSun: true,
+          surchargeHoliday: true,
+          surchargeNight: true,
+          nightStart: true,
+          nightEnd: true,
+        },
+      })
+      .catch(() => null),
+    prisma.assignment
+      .findMany({
+        where: {
+          order: {
+            clientId,
+            shiftDate: {
+              gte: new Date(Date.UTC(year, month - 1, 1)),
+              lt: new Date(Date.UTC(year, month, 1)),
+            },
           },
         },
-      },
-      orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
-      include: {
-        order: {
-          select: { shiftDate: true, startTime: true, endTime: true, notes: true },
+        orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
+        include: {
+          order: {
+            select: {
+              shiftDate: true,
+              startTime: true,
+              endTime: true,
+              notes: true,
+              requiredQualification: true,
+            },
+          },
+          worker: { select: { fullName: true, qualification: true } },
+          serviceConfirmation: { select: { hoursWorked: true } },
         },
-        worker: { select: { fullName: true, qualification: true } },
-        serviceConfirmation: { select: { hoursWorked: true } },
-      },
-    })
-    .catch(() => []);
+      })
+      .catch(() => []),
+  ]);
 
-  const rows: ClientScheduleRow[] = assignments.map((a) => ({
-    id: a.id,
-    status: a.status,
-    date: a.order.shiftDate.toISOString().slice(0, 10),
-    startTime: a.order.startTime,
-    endTime: a.order.endTime,
-    notes: a.order.notes,
-    workerName: a.worker.fullName,
-    qualification: a.worker.qualification,
-    confirmedHours:
+  const rates = resolveRates(client);
+  const surcharges = resolveSurcharges(client);
+  const night = resolveNightWindow(client);
+
+  const rows: ClientScheduleRow[] = assignments.map((a) => {
+    const confirmedHours =
       a.serviceConfirmation?.hoursWorked != null
         ? Number(a.serviceConfirmation.hoursWorked)
-        : null,
-  }));
+        : null;
+    // A worker holds the shift once the assignment is `confirmed`; a signed
+    // Leistungsnachweis then turns it green.
+    const billing: ClientScheduleRow["billing"] =
+      confirmedHours != null ? "confirmed" : a.status === "confirmed" ? "accepted" : null;
+    const price = requestNetTotal(
+      [
+        {
+          shiftDate: a.order.shiftDate,
+          startTime: a.order.startTime,
+          endTime: a.order.endTime,
+          quantity: 1,
+          requiredQualification: a.order.requiredQualification,
+        },
+      ],
+      surcharges,
+      rates,
+      night,
+    );
+    return {
+      id: a.id,
+      status: a.status,
+      date: a.order.shiftDate.toISOString().slice(0, 10),
+      startTime: a.order.startTime,
+      endTime: a.order.endTime,
+      notes: a.order.notes,
+      workerName: a.worker.fullName,
+      qualification: a.worker.qualification,
+      confirmedHours,
+      scheduledHours: netShiftHours(a.order.startTime, a.order.endTime),
+      price,
+      billing,
+    };
+  });
 
-  const confirmed = rows.filter((r) => r.confirmedHours != null);
+  const confirmed = rows.filter((r) => r.billing === "confirmed");
+  const accepted = rows.filter((r) => r.billing === "accepted");
+  const sum = (arr: number[]) => arr.reduce((s, n) => s + n, 0);
+
+  const confirmedHours = sum(confirmed.map((r) => r.confirmedHours ?? 0));
+  const confirmedPrice = sum(confirmed.map((r) => r.price));
+  const acceptedHours = sum(accepted.map((r) => r.scheduledHours));
+  const acceptedPrice = sum(accepted.map((r) => r.price));
+
   return {
     rows,
     totals: {
-      confirmedHours: confirmed.reduce((sum, r) => sum + (r.confirmedHours ?? 0), 0),
+      confirmedHours,
       confirmedShifts: confirmed.length,
+      confirmedPrice,
+      acceptedHours,
+      acceptedShifts: accepted.length,
+      acceptedPrice,
+      totalHours: confirmedHours + acceptedHours,
+      totalPrice: confirmedPrice + acceptedPrice,
     },
   };
 }
@@ -81,6 +169,21 @@ const statusLabel: Record<AssignmentStatus, string> = {
   declined: "Abgelehnt",
 };
 
+// Human status shown next to a row: green (signed), amber (provisional), or raw.
+export function rowStatusLabel(r: ClientScheduleRow): string {
+  if (r.billing === "confirmed") return "Vom Kunden bestätigt";
+  if (r.billing === "accepted") return "Angenommen (vorläufig)";
+  return statusLabel[r.status];
+}
+
+// The hours that count for this row: signed net hours (green) or, while still
+// provisional, the scheduled net hours (amber). Null when nothing counts yet.
+export function rowBillHours(r: ClientScheduleRow): number | null {
+  if (r.billing === "confirmed") return r.confirmedHours;
+  if (r.billing === "accepted") return r.scheduledHours;
+  return null;
+}
+
 function csvCell(value: string | number): string {
   const s = String(value);
   return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -88,6 +191,8 @@ function csvCell(value: string | number): string {
 
 const deDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const deNum = (n: number) => n.toString().replace(".", ",");
+const deEur = (n: number) =>
+  n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Semicolon-delimited CSV with UTF-8 BOM — opens directly in Excel (same
 // convention as the DATEV invoicing export). German labels: business exports
@@ -104,10 +209,12 @@ export function clientScheduleCsv(
     "Beginn",
     "Ende",
     "Status",
-    "Bestätigte Stunden (ohne Pausen)",
+    "Stunden (ohne Pausen)",
+    "Preis netto (EUR)",
   ];
   const lines = [headers.join(";")];
   for (const r of rows) {
+    const hrs = rowBillHours(r);
     lines.push(
       [
         deDate(r.date),
@@ -116,15 +223,26 @@ export function clientScheduleCsv(
         r.notes ?? "",
         r.startTime,
         r.endTime,
-        r.confirmedHours != null ? "Vom Kunden bestätigt" : statusLabel[r.status],
-        r.confirmedHours != null ? deNum(r.confirmedHours) : "",
+        rowStatusLabel(r),
+        hrs != null ? deNum(hrs) : "",
+        r.billing != null ? deEur(r.price) : "",
       ]
         .map(csvCell)
         .join(";"),
     );
   }
   lines.push(
-    ["Gesamt", "", "", "", "", "", "", deNum(totals.confirmedHours)].join(";"),
+    [
+      "Gesamt (netto, inkl. vorläufig)",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      deNum(totals.totalHours),
+      deEur(totals.totalPrice),
+    ].join(";"),
   );
   return "﻿" + lines.join("\r\n");
 }

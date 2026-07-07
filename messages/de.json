@@ -691,7 +691,12 @@
     "subtitle": "Alle Einsätze in Ihrer Einrichtung – mit bestätigten Stunden (ohne Pausen).",
     "workerHeader": "Pflegekraft",
     "downloadPdf": "PDF",
-    "downloadExcel": "Excel (CSV)"
+    "downloadExcel": "Excel (CSV)",
+    "priceHeader": "Preis (netto)",
+    "provisionalTotal": "Angenommen (vorläufig)",
+    "confirmedTotalLabel": "Vom Kunden bestätigt",
+    "grandTotal": "Gesamt (inkl. vorläufig)",
+    "provisionalHint": "Von einer Pflegekraft angenommen, aber vom Kunden noch nicht unterschrieben."
   },
   "masterSchedule": {
     "title": "Dienstplan",

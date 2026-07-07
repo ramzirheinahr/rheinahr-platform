@@ -691,7 +691,12 @@
     "subtitle": "All deployments at your facility — with confirmed hours (breaks deducted).",
     "workerHeader": "Care worker",
     "downloadPdf": "PDF",
-    "downloadExcel": "Excel (CSV)"
+    "downloadExcel": "Excel (CSV)",
+    "priceHeader": "Price (net)",
+    "provisionalTotal": "Accepted (provisional)",
+    "confirmedTotalLabel": "Confirmed by client",
+    "grandTotal": "Total (incl. provisional)",
+    "provisionalHint": "Accepted by a care worker but not yet signed by the client."
   },
   "masterSchedule": {
     "title": "Duty roster",

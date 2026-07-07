@@ -58,15 +58,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     fontFamily: "Helvetica-Bold",
   },
-  cDate: { width: 58 },
-  cWorker: { flex: 1.4 },
-  cQual: { flex: 1 },
-  cWard: { flex: 0.9 },
-  cTime: { width: 40 },
+  cDate: { width: 54 },
+  cWorker: { flex: 1.3 },
+  cQual: { flex: 0.9 },
+  cWard: { flex: 0.8 },
+  cTime: { width: 36 },
   cStatus: { flex: 1 },
-  cHours: { width: 60, textAlign: "right" },
+  cHours: { width: 52, textAlign: "right" },
+  cPrice: { width: 60, textAlign: "right" },
   confirmed: { color: "#059669" },
+  accepted: { color: "#b45309" },
   muted: { color: "#9ca3af" },
+  totalLine: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  totalLabel: { color: "#374151" },
+  totalValue: { width: 150, textAlign: "right", fontFamily: "Helvetica-Bold" },
+  grandValue: { width: 150, textAlign: "right", fontFamily: "Helvetica-Bold", fontSize: 11 },
   footer: {
     position: "absolute",
     bottom: 32,
@@ -82,12 +93,19 @@ const styles = StyleSheet.create({
 
 const deDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const deNum = (n: number) => n.toString().replace(".", ",");
+const deEur = (n: number) =>
+  n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
-const statusLabel: Record<ClientScheduleRow["status"], string> = {
-  pending: "Ausstehend",
-  confirmed: "Bestätigt",
-  declined: "Abgelehnt",
-};
+const statusText = (r: ClientScheduleRow): string =>
+  r.billing === "confirmed"
+    ? "Vom Kunden bestätigt"
+    : r.billing === "accepted"
+      ? "Angenommen (vorläufig)"
+      : r.status === "pending"
+        ? "Ausstehend"
+        : r.status === "declined"
+          ? "Abgelehnt"
+          : "Bestätigt";
 
 function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
   return (
@@ -106,7 +124,7 @@ function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
 
         <Text style={styles.title}>Monatsübersicht {d.monthLabel}</Text>
         <Text style={styles.subtitle}>
-          {d.facilityName} — Einsätze und vom Kunden bestätigte Stunden (ohne Pausen)
+          {d.facilityName} — Einsätze, Stunden (ohne Pausen) und Nettopreis
         </Text>
 
         <View style={styles.th} fixed>
@@ -118,38 +136,71 @@ function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
           <Text style={styles.cTime}>Ende</Text>
           <Text style={styles.cStatus}>Status</Text>
           <Text style={styles.cHours}>Stunden</Text>
+          <Text style={styles.cPrice}>Preis netto</Text>
         </View>
 
-        {d.rows.map((r) => (
-          <View key={r.id} style={styles.tr} wrap={false}>
-            <Text style={styles.cDate}>{deDate(r.date)}</Text>
-            <Text style={styles.cWorker}>{r.workerName}</Text>
-            <Text style={styles.cQual}>{qualLabel[r.qualification]}</Text>
-            <Text style={styles.cWard}>{r.notes ?? ""}</Text>
-            <Text style={styles.cTime}>{r.startTime}</Text>
-            <Text style={styles.cTime}>{r.endTime}</Text>
-            <Text style={r.confirmedHours != null ? [styles.cStatus, styles.confirmed] : styles.cStatus}>
-              {r.confirmedHours != null ? "Vom Kunden bestätigt" : statusLabel[r.status]}
-            </Text>
-            <Text style={r.confirmedHours != null ? [styles.cHours, styles.confirmed] : [styles.cHours, styles.muted]}>
-              {r.confirmedHours != null ? `${deNum(r.confirmedHours)} Std.` : "—"}
-            </Text>
-          </View>
-        ))}
+        {d.rows.map((r) => {
+          const hours =
+            r.billing === "confirmed"
+              ? r.confirmedHours ?? 0
+              : r.billing === "accepted"
+                ? r.scheduledHours
+                : null;
+          const tone =
+            r.billing === "confirmed"
+              ? styles.confirmed
+              : r.billing === "accepted"
+                ? styles.accepted
+                : styles.muted;
+          return (
+            <View key={r.id} style={styles.tr} wrap={false}>
+              <Text style={styles.cDate}>{deDate(r.date)}</Text>
+              <Text style={styles.cWorker}>{r.workerName}</Text>
+              <Text style={styles.cQual}>{qualLabel[r.qualification]}</Text>
+              <Text style={styles.cWard}>{r.notes ?? ""}</Text>
+              <Text style={styles.cTime}>{r.startTime}</Text>
+              <Text style={styles.cTime}>{r.endTime}</Text>
+              <Text style={r.billing ? [styles.cStatus, tone] : styles.cStatus}>
+                {statusText(r)}
+              </Text>
+              <Text style={[styles.cHours, tone]}>
+                {hours != null ? `${deNum(hours)} Std.` : "—"}
+              </Text>
+              <Text style={[styles.cPrice, tone]}>
+                {r.billing ? deEur(r.price) : "—"}
+              </Text>
+            </View>
+          );
+        })}
 
         <View style={styles.total} wrap={false}>
-          <Text style={{ flex: 1 }}>
-            Gesamtstunden im Monat (ohne Pausen) — {d.totals.confirmedShifts} bestätigte
-            Schicht(en)
+          <Text style={{ flex: 1 }}>Monatssumme (netto, ohne Pausen)</Text>
+        </View>
+        {d.totals.acceptedShifts > 0 ? (
+          <View style={styles.totalLine} wrap={false}>
+            <Text style={styles.totalLabel}>Angenommen (vorläufig): </Text>
+            <Text style={[styles.totalValue, styles.accepted]}>
+              {deNum(d.totals.acceptedHours)} Std. · {deEur(d.totals.acceptedPrice)}
+            </Text>
+          </View>
+        ) : null}
+        <View style={styles.totalLine} wrap={false}>
+          <Text style={styles.totalLabel}>Vom Kunden bestätigt: </Text>
+          <Text style={[styles.totalValue, styles.confirmed]}>
+            {deNum(d.totals.confirmedHours)} Std. · {deEur(d.totals.confirmedPrice)}
           </Text>
-          <Text style={[styles.cHours, styles.confirmed]}>
-            {deNum(d.totals.confirmedHours)} Std.
+        </View>
+        <View style={styles.totalLine} wrap={false}>
+          <Text style={styles.totalLabel}>Gesamt (inkl. vorläufig): </Text>
+          <Text style={[styles.grandValue, styles.confirmed]}>
+            {deNum(d.totals.totalHours)} Std. · {deEur(d.totals.totalPrice)}
           </Text>
         </View>
 
         <Text style={styles.footer} fixed>
-          Digital erstellt am {d.generatedAt}. Bestätigte Stunden entsprechen den digital
-          signierten Leistungsnachweisen (DSGVO-konform protokolliert).
+          Digital erstellt am {d.generatedAt}. „Vom Kunden bestätigt“ entspricht den digital
+          signierten Leistungsnachweisen; „vorläufig“ sind angenommene, noch nicht
+          unterschriebene Einsätze. Nettopreise ohne USt. (DSGVO-konform protokolliert).
         </Text>
       </Page>
     </Document>

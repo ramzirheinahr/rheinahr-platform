@@ -39,7 +39,19 @@ export default async function ClientSchedulePage({
     : null;
   const { rows, totals } = client
     ? await getClientMonthSchedule(client.id, year, month)
-    : { rows: [], totals: { confirmedHours: 0, confirmedShifts: 0 } };
+    : {
+        rows: [],
+        totals: {
+          confirmedHours: 0,
+          confirmedShifts: 0,
+          confirmedPrice: 0,
+          acceptedHours: 0,
+          acceptedShifts: 0,
+          acceptedPrice: 0,
+          totalHours: 0,
+          totalPrice: 0,
+        },
+      };
 
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",

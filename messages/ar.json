@@ -691,7 +691,12 @@
     "subtitle": "جميع الورديات المنفَّذة في منشأتكم — مع الساعات المؤكدة (بعد خصم الاستراحة).",
     "workerHeader": "كادر الرعاية",
     "downloadPdf": "PDF",
-    "downloadExcel": "إكسل (CSV)"
+    "downloadExcel": "إكسل (CSV)",
+    "priceHeader": "السعر (صافي)",
+    "provisionalTotal": "مقبولة (مبدئي)",
+    "confirmedTotalLabel": "مؤكَّدة من العميل",
+    "grandTotal": "الإجمالي (شامل المبدئي)",
+    "provisionalHint": "قبِلَها أحد مقدّمي الرعاية ولكن لم يوقّعها العميل بعد."
   },
   "masterSchedule": {
     "title": "جدول الورديات",

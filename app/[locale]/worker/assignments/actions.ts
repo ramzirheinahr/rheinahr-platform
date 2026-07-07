@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { runSerializable } from "@/lib/assignments";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { orderLink, inboxLink } from "@/lib/notify";
+import { orderLink, inboxLink, workerShiftLink } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { formatDateDE } from "@/lib/utils";
 
@@ -44,6 +44,10 @@ export async function respondAssignment(
   if (!assignment || (!isStaff && assignment.worker.userId !== user.id)) {
     return { ok: false, error: "forbidden" };
   }
+
+  // Workers whose pending offer is withdrawn because the shift filled up — the
+  // shift disappears from their portal; we let them know afterwards.
+  let withdrawnUserIds: string[] = [];
 
   try {
     // SERIALIZABLE: the "confirmed ≤ quantity" invariant is checked-then-written,
@@ -98,18 +102,55 @@ export async function respondAssignment(
           select: { id: true, role: true },
         });
         const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+        const label = `${assignment.order.shiftDate
+          .toISOString()
+          .slice(0, 10)} ${assignment.order.startTime}–${assignment.order.endTime}`;
         if (recipients.length) {
           await tx.notification.createMany({
             data: recipients.map((r) => ({
               userId: r.id,
               type: "worker_confirmed" as const,
               channel: "in_app" as const,
-              content: `${assignment.worker.fullName}: ${assignment.order.shiftDate
-                .toISOString()
-                .slice(0, 10)} ${assignment.order.startTime}–${assignment.order.endTime}`,
+              content: `${assignment.worker.fullName}: ${label}`,
               link: orderLink(r.role, reqGroup),
             })),
           });
+        }
+
+        // Once the headcount is met, the shift is off the market: withdraw every
+        // remaining pending offer so it disappears from the other workers'
+        // portals (a shift can't be double-booked past its quantity).
+        const staffing = await tx.order.findUnique({
+          where: { id: assignment.order.id },
+          select: {
+            quantity: true,
+            _count: { select: { assignments: { where: { status: "confirmed" } } } },
+          },
+        });
+        if (staffing && staffing._count.assignments >= staffing.quantity) {
+          const stillPending = await tx.assignment.findMany({
+            where: {
+              orderId: assignment.order.id,
+              status: "pending",
+              NOT: { id: assignmentId },
+            },
+            select: { id: true, worker: { select: { userId: true } } },
+          });
+          if (stillPending.length) {
+            await tx.assignment.deleteMany({
+              where: { id: { in: stillPending.map((a) => a.id) } },
+            });
+            withdrawnUserIds = stillPending.map((a) => a.worker.userId);
+            await tx.notification.createMany({
+              data: withdrawnUserIds.map((uid) => ({
+                userId: uid,
+                type: "order_status_changed" as const,
+                channel: "in_app" as const,
+                content: `Einsatz bereits besetzt: ${label}`,
+                link: workerShiftLink(),
+              })),
+            });
+          }
         }
       }
     });
@@ -151,6 +192,16 @@ export async function respondAssignment(
         admins.map((a) => a.id),
         { title: "Einsatz bestätigt", body, url: orderLink("admin", reqGroup) },
       ),
+      // Tell the workers who lost the offer that it's been filled.
+      withdrawnUserIds.length
+        ? pushToUsers(withdrawnUserIds, {
+            title: "Einsatz bereits besetzt",
+            body: `${assignment.order.shiftDate
+              .toISOString()
+              .slice(0, 10)} ${assignment.order.startTime}–${assignment.order.endTime}`,
+            url: workerShiftLink(),
+          })
+        : Promise.resolve(),
     ]);
   }
 

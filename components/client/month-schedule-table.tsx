@@ -1,5 +1,9 @@
 import { getTranslations } from "next-intl/server";
-import type { ClientScheduleRow, ClientScheduleTotals } from "@/lib/client-schedule";
+import {
+  rowBillHours,
+  type ClientScheduleRow,
+  type ClientScheduleTotals,
+} from "@/lib/client-schedule";
 import { germanHolidays } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +40,7 @@ export async function MonthScheduleTable({
     timeZone: "UTC",
   });
   const hoursFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+  const eurFmt = new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" });
 
   const holidays = germanHolidays(year);
   const byDate = new Map<string, ClientScheduleRow[]>();
@@ -69,6 +74,7 @@ export async function MonthScheduleTable({
             <th className="p-2 text-start">{oq("von")}</th>
             <th className="p-2 text-start">{oq("bis")}</th>
             <th className="p-2 text-end">{av("hoursHeader")}</th>
+            <th className="p-2 text-end">{t("priceHeader")}</th>
           </tr>
         </thead>
         <tbody>
@@ -83,7 +89,7 @@ export async function MonthScheduleTable({
                       {d.holiday ? <span className="text-rose-600">•</span> : null}
                     </div>
                   </td>
-                  <td className="p-2" colSpan={5}></td>
+                  <td className="p-2" colSpan={6}></td>
                 </tr>
               );
             }
@@ -144,9 +150,27 @@ export async function MonthScheduleTable({
                   {a.endTime}
                 </td>
                 <td className="whitespace-nowrap p-2 text-end">
-                  {a.confirmedHours != null ? (
+                  {a.billing === "confirmed" ? (
                     <span className="font-semibold text-emerald-600">
-                      {hoursFmt.format(a.confirmedHours)} {av("hoursUnit")}
+                      {hoursFmt.format(a.confirmedHours ?? 0)} {av("hoursUnit")}
+                    </span>
+                  ) : a.billing === "accepted" ? (
+                    <span className="font-semibold text-amber-600">
+                      {hoursFmt.format(a.scheduledHours)} {av("hoursUnit")}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="whitespace-nowrap p-2 text-end">
+                  {a.billing != null ? (
+                    <span
+                      className={cn(
+                        "font-medium",
+                        a.billing === "confirmed" ? "text-emerald-600" : "text-amber-600",
+                      )}
+                    >
+                      {eurFmt.format(a.price)}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>
@@ -156,10 +180,10 @@ export async function MonthScheduleTable({
             ));
           })}
         </tbody>
-        {totals.confirmedShifts > 0 ? (
+        {totals.confirmedShifts > 0 || totals.acceptedShifts > 0 ? (
           <tfoot>
             <tr className="border-t-2 bg-emerald-500/10">
-              <td colSpan={5} className="p-3">
+              <td colSpan={4} className="p-3 align-top">
                 <div className="flex items-center gap-2 font-semibold">
                   <Clock className="size-4 text-emerald-600" />
                   {av("monthTotal")}
@@ -167,9 +191,36 @@ export async function MonthScheduleTable({
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {av("monthTotalHint", { count: totals.confirmedShifts })}
                 </p>
+                {totals.acceptedShifts > 0 ? (
+                  <p className="mt-0.5 text-xs text-amber-600">{t("provisionalHint")}</p>
+                ) : null}
               </td>
-              <td className="whitespace-nowrap p-3 text-end align-middle text-lg font-bold text-emerald-600">
-                {hoursFmt.format(totals.confirmedHours)} {av("hoursUnit")}
+              <td colSpan={3} className="p-3 text-end align-middle">
+                <div className="ms-auto flex w-full max-w-xs flex-col gap-1">
+                  {totals.acceptedShifts > 0 ? (
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-muted-foreground">{t("provisionalTotal")}:</span>
+                      <span className="font-semibold text-amber-600">
+                        {hoursFmt.format(totals.acceptedHours)} {av("hoursUnit")} ·{" "}
+                        {eurFmt.format(totals.acceptedPrice)}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="text-muted-foreground">{t("confirmedTotalLabel")}:</span>
+                    <span className="font-semibold text-emerald-600">
+                      {hoursFmt.format(totals.confirmedHours)} {av("hoursUnit")} ·{" "}
+                      {eurFmt.format(totals.confirmedPrice)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 border-t border-emerald-500/30 pt-1 text-base font-bold">
+                    <span>{t("grandTotal")}:</span>
+                    <span className="text-emerald-700 dark:text-emerald-400">
+                      {hoursFmt.format(totals.totalHours)} {av("hoursUnit")} ·{" "}
+                      {eurFmt.format(totals.totalPrice)}
+                    </span>
+                  </div>
+                </div>
               </td>
             </tr>
           </tfoot>
