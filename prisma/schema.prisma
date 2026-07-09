@@ -447,6 +447,11 @@ model ServiceConfirmation {
   correctionNote        String?   @map("correction_note")
   correctionRequestedBy String?   @map("correction_requested_by")
   correctionRequestedAt DateTime? @map("correction_requested_at")
+  // Client-requested shift-window correction filed while confirming ("the shift
+  // actually ran 07:00–15:30"). While set, the office reviews it from the inbox
+  // thread; approving updates the order window + hours and clears the fields.
+  requestedStart String? @map("requested_start")
+  requestedEnd   String? @map("requested_end")
 
   assignment  Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   confirmedBy User?       @relation(fields: [confirmedById], references: [id], onDelete: SetNull)

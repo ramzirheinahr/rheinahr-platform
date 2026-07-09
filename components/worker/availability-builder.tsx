@@ -689,15 +689,31 @@ export function AvailabilityBuilder({
                 </td>
                 <td className="whitespace-nowrap p-3 text-end align-middle">
                   {(() => {
-                    // Order (per request): accepted (yellow) → confirmed (green) →
-                    // their sum → carryover → required → remaining. Remaining is
-                    // the signed balance = worked − soll, so it goes NEGATIVE when
-                    // the worker is still short (e.g. 20 worked of 100 → −80).
+                    // Per the office's ledger: this month's soll, minus the
+                    // carryover balance from last month (positive = credit that
+                    // reduces the soll), minus everything worked — confirmed
+                    // (green) AND still-unconfirmed accepted (amber) alike.
+                    // Remaining is what's still owed, so it's POSITIVE while the
+                    // worker is short and ≤ 0 once the soll is met.
                     const worked = totals.acceptedHours + totals.hours;
-                    const remaining = worked - (requiredHours ?? 0) - carryoverHours;
+                    const remaining = (requiredHours ?? 0) - carryoverHours - worked;
                     const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
                     return (
                       <div className="flex flex-col items-end gap-1">
+                        {requiredHours !== undefined && (
+                          <div className="flex justify-between w-52 text-sm">
+                            <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
+                            <span className="font-medium text-foreground">{hoursFmt.format(requiredHours)} {t("hoursUnit")}</span>
+                          </div>
+                        )}
+                        {carryoverHours !== 0 && (
+                          <div className="flex justify-between w-52 text-sm">
+                            <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
+                            <span className={cn("font-medium", carryoverHours > 0 ? "text-emerald-600" : "text-foreground")}>
+                              {signed(carryoverHours)} {t("hoursUnit")}
+                            </span>
+                          </div>
+                        )}
                         {totals.acceptedHours > 0 && (
                           <div className="flex justify-between w-52 text-sm">
                             <span className="text-muted-foreground">{t("acceptedTotal")}:</span>
@@ -712,27 +728,13 @@ export function AvailabilityBuilder({
                           <span className="text-muted-foreground">{t("workedTotal")}:</span>
                           <span className="font-semibold text-foreground">{hoursFmt.format(worked)} {t("hoursUnit")}</span>
                         </div>
-                        {carryoverHours !== 0 && (
-                          <div className="flex justify-between w-52 text-sm">
-                            <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
-                            <span className={cn("font-medium", carryoverHours < 0 ? "text-emerald-600" : "text-foreground")}>
-                              {signed(carryoverHours)} {t("hoursUnit")}
+                        {requiredHours !== undefined && (
+                          <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
+                            <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
+                            <span className={cn("font-bold", remaining > 0 ? "text-destructive" : "text-emerald-600")}>
+                              {hoursFmt.format(remaining)} {t("hoursUnit")}
                             </span>
                           </div>
-                        )}
-                        {requiredHours !== undefined && (
-                          <>
-                            <div className="flex justify-between w-52 text-sm">
-                              <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
-                              <span className="font-medium text-foreground">{hoursFmt.format(requiredHours)} {t("hoursUnit")}</span>
-                            </div>
-                            <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
-                              <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
-                              <span className={cn("font-bold", remaining < 0 ? "text-destructive" : "text-emerald-600")}>
-                                {signed(remaining)} {t("hoursUnit")}
-                              </span>
-                            </div>
-                          </>
                         )}
                       </div>
                     );
@@ -878,11 +880,33 @@ export function AvailabilityBuilder({
               {t("monthTotal")}
             </div>
             {(() => {
+              // Same ledger as the table footer: soll − carryover − worked.
               const worked = totals.acceptedHours + totals.hours;
-              const remaining = worked - (requiredHours ?? 0) - carryoverHours;
+              const remaining = (requiredHours ?? 0) - carryoverHours - worked;
               const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
               return (
                 <div className="flex flex-col gap-1 text-sm">
+                  {requiredHours !== undefined && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
+                      <span className="font-medium text-foreground">
+                        {hoursFmt.format(requiredHours)} {t("hoursUnit")}
+                      </span>
+                    </div>
+                  )}
+                  {carryoverHours !== 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
+                      <span
+                        className={cn(
+                          "font-medium",
+                          carryoverHours > 0 ? "text-emerald-600" : "text-foreground",
+                        )}
+                      >
+                        {signed(carryoverHours)} {t("hoursUnit")}
+                      </span>
+                    </div>
+                  )}
                   {totals.acceptedHours > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("acceptedTotal")}:</span>
@@ -903,34 +927,13 @@ export function AvailabilityBuilder({
                       {hoursFmt.format(worked)} {t("hoursUnit")}
                     </span>
                   </div>
-                  {carryoverHours !== 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
-                      <span
-                        className={cn(
-                          "font-medium",
-                          carryoverHours < 0 ? "text-emerald-600" : "text-foreground",
-                        )}
-                      >
-                        {signed(carryoverHours)} {t("hoursUnit")}
+                  {requiredHours !== undefined && (
+                    <div className="flex justify-between border-t border-emerald-500/20 pt-1 font-bold">
+                      <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
+                      <span className={cn(remaining > 0 ? "text-destructive" : "text-emerald-600")}>
+                        {hoursFmt.format(remaining)} {t("hoursUnit")}
                       </span>
                     </div>
-                  )}
-                  {requiredHours !== undefined && (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
-                        <span className="font-medium text-foreground">
-                          {hoursFmt.format(requiredHours)} {t("hoursUnit")}
-                        </span>
-                      </div>
-                      <div className="flex justify-between border-t border-emerald-500/20 pt-1 font-bold">
-                        <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
-                        <span className={cn(remaining < 0 ? "text-destructive" : "text-emerald-600")}>
-                          {signed(remaining)} {t("hoursUnit")}
-                        </span>
-                      </div>
-                    </>
                   )}
                 </div>
               );

@@ -199,11 +199,13 @@ export async function updateOrderRequestAsAdmin(
   return { ok: true };
 }
 
-// Admin cancelling a whole request (all shifts sharing the requestGroupId) — a
-// SOFT cancel: the records stay in the database (status → cancelled), nothing is
-// deleted. Admins are not bound to the client's cutoff, but a request whose
-// shifts already ran/were confirmed cannot be cancelled. The client is notified
-// that the request was cancelled on their account.
+// Admin deleting a whole request (all shifts sharing the requestGroupId) — a
+// HARD delete on the owner's instruction: the order rows are removed from the
+// database (assignments cascade), nothing stays behind marked "cancelled".
+// Admins are not bound to the client's cutoff, but a request whose shifts
+// already ran / were confirmed / carry a signed Leistungsnachweis cannot be
+// deleted. Client and assigned workers are notified; the audit log keeps the
+// deletion trace.
 export async function cancelOrderRequestAsAdmin(
   requestGroupId: string,
 ): Promise<ActionState> {
@@ -220,40 +222,73 @@ export async function cancelOrderRequestAsAdmin(
   });
   if (existing.length === 0) return { ok: false, error: "saveError" };
   if (!isRequestCancelable(existing)) return { ok: false, error: "locked" };
+  // Extra guard before destroying rows: a signed Leistungsnachweis anywhere in
+  // the group is a legal record — never delete it.
+  const signed = await prisma.serviceConfirmation.count({
+    where: { assignment: { order: { requestGroupId } } },
+  });
+  if (signed > 0) return { ok: false, error: "locked" };
 
   const client = await prisma.client.findUnique({
     where: { id: existing[0].clientId },
     select: { userId: true, facilityName: true },
   });
 
-  await prisma.order.updateMany({
-    where: { requestGroupId, status: { not: "cancelled" } },
-    data: { status: "cancelled" },
+  // Workers holding an active invitation/acceptance lose the shift — tell them.
+  const affected = await prisma.assignment.findMany({
+    where: { order: { requestGroupId }, status: { not: "declined" } },
+    select: { worker: { select: { userId: true } } },
   });
+  const workerUserIds = [...new Set(affected.map((a) => a.worker.userId))];
 
-  if (client?.userId) {
-    await prisma.notification.create({
-      data: {
-        userId: client.userId,
-        type: "order_status_changed",
-        channel: "in_app",
-        content: `${client.facilityName}: Anfrage storniert – ${existing.length} Schicht(en)`,
-        link: orderLink("client", requestGroupId),
-      },
+  await prisma.$transaction([
+    prisma.order.deleteMany({ where: { requestGroupId } }),
+    ...(client?.userId
+      ? [
+          prisma.notification.create({
+            data: {
+              userId: client.userId,
+              type: "order_status_changed",
+              channel: "in_app",
+              content: `${client.facilityName}: Anfrage gelöscht – ${existing.length} Schicht(en)`,
+              link: "/client/orders",
+            },
+          }),
+        ]
+      : []),
+    ...workerUserIds.map((userId) =>
+      prisma.notification.create({
+        data: {
+          userId,
+          type: "order_status_changed",
+          channel: "in_app",
+          content: `Einsatz gelöscht – ${client?.facilityName ?? "Anfrage entfernt"}`,
+          link: workerShiftLink(),
+        },
+      }),
+    ),
+  ]);
+
+  if (workerUserIds.length > 0) {
+    await pushToUsers(workerUserIds, {
+      title: "Einsatz gelöscht",
+      body: client?.facilityName ?? "Anfrage entfernt",
+      url: workerShiftLink(),
     });
   }
 
   await audit({
     userId: admin.id,
-    action: "order.request.cancel",
+    action: "order.request.delete",
     entity: "Order",
     entityId: requestGroupId,
-    metadata: { byAdmin: true, shifts: existing.length },
+    metadata: { byAdmin: true, shifts: existing.length, hardDelete: true },
   });
 
   revalidatePath("/admin/orders");
-  revalidatePath(`/admin/orders/${requestGroupId}`);
+  revalidatePath("/admin/schedule");
   revalidatePath("/client/orders");
+  revalidatePath("/worker");
   return { ok: true };
 }
 
@@ -565,4 +600,215 @@ export async function bulkAssignWorkers(
 
   revalidatePath("/admin/orders");
   return { ok: true, created, skipped };
+}
+
+// ── Client-requested shift-window correction (filed while confirming) ──────
+// The client signed the Leistungsnachweis but flagged that the shift actually
+// ran at different times. Approving applies the new window to the order,
+// recomputes the net hours, regenerates the signed PDF (Textform, admin acting
+// on the request), and clears the pending fields. Rejecting just clears them.
+
+export async function approveTimeChange(input: {
+  assignmentId: string;
+  signerName: string;
+}): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  const { z } = await import("zod");
+  if (
+    !z.string().uuid().safeParse(input.assignmentId).success ||
+    !z.string().trim().min(2).max(120).safeParse(input.signerName).success
+  ) {
+    return { ok: false, error: "nameRequired" };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: input.assignmentId },
+    include: {
+      serviceConfirmation: true,
+      order: {
+        select: {
+          id: true,
+          requestGroupId: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          client: { select: { userId: true, facilityName: true } },
+        },
+      },
+      worker: { select: { userId: true, fullName: true, qualification: true } },
+    },
+  });
+  const sc = assignment?.serviceConfirmation;
+  if (!assignment || !sc || !sc.requestedStart || !sc.requestedEnd) {
+    return { ok: false, error: "saveError" };
+  }
+  const newStart = sc.requestedStart;
+  const newEnd = sc.requestedEnd;
+
+  const { netShiftHours } = await import("@/lib/pricing");
+  const newHours = netShiftHours(newStart, newEnd);
+
+  const { headers } = await import("next/headers");
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+
+  // Regenerate the signed Leistungsnachweis with the corrected window + hours.
+  const [{ renderLeistungsnachweisPdf }, { qualLabel, methodLabel }] = await Promise.all([
+    import("@/lib/pdf/leistungsnachweis"),
+    import("@/lib/invoicing"),
+  ]);
+  const pdf = await renderLeistungsnachweisPdf({
+    facilityName: assignment.order.client.facilityName,
+    workerName: assignment.worker.fullName,
+    qualificationLabel: qualLabel[assignment.worker.qualification],
+    shiftDate: assignment.order.shiftDate.toISOString().slice(0, 10),
+    startTime: newStart,
+    endTime: newEnd,
+    hours: newHours,
+    methodLabel: methodLabel.electronic,
+    isElectronic: true,
+    signerName: input.signerName.trim(),
+    confirmedByEmail: admin.email,
+    confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+    ipAddress: ip,
+    orderId: assignment.order.id,
+    assignmentId: assignment.id,
+    draft: false,
+  });
+  const path = `${assignment.id}/signed/leistungsnachweis-${Date.now()}.pdf`;
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.storage
+    .from("confirmations")
+    .upload(path, new Uint8Array(pdf), { contentType: "application/pdf", upsert: false });
+  if (error) return { ok: false, error: "saveError" };
+
+  const oldWindow = `${assignment.order.startTime}–${assignment.order.endTime}`;
+  await prisma.$transaction([
+    prisma.order.update({
+      where: { id: assignment.order.id },
+      data: { startTime: newStart, endTime: newEnd },
+    }),
+    prisma.serviceConfirmation.update({
+      where: { id: sc.id },
+      data: {
+        hoursWorked: newHours,
+        documentUrl: path,
+        confirmedById: admin.id,
+        confirmedAt: new Date(),
+        ipAddress: ip,
+        requestedStart: null,
+        requestedEnd: null,
+      },
+    }),
+  ]);
+
+  const dateLabel = formatDateDE(assignment.order.shiftDate);
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  const summary = `Zeitkorrektur genehmigt (${dateLabel}): ${oldWindow} → ${newStart}–${newEnd} · ${newHours} Std.`;
+  const recipients = [
+    ...(assignment.order.client.userId
+      ? [{ id: assignment.order.client.userId, role: "client" as const }]
+      : []),
+    { id: assignment.worker.userId, role: "worker" as const },
+  ];
+  await prisma.notification.createMany({
+    data: recipients.map((r) => ({
+      userId: r.id,
+      type: "service_confirmed" as const,
+      channel: "in_app" as const,
+      content: summary,
+      link: r.role === "worker" ? workerShiftLink() : orderLink("client", reqGroup),
+    })),
+  });
+  await pushToUsers(
+    recipients.map((r) => r.id),
+    { title: "Zeitkorrektur genehmigt", body: summary, url: "/" },
+  );
+
+  await audit({
+    userId: admin.id,
+    action: "service.timeChangeApprove",
+    entity: "Assignment",
+    entityId: assignment.id,
+    ipAddress: ip,
+    metadata: { from: oldWindow, to: `${newStart}-${newEnd}`, hours: newHours },
+  });
+
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${reqGroup}`);
+  revalidatePath("/admin/schedule");
+  revalidatePath("/client/orders");
+  revalidatePath("/worker");
+  return { ok: true };
+}
+
+export async function rejectTimeChange(assignmentId: string): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  const { z } = await import("zod");
+  if (!z.string().uuid().safeParse(assignmentId).success) {
+    return { ok: false, error: "saveError" };
+  }
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      serviceConfirmation: { select: { id: true, requestedStart: true, requestedEnd: true } },
+      order: {
+        select: {
+          requestGroupId: true,
+          id: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          client: { select: { userId: true, facilityName: true } },
+        },
+      },
+    },
+  });
+  const sc = assignment?.serviceConfirmation;
+  if (!assignment || !sc || !sc.requestedStart || !sc.requestedEnd) {
+    return { ok: false, error: "saveError" };
+  }
+
+  await prisma.serviceConfirmation.update({
+    where: { id: sc.id },
+    data: { requestedStart: null, requestedEnd: null },
+  });
+
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  if (assignment.order.client.userId) {
+    await prisma.notification.create({
+      data: {
+        userId: assignment.order.client.userId,
+        type: "order_status_changed",
+        channel: "in_app",
+        content: `Zeitkorrektur abgelehnt (${formatDateDE(assignment.order.shiftDate)}): ${assignment.order.startTime}–${assignment.order.endTime} bleibt bestehen.`,
+        link: orderLink("client", reqGroup),
+      },
+    });
+  }
+
+  await audit({
+    userId: admin.id,
+    action: "service.timeChangeReject",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: {
+      requested: `${sc.requestedStart}-${sc.requestedEnd}`,
+    },
+  });
+
+  revalidatePath(`/admin/orders/${reqGroup}`);
+  revalidatePath("/client/orders");
+  return { ok: true };
 }

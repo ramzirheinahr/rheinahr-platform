@@ -233,7 +233,7 @@
     "scheduleHint": "Dienstplan und vom Kunden bestätigte Stunden dieser Pflegekraft.",
     "scheduleEmpty": "Keine Einsätze in diesem Monat.",
     "carryoverHours": "Übertrag (Stunden)",
-    "carryoverHoursHint": "Stundensaldo aus Vormonaten: positiv = Soll, negativ = Guthaben.",
+    "carryoverHoursHint": "Stundensaldo aus Vormonaten: positiv = Guthaben (senkt das Monatssoll), negativ = Fehlstunden.",
     "searchPlaceholder": "Pflegekraft suchen…",
     "noSearchMatch": "Keine Treffer."
   },
@@ -321,11 +321,11 @@
     "messagePlaceholder": "Ihre Nachricht zu dieser Bestellung …",
     "messageSend": "Senden",
     "messageSent": "Nachricht gesendet.",
-    "cancelRequest": "Anfrage stornieren",
-    "cancelConfirmTitle": "Anfrage wirklich stornieren?",
-    "cancelConfirmDesc": "Die Anfrage und alle Schichten werden storniert (rot markiert), bleiben aber gespeichert. Das Büro wird benachrichtigt.",
-    "cancelledToast": "Anfrage wurde storniert.",
-    "cancelLocked": "Stornierung nicht möglich – eine Schicht ist bereits bestätigt oder läuft.",
+    "cancelRequest": "Anfrage löschen",
+    "cancelConfirmTitle": "Anfrage endgültig löschen?",
+    "cancelConfirmDesc": "Die Anfrage und alle ihre Schichten werden endgültig gelöscht – das kann nicht rückgängig gemacht werden. Büro und betroffene Mitarbeiter werden benachrichtigt.",
+    "cancelledToast": "Anfrage wurde endgültig gelöscht.",
+    "cancelLocked": "Löschen nicht möglich – eine Schicht ist bereits bestätigt, läuft oder wurde unterschrieben.",
     "selectShift": "Schicht auswählen",
     "selectedCount": "{count} Schicht(en) ausgewählt",
     "selectAll": "Alle auswählen ({count})",
@@ -468,7 +468,16 @@
     "reconfirmButton": "Neue Stunden bestätigen",
     "reconfirmed": "Geänderte Stunden bestätigt.",
     "rejectCorrection": "Ablehnen",
-    "correctionRejected": "Korrektur abgelehnt."
+    "correctionRejected": "Korrektur abgelehnt.",
+    "reviewTimeChange": "Zeitkorrektur prüfen ({count})",
+    "timeChangeTitle": "Angefragte Zeitkorrektur",
+    "timeChangeDesc": "Der Kunde hat beim Bestätigen abweichende tatsächliche Einsatzzeiten gemeldet. Bei Genehmigung werden Zeitfenster und Stunden aktualisiert und der Leistungsnachweis neu erstellt.",
+    "timeChangeHours": "Stunden: {old} → {new}",
+    "approveTimeChange": "Genehmigen",
+    "rejectTimeChange": "Ablehnen",
+    "timeChangeApproved": "Zeitkorrektur genehmigt – Stunden neu berechnet.",
+    "timeChangeRejected": "Zeitkorrektur abgelehnt.",
+    "timeChangeSignerHint": "Ihr vollständiger Name (erscheint auf dem neu erstellten Nachweis, Textform § 126b BGB)"
   },
   "enums": {
     "qualification": {
@@ -777,6 +786,11 @@
     "leaveDaysLabel": "Urlaubstage",
     "workerInfoHint": "Klicken für Details",
     "searchWorker": "Mitarbeiter suchen…",
-    "noWorkerMatch": "Kein Mitarbeiter gefunden"
+    "noWorkerMatch": "Kein Mitarbeiter gefunden",
+    "releaseShift": "Mitarbeiter entfernen (Dienst bleibt offen)",
+    "deleteShift": "Dienst endgültig löschen",
+    "deleteShiftTitle": "Dienst endgültig löschen?",
+    "deleteShiftWarning": "Der Dienst wird endgültig aus dem Dienstplan und aus der Anfrage des Kunden gelöscht. Dies kann nicht rückgängig gemacht werden.",
+    "shiftDeleted": "Dienst wurde endgültig gelöscht."
   }
 }

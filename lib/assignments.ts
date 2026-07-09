@@ -78,8 +78,15 @@ export async function offerAssignmentsBulk(
   const toResurrect = pairs.filter((p) => byPair.get(key(p))?.status === "declined");
 
   if (toCreate.length) {
+    // Map the exact columns — callers may pass wider objects (extra fields like
+    // userId/content used for notifications) and Prisma rejects unknown
+    // arguments at runtime, which crashed the whole bulk-assign action.
     await db.assignment.createMany({
-      data: toCreate.map((p) => ({ ...p, status: "pending" as const })),
+      data: toCreate.map((p) => ({
+        orderId: p.orderId,
+        workerId: p.workerId,
+        status: "pending" as const,
+      })),
       skipDuplicates: true,
     });
   }

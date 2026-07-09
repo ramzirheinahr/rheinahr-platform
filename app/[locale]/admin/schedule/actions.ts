@@ -620,6 +620,105 @@ export async function releaseAssignment(assignmentId: string): Promise<ActionSta
   return unassignFromGrid(assignmentId);
 }
 
+// PERMANENT delete from the grid: removes the deployment AND its slot from the
+// client's request, so nothing returns to the grey pool. quantity > 1 shrinks
+// by one slot; deleting the last slot removes the whole order row (cascades its
+// assignments). A signed Leistungsnachweis is a legal record → refused.
+export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  if (!z.string().uuid().safeParse(assignmentId).success) {
+    return { ok: false, error: "saveError" };
+  }
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      id: true,
+      workerId: true,
+      serviceConfirmation: { select: { id: true } },
+      worker: { select: { userId: true } },
+      order: {
+        select: {
+          id: true,
+          quantity: true,
+          requestGroupId: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          client: { select: { userId: true, facilityName: true } },
+        },
+      },
+    },
+  });
+  if (!assignment) return { ok: false, error: "saveError" };
+  if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
+
+  const label = `${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime} · ${assignment.order.client.facilityName}`;
+
+  await prisma.$transaction(async (tx) => {
+    if (assignment.order.quantity > 1) {
+      await tx.assignment.delete({ where: { id: assignment.id } });
+      await tx.order.update({
+        where: { id: assignment.order.id },
+        data: { quantity: { decrement: 1 } },
+      });
+    } else {
+      // Last slot → the order row itself goes; its assignments cascade.
+      await tx.order.delete({ where: { id: assignment.order.id } });
+    }
+    await tx.notification.create({
+      data: {
+        userId: assignment.worker.userId,
+        type: "order_status_changed",
+        channel: "in_app",
+        content: `Einsatz gelöscht – ${label}`,
+        link: workerShiftLink(),
+      },
+    });
+    if (assignment.order.client.userId) {
+      await tx.notification.create({
+        data: {
+          userId: assignment.order.client.userId,
+          type: "order_status_changed",
+          channel: "in_app",
+          content: `Schicht gelöscht – ${label}`,
+          link: "/client/orders",
+        },
+      });
+    }
+  });
+
+  await pushToUsers([assignment.worker.userId], {
+    title: "Einsatz gelöscht",
+    body: label,
+    url: workerShiftLink(),
+  });
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.hardDelete",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: {
+      workerId: assignment.workerId,
+      orderId: assignment.order.id,
+      requestGroupId: assignment.order.requestGroupId,
+      via: "master-schedule",
+    },
+  });
+
+  revalidatePath("/admin/schedule");
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+  revalidatePath("/client/orders");
+  revalidatePath("/worker");
+  return { ok: true };
+}
+
 // Admin APPROVES a worker's cancellation request → release the shift to grey.
 export async function approveShiftCancellation(assignmentId: string): Promise<ActionState> {
   let admin;

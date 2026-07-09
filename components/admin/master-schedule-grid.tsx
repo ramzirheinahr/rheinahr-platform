@@ -12,12 +12,26 @@ import { Input } from "@/components/ui/input";
 import { SearchableSelect, filterOptions } from "@/components/ui/searchable-select";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import { BookText, CheckCircle2, Plus, Search, Trash2, TriangleAlert, Download } from "lucide-react";
+import { ConfirmServiceDialog } from "@/components/client/confirm-service-dialog";
+import {
+  BookText,
+  CheckCircle2,
+  Plus,
+  Search,
+  Trash2,
+  TriangleAlert,
+  Download,
+  UserMinus,
+} from "lucide-react";
+import { netShiftHours } from "@/lib/pricing";
 import {
   layoutUnassigned,
   SHIFT_PRESETS,
@@ -34,6 +48,7 @@ import {
   assignWorkerToOrder,
   candidatesForOrder,
   createOpenOrderFromGrid,
+  deleteShiftFromGrid,
   saveDayAvailabilityFromGrid,
   unassignFromGrid,
   approveShiftCancellation,
@@ -477,8 +492,11 @@ function WorkerInfo({
     timeZone: "UTC",
   }).format(new Date(Date.UTC(year, month - 1, 1)));
 
+  // Office ledger: this month's soll − carryover balance (positive = credit
+  // from last month) − everything worked (confirmed + amber accepted).
+  // Positive remaining = the worker still owes hours.
   const worked = row.acceptedHours + row.confirmedHours;
-  const remaining = worked - (row.requiredHours + row.carryoverHours);
+  const remaining = row.requiredHours - row.carryoverHours - worked;
   const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
 
   const counts: Record<JobState, number> = { pending: 0, accepted: 0, done: 0, signed: 0 };
@@ -539,8 +557,8 @@ function WorkerInfo({
           </div>
           <div className="flex justify-between gap-2 border-t pt-1">
             <span className="text-muted-foreground">{av("remainingHoursLabel")}</span>
-            <span className={cn("font-bold", remaining < 0 ? "text-rose-600" : "text-emerald-600")}>
-              {signed(remaining)}
+            <span className={cn("font-bold", remaining > 0 ? "text-rose-600" : "text-emerald-600")}>
+              {hoursFmt.format(remaining)}
             </span>
           </div>
         </div>
@@ -1154,18 +1172,39 @@ function CellEditor({
                       </a>
                     </div>
                   ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="shrink-0 text-destructive hover:bg-destructive/10"
-                      disabled={pending}
-                      onClick={() => remove(j.assignmentId)}
-                      aria-label={c("delete")}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {/* Release: worker off, shift back to the grey pool. */}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive hover:bg-destructive/10"
+                        disabled={pending}
+                        onClick={() => remove(j.assignmentId)}
+                        aria-label={t("releaseShift")}
+                        title={t("releaseShift")}
+                      >
+                        <UserMinus className="size-4" />
+                      </Button>
+                      {/* Permanent delete: shift AND its slot in the client's
+                          request are gone for good (confirm dialog). */}
+                      <DeleteShiftButton assignmentId={j.assignmentId} disabled={pending} />
+                    </div>
                   )}
                 </div>
+
+                {/* Worker-confirmed but unsigned → admin signs the
+                    Leistungsnachweis on the client's behalf, straight from the
+                    grid (same dialog as the orders page). */}
+                {j.status === "confirmed" && !j.clientConfirmed ? (
+                  <div className="flex justify-end border-t pt-1.5">
+                    <ConfirmServiceDialog
+                      assignmentId={j.assignmentId}
+                      scheduledHours={netShiftHours(j.startTime, j.endTime)}
+                      scheduledStart={j.startTime}
+                      scheduledEnd={j.endTime}
+                    />
+                  </div>
+                ) : null}
 
                 {/* Pending worker cancellation request → note + approve/reject. */}
                 {j.cancelRequested && !j.clientConfirmed ? (
@@ -1303,5 +1342,73 @@ function CellEditor({
         </div>
       </section>
     </div>
+  );
+}
+
+// Two-step permanent delete for one deployment: the shift disappears from the
+// grid AND its slot leaves the client's request (last slot deletes the order
+// row). Irreversible, hence the confirm dialog; signed shifts are refused
+// server-side.
+function DeleteShiftButton({
+  assignmentId,
+  disabled,
+}: {
+  assignmentId: string;
+  disabled?: boolean;
+}) {
+  const t = useTranslations("masterSchedule");
+  const c = useTranslations("common");
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function confirm() {
+    startTransition(async () => {
+      const res = await deleteShiftFromGrid(assignmentId);
+      if (res.ok) {
+        toast.success(t("shiftDeleted"));
+        setOpen(false);
+        router.refresh();
+      } else {
+        toast.error(res.error === "confirmed" ? t("confirmedLocked") : t("saveError"));
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-destructive hover:bg-destructive/10"
+            disabled={disabled}
+            aria-label={t("deleteShift")}
+            title={t("deleteShift")}
+          />
+        }
+      >
+        <Trash2 className="size-4" />
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{t("deleteShiftTitle")}</DialogTitle>
+          <DialogDescription>{t("deleteShiftWarning")}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>{c("cancel")}</DialogClose>
+          <Button
+            variant="destructive"
+            onClick={confirm}
+            disabled={pending}
+            className="gap-2"
+          >
+            <Trash2 className="size-4" />
+            {pending ? c("loading") : t("deleteShift")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

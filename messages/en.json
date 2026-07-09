@@ -233,7 +233,7 @@
     "scheduleHint": "Schedule and client-confirmed hours for this care worker.",
     "scheduleEmpty": "No assignments in this month.",
     "carryoverHours": "Carryover (hours)",
-    "carryoverHoursHint": "Hours balance from previous months: positive = owed, negative = credit.",
+    "carryoverHoursHint": "Hours balance from previous months: positive = credit (reduces this month's target), negative = deficit.",
     "searchPlaceholder": "Search staff…",
     "noSearchMatch": "No matches."
   },
@@ -321,11 +321,11 @@
     "messagePlaceholder": "Your message about this order …",
     "messageSend": "Send",
     "messageSent": "Message sent.",
-    "cancelRequest": "Cancel request",
-    "cancelConfirmTitle": "Cancel this request?",
-    "cancelConfirmDesc": "The request and all its shifts will be cancelled (marked red) but kept on record. The office will be notified.",
-    "cancelledToast": "Request cancelled.",
-    "cancelLocked": "Cannot cancel – a shift is already confirmed or in progress.",
+    "cancelRequest": "Delete request",
+    "cancelConfirmTitle": "Delete this request permanently?",
+    "cancelConfirmDesc": "The request and all its shifts will be permanently deleted – this cannot be undone. The office and affected workers will be notified.",
+    "cancelledToast": "Request permanently deleted.",
+    "cancelLocked": "Cannot delete – a shift is already confirmed, running, or signed.",
     "selectShift": "Select shift",
     "selectedCount": "{count} shift(s) selected",
     "selectAll": "Select all ({count})",
@@ -468,7 +468,16 @@
     "reconfirmButton": "Confirm new hours",
     "reconfirmed": "Changed hours confirmed.",
     "rejectCorrection": "Reject",
-    "correctionRejected": "Correction rejected."
+    "correctionRejected": "Correction rejected.",
+    "reviewTimeChange": "Review time change ({count})",
+    "timeChangeTitle": "Requested time change",
+    "timeChangeDesc": "The client reported different actual shift times while confirming. Approving updates the shift window, recalculates the hours, and regenerates the signed record.",
+    "timeChangeHours": "Hours: {old} → {new}",
+    "approveTimeChange": "Approve",
+    "rejectTimeChange": "Reject",
+    "timeChangeApproved": "Time change approved — hours recalculated.",
+    "timeChangeRejected": "Time change rejected.",
+    "timeChangeSignerHint": "Your full name (goes on the regenerated record, text form § 126b BGB)"
   },
   "enums": {
     "qualification": {
@@ -777,6 +786,11 @@
     "leaveDaysLabel": "Leave days",
     "workerInfoHint": "Click for details",
     "searchWorker": "Search worker…",
-    "noWorkerMatch": "No worker found"
+    "noWorkerMatch": "No worker found",
+    "releaseShift": "Remove worker (shift stays open)",
+    "deleteShift": "Delete shift permanently",
+    "deleteShiftTitle": "Delete shift permanently?",
+    "deleteShiftWarning": "The shift will be permanently deleted from the schedule and from the client's request. This cannot be undone.",
+    "shiftDeleted": "Shift permanently deleted."
   }
 }

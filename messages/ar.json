@@ -233,7 +233,7 @@
     "scheduleHint": "جدول الورديات والساعات المؤكدة من الزبائن لكادر الرعاية هذا.",
     "scheduleEmpty": "لا توجد ورديات في هذا الشهر.",
     "carryoverHours": "الرصيد المُرحَّل (ساعات)",
-    "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = مطلوب منه، سالب = رصيد فائض.",
+    "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = رصيد فائض يُخصم من مطلوب هذا الشهر، سالب = عجز يُضاف إليه.",
     "searchPlaceholder": "ابحث عن كادر…",
     "noSearchMatch": "لا توجد نتائج."
   },
@@ -321,11 +321,11 @@
     "messagePlaceholder": "رسالتك بخصوص هذه الطلبية …",
     "messageSend": "إرسال",
     "messageSent": "تم إرسال الرسالة.",
-    "cancelRequest": "إلغاء الطلبية",
-    "cancelConfirmTitle": "هل تريد إلغاء هذه الطلبية؟",
-    "cancelConfirmDesc": "سيتم إلغاء الطلبية وكل وردياتها (بعلامة حمراء) مع بقائها محفوظة. سيُخطَر المكتب بذلك.",
-    "cancelledToast": "تم إلغاء الطلبية.",
-    "cancelLocked": "لا يمكن الإلغاء – هناك وردية مؤكدة أو جارية بالفعل.",
+    "cancelRequest": "حذف الطلبية",
+    "cancelConfirmTitle": "هل تريد حذف هذه الطلبية نهائياً؟",
+    "cancelConfirmDesc": "ستُحذف الطلبية وكل وردياتها نهائياً ولا يمكن التراجع. سيُخطَر المكتب والعمال المعنيون بذلك.",
+    "cancelledToast": "تم حذف الطلبية نهائياً.",
+    "cancelLocked": "لا يمكن الحذف – هناك وردية مؤكدة أو جارية أو موقعة بالفعل.",
     "selectShift": "تحديد الوردية",
     "selectedCount": "{count} وردية محددة",
     "selectAll": "تحديد الكل ({count})",
@@ -468,7 +468,16 @@
     "reconfirmButton": "تأكيد الساعات الجديدة",
     "reconfirmed": "تم تأكيد الساعات المعدّلة.",
     "rejectCorrection": "رفض",
-    "correctionRejected": "تم رفض التصحيح."
+    "correctionRejected": "تم رفض التصحيح.",
+    "reviewTimeChange": "مراجعة تعديل الوقت ({count})",
+    "timeChangeTitle": "طلب تعديل الوقت",
+    "timeChangeDesc": "أبلغ الزبون عند التأكيد بأن الوردية جرت في وقت مختلف. الموافقة تُحدِّث وقت الوردية وتعيد احتساب الساعات وتُنشئ إثبات الأداء الموقّع من جديد.",
+    "timeChangeHours": "الساعات: {old} ← {new}",
+    "approveTimeChange": "موافقة",
+    "rejectTimeChange": "رفض",
+    "timeChangeApproved": "تمت الموافقة على تعديل الوقت — أُعيد احتساب الساعات.",
+    "timeChangeRejected": "تم رفض تعديل الوقت.",
+    "timeChangeSignerHint": "اسمك الكامل (يظهر على الإثبات المُعاد إنشاؤه — نموذج نصي § 126b BGB)"
   },
   "enums": {
     "qualification": {
@@ -777,6 +786,11 @@
     "leaveDaysLabel": "أيام الإجازة",
     "workerInfoHint": "اضغط لعرض التفاصيل",
     "searchWorker": "ابحث عن عامل…",
-    "noWorkerMatch": "لا يوجد عامل مطابق"
+    "noWorkerMatch": "لا يوجد عامل مطابق",
+    "releaseShift": "إزالة العامل (تبقى الوردية مفتوحة)",
+    "deleteShift": "حذف الوردية نهائياً",
+    "deleteShiftTitle": "حذف الوردية نهائياً؟",
+    "deleteShiftWarning": "ستُحذف الوردية نهائياً من الجدول ومن طلبية الزبون. لا يمكن التراجع عن هذا الإجراء.",
+    "shiftDeleted": "تم حذف الوردية نهائياً."
   }
 }

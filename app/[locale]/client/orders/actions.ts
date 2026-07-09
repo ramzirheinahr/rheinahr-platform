@@ -151,13 +151,13 @@ export async function updateOrderRequest(
   return { ok: true };
 }
 
-// Cancel a whole request (all shifts sharing the requestGroupId) — a SOFT
-// cancel: the records stay in the database (status → cancelled) so the history
-// is preserved; nothing is deleted. Allowed until a shift is confirmed / running
-// / completed (isRequestCancelable), which is broader than the edit cutoff since
-// cancelling is non-destructive. The office (admins) is alerted twice: an in-app
-// notification AND a message in the request's inbox thread, so it lands in their
-// mailbox and can't be missed.
+// Cancel a whole request (all shifts sharing the requestGroupId) — a HARD
+// delete on the owner's instruction: the order rows leave the database
+// (assignments cascade); nothing stays behind marked "cancelled". Allowed until
+// a shift is confirmed / running / completed (isRequestCancelable) or carries a
+// signed Leistungsnachweis. The office (admins) is alerted twice: an in-app
+// notification AND a message in the request's inbox thread (the thread is keyed
+// by requestGroupId, so it survives the delete); affected workers are notified.
 export async function cancelOrderRequest(
   requestGroupId: string,
 ): Promise<ActionState> {
@@ -177,19 +177,54 @@ export async function cancelOrderRequest(
   });
   if (existing.length === 0) return { ok: false, error: "forbidden" };
   if (!isRequestCancelable(existing)) return { ok: false, error: "locked" };
-
-  await prisma.order.updateMany({
-    where: { requestGroupId, clientId: client.id, status: { not: "cancelled" } },
-    data: { status: "cancelled" },
+  // A signed Leistungsnachweis anywhere in the group is a legal record — the
+  // rows must not be destroyed.
+  const signed = await prisma.serviceConfirmation.count({
+    where: { assignment: { order: { requestGroupId, clientId: client.id } } },
   });
+  if (signed > 0) return { ok: false, error: "locked" };
+
+  // Workers holding an active invitation/acceptance lose the shift — tell them.
+  const affected = await prisma.assignment.findMany({
+    where: {
+      order: { requestGroupId, clientId: client.id },
+      status: { not: "declined" },
+    },
+    select: { worker: { select: { userId: true } } },
+  });
+  const workerUserIds = [...new Set(affected.map((a) => a.worker.userId))];
+
+  await prisma.$transaction([
+    prisma.order.deleteMany({ where: { requestGroupId, clientId: client.id } }),
+    ...workerUserIds.map((userId) =>
+      prisma.notification.create({
+        data: {
+          userId,
+          type: "order_status_changed",
+          channel: "in_app",
+          content: `Einsatz gelöscht – ${client.facilityName}`,
+          link: workerShiftLink(),
+        },
+      }),
+    ),
+  ]);
+
+  if (workerUserIds.length > 0) {
+    await pushToUsers(workerUserIds, {
+      title: "Einsatz gelöscht",
+      body: client.facilityName,
+      url: workerShiftLink(),
+    });
+  }
 
   const dateLabel = formatDateDE(existing[0].shiftDate);
 
-  // In-app notification to every admin.
+  // In-app notification to every admin. The request rows are gone, so the link
+  // goes to the orders list, not the (now dead) request detail.
   await notifyAdmins(
     "order_status_changed",
-    `${client.facilityName}: Anfrage storniert – ${existing.length} Schicht(en)`,
-    orderLink("admin", requestGroupId),
+    `${client.facilityName}: Anfrage gelöscht – ${existing.length} Schicht(en)`,
+    "/admin/orders",
   );
 
   // Message into the request's inbox thread so it reaches the office mailbox.
@@ -200,7 +235,7 @@ export async function cancelOrderRequest(
     dateLabel,
   );
   const now = new Date();
-  const body = `Diese Anfrage (${dateLabel}, ${existing.length} Schicht(en)) wurde storniert.`;
+  const body = `Diese Anfrage (${dateLabel}, ${existing.length} Schicht(en)) wurde storniert und gelöscht.`;
   await prisma.$transaction([
     prisma.message.create({
       data: { conversationId: conversation.id, senderId: user.id, body },
@@ -224,15 +259,16 @@ export async function cancelOrderRequest(
 
   await audit({
     userId: user.id,
-    action: "order.request.cancel",
+    action: "order.request.delete",
     entity: "Order",
     entityId: requestGroupId,
-    metadata: { shifts: existing.length },
+    metadata: { shifts: existing.length, hardDelete: true },
   });
 
   revalidatePath("/client/orders");
-  revalidatePath(`/client/orders/${requestGroupId}`);
   revalidatePath("/admin/orders");
+  revalidatePath("/admin/schedule");
+  revalidatePath("/worker");
   return { ok: true };
 }
 
@@ -494,6 +530,15 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     documentUrl = path;
   }
 
+  // Did the client ask for a corrected shift window while confirming? Stored on
+  // the confirmation so the office can approve/reject it from the inbox thread.
+  const reqStart = assignment.order.startTime;
+  const reqEnd = assignment.order.endTime;
+  const timeChangeRequested =
+    !!data.adjustStart &&
+    !!data.adjustEnd &&
+    (data.adjustStart !== reqStart || data.adjustEnd !== reqEnd);
+
   await prisma.$transaction(async (tx) => {
     await tx.serviceConfirmation.create({
       data: {
@@ -505,6 +550,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
         hoursWorked: data.hoursWorked,
         clientNotes: data.clientNotes,
         ipAddress: ip,
+        requestedStart: timeChangeRequested ? data.adjustStart : null,
+        requestedEnd: timeChangeRequested ? data.adjustEnd : null,
       },
     });
 
@@ -551,15 +598,9 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
 
   // #6 — the client requested a corrected shift window while confirming. This
   // needs office approval, so it lands as a message in the request's inbox thread
-  // (plus an in-app notification for every admin). The admin then adjusts the
-  // order times from the request editor. The times on the order are NOT changed
-  // here — only the request is filed.
-  const reqStart = assignment.order.startTime;
-  const reqEnd = assignment.order.endTime;
-  const timeChangeRequested =
-    !!data.adjustStart &&
-    !!data.adjustEnd &&
-    (data.adjustStart !== reqStart || data.adjustEnd !== reqEnd);
+  // (plus an in-app notification for every admin). The admin approves or rejects
+  // it from the thread's review dialog; the order times are NOT changed here —
+  // only the request is filed (requestedStart/End on the confirmation).
   if (timeChangeRequested && assignment.order.client.userId) {
     const requestGroupId = assignment.order.requestGroupId ?? assignment.order.id;
     const dateLabel = formatDateDE(assignment.order.shiftDate);

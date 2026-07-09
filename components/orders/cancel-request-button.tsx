@@ -19,10 +19,10 @@ import { cancelOrderRequest } from "@/app/[locale]/client/orders/actions";
 import { cancelOrderRequestAsAdmin } from "@/app/[locale]/admin/orders/actions";
 import { Ban } from "lucide-react";
 
-// Soft-cancel the whole request (all its shifts) after an explicit confirmation.
-// The records are kept (status → cancelled); nothing is deleted. Routes to the
-// admin or client action depending on who is acting, then returns to the list
-// where the cancelled request shows struck-through in red.
+// Permanently delete the whole request (all its shifts) after an explicit
+// confirmation — the rows leave the database on the owner's instruction; only
+// signed / already-running shifts are refused server-side. Routes to the admin
+// or client action depending on who is acting, then returns to the list.
 export function CancelRequestButton({
   requestGroupId,
   admin = false,
