@@ -191,6 +191,7 @@ export function MasterScheduleGrid({
       if (res.ok) {
         toast.success(t("saved"));
         clearHistory();
+        replace((prev) => ({ ...prev, ops: [] }));
         router.refresh();
       } else {
         toast.error(t("saveError"));
@@ -228,6 +229,40 @@ export function MasterScheduleGrid({
 
   return (
     <>
+      {ops.length > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-amber-500/50 bg-amber-500/10 p-2 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center rounded-full border bg-background/50 px-1 backdrop-blur-sm">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                disabled={!canUndo || pending}
+                onClick={undo}
+              >
+                <Undo2 className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                disabled={!canRedo || pending}
+                onClick={redo}
+              >
+                <Redo2 className="size-4" />
+              </Button>
+            </div>
+            <div className="text-sm font-medium text-amber-700 dark:text-amber-500">
+              {ops.length} {t("unsavedChanges") || "Änderungen"}
+            </div>
+          </div>
+          <Button onClick={saveBatch} disabled={pending} className="gap-2 px-8">
+            <Save className="size-4" />
+            {pending ? t("saving") || "Speichern..." : t("save") || "Speichern"}
+          </Button>
+        </div>
+      )}
+
       <div dir="ltr" className="max-h-[70vh] overflow-auto rounded-lg border">
         <table className="border-collapse text-[11px] leading-tight">
           <thead>
@@ -470,38 +505,6 @@ export function MasterScheduleGrid({
         </DialogContent>
       </Dialog>
 
-      
-      {ops.length > 0 && (
-        <div className="fixed bottom-6 start-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-full border bg-background p-1.5 shadow-lg">
-          <div className="flex items-center rounded-full border bg-muted/50 px-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              disabled={!canUndo || pending}
-              onClick={undo}
-            >
-              <Undo2 className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              disabled={!canRedo || pending}
-              onClick={redo}
-            >
-              <Redo2 className="size-4" />
-            </Button>
-          </div>
-          <div className="px-3 text-sm font-medium text-muted-foreground border-e pr-4">
-            {ops.length} {t("unsavedChanges") || "Änderungen"}
-          </div>
-          <Button onClick={saveBatch} disabled={pending} className="rounded-full gap-2 px-5">
-            <Save className="size-4" />
-            {pending ? t("saving") || "Speichern..." : t("save") || "Speichern"}
-          </Button>
-        </div>
-      )}
 
       {/* Floating legend: the facility Kürzel index is off-screen to give the
           grid full width; this button opens it on demand. */}
