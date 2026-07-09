@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
-import { ChevronRight, ListFilter, Check, X } from "lucide-react";
+import { ChevronRight, ListFilter, Check, X, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import type { OrderStatus } from "@prisma/client";
 
 export type OrderGroupSummary = {
@@ -17,6 +18,20 @@ export type OrderGroupSummary = {
   status: OrderStatus;
   cancelled: boolean;
 };
+
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function matches(g: OrderGroupSummary, query: string): boolean {
+  const tokens = normalize(query).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const hay = normalize(g.facilityName);
+  return tokens.every((tok) => hay.includes(tok));
+}
 
 // Elegant, chip-based status filter over the request list (inspired by the
 // reference facet-filter UI): a "Status" chip opens a popover of toggleable
@@ -33,6 +48,7 @@ export function OrdersList({
   const es = useTranslations("enums.orderStatus");
   const [selected, setSelected] = useState<Set<OrderStatus>>(new Set());
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,14 +67,18 @@ export function OrdersList({
   }, [groups]);
 
   const filtered = useMemo(() => {
+    let result = groups;
+    if (query) {
+      result = result.filter((g) => matches(g, query));
+    }
     // Explicit selection wins — show exactly the chosen statuses.
-    if (selected.size > 0) return groups.filter((g) => selected.has(g.status));
+    if (selected.size > 0) return result.filter((g) => selected.has(g.status));
     // Default view hides finished/cancelled requests to keep the list actionable;
     // the user can still reveal them by selecting those statuses in the filter.
-    return groups.filter(
+    return result.filter(
       (g) => !g.cancelled && g.status !== "completed" && g.status !== "cancelled",
     );
-  }, [groups, selected]);
+  }, [groups, selected, query]);
 
   function toggle(s: OrderStatus) {
     setSelected((prev) => {
@@ -76,6 +96,17 @@ export function OrdersList({
     <div className="space-y-3">
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-full max-w-xs sm:w-auto sm:min-w-64">
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="h-9 ps-9"
+            aria-label={t("searchPlaceholder")}
+          />
+        </div>
+
         <div ref={ref} className="relative">
           <button
             type="button"
@@ -151,7 +182,7 @@ export function OrdersList({
       {/* Request list */}
       {filtered.length === 0 ? (
         <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {selected.size > 0 ? t("noStatusMatch") : t("empty")}
+          {query ? t("noSearchMatch") : selected.size > 0 ? t("noStatusMatch") : t("empty")}
         </p>
       ) : (
         <div className="space-y-3">
