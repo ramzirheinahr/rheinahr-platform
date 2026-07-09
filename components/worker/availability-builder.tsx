@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
 import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
-import { Plus, Calendar, CheckCircle2, Download, MapPin, Save, X, Clock } from "lucide-react";
+import { Plus, Calendar, CheckCircle2, Download, MapPin, Save, X, Clock, Undo2, Redo2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useUndoStack } from "@/hooks/use-undo-stack";
+import { useWarnUnsaved } from "@/hooks/use-warn-unsaved";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { ShiftCancelControls } from "@/components/worker/shift-cancel-controls";
 import {
@@ -141,8 +143,17 @@ export function AvailabilityBuilder({
     };
   }, [assignments, leaveDays]);
 
-  const [cells, setCells] = useState<Record<string, Block>>(() => buildCells(initialBlocks));
-  const [counts, setCounts] = useState<Record<string, number>>(() => buildCounts(initialBlocks));
+  const { state: undoState, set: setUndoState, undo, redo, canUndo, canRedo, clearHistory, replace } = useUndoStack<{
+    cells: Record<string, Block>;
+    counts: Record<string, number>;
+  }>(() => ({
+    cells: buildCells(initialBlocks),
+    counts: buildCounts(initialBlocks),
+  }));
+  const cells = undoState.cells;
+  const counts = undoState.counts;
+  
+  useWarnUnsaved(canUndo);
 
   // Re-seed the grid whenever the server sends a different month or refreshed
   // availability — after an access-link login resolves the session, a
@@ -163,8 +174,11 @@ export function AvailabilityBuilder({
   const [syncedSig, setSyncedSig] = useState(serverSig);
   if (syncedSig !== serverSig) {
     setSyncedSig(serverSig);
-    setCells(buildCells(initialBlocks));
-    setCounts(buildCounts(initialBlocks));
+    replace({
+      cells: buildCells(initialBlocks),
+      counts: buildCounts(initialBlocks),
+    });
+    clearHistory();
   }
 
   const [ver, setVer] = useState<Record<string, number>>({});
@@ -172,12 +186,15 @@ export function AvailabilityBuilder({
 
   const get = (date: string, slot: number) => cells[`${date}:${slot}`] ?? EMPTY;
   const set = (date: string, slot: number, patch: Partial<Block>) =>
-    setCells((p) => ({ ...p, [`${date}:${slot}`]: { ...EMPTY, ...p[`${date}:${slot}`], ...patch } }));
+    setUndoState((p) => ({
+      ...p,
+      cells: { ...p.cells, [`${date}:${slot}`]: { ...EMPTY, ...p.cells[`${date}:${slot}`], ...patch } },
+    }));
   const clear = (date: string, slot: number) =>
-    setCells((p) => {
-      const n = { ...p };
+    setUndoState((p) => {
+      const n = { ...p.cells };
       delete n[`${date}:${slot}`];
-      return n;
+      return { ...p, cells: n };
     });
 
   const effCount = (date: string) => {
@@ -186,11 +203,18 @@ export function AvailabilityBuilder({
     if (get(date, 1).type !== "none") n = Math.max(n, 2);
     return Math.min(3, Math.max(1, n));
   };
-  const addSlot = (date: string) => setCounts((p) => ({ ...p, [date]: Math.min(3, effCount(date) + 1) }));
+  const addSlot = (date: string) =>
+    setUndoState((p) => ({ ...p, counts: { ...p.counts, [date]: Math.min(3, effCount(date) + 1) } }));
   const removeLast = (date: string) => {
     const n = effCount(date);
-    clear(date, n - 1);
-    setCounts((p) => ({ ...p, [date]: n - 1 }));
+    setUndoState((p) => {
+      const nextCells = { ...p.cells };
+      delete nextCells[`${date}:${n - 1}`];
+      return {
+        cells: nextCells,
+        counts: { ...p.counts, [date]: n - 1 },
+      };
+    });
   };
 
   function onType(date: string, slot: number, val: BType) {
@@ -234,6 +258,7 @@ export function AvailabilityBuilder({
       const res = await saveAvailability(year, month, blocks, workerId);
       if (res.ok) {
         toast.success(t("saved"));
+        clearHistory();
         router.refresh();
       } else {
         toast.error(t("saveError"));
@@ -423,15 +448,44 @@ export function AvailabilityBuilder({
             year: "numeric",
           })}
         </h2>
-        <Dialog open={isLeaveOpen} onOpenChange={setIsLeaveOpen}>
-          <DialogTrigger
-            render={
-              <Button variant="outline" className="gap-2">
-                <Calendar className="size-4" />
-                {t("requestLeave") || "Urlaub beantragen"}
-              </Button>
-            }
-          />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-md border p-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              disabled={!canUndo || pending}
+              onClick={undo}
+              aria-label={c("undo") || "Rückgängig"}
+              title={c("undo") || "Rückgängig"}
+            >
+              <Undo2 className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              disabled={!canRedo || pending}
+              onClick={redo}
+              aria-label={c("redo") || "Wiederholen"}
+              title={c("redo") || "Wiederholen"}
+            >
+              <Redo2 className="size-4" />
+            </Button>
+          </div>
+          <Button onClick={save} disabled={pending || !canUndo} className="gap-2">
+            <Save className="size-4" />
+            {pending ? c("loading") : t("save")}
+          </Button>
+          <Dialog open={isLeaveOpen} onOpenChange={setIsLeaveOpen}>
+            <DialogTrigger
+              render={
+                <Button variant="outline" className="gap-2">
+                  <Calendar className="size-4" />
+                  {t("requestLeave") || "Urlaub"}
+                </Button>
+              }
+            />
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("requestLeave") || "Urlaub beantragen"}</DialogTitle>
@@ -952,6 +1006,7 @@ export function AvailabilityBuilder({
           {pending ? c("loading") : t("save")}
         </Button>
       </div>
+    </div>
     </div>
   );
 }

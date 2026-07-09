@@ -237,3 +237,12 @@ export function masterScheduleCsv(
   }
   return "﻿" + lines.join("\r\n");
 }
+
+export type GridOperation =
+  | { type: "saveAvail"; workerId: string; date: string; letters: string }
+  | { type: "assign"; tempId: string; workerId: string; date: string; shift: ShiftKey; clientId: string; ward?: string; force?: boolean; startTime: string; endTime: string }
+  | { type: "unassign"; assignmentId: string }
+  | { type: "delete"; assignmentId: string }
+  | { type: "createOrder"; tempOrderId: string; clientId: string; date: string; shift: ShiftKey; qualification: string; ward?: string; quantity: number; startTime: string; endTime: string }
+  | { type: "assignOrder"; orderId: string; workerId: string; force?: boolean }
+  | { type: "deleteOpenOrder"; orderId: string };

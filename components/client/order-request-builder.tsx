@@ -32,6 +32,8 @@ import {
 } from "@/app/[locale]/admin/orders/actions";
 import { ShiftMetaCell, type ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { useWarnUnsaved } from "@/hooks/use-warn-unsaved";
+import { useUndoStack } from "@/hooks/use-undo-stack";
 
 export type InitialRequest = {
   requestGroupId: string;
@@ -44,7 +46,7 @@ export type InitialRequest = {
     bereich: string;
   }[];
 };
-import { Send, Plus, X, Copy, ClipboardPaste, Info } from "lucide-react";
+import { Send, Plus, X, Copy, ClipboardPaste, Info, Undo2, Redo2 } from "lucide-react";
 
 type Qual = (typeof qualifications)[number];
 type ShiftType = "none" | "early" | "late" | "night";
@@ -172,11 +174,19 @@ export function OrderRequestBuilder({
     firstDate ? Number(firstDate.slice(5, 7)) : now.getUTCMonth() + 1,
   );
   const [qual, setQual] = useState<Qual>((initial?.qual as Qual) ?? qualifications[0]);
-  const [cells, setCells] = useState<Record<string, Cell>>(initData?.cells ?? {});
-  // Visible shift rows per day (1 by default, up to 3 via the + button).
-  const [slotCounts, setSlotCounts] = useState<Record<string, number>>(
-    initData?.counts ?? {},
-  );
+
+  const { state: undoState, set: setUndoState, undo, redo, canUndo, canRedo, clearHistory } = useUndoStack<{
+    cells: Record<string, Cell>;
+    counts: Record<string, number>;
+  }>({
+    cells: initData?.cells ?? {},
+    counts: initData?.counts ?? {},
+  });
+  const cells = undoState.cells;
+  const slotCounts = undoState.counts;
+  
+  useWarnUnsaved(canUndo);
+
   // Remount key per cell — bumped only when a preset/clear changes the times, so
   // the uncontrolled <input type="time"> isn't reset mid-typing.
   const [ver, setVer] = useState<Record<string, number>>({});
@@ -219,16 +229,19 @@ export function OrderRequestBuilder({
 
   function update(date: string, slot: number, patch: Partial<Cell>) {
     const key = `${date}:${slot}`;
-    setCells((prev) => ({
+    setUndoState((prev) => ({
       ...prev,
-      [key]: { ...EMPTY, ...prev[key], ...patch },
+      cells: {
+        ...prev.cells,
+        [key]: { ...EMPTY, ...prev.cells[key], ...patch },
+      },
     }));
   }
   function clear(date: string, slot: number) {
-    setCells((prev) => {
-      const n = { ...prev };
+    setUndoState((prev) => {
+      const n = { ...prev.cells };
       delete n[`${date}:${slot}`];
-      return n;
+      return { ...prev, cells: n };
     });
   }
   // Effective number of shift rows for a day: the chosen count, but never fewer
@@ -240,7 +253,10 @@ export function OrderRequestBuilder({
     return Math.min(3, Math.max(1, n));
   }
   function addSlot(date: string) {
-    setSlotCounts((p) => ({ ...p, [date]: Math.min(3, effCount(date) + 1) }));
+    setUndoState((prev) => ({
+      ...prev,
+      counts: { ...prev.counts, [date]: Math.min(3, effCount(date) + 1) },
+    }));
   }
   // Cancel/zero a single shift: remove that row and pull the later shifts of the
   // day up one slot (max 3), so there are never gaps. Zeroing the only shift of
@@ -248,18 +264,20 @@ export function OrderRequestBuilder({
   // (and any assignments) — see diffRequestShifts.
   function removeShiftRow(date: string, slot: number) {
     const n = effCount(date);
-    setCells((prev) => {
-      const next = { ...prev };
+    setUndoState((prev) => {
+      const nextCells = { ...prev.cells };
       for (let s = slot; s < 2; s++) {
-        const above = next[`${date}:${s + 1}`];
-        if (above) next[`${date}:${s}`] = above;
-        else delete next[`${date}:${s}`];
+        const above = nextCells[`${date}:${s + 1}`];
+        if (above) nextCells[`${date}:${s}`] = above;
+        else delete nextCells[`${date}:${s}`];
       }
-      delete next[`${date}:2`];
-      return next;
+      delete nextCells[`${date}:2`];
+      return {
+        cells: nextCells,
+        counts: { ...prev.counts, [date]: Math.max(1, n - 1) },
+      };
     });
     for (let s = slot; s <= 2; s++) bump(date, s); // re-mount time inputs
-    setSlotCounts((p) => ({ ...p, [date]: Math.max(1, n - 1) }));
   }
   // Row-level copy/paste: copy a filled day's shifts, paste them onto empty days
   // so clients can replicate a recurring shift pattern without retyping.
@@ -278,14 +296,16 @@ export function OrderRequestBuilder({
   }
   function pasteDay(date: string) {
     if (!clip) return;
-    setCells((prev) => {
-      const next = { ...prev };
+    setUndoState((prev) => {
+      const nextCells = { ...prev.cells };
       clip.cells.forEach((cell, slot) => {
-        next[`${date}:${slot}`] = { ...cell };
+        nextCells[`${date}:${slot}`] = { ...cell };
       });
-      return next;
+      return {
+        cells: nextCells,
+        counts: { ...prev.counts, [date]: clip.count },
+      };
     });
-    setSlotCounts((p) => ({ ...p, [date]: clip.count }));
     clip.cells.forEach((_, slot) => bump(date, slot));
   }
   function onType(date: string, slot: number, val: string) {
@@ -405,6 +425,7 @@ export function OrderRequestBuilder({
               : await createOrderRequest(payload);
       if (res.ok) {
         toast.success(o(initial ? "updated" : "created"));
+        clearHistory();
         router.push(adminEdit ? `/admin/orders/${initial!.requestGroupId}` : cancelHref);
         router.refresh();
       } else {
@@ -779,7 +800,31 @@ export function OrderRequestBuilder({
         {ro ? null : (
           <div className="flex flex-wrap items-center gap-2">
             <span className="hidden sm:block sm:flex-1" />
-            <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId)} className="gap-2">
+            <div className="flex items-center rounded-md border p-0.5 mr-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                disabled={!canUndo || pending}
+                onClick={undo}
+                aria-label={t("undo") || "Rückgängig"}
+                title={t("undo") || "Rückgängig"}
+              >
+                <Undo2 className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                disabled={!canRedo || pending}
+                onClick={redo}
+                aria-label={t("redo") || "Wiederholen"}
+                title={t("redo") || "Wiederholen"}
+              >
+                <Redo2 className="size-4" />
+              </Button>
+            </div>
+            <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId) || (!canUndo && !initial)} className="gap-2">
               <Send className="size-4" />
               {pending ? c("loading") : t("submit")}
             </Button>
