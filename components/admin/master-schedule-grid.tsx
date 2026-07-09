@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, Fragment } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Input } from "@/components/ui/input";
+import { SearchableSelect, filterOptions } from "@/components/ui/searchable-select";
 import {
   Dialog,
   DialogContent,
@@ -16,11 +17,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { BookText, CheckCircle2, Plus, Trash2, TriangleAlert, Download } from "lucide-react";
+import { BookText, CheckCircle2, Plus, Search, Trash2, TriangleAlert, Download } from "lucide-react";
 import {
   layoutUnassigned,
   SHIFT_PRESETS,
   type GridFacility,
+  type GridJob,
   type GridWorkerRow,
   type ShiftKey,
   type UnassignedShift,
@@ -39,14 +41,37 @@ import {
 } from "@/app/[locale]/admin/schedule/actions";
 import { cancelLeaveEntirely } from "@/app/[locale]/admin/leave/actions";
 
-// The company's Excel Dienstplan, digital: two lines per worker per day —
-// availability letters on top (green ward number once the client signed),
-// worked shift+facility codes below. Every cell edit writes to the real
-// availability/order/assignment records; the grid is a live view, not a copy.
+// The company's Excel Dienstplan, digital: one line per worker per day showing
+// the worked shift+facility tokens (stacked vertically when several), or the
+// availability letters / leave marker when nothing is assigned. Token color =
+// lifecycle: light red → worker not yet confirmed, dark red → worker
+// confirmed, light green → worked but Leistungsnachweis unsigned, solid green
+// → client signed. Ward and hour details live in the click dialogs. Every
+// cell edit writes to the real availability/order/assignment records; the
+// grid is a live view, not a copy.
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
 const SHIFT_LETTER: Record<ShiftKey, string> = { early: "F", late: "S", night: "N" };
+
+type JobState = "pending" | "accepted" | "done" | "signed";
+
+// Lifecycle of one deployment for coloring: worker side (pending → accepted),
+// then done once the shift's end time has passed, then client-signed.
+function jobState(job: GridJob, date: string, now: number): JobState {
+  if (job.clientConfirmed) return "signed";
+  if (job.status === "pending") return "pending";
+  const end = new Date(`${date}T${job.endTime}:00`);
+  if (job.endTime <= job.startTime) end.setDate(end.getDate() + 1); // night shift ends next day
+  return end.getTime() <= now ? "done" : "accepted";
+}
+
+const JOB_STATE_CLS: Record<JobState, string> = {
+  pending: "text-red-600 opacity-50",
+  accepted: "text-red-800 dark:text-red-500",
+  done: "text-emerald-400",
+  signed: "rounded bg-emerald-600 px-1 text-white",
+};
 
 const field =
   "w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
@@ -58,6 +83,7 @@ export function MasterScheduleGrid({
   rows,
   facilities,
   unassigned,
+  now,
 }: {
   year: number;
   month: number;
@@ -65,6 +91,9 @@ export function MasterScheduleGrid({
   rows: GridWorkerRow[];
   facilities: GridFacility[];
   unassigned: UnassignedShift[];
+  // Server request time (ms) — reference for the accepted → done color flip;
+  // passed in so render stays pure.
+  now: number;
 }) {
   const t = useTranslations("masterSchedule");
   const oqShift = useTranslations("orderRequest");
@@ -113,6 +142,9 @@ export function MasterScheduleGrid({
 
   const [target, setTarget] = useState<{ workerId: string; day: number } | null>(null);
   const targetRow = target ? rows.find((r) => r.workerId === target.workerId) : undefined;
+  // Worker info dialog: hours account + month summary for the clicked name.
+  const [infoWorkerId, setInfoWorkerId] = useState<string | null>(null);
+  const infoRow = infoWorkerId ? rows.find((r) => r.workerId === infoWorkerId) : undefined;
   // Grey-section assign dialog: the open shift the admin clicked.
   const [openShift, setOpenShift] = useState<UnassignedShift | null>(null);
   // Grey-section "create order": the empty cell (day) the admin clicked.
@@ -151,131 +183,86 @@ export function MasterScheduleGrid({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <Fragment key={r.workerId}>
-                {/* Line 1 — availability / green ward number once confirmed */}
-                <tr>
-                  <th
-                    rowSpan={2}
-                    className="sticky start-0 z-10 border border-rose-900/50 bg-rose-900 p-1.5 text-start align-middle text-xs font-medium text-white"
-                  >
-                    <div className="font-semibold">{r.name}</div>
-                    <div className="mt-1 flex flex-col gap-0.5 text-[9px] font-normal opacity-90">
-                      <div className="flex justify-between gap-1">
-                        <span>{t("requiredHoursLabel")}:</span>
-                        <span>{hoursFmt.format(r.requiredHours)}</span>
-                      </div>
-                      {r.carryoverHours !== 0 && (
-                        <div className="flex justify-between gap-1">
-                          <span>{av("carryoverLabel")}:</span>
-                          <span>{r.carryoverHours > 0 ? "+" : ""}{hoursFmt.format(r.carryoverHours)}</span>
-                        </div>
-                      )}
-                      {r.acceptedHours > 0 && (
-                        <div className="flex justify-between gap-1 text-amber-300">
-                          <span>{av("acceptedTotal")}:</span>
-                          <span className="font-bold">{hoursFmt.format(r.acceptedHours)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between gap-1 text-emerald-300">
-                        <span>{av("confirmedTotal")}:</span>
-                        <span className="font-bold">{hoursFmt.format(r.confirmedHours)}</span>
-                      </div>
-                      {(() => {
-                        const worked = r.acceptedHours + r.confirmedHours;
-                        const remaining = worked - (r.requiredHours + r.carryoverHours);
-                        const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
-                        return (
-                          <div className="flex justify-between gap-1 border-t border-white/20 pt-0.5">
-                            <span>{av("remainingHoursLabel")}:</span>
-                            <span className={cn("font-bold", remaining < 0 ? "text-rose-300" : "text-emerald-300")}>
-                              {signed(remaining)}
-                            </span>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </th>
-                  {r.days.map((cell, i) => {
-                    const d = days[i];
-                    const confirmedJob = cell.jobs.find((j) => j.clientConfirmed);
-                    const isPendingLeave = cell.leave?.status === "pending";
-                    const isApprovedLeave = cell.leave?.status === "approved";
-                    let title = "";
-                    if (isPendingLeave) title = t("leavePending") || "Urlaubsantrag ausstehend";
-                    if (isApprovedLeave) title = t("leaveApproved") || "Urlaub (Bitte nicht stören)";
+              <tr key={r.workerId} className="border-b border-b-border">
+                {/* Name cell → worker info dialog (hours account + month summary). */}
+                <th
+                  role="button"
+                  tabIndex={0}
+                  title={t("workerInfoHint")}
+                  onClick={() => setInfoWorkerId(r.workerId)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setInfoWorkerId(r.workerId);
+                  }}
+                  className="sticky start-0 z-10 cursor-pointer border border-rose-900/50 bg-rose-900 p-1.5 text-start align-middle text-xs font-semibold text-white hover:bg-rose-800"
+                >
+                  {r.name}
+                </th>
+                {r.days.map((cell, i) => {
+                  const d = days[i];
+                  const isPendingLeave = cell.leave?.status === "pending";
+                  const isApprovedLeave = cell.leave?.status === "approved";
+                  let title = "";
+                  if (isPendingLeave) title = t("leavePending") || "Urlaubsantrag ausstehend";
+                  if (isApprovedLeave)
+                    title = `${t("leaveApproved") || "Urlaub"} · ${hoursFmt.format(cell.leave!.hours)}h`;
 
-                    return (
-                      <td
-                        key={i}
-                        role="button"
-                        tabIndex={0}
-                        title={title || undefined}
-                        onClick={() => setTarget({ workerId: r.workerId, day: d.day })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") setTarget({ workerId: r.workerId, day: d.day });
-                        }}
-                        className={cn(
-                          "h-6 cursor-pointer border p-0.5 text-center align-middle font-bold text-sm hover:ring-2 hover:ring-ring/60 hover:ring-inset",
-                          bodyTint(d),
-                          confirmedJob && !isApprovedLeave && "bg-emerald-600 text-white",
-                          isPendingLeave && "bg-amber-500 text-white",
-                          isApprovedLeave && "bg-rose-600 text-white",
-                        )}
-                      >
-                        {isApprovedLeave ? "U" : isPendingLeave ? "U?" : confirmedJob ? confirmedJob.ward || "0" : cell.avail === "OFF" ? <span className="text-red-500 font-bold" title={t("dayOffRequested") || "Ruhetag angefragt"}>OFF</span> : cell.avail}
-                      </td>
-                    );
-                  })}
-                </tr>
-                {/* Line 2 — worked: shift letter + facility code */}
-                <tr className="border-b-2 border-b-border">
-                  {r.days.map((cell, i) => {
-                    const d = days[i];
-                    return (
-                      <td
-                        key={i}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setTarget({ workerId: r.workerId, day: d.day })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") setTarget({ workerId: r.workerId, day: d.day });
-                        }}
-                        className={cn(
-                          "h-6 cursor-pointer whitespace-nowrap border p-0.5 text-center align-middle font-bold text-sm text-red-600 hover:ring-2 hover:ring-ring/60 hover:ring-inset",
-                          bodyTint(d),
-                        )}
-                      >
-                        {cell.leave?.status === "approved" ? (
-                          <span title={t("leaveApproved") || "Urlaub"} className="text-rose-600">
-                            {hoursFmt.format(cell.leave.hours)}h
-                          </span>
-                        ) : (
-                          cell.jobs.map((j) => (
+                  return (
+                    <td
+                      key={i}
+                      role="button"
+                      tabIndex={0}
+                      title={title || undefined}
+                      onClick={() => setTarget({ workerId: r.workerId, day: d.day })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setTarget({ workerId: r.workerId, day: d.day });
+                      }}
+                      className={cn(
+                        "h-7 cursor-pointer border p-0.5 text-center align-middle font-bold text-sm hover:ring-2 hover:ring-ring/60 hover:ring-inset",
+                        bodyTint(d),
+                        isPendingLeave && "bg-amber-500 text-white",
+                        isApprovedLeave && "bg-rose-600 text-white",
+                      )}
+                    >
+                      {isApprovedLeave ? (
+                        "U"
+                      ) : isPendingLeave ? (
+                        "U?"
+                      ) : cell.jobs.length > 0 ? (
+                        // Several shifts on one day stack vertically.
+                        <div className="flex flex-col items-center gap-px">
+                          {cell.jobs.map((j) => (
                             <span
                               key={j.assignmentId}
-                              title={
-                                j.cancelRequested
-                                  ? `${av("cancelRequestedBadge")} · ${j.facilityName} · ${j.startTime}–${j.endTime}`
-                                  : `${j.facilityName} · ${j.startTime}–${j.endTime}`
-                              }
+                              title={[
+                                `${j.facilityName} · ${j.startTime}–${j.endTime}`,
+                                j.ward ? `${oqShift("ward")}: ${j.ward}` : null,
+                                j.cancelRequested ? av("cancelRequestedBadge") : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                               className={cn(
-                                "px-0.5",
-                                j.status === "pending" && "opacity-50",
+                                "whitespace-nowrap px-0.5 leading-tight",
+                                JOB_STATE_CLS[jobState(j, d.date, now)],
                                 // Amber ring flags a pending worker cancellation request.
-                                j.cancelRequested &&
-                                  "rounded bg-amber-400/30 text-amber-700 ring-1 ring-amber-500",
+                                j.cancelRequested && "rounded bg-amber-400/30 ring-1 ring-amber-500",
                               )}
                             >
                               {j.letter}
                               {j.code}
                             </span>
-                          ))
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </Fragment>
+                          ))}
+                        </div>
+                      ) : cell.avail === "OFF" ? (
+                        <span className="text-red-500 font-bold" title={t("dayOffRequested") || "Ruhetag angefragt"}>
+                          OFF
+                        </span>
+                      ) : (
+                        cell.avail
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
             ))}
           </tbody>
           {/* Grey section — requested shifts still without a worker. A shift
@@ -360,6 +347,14 @@ export function MasterScheduleGrid({
         </table>
       </div>
 
+      <Dialog open={infoRow !== undefined} onOpenChange={(open) => !open && setInfoWorkerId(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-sm">
+          {infoRow ? (
+            <WorkerInfo row={infoRow} year={year} month={month} locale={locale} now={now} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={target !== null} onOpenChange={(open) => !open && setTarget(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
           {target && targetRow ? (
@@ -420,6 +415,21 @@ export function MasterScheduleGrid({
               {oqShift("preset_night")}
             </DialogDescription>
           </DialogHeader>
+          <ul className="space-y-1 border-b pb-3 text-sm">
+            {(
+              [
+                ["bg-red-600/50", t("statePending")],
+                ["bg-red-800", t("stateAccepted")],
+                ["bg-emerald-400", t("stateDone")],
+                ["bg-emerald-600", t("stateSigned")],
+              ] as const
+            ).map(([dot, label]) => (
+              <li key={dot} className="flex items-center gap-2">
+                <span className={cn("size-2.5 shrink-0 rounded-full", dot)} />
+                {label}
+              </li>
+            ))}
+          </ul>
           <ul className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
             {facilities.map((f) => (
               <li key={f.clientId} className="flex items-baseline gap-2">
@@ -436,6 +446,133 @@ export function MasterScheduleGrid({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// Name-cell dialog: the hours block that used to sit under the name in the
+// sticky column, plus a month summary of the worker's deployments by state.
+function WorkerInfo({
+  row,
+  year,
+  month,
+  locale,
+  now,
+}: {
+  row: GridWorkerRow;
+  year: number;
+  month: number;
+  locale: string;
+  now: number;
+}) {
+  const t = useTranslations("masterSchedule");
+  const av = useTranslations("availability");
+
+  const hoursFmt = useMemo(
+    () => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
+    [locale],
+  );
+  const monthLabel = new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+
+  const worked = row.acceptedHours + row.confirmedHours;
+  const remaining = worked - (row.requiredHours + row.carryoverHours);
+  const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
+
+  const counts: Record<JobState, number> = { pending: 0, accepted: 0, done: 0, signed: 0 };
+  let totalShifts = 0;
+  let leaveDays = 0;
+  row.days.forEach((cell, i) => {
+    if (cell.leave?.status === "approved") leaveDays += 1;
+    for (const j of cell.jobs) {
+      totalShifts += 1;
+      counts[jobState(j, `${year}-${pad(month)}-${pad(i + 1)}`, now)] += 1;
+    }
+  });
+
+  const states: { key: JobState; dot: string }[] = [
+    { key: "pending", dot: "bg-red-600/50" },
+    { key: "accepted", dot: "bg-red-800" },
+    { key: "done", dot: "bg-emerald-400" },
+    { key: "signed", dot: "bg-emerald-600" },
+  ];
+  const stateLabel: Record<JobState, string> = {
+    pending: t("statePending"),
+    accepted: t("stateAccepted"),
+    done: t("stateDone"),
+    signed: t("stateSigned"),
+  };
+
+  return (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>{row.name}</DialogTitle>
+        <DialogDescription>{monthLabel}</DialogDescription>
+      </DialogHeader>
+
+      <section className="space-y-1.5">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("hoursSection")}
+        </h3>
+        <div className="space-y-1 rounded-md border p-2.5 text-sm">
+          <div className="flex justify-between gap-2">
+            <span className="text-muted-foreground">{t("requiredHoursLabel")}</span>
+            <span>{hoursFmt.format(row.requiredHours)}</span>
+          </div>
+          {row.carryoverHours !== 0 && (
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">{av("carryoverLabel")}</span>
+              <span>{signed(row.carryoverHours)}</span>
+            </div>
+          )}
+          {row.acceptedHours > 0 && (
+            <div className="flex justify-between gap-2 text-amber-600">
+              <span>{av("acceptedTotal")}</span>
+              <span className="font-semibold">{hoursFmt.format(row.acceptedHours)}</span>
+            </div>
+          )}
+          <div className="flex justify-between gap-2 text-emerald-600">
+            <span>{av("confirmedTotal")}</span>
+            <span className="font-semibold">{hoursFmt.format(row.confirmedHours)}</span>
+          </div>
+          <div className="flex justify-between gap-2 border-t pt-1">
+            <span className="text-muted-foreground">{av("remainingHoursLabel")}</span>
+            <span className={cn("font-bold", remaining < 0 ? "text-rose-600" : "text-emerald-600")}>
+              {signed(remaining)}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-1.5">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("monthSummary")}
+        </h3>
+        <div className="space-y-1 rounded-md border p-2.5 text-sm">
+          <div className="flex justify-between gap-2">
+            <span className="text-muted-foreground">{t("shiftsTotal")}</span>
+            <span className="font-semibold">{totalShifts}</span>
+          </div>
+          {states.map(({ key, dot }) => (
+            <div key={key} className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span className={cn("size-2.5 shrink-0 rounded-full", dot)} />
+                {stateLabel[key]}
+              </span>
+              <span>{counts[key]}</span>
+            </div>
+          ))}
+          {leaveDays > 0 && (
+            <div className="flex justify-between gap-2 border-t pt-1">
+              <span className="text-muted-foreground">{t("leaveDaysLabel")}</span>
+              <span>{leaveDays}</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -458,6 +595,19 @@ function OpenShiftEditor({
   const [loadError, setLoadError] = useState(false);
   // A worker the admin picked whose conflict needs confirming before assigning.
   const [confirmWorker, setConfirmWorker] = useState<string | null>(null);
+  // Smart name search over the candidate list — same token/diacritic matching
+  // as the facility SearchableSelect.
+  const [query, setQuery] = useState("");
+  const visible = useMemo(() => {
+    if (!candidates) return null;
+    const keep = new Set(
+      filterOptions(
+        candidates.map((cand) => ({ value: cand.workerId, label: cand.fullName })),
+        query,
+      ).map((o) => o.value),
+    );
+    return candidates.filter((cand) => keep.has(cand.workerId));
+  }, [candidates, query]);
 
   // Load candidates once when the dialog mounts.
   useEffect(() => {
@@ -511,56 +661,74 @@ function OpenShiftEditor({
 
       {loadError ? (
         <p className="text-sm text-destructive">{t("saveError")}</p>
-      ) : candidates === null ? (
+      ) : candidates === null || visible === null ? (
         <p className="text-sm text-muted-foreground">{c("loading")}</p>
       ) : candidates.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("noCandidates")}</p>
       ) : (
-        <ul className="space-y-1.5">
-          {candidates.map((cand) => {
-            const b = statusBadge[cand.status];
-            const needsConfirm = confirmWorker === cand.workerId;
-            return (
-              <li
-                key={cand.workerId}
-                className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{cand.fullName}</div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge className={cn("border-transparent text-[10px]", b.cls)}>{b.label}</Badge>
-                    {cand.conflictTimes.length > 0 ? (
-                      <span className="text-[10px] text-muted-foreground">
-                        {cand.conflictTimes.join(", ")}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-                {needsConfirm ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0 gap-1"
-                    disabled={pending}
-                    onClick={() => assign(cand.workerId, true)}
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("searchWorker")}
+              aria-label={t("searchWorker")}
+              className="h-8 ps-8"
+            />
+          </div>
+          {visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("noWorkerMatch")}</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {visible.map((cand) => {
+                const b = statusBadge[cand.status];
+                const needsConfirm = confirmWorker === cand.workerId;
+                return (
+                  <li
+                    key={cand.workerId}
+                    className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
                   >
-                    <TriangleAlert className="size-3.5 text-amber-600" />
-                    {t("forceAssign")}
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    className="shrink-0"
-                    disabled={pending}
-                    onClick={() => assign(cand.workerId, false)}
-                  >
-                    {t("assign")}
-                  </Button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{cand.fullName}</div>
+                      <div className="flex items-center gap-1.5">
+                        <Badge className={cn("border-transparent text-[10px]", b.cls)}>
+                          {b.label}
+                        </Badge>
+                        {cand.conflictTimes.length > 0 ? (
+                          <span className="text-[10px] text-muted-foreground">
+                            {cand.conflictTimes.join(", ")}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    {needsConfirm ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 gap-1"
+                        disabled={pending}
+                        onClick={() => assign(cand.workerId, true)}
+                      >
+                        <TriangleAlert className="size-3.5 text-amber-600" />
+                        {t("forceAssign")}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="shrink-0"
+                        disabled={pending}
+                        onClick={() => assign(cand.workerId, false)}
+                      >
+                        {t("assign")}
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
@@ -590,6 +758,9 @@ function NewOrderEditor({
   const [pending, startTransition] = useTransition();
 
   const [shift, setShift] = useState<ShiftKey>("early");
+  // Shift window, editable — the preset only pre-fills it.
+  const [start, setStart] = useState<string>(SHIFT_PRESETS.early.start);
+  const [end, setEnd] = useState<string>(SHIFT_PRESETS.early.end);
   const [clientId, setClientId] = useState("");
   const [ward, setWard] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -618,6 +789,8 @@ function NewOrderEditor({
         qualification,
         ward: ward.trim() || undefined,
         quantity,
+        startTime: start,
+        endTime: end,
       });
       if (res.ok) {
         toast.success(t("orderCreated"));
@@ -655,7 +828,12 @@ function NewOrderEditor({
         <div className="grid grid-cols-2 gap-2">
           <select
             value={shift}
-            onChange={(e) => setShift(e.target.value as ShiftKey)}
+            onChange={(e) => {
+              const k = e.target.value as ShiftKey;
+              setShift(k);
+              setStart(SHIFT_PRESETS[k].start);
+              setEnd(SHIFT_PRESETS[k].end);
+            }}
             className={field}
             aria-label={t("shift")}
           >
@@ -676,6 +854,26 @@ function NewOrderEditor({
             title={t("quantity")}
           />
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="space-y-1 text-xs text-muted-foreground">
+            {t("timeFrom")}
+            <input
+              type="time"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              className={field}
+            />
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            {t("timeTo")}
+            <input
+              type="time"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              className={field}
+            />
+          </label>
+        </div>
         <input
           value={ward}
           onChange={(e) => setWard(e.target.value)}
@@ -685,7 +883,7 @@ function NewOrderEditor({
         <Button
           size="sm"
           className="w-full gap-1.5"
-          disabled={pending || !clientId}
+          disabled={pending || !clientId || !start || !end || start === end}
           onClick={create}
         >
           <Plus className="size-4" />
@@ -752,8 +950,11 @@ function CellEditor({
     });
   }
 
-  // ── Deployments (bottom line) ──
+  // ── Deployments ──
   const [shift, setShift] = useState<ShiftKey>("early");
+  // Shift window, editable — the preset only pre-fills it.
+  const [start, setStart] = useState<string>(SHIFT_PRESETS.early.start);
+  const [end, setEnd] = useState<string>(SHIFT_PRESETS.early.end);
   const [clientId, setClientId] = useState("");
   const [ward, setWard] = useState("");
   // Set when the server rejected the assignment as busy/unavailable; the admin
@@ -770,6 +971,8 @@ function CellEditor({
         clientId,
         ward: ward.trim() || undefined,
         force,
+        startTime: start,
+        endTime: end,
       });
       if (res.ok) {
         setConflict(null);
@@ -1006,7 +1209,10 @@ function CellEditor({
             <select
               value={shift}
               onChange={(e) => {
-                setShift(e.target.value as ShiftKey);
+                const k = e.target.value as ShiftKey;
+                setShift(k);
+                setStart(SHIFT_PRESETS[k].start);
+                setEnd(SHIFT_PRESETS[k].end);
                 setConflict(null);
               }}
               className={field}
@@ -1024,6 +1230,32 @@ function CellEditor({
               placeholder={oq("ward")}
               className={field}
             />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1 text-xs text-muted-foreground">
+              {t("timeFrom")}
+              <input
+                type="time"
+                value={start}
+                onChange={(e) => {
+                  setStart(e.target.value);
+                  setConflict(null);
+                }}
+                className={field}
+              />
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">
+              {t("timeTo")}
+              <input
+                type="time"
+                value={end}
+                onChange={(e) => {
+                  setEnd(e.target.value);
+                  setConflict(null);
+                }}
+                className={field}
+              />
+            </label>
           </div>
           <SearchableSelect
             value={clientId}

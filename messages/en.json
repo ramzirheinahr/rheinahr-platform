@@ -766,6 +766,17 @@
     "createOrder": "Create shift",
     "orderCreated": "Shift request created.",
     "searchFacility": "Search facility…",
-    "noFacilityMatch": "No facility found"
+    "noFacilityMatch": "No facility found",
+    "statePending": "Not yet confirmed by worker",
+    "stateAccepted": "Confirmed by worker",
+    "stateDone": "Worked, awaiting client signature",
+    "stateSigned": "Signed by client",
+    "hoursSection": "Hours account",
+    "monthSummary": "Month summary",
+    "shiftsTotal": "Total deployments",
+    "leaveDaysLabel": "Leave days",
+    "workerInfoHint": "Click for details",
+    "searchWorker": "Search worker…",
+    "noWorkerMatch": "No worker found"
   }
 }

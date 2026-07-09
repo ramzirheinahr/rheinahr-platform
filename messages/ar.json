@@ -766,6 +766,17 @@
     "createOrder": "إنشاء الوردية",
     "orderCreated": "تم إنشاء الوردية.",
     "searchFacility": "ابحث عن مؤسسة…",
-    "noFacilityMatch": "لا توجد مؤسسة مطابقة"
+    "noFacilityMatch": "لا توجد مؤسسة مطابقة",
+    "statePending": "غير مؤكدة من العامل",
+    "stateAccepted": "مؤكدة من العامل",
+    "stateDone": "منجزة بانتظار توقيع الزبون",
+    "stateSigned": "موقعة من الزبون",
+    "hoursSection": "رصيد الساعات",
+    "monthSummary": "ملخص الشهر",
+    "shiftsTotal": "إجمالي الورديات",
+    "leaveDaysLabel": "أيام الإجازة",
+    "workerInfoHint": "اضغط لعرض التفاصيل",
+    "searchWorker": "ابحث عن عامل…",
+    "noWorkerMatch": "لا يوجد عامل مطابق"
   }
 }

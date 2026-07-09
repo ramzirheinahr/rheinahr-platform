@@ -766,6 +766,17 @@
     "createOrder": "Dienst anlegen",
     "orderCreated": "Dienst wurde angelegt.",
     "searchFacility": "Einrichtung suchen…",
-    "noFacilityMatch": "Keine Einrichtung gefunden"
+    "noFacilityMatch": "Keine Einrichtung gefunden",
+    "statePending": "Vom Mitarbeiter noch nicht bestätigt",
+    "stateAccepted": "Vom Mitarbeiter bestätigt",
+    "stateDone": "Geleistet, Unterschrift ausstehend",
+    "stateSigned": "Vom Kunden unterschrieben",
+    "hoursSection": "Stundenkonto",
+    "monthSummary": "Monatsübersicht",
+    "shiftsTotal": "Einsätze gesamt",
+    "leaveDaysLabel": "Urlaubstage",
+    "workerInfoHint": "Klicken für Details",
+    "searchWorker": "Mitarbeiter suchen…",
+    "noWorkerMatch": "Kein Mitarbeiter gefunden"
   }
 }

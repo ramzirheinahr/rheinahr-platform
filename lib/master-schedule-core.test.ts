@@ -26,6 +26,8 @@ const job = (over: Partial<GridJob>): GridJob => ({
   ward: null,
   status: "confirmed",
   clientConfirmed: false,
+  cancelRequested: false,
+  cancelNote: null,
   ...over,
 });
 
@@ -185,6 +187,10 @@ describe("masterScheduleCsv", () => {
       {
         workerId: "w1",
         name: "Akayezu, Diane",
+        requiredHours: 160,
+        carryoverHours: 0,
+        confirmedHours: 0,
+        acceptedHours: 0,
         days: [
           { avail: "FSN", hasBlocks: false, jobs: [] },
           { avail: "F", hasBlocks: true, jobs: [job({})] },

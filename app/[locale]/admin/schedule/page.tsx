@@ -6,7 +6,7 @@ import { LiveRefresher } from "@/components/portal/live-refresher";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Calendar, FileDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Qualification } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -129,13 +129,23 @@ export default async function AdminMasterSchedulePage({
           rows={rows}
           facilities={facilities}
           unassigned={unassigned}
+          now={now.getTime()}
         />
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>
             F = {oq("preset_early")} · S = {oq("preset_late")} · N = {oq("preset_night")}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="size-3 rounded bg-emerald-600" /> {t("legendConfirmed")}
+            <span className="size-3 rounded bg-red-600/50" /> {t("statePending")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-3 rounded bg-red-800" /> {t("stateAccepted")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-3 rounded bg-emerald-400" /> {t("stateDone")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-3 rounded bg-emerald-600" /> {t("stateSigned")}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="size-3 rounded border bg-emerald-400/25" /> {oq("holidayLegend")}
@@ -143,7 +153,6 @@ export default async function AdminMasterSchedulePage({
           <span className="flex items-center gap-1.5">
             <span className="size-3 rounded border bg-rose-500/15" /> {oq("weekendLegend")}
           </span>
-          <span>{t("legendPending")}</span>
         </div>
       </div>
     </div>

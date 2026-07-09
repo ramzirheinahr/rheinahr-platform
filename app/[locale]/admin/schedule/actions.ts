@@ -29,6 +29,7 @@ async function assertAdmin() {
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const lettersSchema = z.string().regex(/^(OFF|(?!.*(.).*\1)[FSN]{0,3})$/); // subset of F,S,N, no repeats
 const shiftKeySchema = z.enum(["early", "late", "night"]);
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 const toMin = (t: string) => {
   const [h, m] = t.split(":").map(Number);
@@ -117,6 +118,9 @@ export async function assignFromGrid(input: {
   clientId: string;
   ward?: string;
   force?: boolean;
+  // Custom shift window; defaults to the preset of `shift` when omitted.
+  startTime?: string;
+  endTime?: string;
 }): Promise<ActionState> {
   let admin;
   try {
@@ -133,12 +137,17 @@ export async function assignFromGrid(input: {
       clientId: z.string().uuid(),
       ward: z.string().max(120).optional(),
       force: z.boolean().optional(),
+      startTime: timeSchema.optional(),
+      endTime: timeSchema.optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "saveError" };
   const { workerId, date, shift, clientId, ward, force } = parsed.data;
 
   const preset = SHIFT_PRESETS[shift];
+  const start = parsed.data.startTime ?? preset.start;
+  const end = parsed.data.endTime ?? preset.end;
+  if (start === end) return { ok: false, error: "saveError" };
   const day = new Date(`${date}T00:00:00.000Z`);
 
   const [worker, client] = await Promise.all([
@@ -167,7 +176,7 @@ export async function assignFromGrid(input: {
 
   if (!force) {
     const busy = worker.assignments.some((a) =>
-      overlaps(a.order.startTime, a.order.endTime, preset.start, preset.end),
+      overlaps(a.order.startTime, a.order.endTime, start, end),
     );
     if (busy) return { ok: false, error: "busy" };
     // Positive availability: assignable only if the worker declared this window.
@@ -176,7 +185,7 @@ export async function assignFromGrid(input: {
         (b.startTime === null && b.endTime === null) ||
         (b.startTime !== null &&
           b.endTime !== null &&
-          overlaps(b.startTime, b.endTime, preset.start, preset.end)),
+          overlaps(b.startTime, b.endTime, start, end)),
     );
     if (!declared) return { ok: false, error: "unavailable" };
   }
@@ -190,8 +199,8 @@ export async function assignFromGrid(input: {
           clientId,
           shiftDate: day,
           requiredQualification: worker.qualification,
-          startTime: preset.start,
-          endTime: preset.end,
+          startTime: start,
+          endTime: end,
           status: { in: ["pending", "review", "availability_check", "assigned", "accepted"] },
         },
         select: {
@@ -217,8 +226,8 @@ export async function assignFromGrid(input: {
             requestGroupId: crypto.randomUUID(),
             requiredQualification: worker.qualification,
             shiftDate: day,
-            startTime: preset.start,
-            endTime: preset.end,
+            startTime: start,
+            endTime: end,
             quantity: 1,
             notes: ward || null,
             status: "assigned",
@@ -235,7 +244,7 @@ export async function assignFromGrid(input: {
           userId: worker.userId,
           type: "worker_assigned",
           channel: "in_app",
-          content: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+          content: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
           link: workerShiftLink(),
         },
       });
@@ -254,7 +263,7 @@ export async function assignFromGrid(input: {
 
   await pushToUsers([worker.userId], {
     title: "Neuer Einsatz",
-    body: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+    body: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
     url: workerShiftLink(),
   });
 
@@ -276,6 +285,9 @@ export async function createOpenOrderFromGrid(input: {
   qualification: Qualification;
   ward?: string;
   quantity?: number;
+  // Custom shift window; defaults to the preset of `shift` when omitted.
+  startTime?: string;
+  endTime?: string;
 }): Promise<ActionState> {
   let admin;
   try {
@@ -292,6 +304,8 @@ export async function createOpenOrderFromGrid(input: {
       qualification: z.enum(qualifications),
       ward: z.string().max(120).optional(),
       quantity: z.coerce.number().int().min(1).max(50).optional(),
+      startTime: timeSchema.optional(),
+      endTime: timeSchema.optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "saveError" };
@@ -304,6 +318,9 @@ export async function createOpenOrderFromGrid(input: {
   if (!client) return { ok: false, error: "saveError" };
 
   const preset = SHIFT_PRESETS[shift];
+  const start = parsed.data.startTime ?? preset.start;
+  const end = parsed.data.endTime ?? preset.end;
+  if (start === end) return { ok: false, error: "saveError" };
   const day = new Date(`${date}T00:00:00.000Z`);
 
   const newRequestGroupId = crypto.randomUUID();
@@ -313,8 +330,8 @@ export async function createOpenOrderFromGrid(input: {
       requestGroupId: newRequestGroupId,
       requiredQualification: qualification,
       shiftDate: day,
-      startTime: preset.start,
-      endTime: preset.end,
+      startTime: start,
+      endTime: end,
       quantity: quantity ?? 1,
       notes: ward || null,
       status: "pending",
@@ -327,13 +344,13 @@ export async function createOpenOrderFromGrid(input: {
         userId: client.userId,
         type: "new_order",
         channel: "in_app",
-        content: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+        content: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
         link: orderLink("client", newRequestGroupId),
       },
     });
     await pushToUsers([client.userId], {
       title: "Neue Anfrage",
-      body: `${formatDateDE(day)} ${preset.start}–${preset.end} · ${client.facilityName}`,
+      body: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
       url: orderLink("client", newRequestGroupId),
     });
   }
