@@ -19,7 +19,7 @@ export type InvoiceRow = {
 export const qualLabel: Record<Qualification, string> = {
   pflegefachkraft: "Pflegefachkraft",
   pflegehelfer: "Pflegehilfskraft",
-  betreuungskraft: "Betreuungskraft (§ 43b)",
+  betreuungskraft: "Pflegefachassistent*in",
   pflegedienstleitung: "Pflegedienstleitung",
 };
 export const methodLabel: Record<ConfirmationMethod, string> = {

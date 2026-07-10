@@ -35,7 +35,7 @@ enum Language {
 enum Qualification {
   pflegefachkraft // examinierte Pflegefachkraft (Altenpflege)
   pflegehelfer // Pflegehilfskraft
-  betreuungskraft // Betreuungskraft § 43b SGB XI
+  betreuungskraft // Pflegefachassistent*in (frühere Bezeichnung: Betreuungskraft § 43b)
   pflegedienstleitung // Pflegedienstleitung (PDL)
 }
 

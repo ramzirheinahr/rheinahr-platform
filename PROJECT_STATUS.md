@@ -79,7 +79,10 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
 - **Qualifications** (2026‑07): merged to 4 — `pflegefachkraft` (absorbed
   `altenpfleger` + `gesundheitspfleger`; AR label „مؤهل رعاية", EN "Qualified care
   professional"), `pflegehelfer`, `betreuungskraft`, `pflegedienstleitung`. DB rows
-  remapped + enum values dropped (prod already pushed).
+  remapped + enum values dropped (prod already pushed). Since 2026‑07 the
+  `betreuungskraft` key is displayed as **„Pflegefachassistent*in"** (formerly
+  „Betreuungskraft (§ 43b)") in all three locales and in the invoicing labels —
+  the DB enum value itself is unchanged.
 - **Order lifecycle** + availability **matching engine** (`lib/matching.ts`, unit‑tested).
 - **Order entry = full‑month spreadsheet** (`components/client/order-request-builder.tsx`):
   one row/day, 1 shift default + `+` to add up to 3; per shift = type
@@ -171,7 +174,7 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
 - **Per‑facility hourly rates** (2026‑07): `Client.hourlyRates` (JSON map, e.g.
   `{ "pflegefachkraft": 60 }`) overrides the platform default per qualification;
   missing keys fall back to `HOURLY_RATES`. **New platform defaults** (EUR netto):
-  Pflegefachkraft 54.9, Pflegehilfskraft 36.9, Betreuungskraft **39.9**,
+  Pflegefachkraft 54.9, Pflegehilfskraft 36.9, Pflegefachassistent*in **39.9**,
   Pflegedienstleitung **64.9** (were 54.9/36.9/54.9/65.9). Four rate inputs on the
   facility create/edit form (`HourlyRatesFieldset`, placeholder = default, blank = keep
   default); stored via `ratesJson()` in the client action. `resolveRates(client)`
