@@ -25,6 +25,8 @@ export type ClientScheduleRow = {
   billing: "confirmed" | "accepted" | null;
   contractId: string | null;
   contractStatus: string | null;
+  invoiceId: string | null;
+  serviceConfirmation: boolean;
 };
 
 export type ClientScheduleTotals = {
@@ -56,7 +58,7 @@ export async function getClientMonthSchedule(
       orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
       include: {
         order: {
-          select: { shiftDate: true, startTime: true, endTime: true, breakMinutes: true, notes: true },
+          select: { shiftDate: true, startTime: true, endTime: true, breakMinutes: true, notes: true, requiredQualification: true },
         },
         worker: { select: { fullName: true, qualification: true } },
         serviceConfirmation: { select: { hoursWorked: true } },
@@ -66,28 +68,27 @@ export async function getClientMonthSchedule(
     .catch(() => []);
 
   const rows: ClientScheduleRow[] = assignments.map((a) => {
-    const confirmedHours =
-      a.serviceConfirmation?.hoursWorked != null
-        ? Number(a.serviceConfirmation.hoursWorked)
-        : null;
-    // A worker holds the shift once the assignment is `confirmed`; a signed
-    // Leistungsnachweis then turns it green.
-    const billing: ClientScheduleRow["billing"] =
-      confirmedHours != null ? "confirmed" : a.status === "confirmed" ? "accepted" : null;
+    const o = a.order;
+    const isoDate = o.shiftDate.toISOString().slice(0, 10);
+    const rawNet = netShiftHours(o.startTime, o.endTime, o.breakMinutes);
+    const cNet = a.serviceConfirmation?.hoursWorked != null ? Number(a.serviceConfirmation.hoursWorked) : null;
+
     return {
       id: a.id,
       status: a.status,
-      date: a.order.shiftDate.toISOString().slice(0, 10),
-      startTime: a.order.startTime,
-      endTime: a.order.endTime,
-      notes: a.order.notes,
+      date: isoDate,
+      startTime: o.startTime,
+      endTime: o.endTime,
+      notes: o.notes,
       workerName: a.worker.fullName,
-      qualification: a.worker.qualification,
-      confirmedHours,
-      scheduledHours: netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes),
-      billing,
+      qualification: o.requiredQualification,
+      confirmedHours: cNet,
+      scheduledHours: rawNet,
+      billing: cNet !== null ? "confirmed" : a.status === "confirmed" ? "accepted" : null,
       contractId: a.clientContract?.id ?? null,
       contractStatus: a.clientContract?.status ?? null,
+      invoiceId: (a as any).invoiceId ?? null,
+      serviceConfirmation: !!a.serviceConfirmation,
     };
   });
 

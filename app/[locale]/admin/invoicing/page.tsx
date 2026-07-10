@@ -1,10 +1,9 @@
 import { getTranslations } from "next-intl/server";
-import { getConfirmedServices } from "@/lib/invoicing";
+import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InvoicingList } from "@/components/admin/invoicing-list";
-import { Download } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -24,38 +23,44 @@ export default async function InvoicingPage({
   const m = now.getUTCMonth();
   const defFrom = `${y}-${pad(m + 1)}-01`;
   const defTo = `${y}-${pad(m + 1)}-${pad(new Date(Date.UTC(y, m + 1, 0)).getUTCDate())}`;
-  const from = sp.from && dateRegex.test(sp.from) ? sp.from : defFrom;
-  const to = sp.to && dateRegex.test(sp.to) ? sp.to : defTo;
+  const fromStr = sp.from && dateRegex.test(sp.from) ? sp.from : defFrom;
+  const toStr = sp.to && dateRegex.test(sp.to) ? sp.to : defTo;
 
-  const rows = await getConfirmedServices({ from, to }).catch(() => []);
-  const downloadHref = `/api/exports/confirmations?from=${from}&to=${to}`;
+  const from = new Date(`${fromStr}T00:00:00.000Z`);
+  const to = new Date(`${toStr}T23:59:59.999Z`);
+
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      date: { gte: from, lte: to }
+    },
+    include: {
+      client: true
+    },
+    orderBy: { date: "desc" }
+  });
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
+        <h1 className="text-2xl font-semibold">Offizielle Rechnungen</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Verwalten Sie hier die erstellten Rechnungen an Ihre Kunden.</p>
       </div>
 
       <form method="get" className="flex flex-wrap items-end gap-3">
         <div className="space-y-2">
           <Label htmlFor="from">{t("from")}</Label>
-          <Input id="from" name="from" type="date" defaultValue={from} />
+          <Input id="from" name="from" type="date" defaultValue={fromStr} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="to">{t("to")}</Label>
-          <Input id="to" name="to" type="date" defaultValue={to} />
+          <Input id="to" name="to" type="date" defaultValue={toStr} />
         </div>
         <Button type="submit" variant="outline">
           {t("apply")}
         </Button>
-        <Button render={<a href={downloadHref} download />} className="gap-2">
-          <Download className="size-4" />
-          {t("download")}
-        </Button>
       </form>
 
-      <InvoicingList rows={rows} />
+      <InvoicingList invoices={invoices} />
     </div>
   );
 }

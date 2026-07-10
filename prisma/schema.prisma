@@ -85,6 +85,11 @@ enum ContractStatus {
   cancelled
 }
 
+enum InvoiceStatus {
+  unpaid
+  paid
+}
+
 enum LeaveStatus {
   pending
   approved
@@ -297,6 +302,7 @@ model Client {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   orders    Order[]
   contracts ClientContract[]
+  invoices  Invoice[]
 
   @@map("clients")
 }
@@ -330,6 +336,7 @@ model Assignment {
   orderId     String           @map("order_id")
   workerId    String           @map("worker_id")
   contractId  String?          @map("contract_id")
+  invoiceId   String?          @map("invoice_id")
   status      AssignmentStatus @default(pending)
   assignedAt  DateTime         @default(now()) @map("assigned_at")
   confirmedAt DateTime?        @map("confirmed_at")
@@ -343,6 +350,7 @@ model Assignment {
   order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)
   clientContract      ClientContract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  invoice             Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   serviceConfirmation ServiceConfirmation?
   messages            Message[]
   conversation        Conversation?
@@ -538,4 +546,23 @@ model AuditLog {
   @@index([userId])
   @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique @map("invoice_number")
+  clientId      String        @map("client_id")
+  status        InvoiceStatus @default(unpaid)
+  date          DateTime      @default(now())
+  netAmount     Float         @map("net_amount")
+  vatAmount     Float         @map("vat_amount")
+  grossAmount   Float         @map("gross_amount")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignments Assignment[]
+
+  @@index([clientId, status])
+  @@map("invoices")
 }
