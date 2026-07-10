@@ -143,7 +143,7 @@ function ContractAdminDialog({ contract }: { contract: any }) {
         <Edit className="size-4" />
       </DialogTrigger>
       
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="max-w-6xl sm:max-w-6xl w-[95vw] max-h-[95vh] flex flex-col p-0 overflow-hidden">
         <div className="flex items-center justify-between border-b p-4">
           <DialogTitle className="text-xl font-normal">AÜV erstellen und signieren</DialogTitle>
           <DialogClose render={<Button variant="ghost" size="icon" className="rounded-full" />}>
@@ -155,18 +155,18 @@ function ContractAdminDialog({ contract }: { contract: any }) {
           <div className="space-y-4">
             <h3 className="font-bold text-lg text-slate-800">Verlauf</h3>
             
-            <div className="flex items-start text-sm">
-              <div className="flex-1 relative">
-                <div className="flex items-center gap-2 text-green-600 font-semibold mb-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center text-sm gap-6 sm:gap-0">
+              <div className="flex-1 relative w-full sm:w-auto">
+                <div className="flex items-center gap-2 text-green-600 font-semibold mb-1 sm:mb-2">
                   <CheckCircle2 className="size-4" />
                   Erstellen
                 </div>
-                <p className="text-slate-500 text-xs">Von System,<br/>am {format(new Date(contract.createdAt), "dd.MM.yyyy 'um' HH:mm")}</p>
-                <div className="absolute top-2 left-[80px] right-4 h-px bg-slate-300" />
+                <p className="text-slate-500 text-xs">Von System,<br className="hidden sm:block"/>am {format(new Date(contract.createdAt), "dd.MM.yyyy 'um' HH:mm")}</p>
+                <div className="hidden sm:block absolute top-2 left-[90px] right-4 h-px bg-slate-300" />
               </div>
               
-              <div className="flex-1 relative">
-                <div className="flex items-center gap-2 text-slate-800 font-semibold mb-2">
+              <div className="flex-1 relative w-full sm:w-auto">
+                <div className="flex items-center gap-2 text-slate-800 font-semibold mb-1 sm:mb-2">
                   <FileSignature className="size-4" />
                   Signieren
                 </div>
@@ -175,19 +175,19 @@ function ContractAdminDialog({ contract }: { contract: any }) {
                 ) : (
                   <p className="text-slate-500 text-xs">Ausstehend</p>
                 )}
-                <div className="absolute top-2 left-[90px] right-4 h-px bg-slate-300" />
+                <div className="hidden sm:block absolute top-2 left-[90px] right-4 h-px bg-slate-300" />
               </div>
               
-              <div className="flex-1 relative">
-                <div className="flex items-center gap-2 text-slate-400 font-semibold mb-2">
+              <div className="flex-1 relative w-full sm:w-auto">
+                <div className="flex items-center gap-2 text-slate-400 font-semibold mb-1 sm:mb-2">
                   <CheckCircle2 className="size-4" />
                   Freigeben
                 </div>
-                <div className="absolute top-2 left-[90px] right-4 h-px bg-slate-300" />
+                <div className="hidden sm:block absolute top-2 left-[90px] right-4 h-px bg-slate-300" />
               </div>
               
-              <div className="flex-1">
-                <div className="flex items-center gap-2 text-slate-400 font-semibold mb-2">
+              <div className="flex-1 w-full sm:w-auto">
+                <div className="flex items-center gap-2 text-slate-400 font-semibold mb-1 sm:mb-2">
                   <CheckCircle2 className="size-4" />
                   Gegensigniert
                 </div>
@@ -201,17 +201,17 @@ function ContractAdminDialog({ contract }: { contract: any }) {
           </div>
           
           <div className="border rounded-md overflow-hidden bg-slate-800 flex flex-col h-[600px]">
-             <div className="p-3 bg-slate-100 flex items-center justify-between border-b">
-               <div className="flex items-center gap-2 text-slate-600">
-                 <FileSignature className="size-4" />
-                 <span className="text-sm font-medium">AUV_Vertrag_{contract.id.substring(0,6)}.pdf</span>
+             <div className="p-3 bg-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between border-b gap-3 sm:gap-0">
+               <div className="flex items-center gap-2 text-slate-600 truncate w-full sm:w-auto">
+                 <FileSignature className="size-4 shrink-0" />
+                 <span className="text-sm font-medium truncate">AUV_Vertrag_{contract.id.substring(0,6)}.pdf</span>
                </div>
-               <div className="flex gap-4 text-sm font-medium">
-                 <a href={`/api/contracts/${contract.id}/pdf`} target="_blank" rel="noreferrer" className="text-primary hover:underline">Download</a>
+               <div className="flex gap-4 text-sm font-medium w-full sm:w-auto justify-end">
+                 <a href={`/api/contracts/${contract.id}/pdf?download=true`} className="text-primary hover:underline">Download</a>
                  <button className="text-primary hover:underline" onClick={() => window.open(`/api/contracts/${contract.id}/pdf`, "_blank")}>Drucken</button>
                </div>
              </div>
-             <iframe src={`/api/contracts/${contract.id}/pdf`} className="w-full flex-1 border-0" />
+             <iframe src={`/api/contracts/${contract.id}/pdf`} className="w-full flex-1 border-0" title="PDF Viewer" />
           </div>
         </div>
       </DialogContent>

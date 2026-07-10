@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ClientForm } from "@/components/admin/client-form";
 import { AccountSection } from "@/components/admin/account-section";
 import { DeleteClientButton } from "@/components/admin/delete-client-button";
+import { RahmenvertragSection } from "@/components/admin/rahmenvertrag-section";
 import { ArrowLeft } from "lucide-react";
 import { qualifications } from "@/lib/validations";
 
@@ -81,6 +82,13 @@ export default async function EditClientPage({
           nightEnd: client.nightEnd,
           hourlyRates: resolveRateOverrides(client.hourlyRates),
         }}
+      />
+
+      {/* Rahmenvertrag Management */}
+      <RahmenvertragSection 
+        clientId={client.id}
+        url={client.frameworkAgreementUrl}
+        signedAt={client.frameworkAgreementSignedAt}
       />
 
       {/* Login account management (password, access link, active) — super_admin only. */}

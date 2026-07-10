@@ -65,10 +65,14 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
     entityId: contract.id
   });
 
+  const url = new URL(_req.url);
+  const isDownload = url.searchParams.get("download") === "true";
+  const disposition = isDownload ? "attachment" : "inline";
+
   return new NextResponse(new Uint8Array(pdfBuffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="AUEG-Vertrag-${contract.client.facilityName.replace(/\s+/g, "_")}.pdf"`,
+      "Content-Disposition": `${disposition}; filename="AUEG-Vertrag-${contract.client.facilityName.replace(/\s+/g, "_")}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

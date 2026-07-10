@@ -271,7 +271,9 @@ model Client {
   // schedule grid (e.g. "WB" = Limbachstift Wachtberg). Admin-assigned.
   shortCode     String?      @unique @map("short_code")
   facilityType  FacilityType @map("facility_type")
-  address       String?
+  address                String?
+  frameworkAgreementUrl  String?      @map("framework_agreement_url")
+  frameworkAgreementSignedAt DateTime? @map("framework_agreement_signed_at")
   contactPerson String?      @map("contact_person")
   billingInfo   String?      @map("billing_info")
   // Per-client billing surcharges (fractions, e.g. 0.25 = +25 %). Null falls
