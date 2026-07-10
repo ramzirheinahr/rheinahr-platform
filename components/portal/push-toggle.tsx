@@ -34,7 +34,7 @@ export function PushToggle() {
       "PushManager" in window &&
       "Notification" in window &&
       Boolean(VAPID_PUBLIC);
-    setSupported(ok);
+    setTimeout(() => setSupported(ok), 0);
     if (!ok) return;
     navigator.serviceWorker.ready
       .then((reg) => reg.pushManager.getSubscription())

@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const fs = require('fs');
 let code = fs.readFileSync('components/admin/master-schedule-grid.tsx', 'utf8');
 

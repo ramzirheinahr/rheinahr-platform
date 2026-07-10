@@ -19,6 +19,7 @@ export function ClientContractsBanner({
   clientId: string;
   year: number;
   month: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contracts: any[];
   hasUncontractedShifts: boolean;
 }) {
@@ -31,8 +32,8 @@ export function ClientContractsBanner({
       await generateMonthContracts(clientId, year, month);
       toast.success("Verträge erfolgreich generiert!");
       router.refresh();
-    } catch (e: any) {
-      toast.error(e.message || "Fehler beim Generieren der Verträge");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Generieren der Verträge");
     } finally {
       setGenerating(false);
     }

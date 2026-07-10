@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 export function ClientInvoicesBanner({ 
   invoices
 }: { 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   invoices: any[];
 }) {
   if (invoices.length === 0) return null;

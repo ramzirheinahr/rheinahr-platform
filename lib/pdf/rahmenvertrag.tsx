@@ -90,7 +90,7 @@ export const RahmenvertragTemplate = ({ data }: { data: RahmenvertragData }) => 
       </Text>
       <Text style={styles.paragraph}>
         (2) Die konkrete Überlassung (Konkretisierung) mit Angabe von Name, Qualifikation und Einsatzzeiten erfolgt 
-        jeweils gesondert in Form eines "Einzelabrufs".
+        jeweils gesondert in Form eines &quot;Einzelabrufs&quot;.
       </Text>
 
       <Text style={styles.h2}>§ 6 Fälligkeit und Verzug</Text>

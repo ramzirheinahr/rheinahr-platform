@@ -49,6 +49,7 @@ export async function getClientMonthSchedule(
     where: { id: clientId },
     select: { hourlyRates: true },
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rates = client ? resolveRates(client as any) : resolveRates({ hourlyRates: null } as any);
 
   const assignments = await prisma.assignment
@@ -94,6 +95,7 @@ export async function getClientMonthSchedule(
       billing: cNet !== null ? "confirmed" : a.status === "confirmed" ? "accepted" : null,
       contractId: a.clientContract?.id ?? null,
       contractStatus: a.clientContract?.status ?? null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       invoiceId: (a as any).invoiceId ?? null,
       serviceConfirmation: !!a.serviceConfirmation,
       hourlyRate: rateFor(o.requiredQualification, rates),

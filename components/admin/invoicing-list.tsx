@@ -9,6 +9,7 @@ import { Download, FileText, CheckCircle2, Clock, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function InvoicingList({ invoices }: { invoices: any[] }) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
@@ -18,13 +19,14 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
     try {
       await toggleInvoiceStatus(id, newStatus);
       toast.success(`Rechnung wurde als ${newStatus === "paid" ? "bezahlt" : "unbezahlt"} markiert.`);
-    } catch (e: any) {
-      toast.error(e.message || "Fehler beim Aktualisieren");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Aktualisieren");
     } finally {
       setLoadingId(null);
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const columns: Column<any>[] = [
     { 
       header: "Datum", 

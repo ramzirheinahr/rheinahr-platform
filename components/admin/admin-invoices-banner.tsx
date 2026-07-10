@@ -17,6 +17,7 @@ export function AdminInvoicesBanner({
   clientId: string;
   year: number;
   month: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   invoices: any[];
   hasUninvoicedShifts: boolean;
 }) {
@@ -29,8 +30,8 @@ export function AdminInvoicesBanner({
       await generateMonthInvoices(clientId, year, month);
       toast.success("Rechnungen erfolgreich generiert!");
       router.refresh();
-    } catch (e: any) {
-      toast.error(e.message || "Fehler beim Generieren der Rechnung");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Generieren der Rechnung");
     } finally {
       setGenerating(false);
     }

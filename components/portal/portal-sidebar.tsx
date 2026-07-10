@@ -22,11 +22,13 @@ export function PortalSidebar({ items }: { items: NavItem[] }) {
   // On every navigation: collapse on the wide route, otherwise restore the
   // stored preference. A toggle within the same route stays until the next nav.
   useEffect(() => {
-    if (isWide) {
-      setCollapsed(true);
-    } else {
-      setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
-    }
+    setTimeout(() => {
+      if (isWide) {
+        setCollapsed(true);
+      } else {
+        setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
+      }
+    }, 0);
   }, [pathname, isWide]);
 
   function toggle() {

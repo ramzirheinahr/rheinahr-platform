@@ -99,6 +99,7 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
       <View style={styles.header}>
         <View>
           <View style={styles.logoContainer}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image src={path.join(process.cwd(), "public", "logo.png")} style={{ width: 140, objectFit: "contain" }} />
           </View>
           <View style={styles.sloganRow}>

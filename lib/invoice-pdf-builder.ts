@@ -8,7 +8,13 @@ import type { Qualification } from "@prisma/client";
 const formatNumber = (num: number) => num.toFixed(2).replace(".", ",");
 const formatAmount = (num: number) => `${formatNumber(num)} €`;
 
-export function buildInvoicePdfData(invoice: any, client: any, assignments: any[]): InvoicePdfData {
+import type { Invoice, Client, Assignment, Order } from "@prisma/client";
+
+export function buildInvoicePdfData(
+  invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount">,
+  client: Pick<Client, "id" | "shortCode" | "facilityName" | "address" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd">,
+  assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes"> })[]
+): InvoicePdfData {
   const rates = resolveRates(client);
   const surcharges = resolveSurcharges(client);
   const nightWindow = resolveNightWindow(client);
@@ -22,7 +28,7 @@ export function buildInvoicePdfData(invoice: any, client: any, assignments: any[
     sunHours: number;
     nightHours: number;
     holidayHours: number;
-    assignments: any[];
+    assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes"> })[];
   };
 
   const grouped = new Map<Qualification, GroupData>();
@@ -39,7 +45,7 @@ export function buildInvoicePdfData(invoice: any, client: any, assignments: any[
     const shiftDateStr = a.order.shiftDate.toISOString().slice(0, 10);
     const split = shiftSurchargeHours(shiftDateStr, a.order.startTime, a.order.endTime, a.order.breakMinutes || 30, isHoliday, nightWindow);
     
-    for (const [key, chunk] of split.entries()) {
+    for (const chunk of split.values()) {
       group.baseHours += chunk.hours;
       if (chunk.components.includes("sat")) group.satHours += chunk.hours;
       if (chunk.components.includes("sun")) group.sunHours += chunk.hours;

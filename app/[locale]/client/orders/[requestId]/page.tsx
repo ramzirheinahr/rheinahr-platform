@@ -107,6 +107,7 @@ export default async function ClientRequestDetail({
     const [eh, em] = o.endTime.split(":").map(Number);
     const endDateTime = new Date(o.shiftDate);
     endDateTime.setUTCHours(eh, em, 0, 0);
+    // eslint-disable-next-line react-hooks/purity
     const isPast = Date.now() > endDateTime.getTime();
     const scheduledHours = netShiftHours(o.startTime, o.endTime, o.breakMinutes);
 

@@ -7,7 +7,7 @@ export function useUndoStack<T>(initialState: T | (() => T)) {
 
   const set = useCallback((newState: T | ((prevState: T) => T)) => {
     setState((currentState) => {
-      const resolvedState = typeof newState === "function" ? (newState as Function)(currentState) : newState;
+      const resolvedState = typeof newState === "function" ? (newState as (s: T) => T)(currentState) : newState;
       if (currentState === resolvedState) return currentState;
       
       setPast((prev) => [...prev, currentState].slice(-50)); // limit history to 50
@@ -38,7 +38,7 @@ export function useUndoStack<T>(initialState: T | (() => T)) {
   // Update without adding to history (e.g. for syncing with server state without polluting undo)
   const replace = useCallback((newState: T | ((prevState: T) => T)) => {
     setState((currentState) => {
-      const resolvedState = typeof newState === "function" ? (newState as Function)(currentState) : newState;
+      const resolvedState = typeof newState === "function" ? (newState as (s: T) => T)(currentState) : newState;
       return resolvedState;
     });
   }, []);

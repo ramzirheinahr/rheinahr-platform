@@ -112,6 +112,7 @@ function toWorkerColumns(d: ProfileInput) {
     surchargeNight: d.surchargeNight != null ? d.surchargeNight / 100 : null,
     nightStart: d.nightStart ?? null,
     nightEnd: d.nightEnd ?? null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     hourlyRates: hourlyRates ? (hourlyRates as any) : null,
     employmentStartDate: d.employmentStartDate ?? null,
     employmentEndDate: d.employmentEndDate ?? null,

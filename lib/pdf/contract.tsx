@@ -4,7 +4,6 @@ import {
   Page,
   View,
   Text,
-  Image,
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";

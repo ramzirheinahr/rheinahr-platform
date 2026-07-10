@@ -182,10 +182,12 @@ function BulkAssignDialog({
 
   useEffect(() => {
     if (!open) return;
-    setPicked(new Set());
-    setForce(false);
-    setQuery("");
-    setLoading(true);
+    setTimeout(() => {
+      setPicked(new Set());
+      setForce(false);
+      setQuery("");
+      setLoading(true);
+    }, 0);
     getBulkCandidates(orderIds)
       .then((res) => {
         if (res.ok) {

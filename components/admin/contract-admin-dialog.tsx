@@ -6,12 +6,14 @@ import { CheckCircle2, FileSignature, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ContractAdminDialog({ contract, triggerIcon = null }: { contract: any; triggerIcon?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (triggerIcon as any) || (
           <Button variant="outline" size="sm" className="gap-2">
             <FileSignature className="size-4" />

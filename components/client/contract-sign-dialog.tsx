@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger, DialogClose } from "
 import { toast } from "sonner";
 import { signContract } from "./actions"; // We will create this or use existing
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ContractSignDialog({ contract, triggerIcon = null }: { contract: any; triggerIcon?: React.ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -21,8 +22,8 @@ export function ContractSignDialog({ contract, triggerIcon = null }: { contract:
       toast.success("Vertrag erfolgreich signiert!");
       setOpen(false);
       router.refresh();
-    } catch (e: any) {
-      toast.error(e.message || "Fehler beim Signieren");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Signieren");
     } finally {
       setSubmitting(false);
     }
@@ -31,6 +32,7 @@ export function ContractSignDialog({ contract, triggerIcon = null }: { contract:
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (triggerIcon as any) || (
           <Button variant="outline" size="sm" className="gap-2">
             <FileSignature className="size-4" />

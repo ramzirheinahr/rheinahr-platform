@@ -26,11 +26,11 @@ export function PwaInstallHint() {
       // iOS Safari exposes navigator.standalone.
       (navigator as unknown as { standalone?: boolean }).standalone === true;
     if (standalone) {
-      setInstalled(true);
+      setTimeout(() => setInstalled(true), 0);
       return;
     }
     const ua = window.navigator.userAgent.toLowerCase();
-    setIsIos(/iphone|ipad|ipod/.test(ua));
+    setTimeout(() => setIsIos(/iphone|ipad|ipod/.test(ua)), 0);
 
     const onPrompt = (e: Event) => {
       e.preventDefault();

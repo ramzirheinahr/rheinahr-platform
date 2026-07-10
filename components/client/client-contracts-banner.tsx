@@ -6,6 +6,7 @@ import { ContractSignDialog } from "./contract-sign-dialog";
 export function ClientContractsBanner({ 
   contracts
 }: { 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contracts: any[];
 }) {
   if (contracts.length === 0) return null;

@@ -1,5 +1,4 @@
-import { sendEmailToUsers } from "../lib/email";
-import { prisma } from "../lib/prisma";
+
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -16,7 +15,7 @@ async function main() {
   // or we can just fetch an admin user and send it to them, or create a dummy user.
   // Actually, we can just use the underlying transport directly for a simple test.
   
-  const nodemailer = require("nodemailer");
+  const nodemailer = (await import("nodemailer")).default;
   
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
