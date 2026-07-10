@@ -46,7 +46,7 @@ export async function sendEmailToUsers(
   const uniqueIds = [...new Set(userIds)];
   const users = await prisma.user.findMany({
     where: { id: { in: uniqueIds } },
-    select: { email: true, name: true },
+    select: { email: true },
   });
 
   if (users.length === 0) return;
