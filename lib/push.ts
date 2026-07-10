@@ -23,13 +23,22 @@ export type PushPayload = {
   tag?: string; // coalesce repeats (e.g. one per conversation)
 };
 
-// Send a push to every device of the given users. Best-effort and non-blocking
+import { sendEmailToUsers } from "@/lib/email";
+
+// Send a push and email to every device of the given users. Best-effort and non-blocking
 // for the caller's happy path: failures are swallowed, and dead endpoints
 // (404/410) are pruned so the table stays clean. Never throws.
 export async function pushToUsers(
   userIds: string[],
   payload: PushPayload,
 ): Promise<void> {
+  // Fire and forget email notification
+  sendEmailToUsers(userIds, {
+    subject: payload.title,
+    body: payload.body,
+    url: payload.url,
+  }).catch((err) => console.error("Failed to send email notification", err));
+
   if (!ensureConfigured() || userIds.length === 0) return;
 
   const uniqueIds = [...new Set(userIds)];
