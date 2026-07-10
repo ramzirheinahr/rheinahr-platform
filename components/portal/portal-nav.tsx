@@ -14,6 +14,7 @@ import {
   BarChart3,
   Receipt,
   FileText,
+  FileSignature,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -47,6 +48,7 @@ const ICONS: Record<string, LucideIcon> = {
   reports: BarChart3,
   invoicing: Receipt,
   documents: FileText,
+  contracts: FileSignature,
 };
 
 export function PortalNav({

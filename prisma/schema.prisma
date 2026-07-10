@@ -79,6 +79,12 @@ enum AssignmentStatus {
   declined
 }
 
+enum ContractStatus {
+  pending
+  signed
+  cancelled
+}
+
 enum LeaveStatus {
   pending
   approved
@@ -100,6 +106,8 @@ enum NotificationType {
   order_status_changed
   document_uploaded
   new_message
+  contract_pending
+  contract_signed
 }
 
 enum NotificationChannel {
@@ -284,8 +292,9 @@ model Client {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders Order[]
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    Order[]
+  contracts ClientContract[]
 
   @@map("clients")
 }
@@ -318,6 +327,7 @@ model Assignment {
   id          String           @id @default(uuid())
   orderId     String           @map("order_id")
   workerId    String           @map("worker_id")
+  contractId  String?          @map("contract_id")
   status      AssignmentStatus @default(pending)
   assignedAt  DateTime         @default(now()) @map("assigned_at")
   confirmedAt DateTime?        @map("confirmed_at")
@@ -330,6 +340,7 @@ model Assignment {
 
   order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  clientContract      ClientContract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
   serviceConfirmation ServiceConfirmation?
   messages            Message[]
   conversation        Conversation?
@@ -427,6 +438,25 @@ model Message {
   @@index([conversationId, createdAt])
   @@index([assignmentId, createdAt])
   @@map("messages")
+}
+
+model ClientContract {
+  id            String         @id @default(uuid())
+  clientId      String         @map("client_id")
+  status        ContractStatus @default(pending)
+  period        String?
+  signatureData String?        @map("signature_data")
+  documentUrl   String?        @map("document_url")
+  signedAt      DateTime?      @map("signed_at")
+  ipAddress     String?        @map("ip_address")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignments Assignment[]
+
+  @@index([clientId, status])
+  @@map("client_contracts")
 }
 
 model ServiceConfirmation {

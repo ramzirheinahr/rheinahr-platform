@@ -792,5 +792,13 @@
     "deleteShiftTitle": "Delete shift permanently?",
     "deleteShiftWarning": "The shift will be permanently deleted from the schedule and from the client's request. This cannot be undone.",
     "shiftDeleted": "Shift permanently deleted."
+  },
+  "contracts": {
+    "title": "Contracts",
+    "generate": "Generate Contract",
+    "pending": "Pending",
+    "signed": "Signed",
+    "period": "Period",
+    "sign": "Sign"
   }
 }

@@ -343,7 +343,7 @@
     "selectAllWorkers": "Alle auswählen",
     "deselectAllWorkers": "Auswahl aufheben",
     "searchWorkers": "Fachkraft suchen …",
-    "noSearchMatch": "Keine passende Fachkraft",
+    "noSearchMatch": "Keine passende Einrichtung",
     "filterStatus": "Status",
     "clearFilter": "Filter zurücksetzen",
     "noStatusMatch": "Keine Anfragen mit diesem Status.",
@@ -352,8 +352,7 @@
     "cancelInvitationConfirm": "Einsatz-Einladung für {name} wirklich zurückziehen? Die Schicht wird wieder freigegeben.",
     "invitationCancelled": "Einladung zurückgezogen.",
     "cannotRemoveSigned": "Bereits unterschriebene Einsätze können nicht entfernt werden.",
-    "searchPlaceholder": "Einrichtung suchen…",
-    "noSearchMatch": "Keine passende Einrichtung"
+    "searchPlaceholder": "Einrichtung suchen…"
   },
   "orderRequest": {
     "prev": "Zurück",
@@ -794,5 +793,13 @@
     "deleteShiftTitle": "Dienst endgültig löschen?",
     "deleteShiftWarning": "Der Dienst wird endgültig aus dem Dienstplan und aus der Anfrage des Kunden gelöscht. Dies kann nicht rückgängig gemacht werden.",
     "shiftDeleted": "Dienst wurde endgültig gelöscht."
+  },
+  "contracts": {
+    "title": "Verträge",
+    "generate": "Vertrag generieren",
+    "pending": "Ausstehend",
+    "signed": "Unterschrieben",
+    "period": "Zeitraum",
+    "sign": "Unterschreiben"
   }
 }
