@@ -19,7 +19,6 @@ export default async function AdminLayout({
   const t = await getTranslations("portal");
   const tr = await getTranslations("reports");
   const ti = await getTranslations("invoicing");
-  const tc = await getTranslations("contracts");
   const tw = await getTranslations("workers");
   const eq = await getTranslations("enums.qualification");
 
@@ -44,7 +43,6 @@ export default async function AdminLayout({
       ],
     },
     { href: "/admin/clients", label: t("clients"), icon: "clients" },
-    { href: "/admin/contracts", label: tc("title"), icon: "contracts" },
     { href: "/admin/reports", label: tr("title"), icon: "reports" },
     { href: "/admin/invoicing", label: ti("title"), icon: "invoicing" },
   ];

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getClientMonthSchedule } from "@/lib/client-schedule";
 import { MonthScheduleTable } from "@/components/client/month-schedule-table";
+import { ClientContractsBanner } from "@/components/admin/client-contracts-banner";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +50,30 @@ export default async function AdminClientSchedulePage({
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(Date.UTC(year, month - 1, 1)));
+  
+  const startDate = new Date(Date.UTC(year, month - 1, 1));
+  const endDate = new Date(Date.UTC(year, month, 1));
+  
+  const contracts = await prisma.clientContract.findMany({
+    where: {
+      clientId: client.id,
+      assignments: {
+        some: {
+          order: {
+            shiftDate: { gte: startDate, lt: endDate }
+          }
+        }
+      }
+    },
+    include: {
+      client: true,
+      assignments: {
+        include: { order: true, worker: true }
+      }
+    }
+  });
+
+  const hasUncontractedShifts = rows.some(r => r.status === "confirmed" && !r.contractId);
   const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
   const base = `/admin/clients/${client.id}/schedule`;
@@ -93,6 +118,14 @@ export default async function AdminClientSchedulePage({
           </Button>
         </div>
       </div>
+
+      <ClientContractsBanner 
+        clientId={client.id} 
+        year={year} 
+        month={month} 
+        contracts={contracts} 
+        hasUncontractedShifts={hasUncontractedShifts} 
+      />
 
       <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-2 py-1.5">
         <Button

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { qualLabel } from "@/lib/invoicing";
+import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal, rateFor } from "@/lib/pricing";
 import { renderContractPdf } from "@/lib/pdf/contract";
 import { format } from "date-fns";
 
@@ -35,6 +36,10 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
   // Map data to PDF template props
+  const rates = resolveRates(contract.client);
+  const surcharges = resolveSurcharges(contract.client);
+  const nightWindow = resolveNightWindow(contract.client);
+
   const pdfData = {
     facilityName: contract.client.facilityName,
     facilityAddress: contract.client.address || "Adresse unbekannt",
@@ -43,14 +48,33 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
     signatureData: contract.signatureData,
     signedAt: contract.signedAt ? format(contract.signedAt, "dd.MM.yyyy HH:mm") : undefined,
     ipAddress: contract.ipAddress,
-    assignments: contract.assignments.map(a => ({
-      workerName: a.worker.fullName,
-      qualification: qualLabel[a.order.requiredQualification] || a.order.requiredQualification,
-      shiftDate: format(a.order.shiftDate, "dd.MM.yyyy"),
-      startTime: a.order.startTime,
-      endTime: a.order.endTime,
-      socialSecurity: a.worker.socialSecurityNumber || ""
-    }))
+    assignments: contract.assignments.map(a => {
+      const baseRate = rateFor(a.order.requiredQualification, rates);
+      const amount = requestNetTotal(
+        [{
+          shiftDate: a.order.shiftDate,
+          startTime: a.order.startTime,
+          endTime: a.order.endTime,
+          breakMinutes: a.order.breakMinutes || 30,
+          quantity: 1,
+          requiredQualification: a.order.requiredQualification,
+        }],
+        surcharges,
+        rates,
+        nightWindow
+      );
+
+      return {
+        workerName: a.worker.fullName,
+        qualification: qualLabel[a.order.requiredQualification] || a.order.requiredQualification,
+        shiftDate: format(a.order.shiftDate, "dd.MM.yyyy"),
+        startTime: a.order.startTime,
+        endTime: a.order.endTime,
+        socialSecurity: a.worker.socialSecurityNumber || "",
+        hourlyRate: baseRate,
+        totalAmount: amount
+      };
+    })
   };
 
   const pdfBuffer = await renderContractPdf(pdfData);

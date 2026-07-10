@@ -23,6 +23,8 @@ export type ClientScheduleRow = {
   scheduledHours: number; // net hours of the planned window (amber basis)
   /** Which pot this row counts toward in the totals. */
   billing: "confirmed" | "accepted" | null;
+  contractId: string | null;
+  contractStatus: string | null;
 };
 
 export type ClientScheduleTotals = {
@@ -58,6 +60,7 @@ export async function getClientMonthSchedule(
         },
         worker: { select: { fullName: true, qualification: true } },
         serviceConfirmation: { select: { hoursWorked: true } },
+        clientContract: { select: { id: true, status: true } },
       },
     })
     .catch(() => []);
@@ -83,6 +86,8 @@ export async function getClientMonthSchedule(
       confirmedHours,
       scheduledHours: netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes),
       billing,
+      contractId: a.clientContract?.id ?? null,
+      contractStatus: a.clientContract?.status ?? null,
     };
   });
 

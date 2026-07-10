@@ -7,7 +7,7 @@ import {
 import { germanHolidays } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Clock, Download } from "lucide-react";
+import { CheckCircle2, Clock, Download, FileSignature, FileWarning, FileClock } from "lucide-react";
 
 // One facility's month as the familiar schedule table — every day of the
 // month (weekend/NRW-holiday tint), each deployment with worker, times,
@@ -106,6 +106,31 @@ export async function MonthScheduleTable({
       <span className="text-muted-foreground">—</span>
     );
 
+  const contractBadge = (a: ClientScheduleRow) => {
+    if (!a.contractId) {
+      return (
+        <Badge variant="outline" className="gap-1 border-rose-200 bg-rose-50 text-rose-700">
+          <FileWarning className="size-3" />
+          Fehlt
+        </Badge>
+      );
+    }
+    if (a.contractStatus === "signed") {
+      return (
+        <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
+          <FileSignature className="size-3" />
+          Signiert
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-700">
+        <FileClock className="size-3" />
+        Ausstehend
+      </Badge>
+    );
+  };
+
   const daysWithShifts = days.filter((d) => d.shifts.length > 0);
   const hasTotals = totals.confirmedShifts > 0 || totals.acceptedShifts > 0;
 
@@ -118,6 +143,7 @@ export async function MonthScheduleTable({
           <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
             <th className="p-2 text-start">Datum</th>
             <th className="p-2 text-start">{t("workerHeader")}</th>
+            <th className="p-2 text-start">Vertrag</th>
             <th className="p-2 text-start">{ot("status")}</th>
             <th className="p-2 text-start">{oq("von")}</th>
             <th className="p-2 text-start">{oq("bis")}</th>
@@ -136,7 +162,7 @@ export async function MonthScheduleTable({
                       {d.holiday ? <span className="text-rose-600">•</span> : null}
                     </div>
                   </td>
-                  <td className="p-2" colSpan={5}></td>
+                  <td className="p-2" colSpan={6}></td>
                 </tr>
               );
             }
@@ -160,6 +186,9 @@ export async function MonthScheduleTable({
                     {eq(a.qualification)}
                     {a.notes ? <> · {oq("ward")}: {a.notes}</> : null}
                   </div>
+                </td>
+                <td className="p-2">
+                  {contractBadge(a)}
                 </td>
                 <td className="p-2">
                   {a.confirmedHours != null ? (
@@ -216,7 +245,7 @@ export async function MonthScheduleTable({
         {totals.confirmedShifts > 0 || totals.acceptedShifts > 0 ? (
           <tfoot>
             <tr className="border-t-2 bg-emerald-500/10">
-              <td colSpan={4} className="p-3 align-top">
+              <td colSpan={5} className="p-3 align-top">
                 <div className="flex items-center gap-2 font-semibold">
                   <Clock className="size-4 text-emerald-600" />
                   {av("monthTotal")}
@@ -300,7 +329,10 @@ export async function MonthScheduleTable({
                         ) : null}
                       </div>
                     </div>
-                    <div className="shrink-0">{statusBadge(a)}</div>
+                    <div className="flex flex-col gap-2 shrink-0 items-end">
+                      {contractBadge(a)}
+                      {statusBadge(a)}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="font-medium text-primary">

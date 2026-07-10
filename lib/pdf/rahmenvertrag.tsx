@@ -7,6 +7,8 @@ export type RahmenvertragData = {
   facilityName: string;
   facilityAddress: string;
   createdAt: Date;
+  rates: Record<string, number>;
+  surcharges: { sat: number; sun: number; holiday: number; night: number };
 };
 
 const styles = StyleSheet.create({
@@ -170,7 +172,32 @@ export const RahmenvertragTemplate = ({ data }: { data: RahmenvertragData }) => 
         Beide Parteien erkennen diese elektronische Form als verbindliche und rechtskräftige Erfüllung der Textform an.
       </Text>
 
-      <View style={{ marginTop: 80, flexDirection: "row", justifyContent: "space-between" }}>
+      <Text style={styles.h2}>§ 16 Anlage: Vergütung und Zuschläge</Text>
+      <Text style={styles.paragraph}>
+        Die folgenden stündlichen Verrechnungssätze (Netto, zzgl. der gesetzlichen Umsatzsteuer) und Zuschläge sind zwischen 
+        den Parteien für den Einsatz der Zeitarbeitnehmer vereinbart und bilden die Grundlage für die Abrechnung:
+      </Text>
+      <View style={{ marginBottom: 16 }}>
+        <Text style={[styles.paragraph, styles.bold, { marginBottom: 4 }]}>Stundensätze nach Qualifikation:</Text>
+        {Object.entries(data.rates).map(([qual, rate]) => (
+          <Text key={qual} style={{ marginBottom: 2 }}>
+            • {qual.charAt(0).toUpperCase() + qual.slice(1)}: {rate.toFixed(2).replace(".", ",")} € / Std.
+          </Text>
+        ))}
+      </View>
+      <View style={{ marginBottom: 16 }}>
+        <Text style={[styles.paragraph, styles.bold, { marginBottom: 4 }]}>Zuschläge auf den Grundstundenlohn:</Text>
+        <Text style={{ marginBottom: 2 }}>• Nachtarbeit: +{(data.surcharges.night * 100).toFixed(0)} %</Text>
+        <Text style={{ marginBottom: 2 }}>• Samstagsarbeit: +{(data.surcharges.sat * 100).toFixed(0)} %</Text>
+        <Text style={{ marginBottom: 2 }}>• Sonntagsarbeit: +{(data.surcharges.sun * 100).toFixed(0)} %</Text>
+        <Text style={{ marginBottom: 2 }}>• Feiertagsarbeit: +{(data.surcharges.holiday * 100).toFixed(0)} %</Text>
+      </View>
+      <Text style={styles.paragraph}>
+        Es gilt jeweils der höchste tarifliche oder gesetzliche Zuschlag, falls mehrere Zuschläge zusammentreffen (außer Nachtzuschlag, 
+        welcher kumulativ gewährt wird).
+      </Text>
+
+      <View style={{ marginTop: 60, flexDirection: "row", justifyContent: "space-between" }}>
         <View style={styles.signatureBox}>
           <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Personaldienstleister</Text>
           <Text>RheinAhr Dienstleistungen GmbH</Text>

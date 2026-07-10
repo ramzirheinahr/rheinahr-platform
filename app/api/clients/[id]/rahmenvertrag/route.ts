@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { resolveRates, resolveSurcharges } from "@/lib/pricing";
 import { renderRahmenvertragPdf, RahmenvertragData } from "@/lib/pdf/rahmenvertrag";
 
 export const runtime = "nodejs";
@@ -24,6 +25,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     facilityName: client.facilityName,
     facilityAddress: client.address || "Adresse unbekannt",
     createdAt: new Date(),
+    rates: resolveRates(client),
+    surcharges: resolveSurcharges(client),
   };
 
   const pdfBuffer = await renderRahmenvertragPdf(pdfData);

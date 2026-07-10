@@ -5,44 +5,40 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 
-export async function fetchUncontractedAssignments(clientId: string) {
+export async function generateMonthContracts(clientId: string, year: number, month: number) {
   const user = await getCurrentUser();
   if (!user || !roleSatisfies(user.role, ["admin"])) throw new Error("forbidden");
+
+  // Find all uncontracted shifts in this month
+  const startDate = new Date(Date.UTC(year, month - 1, 1));
+  const endDate = new Date(Date.UTC(year, month, 1));
 
   const assignments = await prisma.assignment.findMany({
     where: {
       order: { 
         clientId,
-        shiftDate: { gte: new Date() }
+        shiftDate: { gte: startDate, lt: endDate }
       },
       contractId: null,
-      status: "confirmed"
+      status: "confirmed" // Or completed. Usually we want confirmed or completed. Wait, confirmed is fine.
     },
-    include: {
-      worker: true,
-      order: true
-    },
-    orderBy: {
-      order: { shiftDate: "asc" }
-    }
+    select: { id: true }
   });
-  return assignments;
-}
 
-export async function generateContract(clientId: string, assignmentIds: string[], period: string) {
-  const user = await getCurrentUser();
-  if (!user || !roleSatisfies(user.role, ["admin"])) throw new Error("forbidden");
+  if (!assignments.length) {
+    throw new Error("Keine offenen Schichten für diesen Monat gefunden.");
+  }
 
-  if (!assignmentIds.length) throw new Error("no_assignments");
+  const periodLabel = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" }).format(startDate);
 
-  // Create contract and link it to the selected assignments
+  // Create contract
   const contract = await prisma.clientContract.create({
     data: {
       clientId,
-      period,
+      period: periodLabel,
       status: "pending",
       assignments: {
-        connect: assignmentIds.map(id => ({ id }))
+        connect: assignments.map(a => ({ id: a.id }))
       }
     },
     include: { client: true }
@@ -53,8 +49,8 @@ export async function generateContract(clientId: string, assignmentIds: string[]
       userId: contract.client.userId,
       type: "contract_pending",
       channel: "in_app",
-      content: `A new contract for ${period} is ready to be signed.`,
-      link: "/client/contracts"
+      content: `Ein neuer AÜV für ${periodLabel} steht zur Signatur bereit.`,
+      link: "/client/inbox"
     }
   });
 
@@ -63,9 +59,9 @@ export async function generateContract(clientId: string, assignmentIds: string[]
     action: "contract.generate",
     entity: "ClientContract",
     entityId: contract.id,
-    metadata: { assignmentCount: assignmentIds.length }
+    metadata: { assignmentCount: assignments.length, period: periodLabel }
   });
 
-  revalidatePath("/", "layout"); // Revalidate broadly to update UI
+  revalidatePath("/", "layout");
   return { ok: true, contractId: contract.id };
 }
