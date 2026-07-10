@@ -19,12 +19,14 @@ export async function MonthScheduleTable({
   locale,
   year,
   month,
+  showPrices,
 }: {
   rows: ClientScheduleRow[];
   totals: ClientScheduleTotals;
   locale: string;
   year: number;
   month: number;
+  showPrices?: boolean;
 }) {
   const t = await getTranslations("clientSchedule");
   const av = await getTranslations("availability");
@@ -147,10 +149,11 @@ export async function MonthScheduleTable({
             <th className="p-2 text-start">{ot("status")}</th>
             <th className="p-2 text-start">{oq("von")}</th>
             <th className="p-2 text-start">{oq("bis")}</th>
+            {showPrices && <th className="p-2 text-end">Preis / Std.</th>}
             <th className="p-2 text-end">{av("hoursHeader")}</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y">
           {days.map((d) => {
             const tint = (d.weekend || d.holiday) && "bg-rose-500/10";
             if (d.shifts.length === 0) {
@@ -162,7 +165,7 @@ export async function MonthScheduleTable({
                       {d.holiday ? <span className="text-rose-600">•</span> : null}
                     </div>
                   </td>
-                  <td className="p-2" colSpan={6}></td>
+                  <td className="p-2" colSpan={showPrices ? 7 : 6}></td>
                 </tr>
               );
             }
@@ -225,6 +228,11 @@ export async function MonthScheduleTable({
                 <td className="whitespace-nowrap p-2 font-medium text-primary">
                   {a.endTime}
                 </td>
+                {showPrices && (
+                  <td className="whitespace-nowrap p-2 text-end text-muted-foreground">
+                    {a.hourlyRate ? `${a.hourlyRate.toFixed(2).replace(".", ",")} €` : "—"}
+                  </td>
+                )}
                 <td className="whitespace-nowrap p-2 text-end">
                   {a.billing === "confirmed" ? (
                     <span className="font-semibold text-emerald-600">
@@ -245,7 +253,7 @@ export async function MonthScheduleTable({
         {totals.confirmedShifts > 0 || totals.acceptedShifts > 0 ? (
           <tfoot>
             <tr className="border-t-2 bg-emerald-500/10">
-              <td colSpan={5} className="p-3 align-top">
+              <td colSpan={showPrices ? 7 : 6} className="p-3 align-top">
                 <div className="flex items-center gap-2 font-semibold">
                   <Clock className="size-4 text-emerald-600" />
                   {av("monthTotal")}

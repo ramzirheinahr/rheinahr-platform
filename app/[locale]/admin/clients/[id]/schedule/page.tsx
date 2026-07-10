@@ -172,6 +172,7 @@ export default async function AdminClientSchedulePage({
         locale={locale}
         year={year}
         month={month}
+        showPrices={true}
       />
     </div>
   );

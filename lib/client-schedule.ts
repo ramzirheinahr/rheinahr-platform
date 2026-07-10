@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { qualLabel } from "@/lib/invoicing";
-import { netShiftHours } from "@/lib/pricing";
+import { netShiftHours, resolveRates, rateFor } from "@/lib/pricing";
 import type { AssignmentStatus, Qualification } from "@prisma/client";
 
 // One month of everything worked (or planned) at a client's facility — the
@@ -27,6 +27,7 @@ export type ClientScheduleRow = {
   contractStatus: string | null;
   invoiceId: string | null;
   serviceConfirmation: boolean;
+  hourlyRate?: number;
 };
 
 export type ClientScheduleTotals = {
@@ -44,6 +45,12 @@ export async function getClientMonthSchedule(
   year: number,
   month: number,
 ): Promise<{ rows: ClientScheduleRow[]; totals: ClientScheduleTotals }> {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { hourlyRates: true },
+  });
+  const rates = client ? resolveRates(client as any) : resolveRates({ hourlyRates: null } as any);
+
   const assignments = await prisma.assignment
     .findMany({
       where: {
@@ -89,6 +96,7 @@ export async function getClientMonthSchedule(
       contractStatus: a.clientContract?.status ?? null,
       invoiceId: (a as any).invoiceId ?? null,
       serviceConfirmation: !!a.serviceConfirmation,
+      hourlyRate: rateFor(o.requiredQualification, rates),
     };
   });
 
