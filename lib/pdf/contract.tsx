@@ -101,26 +101,40 @@ const AuegContractTemplate = ({ data }: { data: ContractPdfData }) => (
         Gemäß § 12 Absatz 1 Satz 1 AÜG bedarf dieser Vertrag der Schriftform. Anstelle der Schriftform darf auch die elektronische Form verwandt werden.
       </Text>
 
-      <View style={{ marginTop: 40, flexDirection: "row", justifyContent: "space-between" }}>
-        <View style={styles.signatureBox}>
-          <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Personaldienstleister</Text>
-          <Text>RheinAhr Dienstleistungen GmbH</Text>
-        </View>
-        
-        <View style={styles.signatureBox}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>Auftraggeber</Text>
-          {data.signatureData ? (
-            <Image src={data.signatureData} style={styles.signatureImg} />
-          ) : (
-            <View style={{ height: 60 }} />
-          )}
-          <Text>{data.facilityName}</Text>
-          {data.signedAt && (
-            <Text style={styles.audit}>
-              Elektronisch signiert am {data.signedAt}{data.ipAddress ? ` (IP: ${data.ipAddress})` : ""}
-            </Text>
-          )}
-        </View>
+      <View style={{ marginTop: 60, gap: 32 }}>
+        {data.signedAt ? (
+          <>
+            <View>
+              <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
+                Signiert von {data.facilityName} (Entleiher),
+              </Text>
+              <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
+                am {data.signedAt}
+              </Text>
+            </View>
+            <View>
+              <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
+                Signiert von RheinAhr Dienstleistungen GmbH (Verleiher),
+              </Text>
+              <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
+                am {data.signedAt}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <View style={styles.signatureBox}>
+              <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Personaldienstleister</Text>
+              <Text>RheinAhr Dienstleistungen GmbH</Text>
+            </View>
+            
+            <View style={styles.signatureBox}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>Auftraggeber</Text>
+              <View style={{ height: 60 }} />
+              <Text>{data.facilityName}</Text>
+            </View>
+          </View>
+        )}
       </View>
     </Page>
   </Document>
