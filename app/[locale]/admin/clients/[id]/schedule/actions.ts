@@ -50,7 +50,7 @@ export async function generateMonthContracts(clientId: string, year: number, mon
       type: "contract_pending",
       channel: "in_app",
       content: `Ein neuer AÜV für ${periodLabel} steht zur Signatur bereit.`,
-      link: "/client/inbox"
+      link: `/client/schedule?year=${year}&month=${month}`
     }
   });
 

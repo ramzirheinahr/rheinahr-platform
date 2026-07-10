@@ -99,10 +99,7 @@ const AuegContractTemplate = ({ data }: { data: ContractPdfData }) => (
             <Text style={styles.label}>Vergütung pro Stunde:</Text>
             <Text style={styles.value}>{a.hourlyRate?.toFixed(2).replace(".", ",")} € (Basis, zzgl. USt. & Zuschläge)</Text>
           </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Voraussichtlicher Betrag:</Text>
-            <Text style={styles.value}>{a.totalAmount?.toFixed(2).replace(".", ",")} € (Netto, inkl. Zuschläge)</Text>
-          </View>
+
         </View>
       ))}
 
