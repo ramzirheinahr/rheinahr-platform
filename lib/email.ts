@@ -33,6 +33,7 @@ export type EmailPayload = {
   body: string;
   html?: string;
   url?: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
 };
 
 // Send an email to the specified users by their userIds.
@@ -72,6 +73,7 @@ export async function sendEmailToUsers(
       subject: payload.subject,
       text: textBody,
       html: payload.html || textBody.replace(/\n/g, "<br>"),
+      attachments: payload.attachments,
     });
   } catch (error) {
     console.error("Error sending email:", error);

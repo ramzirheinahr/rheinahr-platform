@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } from "@/lib/pricing";
+import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal, shiftSurchargeHours, rateFor } from "@/lib/pricing";
+import { generateInvoicePdf, type InvoicePdfData } from "@/lib/pdf/invoice";
+import { format } from "date-fns";
+import { germanHolidays } from "@/lib/holidays";
+import { sendEmailToUsers } from "@/lib/email";
 
 const VAT_RATE = 0.19;
 
@@ -113,6 +117,86 @@ export async function generateMonthInvoices(clientId: string, year: number, mont
       content: `Eine neue Rechnung (${invoiceNumber}) für ${monthStr}.${year} steht zur Verfügung.`,
       link: `/client/schedule?year=${year}&month=${month}`
     }
+  });
+
+  // ----------------------------------------------------
+  // Generate PDF for Email Attachment
+  // ----------------------------------------------------
+  let baseHours = 0, satHours = 0, sunHours = 0, nightHours = 0, holidayHours = 0;
+  const qualification = assignments[0]?.order.requiredQualification || "pflegehelfer";
+  const baseRate = rateFor(qualification, rates);
+
+  const getHolidays = (year: number) => Array.from(germanHolidays(year).keys());
+  const isHoliday = (dateStr: string) => getHolidays(parseInt(dateStr.slice(0, 4), 10)).includes(dateStr);
+
+  for (const a of assignments) {
+    const shiftDateStr = a.order.shiftDate.toISOString().slice(0, 10);
+    const split = shiftSurchargeHours(shiftDateStr, a.order.startTime, a.order.endTime, a.order.breakMinutes || 30, isHoliday, nightWindow);
+    for (const [key, group] of split.entries()) {
+      baseHours += group.hours;
+      if (group.components.includes("sat")) satHours += group.hours;
+      if (group.components.includes("sun")) sunHours += group.hours;
+      if (group.components.includes("holiday")) holidayHours += group.hours;
+      if (group.components.includes("night")) nightHours += group.hours;
+    }
+  }
+
+  const formatNumber = (num: number) => num.toFixed(2).replace(".", ",");
+  const formatAmount = (num: number) => `${formatNumber(num)} €`;
+
+  let pos = 1;
+  const items: InvoicePdfData["items"] = [];
+
+  if (baseHours > 0) {
+    const startStr = assignments[0] ? format(assignments[0].order.shiftDate, "dd.MM.yyyy") : "";
+    const endStr = assignments[assignments.length - 1] ? format(assignments[assignments.length - 1].order.shiftDate, "dd.MM.yyyy") : "";
+    items.push({ pos: pos++, description: `Pflegekraft vom ${startStr} bis ${endStr}`, hours: formatNumber(baseHours), rate: formatNumber(baseRate), amount: formatAmount(baseHours * baseRate) });
+  }
+  if (satHours > 0) {
+    const sRate = baseRate * surcharges.sat;
+    items.push({ pos: pos++, description: `Samstagzuschlag ${surcharges.sat * 100}%`, hours: formatNumber(satHours), rate: formatNumber(sRate), amount: formatAmount(satHours * sRate) });
+  }
+  if (nightHours > 0) {
+    const sRate = baseRate * surcharges.night;
+    items.push({ pos: pos++, description: `Nachtzuschlag (${nightWindow.start}-${nightWindow.end}) ${surcharges.night * 100}%`, hours: formatNumber(nightHours), rate: formatNumber(sRate), amount: formatAmount(nightHours * sRate) });
+  }
+  if (sunHours > 0) {
+    const sRate = baseRate * surcharges.sun;
+    items.push({ pos: pos++, description: `Sonntagzuschlag ${surcharges.sun * 100}%`, hours: formatNumber(sunHours), rate: formatNumber(sRate), amount: formatAmount(sunHours * sRate) });
+  }
+  if (holidayHours > 0) {
+    const sRate = baseRate * surcharges.holiday;
+    items.push({ pos: pos++, description: `Feiertagszuschlag ${surcharges.holiday * 100}%`, hours: formatNumber(holidayHours), rate: formatNumber(sRate), amount: formatAmount(holidayHours * sRate) });
+  }
+
+  const pdfData: InvoicePdfData = {
+    invoiceNumber,
+    date: format(new Date(), "dd.MM.yyyy"),
+    clientId: client.shortCode || client.id.substring(0, 8),
+    clientName: client.facilityName,
+    clientAddress: client.address || "Adresse unbekannt",
+    periodStart: assignments[0] ? format(assignments[0].order.shiftDate, "dd.MM.yyyy") : "",
+    periodEnd: assignments[assignments.length - 1] ? format(assignments[assignments.length - 1].order.shiftDate, "dd.MM.yyyy") : "",
+    items,
+    subtotal: formatAmount(netAmount),
+    taxAmount: formatAmount(vatAmount),
+    total: formatAmount(grossAmount),
+  };
+
+  const pdfBuffer = await generateInvoicePdf(pdfData);
+
+  // Send Email with Attachment
+  await sendEmailToUsers([client.userId], {
+    subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
+    body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+    url: `/client/schedule?year=${year}&month=${month}`,
+    attachments: [
+      {
+        filename: `${invoiceNumber}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf"
+      }
+    ]
   });
 
   revalidatePath("/", "layout");

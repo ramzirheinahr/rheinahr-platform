@@ -9,6 +9,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import React from "react";
+import path from "path";
 
 export type InvoicePdfData = {
   invoiceNumber: string;
@@ -34,8 +35,6 @@ const styles = StyleSheet.create({
   page: { padding: 40, paddingBottom: 80, fontSize: 10, color: "#000000", fontFamily: "Helvetica", lineHeight: 1.3 },
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 30 },
   logoContainer: { flexDirection: "row", alignItems: "flex-end" },
-  logoBox: { backgroundColor: "#d91e18", padding: 4, width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  logoTextR: { color: "white", fontSize: 32, fontFamily: "Helvetica-Bold" },
   brandTextContainer: { marginLeft: 10 },
   brandTextMain: { color: "#1d4ed8", fontSize: 24, fontFamily: "Helvetica" },
   brandTextSub: { color: "#d91e18", fontSize: 14, fontFamily: "Helvetica" },
@@ -100,13 +99,7 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
       <View style={styles.header}>
         <View>
           <View style={styles.logoContainer}>
-            <View style={styles.logoBox}>
-              <Text style={styles.logoTextR}>R</Text>
-            </View>
-            <View style={styles.brandTextContainer}>
-              <Text style={styles.brandTextMain}>RheinAhr</Text>
-              <Text style={styles.brandTextSub}>Dienstleistungen GmbH</Text>
-            </View>
+            <Image src={path.join(process.cwd(), "public", "logo.png")} style={{ width: 140, objectFit: "contain" }} />
           </View>
           <View style={styles.sloganRow}>
             <Text style={styles.sloganRed}>INTEGRITÄT</Text>
