@@ -139,6 +139,36 @@ export const workerSchema = z.object({
   // Hours-account carryover (signed): positive = credit from last month that
   // REDUCES this month's soll; negative = deficit that adds to it.
   carryoverHours: z.coerce.number().min(-9999).max(9999).optional().default(0),
+
+  // Financial & Allowances
+  travelAllowanceEnabled: z.boolean().optional().default(false),
+  travelAllowancePerKm: optionalRate,
+  mealAllowanceEnabled: z.boolean().optional().default(false),
+  mealAllowance: z.coerce.number().min(0).max(100).optional().default(14.0),
+
+  // Surcharges entered as percentages (e.g. 25 = +25 %); stored as fractions.
+  surchargeSat: z.coerce.number().min(0).max(500).optional(),
+  surchargeSun: z.coerce.number().min(0).max(500).optional(),
+  surchargeHoliday: z.coerce.number().min(0).max(500).optional(),
+  surchargeNight: z.coerce.number().min(0).max(500).optional(),
+  nightStart: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined),
+    z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  ),
+  nightEnd: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined),
+    z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  ),
+
+  // Per-qualification hourly rates (EUR netto).
+  ratePflegefachkraft: optionalRate,
+  ratePflegehelfer: optionalRate,
+  rateBetreuungskraft: optionalRate,
+  ratePflegedienstleitung: optionalRate,
+
+  // Employment Contract (Arbeitsvertrag)
+  employmentStartDate: optionalDate,
+  employmentEndDate: optionalDate,
 });
 
 export const clientSchema = z.object({

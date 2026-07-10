@@ -45,6 +45,8 @@ export type Assignment = {
   // Worker asked the office to be taken off this shift (pending admin decision).
   cancelRequested?: boolean;
   cancelNote?: string | null;
+  distanceKm?: number | null;
+  travelCost?: number | null;
 };
 
 export type InitialBlock = { date: string; startTime: string | null; endTime: string | null };
@@ -530,6 +532,8 @@ export function AvailabilityBuilder({
               <th className="p-2 text-start">{t("availableHeader")}</th>
               <th className="p-2 text-start">{oq("von")}</th>
               <th className="p-2 text-start">{oq("bis")}</th>
+              <th className="p-2 text-start">Fahrtstrecke</th>
+              <th className="p-2 text-start">Fahrtkosten</th>
               <th className="p-2 text-end">{t("hoursHeader")}</th>
             </tr>
           </thead>
@@ -669,6 +673,12 @@ export function AvailabilityBuilder({
                         </td>
                         <td className="p-2 whitespace-nowrap font-medium text-primary">
                           {a.endTime}
+                        </td>
+                        <td className="p-2 whitespace-nowrap text-muted-foreground">
+                          {a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}
+                        </td>
+                        <td className="p-2 whitespace-nowrap text-muted-foreground">
+                          {a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}
                         </td>
                         <td className="p-2 whitespace-nowrap text-end">
                           {a.confirmedHours != null ? (
@@ -870,6 +880,13 @@ export function AvailabilityBuilder({
                         ) : null}
                         {a.notes ? (
                           <div className="mt-0.5 text-xs font-medium">{a.notes}</div>
+                        ) : null}
+                        {(a.distanceKm != null || a.travelCost != null) ? (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : ""}
+                            {a.distanceKm != null && a.travelCost != null ? " • " : ""}
+                            {a.travelCost != null ? `${a.travelCost.toFixed(2)} € Fahrtkosten` : ""}
+                          </div>
                         ) : null}
                       </div>
                       <span className="shrink-0 text-sm font-medium text-primary">

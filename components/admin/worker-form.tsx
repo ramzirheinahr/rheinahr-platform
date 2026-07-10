@@ -38,6 +38,20 @@ export type WorkerData = {
   employedSince: string | null; // yyyy-mm-dd
   requiredHours: number;
   carryoverHours: number;
+  // Financial & Contract
+  travelAllowanceEnabled?: boolean;
+  travelAllowancePerKm?: number | null;
+  mealAllowanceEnabled?: boolean;
+  mealAllowance?: number | null;
+  surchargeSat?: number | null;
+  surchargeSun?: number | null;
+  surchargeHoliday?: number | null;
+  surchargeNight?: number | null;
+  nightStart?: string | null;
+  nightEnd?: string | null;
+  hourlyRates?: Record<string, number> | null;
+  employmentStartDate?: string | null;
+  employmentEndDate?: string | null;
 };
 
 const textareaClass =
@@ -154,6 +168,116 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
           <Input id="address" name="address" defaultValue={worker.address ?? ""} />
         </div>
       </div>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="requiredHours">{t("requiredHours")}</Label>
+          <Input id="requiredHours" name="requiredHours" type="number" step="0.01" defaultValue={worker.requiredHours} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="carryoverHours">{t("carryoverHours")}</Label>
+          <Input id="carryoverHours" name="carryoverHours" type="number" step="0.01" defaultValue={worker.carryoverHours} />
+        </div>
+      </div>
+
+      {/* Contract Dates Section */}
+      <fieldset className="space-y-4 rounded-md border p-4">
+        <legend className="px-2 text-sm font-medium">{t("contractSection") || "Vertragsdaten"}</legend>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="employmentStartDate">Gültig ab (Startdatum)</Label>
+            <Input id="employmentStartDate" name="employmentStartDate" type="date" defaultValue={worker.employmentStartDate || undefined} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="employmentEndDate">Gültig bis (Enddatum)</Label>
+            <Input id="employmentEndDate" name="employmentEndDate" type="date" defaultValue={worker.employmentEndDate || undefined} />
+            <p className="text-xs text-muted-foreground">Nur bei befristeten Verträgen erforderlich.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      {/* Financial Allowances Section */}
+      <fieldset className="space-y-4 rounded-md border p-4">
+        <legend className="px-2 text-sm font-medium">Fahrtkosten & Spesen</legend>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 h-9">
+              <input type="checkbox" id="travelAllowanceEnabled" name="travelAllowanceEnabled" defaultChecked={worker.travelAllowanceEnabled} className="size-4" />
+              <Label htmlFor="travelAllowanceEnabled">Fahrtkosten erstatten</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="travelAllowancePerKm">Fahrtkosten pro km (€)</Label>
+              <Input id="travelAllowancePerKm" name="travelAllowancePerKm" type="number" step="0.01" defaultValue={worker.travelAllowancePerKm ?? 0.30} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 h-9">
+              <input type="checkbox" id="mealAllowanceEnabled" name="mealAllowanceEnabled" defaultChecked={worker.mealAllowanceEnabled} className="size-4" />
+              <Label htmlFor="mealAllowanceEnabled">Verpflegungsmehraufwand erstatten</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mealAllowance">Spesen pro Schicht (€)</Label>
+              <Input id="mealAllowance" name="mealAllowance" type="number" step="0.01" defaultValue={worker.mealAllowance ?? 14.0} />
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      {/* Surcharges Section */}
+      <fieldset className="space-y-4 rounded-md border p-4">
+        <legend className="px-2 text-sm font-medium">Zuschläge (%)</legend>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <div className="space-y-2">
+            <Label htmlFor="surchargeSat">Samstag</Label>
+            <Input id="surchargeSat" name="surchargeSat" type="number" step="1" defaultValue={worker.surchargeSat != null ? worker.surchargeSat * 100 : 0} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="surchargeSun">Sonntag</Label>
+            <Input id="surchargeSun" name="surchargeSun" type="number" step="1" defaultValue={worker.surchargeSun != null ? worker.surchargeSun * 100 : 50} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="surchargeHoliday">Feiertag</Label>
+            <Input id="surchargeHoliday" name="surchargeHoliday" type="number" step="1" defaultValue={worker.surchargeHoliday != null ? worker.surchargeHoliday * 100 : 100} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="surchargeNight">Nacht</Label>
+            <Input id="surchargeNight" name="surchargeNight" type="number" step="1" defaultValue={worker.surchargeNight != null ? worker.surchargeNight * 100 : 25} />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 mt-2">
+          <div className="space-y-2">
+            <Label htmlFor="nightStart">Nacht Beginn (HH:mm)</Label>
+            <Input id="nightStart" name="nightStart" type="time" defaultValue={worker.nightStart ?? "23:00"} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nightEnd">Nacht Ende (HH:mm)</Label>
+            <Input id="nightEnd" name="nightEnd" type="time" defaultValue={worker.nightEnd ?? "06:00"} />
+          </div>
+        </div>
+      </fieldset>
+
+      {/* Custom Hourly Rates Section */}
+      <fieldset className="space-y-4 rounded-md border p-4">
+        <legend className="px-2 text-sm font-medium">Stundenlöhne (Standardwerte in Grau)</legend>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-2">
+            <Label htmlFor="ratePflegefachkraft">Pflegefachkraft (€)</Label>
+            <Input id="ratePflegefachkraft" name="ratePflegefachkraft" type="number" step="0.01" placeholder="28.00" defaultValue={worker.hourlyRates?.pflegefachkraft} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ratePflegehelfer">Pflegehelfer (€)</Label>
+            <Input id="ratePflegehelfer" name="ratePflegehelfer" type="number" step="0.01" placeholder="17.00" defaultValue={worker.hourlyRates?.pflegehelfer} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="rateBetreuungskraft">Betreuungskraft/PHK (€)</Label>
+            <Input id="rateBetreuungskraft" name="rateBetreuungskraft" type="number" step="0.01" placeholder="19.00" defaultValue={worker.hourlyRates?.betreuungskraft} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ratePflegedienstleitung">PDL (€)</Label>
+            <Input id="ratePflegedienstleitung" name="ratePflegedienstleitung" type="number" step="0.01" placeholder="32.00" defaultValue={worker.hourlyRates?.pflegedienstleitung} />
+          </div>
+        </div>
+      </fieldset>
 
       {/* Professional profile — may be shown to clients. */}
       <fieldset className="space-y-5 rounded-lg border p-4">

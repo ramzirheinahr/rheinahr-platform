@@ -53,6 +53,22 @@ function parseProfile(formData: FormData) {
     employedSince: formData.get("employedSince") || undefined,
     requiredHours: formData.get("requiredHours") || undefined,
     carryoverHours: formData.get("carryoverHours") || undefined,
+    travelAllowanceEnabled: formData.get("travelAllowanceEnabled") === "on",
+    travelAllowancePerKm: formData.get("travelAllowancePerKm") || undefined,
+    mealAllowanceEnabled: formData.get("mealAllowanceEnabled") === "on",
+    mealAllowance: formData.get("mealAllowance") || undefined,
+    surchargeSat: formData.get("surchargeSat") || undefined,
+    surchargeSun: formData.get("surchargeSun") || undefined,
+    surchargeHoliday: formData.get("surchargeHoliday") || undefined,
+    surchargeNight: formData.get("surchargeNight") || undefined,
+    nightStart: formData.get("nightStart") || undefined,
+    nightEnd: formData.get("nightEnd") || undefined,
+    ratePflegefachkraft: formData.get("ratePflegefachkraft") || undefined,
+    ratePflegehelfer: formData.get("ratePflegehelfer") || undefined,
+    rateBetreuungskraft: formData.get("rateBetreuungskraft") || undefined,
+    ratePflegedienstleitung: formData.get("ratePflegedienstleitung") || undefined,
+    employmentStartDate: formData.get("employmentStartDate") || undefined,
+    employmentEndDate: formData.get("employmentEndDate") || undefined,
   });
 }
 
@@ -60,6 +76,14 @@ function parseProfile(formData: FormData) {
 // clearing a field in the form actually clears it on update.
 type ProfileInput = ReturnType<typeof workerSchema.parse>;
 function toWorkerColumns(d: ProfileInput) {
+  // Extract non-null custom rates to a JSON map
+  const rates: Record<string, number> = {};
+  if (d.ratePflegefachkraft != null) rates.pflegefachkraft = d.ratePflegefachkraft;
+  if (d.ratePflegehelfer != null) rates.pflegehelfer = d.ratePflegehelfer;
+  if (d.rateBetreuungskraft != null) rates.betreuungskraft = d.rateBetreuungskraft;
+  if (d.ratePflegedienstleitung != null) rates.pflegedienstleitung = d.ratePflegedienstleitung;
+  const hourlyRates = Object.keys(rates).length > 0 ? rates : null;
+
   return {
     fullName: d.fullName,
     qualification: d.qualification,
@@ -78,6 +102,19 @@ function toWorkerColumns(d: ProfileInput) {
     employedSince: d.employedSince ?? null,
     requiredHours: d.requiredHours,
     carryoverHours: d.carryoverHours,
+    travelAllowanceEnabled: d.travelAllowanceEnabled,
+    travelAllowancePerKm: d.travelAllowancePerKm ?? null,
+    mealAllowanceEnabled: d.mealAllowanceEnabled,
+    mealAllowance: d.mealAllowance ?? null,
+    surchargeSat: d.surchargeSat != null ? d.surchargeSat / 100 : null,
+    surchargeSun: d.surchargeSun != null ? d.surchargeSun / 100 : null,
+    surchargeHoliday: d.surchargeHoliday != null ? d.surchargeHoliday / 100 : null,
+    surchargeNight: d.surchargeNight != null ? d.surchargeNight / 100 : null,
+    nightStart: d.nightStart ?? null,
+    nightEnd: d.nightEnd ?? null,
+    hourlyRates: hourlyRates ? (hourlyRates as any) : null,
+    employmentStartDate: d.employmentStartDate ?? null,
+    employmentEndDate: d.employmentEndDate ?? null,
   };
 }
 

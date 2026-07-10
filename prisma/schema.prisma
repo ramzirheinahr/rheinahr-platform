@@ -138,14 +138,14 @@ enum DocumentCategory {
 // ─────────────────────────── Models ───────────────────────────
 
 model User {
-  id                String   @id @default(uuid())
-  email             String   @unique // login identity (Supabase Auth) — Google/Apple OAuth later
-  fullName          String?  @map("full_name") // display name (esp. for staff/admins without a profile)
-  passwordHash      String   @map("password_hash")
+  id                String    @id @default(uuid())
+  email             String    @unique // login identity (Supabase Auth) — Google/Apple OAuth later
+  fullName          String?   @map("full_name") // display name (esp. for staff/admins without a profile)
+  passwordHash      String    @map("password_hash")
   role              Role
-  active            Boolean  @default(true) // disabled accounts cannot sign in
-  preferredLanguage Language @default(de) @map("preferred_language")
-  twoFactorEnabled  Boolean  @default(false) @map("2fa_enabled")
+  active            Boolean   @default(true) // disabled accounts cannot sign in
+  preferredLanguage Language  @default(de) @map("preferred_language")
+  twoFactorEnabled  Boolean   @default(false) @map("2fa_enabled")
   // Passwordless "access link + PIN" login (client/worker convenience). The admin
   // shares the /access/<loginToken> link; the user enters a 6-digit PIN once per
   // device, then the persistent session skips it. Never a full credential alone.
@@ -153,9 +153,9 @@ model User {
   loginPinHash      String?   @map("login_pin_hash") // bcrypt of the 6-digit PIN
   loginPinAttempts  Int       @default(0) @map("login_pin_attempts") // brute-force counter
   loginPinLockUntil DateTime? @map("login_pin_lock_until") // temporary lockout after failures
-  createdById       String?  @map("created_by") // which admin provisioned this account
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  createdById       String?   @map("created_by") // which admin provisioned this account
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   worker               Worker?
   client               Client?
@@ -191,40 +191,64 @@ model PushSubscription {
 }
 
 model Worker {
-  id             String        @id @default(uuid())
-  userId         String        @unique @map("user_id")
-  fullName       String        @map("full_name")
-  qualification  Qualification
-  certifications String[]      @default([])
-  contractType   ContractType  @map("contract_type")
-  requiredHours  Float         @default(151.67) @map("required_hours")
+  id                   String        @id @default(uuid())
+  userId               String        @unique @map("user_id")
+  fullName             String        @map("full_name")
+  qualification        Qualification
+  certifications       String[]      @default([])
+  contractType         ContractType  @map("contract_type")
+  requiredHours        Float         @default(151.67) @map("required_hours")
   // Signed hours-account balance carried from earlier months/years (Arbeitszeit-
   // konto): positive = hours the worker still owes (deficit), negative = surplus
   // worked ahead (credit). Added to this month's required to get the total soll.
-  carryoverHours Float         @default(0) @map("carryover_hours")
-  phone          String?
-  address        String?
+  carryoverHours       Float         @default(0) @map("carryover_hours")
+  phone                String?
+  address              String?
   // Languages spoken by the worker as ISO 639-1 codes (any world language).
   // Decoupled from the UI-locale enum (User.preferredLanguage stays de/en/ar).
-  languages      String[]      @default([])
+  languages            String[]      @default([])
   // Personal / HR data (sensitive PII — admin-only, never exposed to clients).
-  birthDate            DateTime? @map("birth_date") @db.Date
-  birthPlace           String?   @map("birth_place")
-  nationality          String?   // ISO 3166-1 alpha-2 country code
-  socialSecurityNumber String?   @map("social_security_number") // Sozialversicherungsnummer
+  birthDate            DateTime?     @map("birth_date") @db.Date
+  birthPlace           String?       @map("birth_place")
+  nationality          String? // ISO 3166-1 alpha-2 country code
+  socialSecurityNumber String?       @map("social_security_number") // Sozialversicherungsnummer
   // Professional profile (may be shown to clients).
-  photoPath       String?  @map("photo_path") // Storage path in the worker-files bucket
-  bio             String?  // Kurzprofil shown to clients
-  skills          String[] @default([]) // specializations (Demenz, Palliativ, …)
-  yearsExperience Int?     @map("years_experience")
-  employedSince   DateTime? @map("employed_since") @db.Date
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  photoPath            String?       @map("photo_path") // Storage path in the worker-files bucket
+  bio                  String? // Kurzprofil shown to clients
+  skills               String[]      @default([]) // specializations (Demenz, Palliativ, …)
+  yearsExperience      Int?          @map("years_experience")
+  employedSince        DateTime?     @map("employed_since") @db.Date
 
-  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  availability WorkerAvailability[]
-  assignments  Assignment[]
-  documents    WorkerDocument[]
+  // Financial & Allowances
+  travelAllowanceEnabled Boolean @default(false) @map("travel_allowance_enabled")
+  travelAllowancePerKm   Float?  @map("travel_allowance_per_km")
+  mealAllowanceEnabled   Boolean @default(false) @map("meal_allowance_enabled")
+  mealAllowance          Float?  @default(14.0) @map("meal_allowance")
+
+  // Custom Surcharges (Fractions, e.g. 0.25 = 25%)
+  surchargeSat     Float?  @map("surcharge_sat")
+  surchargeSun     Float?  @map("surcharge_sun")
+  surchargeHoliday Float?  @map("surcharge_holiday")
+  surchargeNight   Float?  @map("surcharge_night")
+  nightStart       String? @map("night_start")
+  nightEnd         String? @map("night_end")
+
+  // Custom Hourly Rates (JSON map qualification -> rate)
+  hourlyRates Json? @map("hourly_rates")
+
+  // Employment Contract Data (Arbeitsvertrag)
+  employmentStartDate    DateTime? @map("employment_start_date") @db.Date
+  employmentEndDate      DateTime? @map("employment_end_date") @db.Date
+  arbeitsvertragUrl      String?   @map("arbeitsvertrag_url")
+  arbeitsvertragSignedAt DateTime? @map("arbeitsvertrag_signed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability  WorkerAvailability[]
+  assignments   Assignment[]
+  documents     WorkerDocument[]
   leaveRequests LeaveRequest[]
 
   @@index([qualification])
@@ -269,35 +293,35 @@ model WorkerAvailability {
 }
 
 model Client {
-  id            String       @id @default(uuid())
-  userId        String       @unique @map("user_id")
-  facilityName  String       @map("facility_name")
+  id                         String       @id @default(uuid())
+  userId                     String       @unique @map("user_id")
+  facilityName               String       @map("facility_name")
   // Dienstplan-Kürzel: the 2–3 letter facility code used on the master
   // schedule grid (e.g. "WB" = Limbachstift Wachtberg). Admin-assigned.
-  shortCode     String?      @unique @map("short_code")
-  facilityType  FacilityType @map("facility_type")
-  address                String?
-  frameworkAgreementUrl  String?      @map("framework_agreement_url")
-  frameworkAgreementSignedAt DateTime? @map("framework_agreement_signed_at")
-  contactPerson String?      @map("contact_person")
-  billingInfo   String?      @map("billing_info")
+  shortCode                  String?      @unique @map("short_code")
+  facilityType               FacilityType @map("facility_type")
+  address                    String?
+  frameworkAgreementUrl      String?      @map("framework_agreement_url")
+  frameworkAgreementSignedAt DateTime?    @map("framework_agreement_signed_at")
+  contactPerson              String?      @map("contact_person")
+  billingInfo                String?      @map("billing_info")
   // Per-client billing surcharges (fractions, e.g. 0.25 = +25 %). Null falls
   // back to the platform default in lib/pricing.ts.
-  surchargeSat     Float?    @map("surcharge_sat")
-  surchargeSun     Float?    @map("surcharge_sun")
-  surchargeHoliday Float?    @map("surcharge_holiday")
+  surchargeSat               Float?       @map("surcharge_sat")
+  surchargeSun               Float?       @map("surcharge_sun")
+  surchargeHoliday           Float?       @map("surcharge_holiday")
   // Night surcharge (fraction, default +25 %) applied to hours inside the night
   // window below. Null falls back to the platform default in lib/pricing.ts.
-  surchargeNight   Float?    @map("surcharge_night")
+  surchargeNight             Float?       @map("surcharge_night")
   // Night window as HH:mm (overnight-aware, e.g. 20:00–06:00). Null = default.
-  nightStart       String?   @map("night_start")
-  nightEnd         String?   @map("night_end")
+  nightStart                 String?      @map("night_start")
+  nightEnd                   String?      @map("night_end")
   // Per-client hourly rates (EUR netto) keyed by qualification, e.g.
   // { "pflegefachkraft": 54.9 }. Only overridden qualifications are stored;
   // missing keys fall back to HOURLY_RATES in lib/pricing.ts.
-  hourlyRates      Json?     @map("hourly_rates")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  hourlyRates                Json?        @map("hourly_rates")
+  createdAt                  DateTime     @default(now()) @map("created_at")
+  updatedAt                  DateTime     @updatedAt @map("updated_at")
 
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   orders    Order[]
@@ -332,20 +356,20 @@ model Order {
 }
 
 model Assignment {
-  id          String           @id @default(uuid())
-  orderId     String           @map("order_id")
-  workerId    String           @map("worker_id")
-  contractId  String?          @map("contract_id")
-  invoiceId   String?          @map("invoice_id")
-  status      AssignmentStatus @default(pending)
-  assignedAt  DateTime         @default(now()) @map("assigned_at")
-  confirmedAt DateTime?        @map("confirmed_at")
+  id                String           @id @default(uuid())
+  orderId           String           @map("order_id")
+  workerId          String           @map("worker_id")
+  contractId        String?          @map("contract_id")
+  invoiceId         String?          @map("invoice_id")
+  status            AssignmentStatus @default(pending)
+  assignedAt        DateTime         @default(now()) @map("assigned_at")
+  confirmedAt       DateTime?        @map("confirmed_at")
   // Worker-initiated cancellation request: the worker asks the office to be
   // taken off this shift (with a note). Admin approves (→ assignment released,
   // order back to pending/grey) or rejects (→ flags cleared).
-  cancelRequested   Boolean   @default(false) @map("cancel_requested")
-  cancelNote        String?   @map("cancel_note")
-  cancelRequestedAt DateTime? @map("cancel_requested_at")
+  cancelRequested   Boolean          @default(false) @map("cancel_requested")
+  cancelNote        String?          @map("cancel_note")
+  cancelRequestedAt DateTime?        @map("cancel_requested_at")
 
   order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)
@@ -386,14 +410,14 @@ model Conversation {
 }
 
 model LeaveRequest {
-  id          String        @id @default(uuid())
-  workerId    String        @map("worker_id")
-  status      LeaveStatus   @default(pending)
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  id        String      @id @default(uuid())
+  workerId  String      @map("worker_id")
+  status    LeaveStatus @default(pending)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
 
-  worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
-  days   LeaveDay[]
+  worker       Worker        @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  days         LeaveDay[]
   conversation Conversation?
 
   @@index([workerId, status])
@@ -401,11 +425,11 @@ model LeaveRequest {
 }
 
 model LeaveDay {
-  id             String       @id @default(uuid())
-  leaveRequestId String       @map("leave_request_id")
-  date           DateTime     @db.Date
-  hours          Float        @default(7.0)
-  status         LeaveStatus  @default(pending)
+  id             String      @id @default(uuid())
+  leaveRequestId String      @map("leave_request_id")
+  date           DateTime    @db.Date
+  hours          Float       @default(7.0)
+  status         LeaveStatus @default(pending)
 
   leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
 
@@ -470,32 +494,32 @@ model ClientContract {
 }
 
 model ServiceConfirmation {
-  id            String             @id @default(uuid())
-  assignmentId  String             @unique @map("assignment_id")
-  confirmedById String?            @map("confirmed_by") // nullable so GDPR erasure keeps the financial record
-  method        ConfirmationMethod
-  signatureData String?            @map("signature_data") // base64 signature image
-  documentUrl   String?            @map("document_url")
-  hoursWorked   Decimal?           @map("hours_worked") @db.Decimal(5, 2)
-  clientNotes   String?            @map("client_notes")
-  confirmedAt   DateTime           @default(now()) @map("confirmed_at")
-  ipAddress     String?            @map("ip_address")
+  id                    String             @id @default(uuid())
+  assignmentId          String             @unique @map("assignment_id")
+  confirmedById         String?            @map("confirmed_by") // nullable so GDPR erasure keeps the financial record
+  method                ConfirmationMethod
+  signatureData         String?            @map("signature_data") // base64 signature image
+  documentUrl           String?            @map("document_url")
+  hoursWorked           Decimal?           @map("hours_worked") @db.Decimal(5, 2)
+  clientNotes           String?            @map("client_notes")
+  confirmedAt           DateTime           @default(now()) @map("confirmed_at")
+  ipAddress             String?            @map("ip_address")
   // Admin-proposed hours correction on an ALREADY-signed record. While
   // `correctionHours` is set, the client is asked to re-confirm; on approval
   // `hoursWorked` is updated and these fields clear. The audit log keeps the
   // superseded value, so the change stays traceable.
-  correctionHours       Decimal?  @map("correction_hours") @db.Decimal(5, 2)
-  correctionNote        String?   @map("correction_note")
-  correctionRequestedBy String?   @map("correction_requested_by")
-  correctionRequestedAt DateTime? @map("correction_requested_at")
+  correctionHours       Decimal?           @map("correction_hours") @db.Decimal(5, 2)
+  correctionNote        String?            @map("correction_note")
+  correctionRequestedBy String?            @map("correction_requested_by")
+  correctionRequestedAt DateTime?          @map("correction_requested_at")
   // Client-requested shift-window correction filed while confirming ("the shift
   // actually ran 07:00–15:30"). While set, the office reviews it from the inbox
   // thread; approving updates the order window + hours and clears the fields.
-  requestedStart String? @map("requested_start")
-  requestedEnd   String? @map("requested_end")
+  requestedStart        String?            @map("requested_start")
+  requestedEnd          String?            @map("requested_end")
 
   assignment  Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  confirmedBy User?       @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedBy User?      @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
 
   @@map("service_confirmations")
 }

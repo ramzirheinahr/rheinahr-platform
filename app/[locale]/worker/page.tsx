@@ -109,6 +109,8 @@ export default async function WorkerSchedulePage({
             confirmedHours: a.confirmedHours,
             cancelRequested: a.cancelRequested,
             cancelNote: a.cancelNote,
+            distanceKm: a.distanceKm,
+            travelCost: a.travelCost,
           }))}
           requiredHours={totals.requiredHours}
           carryoverHours={totals.carryoverHours}

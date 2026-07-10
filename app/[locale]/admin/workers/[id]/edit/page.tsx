@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { WorkerForm } from "@/components/admin/worker-form";
 import { WorkerPhoto } from "@/components/admin/worker-photo";
 import { WorkerDocuments } from "@/components/admin/worker-documents";
+import { ArbeitsvertragSection } from "@/components/admin/arbeitsvertrag-section";
 import { AccountSection } from "@/components/admin/account-section";
 import { DeleteWorkerButton } from "@/components/admin/delete-worker-button";
 import { ArrowLeft, Eye } from "lucide-react";
@@ -93,6 +94,19 @@ export default async function EditWorkerPage({
           employedSince: toDateInput(worker.employedSince),
           requiredHours: worker.requiredHours,
           carryoverHours: worker.carryoverHours,
+          travelAllowanceEnabled: worker.travelAllowanceEnabled,
+          travelAllowancePerKm: worker.travelAllowancePerKm,
+          mealAllowanceEnabled: worker.mealAllowanceEnabled,
+          mealAllowance: worker.mealAllowance,
+          surchargeSat: worker.surchargeSat,
+          surchargeSun: worker.surchargeSun,
+          surchargeHoliday: worker.surchargeHoliday,
+          surchargeNight: worker.surchargeNight,
+          nightStart: worker.nightStart,
+          nightEnd: worker.nightEnd,
+          hourlyRates: worker.hourlyRates as Record<string, number> | null,
+          employmentStartDate: toDateInput(worker.employmentStartDate),
+          employmentEndDate: toDateInput(worker.employmentEndDate),
         }}
       />
 
@@ -109,6 +123,16 @@ export default async function EditWorkerPage({
           }))}
         />
       </section>
+
+      {isAdmin && (
+        <section className="max-w-2xl">
+          <ArbeitsvertragSection 
+            workerId={worker.id}
+            url={worker.arbeitsvertragUrl}
+            signedAt={worker.arbeitsvertragSignedAt}
+          />
+        </section>
+      )}
 
       {/* Login account management (password, access link, active) — super_admin only. */}
       {actor?.role === "super_admin" && (

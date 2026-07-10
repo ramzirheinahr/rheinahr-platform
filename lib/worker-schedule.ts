@@ -20,6 +20,8 @@ export type WorkerScheduleRow = {
   confirmedHours: number | null; // client-confirmed net hours, null until signed
   cancelRequested: boolean; // worker asked the office to be taken off this shift
   cancelNote: string | null;
+  distanceKm?: number | null; // one-way distance to the facility
+  travelCost?: number | null; // allowance for this shift (both ways)
 };
 
 export type WorkerLeaveDay = {
@@ -39,6 +41,8 @@ export type WorkerScheduleTotals = {
   confirmedShifts: number;
 };
 
+import { getDrivingDistanceKm } from "@/lib/geocoding";
+
 export async function getWorkerMonthSchedule(
   workerId: string,
   year: number,
@@ -46,7 +50,7 @@ export async function getWorkerMonthSchedule(
 ): Promise<{ rows: WorkerScheduleRow[]; leaveDays: WorkerLeaveDay[]; totals: WorkerScheduleTotals }> {
   const worker = await prisma.worker.findUnique({
     where: { id: workerId },
-    select: { requiredHours: true, carryoverHours: true },
+    select: { requiredHours: true, carryoverHours: true, address: true, travelAllowanceEnabled: true, travelAllowancePerKm: true },
   });
   
   const assignments = await prisma.assignment
@@ -100,23 +104,45 @@ export async function getWorkerMonthSchedule(
     hours: ld.hours,
   }));
 
-  const rows: WorkerScheduleRow[] = assignments.map((a) => ({
-    id: a.id,
-    status: a.status,
-    date: a.order.shiftDate.toISOString().slice(0, 10),
-    startTime: a.order.startTime,
-    endTime: a.order.endTime,
-    notes: a.order.notes,
-    facilityName: a.order.client.facilityName,
-    address: a.order.client.address,
-    scheduledHours: netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes),
-    confirmedHours:
-      a.serviceConfirmation?.hoursWorked != null
-        ? Number(a.serviceConfirmation.hoursWorked)
-        : null,
-    cancelRequested: a.cancelRequested,
-    cancelNote: a.cancelNote,
-  }));
+  const rows: WorkerScheduleRow[] = await Promise.all(
+    assignments.map(async (a) => {
+      let distanceKm: number | null = null;
+      let travelCost: number | null = null;
+      
+      if (worker?.travelAllowanceEnabled && worker?.address && a.order.client.address) {
+        distanceKm = await getDrivingDistanceKm(worker.address, a.order.client.address);
+        if (distanceKm != null) {
+          // German law: both ways * distance * rate
+          const rate = worker.travelAllowancePerKm ?? 0.30;
+          travelCost = (distanceKm * 2) * rate;
+        }
+      }
+
+      return {
+        id: a.id,
+        status: a.status,
+        date: a.order.shiftDate.toISOString().slice(0, 10),
+        startTime: a.order.startTime,
+        endTime: a.order.endTime,
+        notes: a.order.notes,
+        facilityName: a.order.client.facilityName,
+        address: a.order.client.address,
+        scheduledHours: netShiftHours(
+          a.order.startTime,
+          a.order.endTime,
+          a.order.breakMinutes || 30,
+        ),
+        confirmedHours:
+          a.serviceConfirmation?.hoursWorked != null
+            ? Number(a.serviceConfirmation.hoursWorked)
+            : null,
+        cancelRequested: a.cancelRequested,
+        cancelNote: a.cancelNote,
+        distanceKm,
+        travelCost,
+      };
+    })
+  );
 
   const confirmed = rows.filter((r) => r.confirmedHours != null);
   const approvedLeaves = leaveDays.filter((l) => l.status === "approved");
