@@ -535,7 +535,9 @@
       "service_confirmed": "تم تأكيد الخدمة",
       "order_status_changed": "تغيّرت الحالة",
       "document_uploaded": "تم رفع مستند",
-      "new_message": "رسالة جديدة"
+      "new_message": "رسالة جديدة",
+      "contract_pending": "عقد جديد",
+      "contract_signed": "تم توقيع العقد"
     },
     "documentCategory": {
       "certification": "شهادة / مؤهل",

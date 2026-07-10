@@ -536,7 +536,9 @@
       "service_confirmed": "Leistung bestätigt",
       "order_status_changed": "Status geändert",
       "document_uploaded": "Dokument hochgeladen",
-      "new_message": "Neue Nachricht"
+      "new_message": "Neue Nachricht",
+      "contract_pending": "Neuer Vertrag",
+      "contract_signed": "Vertrag signiert"
     },
     "documentCategory": {
       "certification": "Zertifikat / Qualifikation",
