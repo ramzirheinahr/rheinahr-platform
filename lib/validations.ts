@@ -84,6 +84,7 @@ export const orderShiftSchema = z
     requiredQualification: z.enum(qualifications),
     startTime: z.string().regex(timeRegex),
     endTime: z.string().regex(timeRegex),
+    pause: z.coerce.number().int().min(0).max(480).default(30), // unpaid break (minutes)
     quantity: z.coerce.number().int().min(1).max(50),
     bereich: z.string().max(120).optional(), // Wohnbereich / ward
   })

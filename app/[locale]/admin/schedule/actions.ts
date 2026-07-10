@@ -121,6 +121,7 @@ export async function assignFromGrid(input: {
   // Custom shift window; defaults to the preset of `shift` when omitted.
   startTime?: string;
   endTime?: string;
+  breakMinutes?: number;
 }): Promise<ActionState> {
   let admin;
   try {
@@ -139,10 +140,12 @@ export async function assignFromGrid(input: {
       force: z.boolean().optional(),
       startTime: timeSchema.optional(),
       endTime: timeSchema.optional(),
+      breakMinutes: z.coerce.number().int().min(0).max(480).optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "saveError" };
   const { workerId, date, shift, clientId, ward, force } = parsed.data;
+  const breakMinutes = parsed.data.breakMinutes ?? 30;
 
   const preset = SHIFT_PRESETS[shift];
   const start = parsed.data.startTime ?? preset.start;
@@ -228,6 +231,7 @@ export async function assignFromGrid(input: {
             shiftDate: day,
             startTime: start,
             endTime: end,
+            breakMinutes,
             quantity: 1,
             notes: ward || null,
             status: "assigned",
@@ -288,6 +292,7 @@ export async function createOpenOrderFromGrid(input: {
   // Custom shift window; defaults to the preset of `shift` when omitted.
   startTime?: string;
   endTime?: string;
+  breakMinutes?: number;
 }): Promise<ActionState> {
   let admin;
   try {
@@ -306,6 +311,7 @@ export async function createOpenOrderFromGrid(input: {
       quantity: z.coerce.number().int().min(1).max(50).optional(),
       startTime: timeSchema.optional(),
       endTime: timeSchema.optional(),
+      breakMinutes: z.coerce.number().int().min(0).max(480).optional(),
     })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "saveError" };
@@ -332,6 +338,7 @@ export async function createOpenOrderFromGrid(input: {
       shiftDate: day,
       startTime: start,
       endTime: end,
+      breakMinutes: parsed.data.breakMinutes ?? 30,
       quantity: quantity ?? 1,
       notes: ward || null,
       status: "pending",
@@ -910,6 +917,7 @@ export async function saveMasterScheduleGridBatch(ops: GridOperation[]): Promise
         force: op.force,
         startTime: op.startTime,
         endTime: op.endTime,
+        breakMinutes: op.breakMinutes,
       }));
     } else if (op.type === "unassign") {
       const realId = idMap.get(op.assignmentId) || op.assignmentId;
@@ -927,6 +935,7 @@ export async function saveMasterScheduleGridBatch(ops: GridOperation[]): Promise
         quantity: op.quantity,
         startTime: op.startTime,
         endTime: op.endTime,
+        breakMinutes: op.breakMinutes,
       }));
       // Note: we can't easily map the tempOrderId here because createOpenOrderFromGrid doesn't return the new ID.
       // But Open orders created in the session can't be assigned in the same session without reloading anyway 

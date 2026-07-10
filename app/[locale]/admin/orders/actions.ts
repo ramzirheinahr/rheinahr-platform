@@ -64,6 +64,7 @@ export async function createOrderRequestForClient(
       shiftDate: new Date(`${s.date}T00:00:00.000Z`),
       startTime: s.startTime,
       endTime: s.endTime,
+      breakMinutes: s.pause,
       quantity: s.quantity,
       notes: s.bereich ?? notes ?? null,
       status: "pending" as const,
@@ -125,6 +126,7 @@ export async function updateOrderRequestAsAdmin(
       shiftDate: true,
       startTime: true,
       endTime: true,
+      breakMinutes: true,
       quantity: true,
       notes: true,
       requiredQualification: true,
@@ -144,6 +146,7 @@ export async function updateOrderRequestAsAdmin(
       requiredQualification: s.requiredQualification,
       startTime: s.startTime,
       endTime: s.endTime,
+      breakMinutes: s.pause,
       quantity: s.quantity,
       notes: s.bereich ?? notes ?? null,
     })),
@@ -157,7 +160,7 @@ export async function updateOrderRequestAsAdmin(
       ...updates.map((u) =>
         prisma.order.update({
           where: { id: u.id },
-          data: { quantity: u.quantity, notes: u.notes },
+          data: { quantity: u.quantity, breakMinutes: u.breakMinutes, notes: u.notes },
         }),
       ),
       ...(creates.length
@@ -170,6 +173,7 @@ export async function updateOrderRequestAsAdmin(
                 shiftDate: new Date(`${s.date}T00:00:00.000Z`),
                 startTime: s.startTime,
                 endTime: s.endTime,
+                breakMinutes: s.breakMinutes,
                 quantity: s.quantity,
                 notes: s.notes,
                 status: "pending" as const,
@@ -637,6 +641,7 @@ export async function approveTimeChange(input: {
           shiftDate: true,
           startTime: true,
           endTime: true,
+          breakMinutes: true,
           client: { select: { userId: true, facilityName: true } },
         },
       },
@@ -651,7 +656,7 @@ export async function approveTimeChange(input: {
   const newEnd = sc.requestedEnd;
 
   const { netShiftHours } = await import("@/lib/pricing");
-  const newHours = netShiftHours(newStart, newEnd);
+  const newHours = netShiftHours(newStart, newEnd, assignment.order.breakMinutes);
 
   const { headers } = await import("next/headers");
   const h = await headers();

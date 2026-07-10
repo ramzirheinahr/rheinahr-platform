@@ -67,6 +67,7 @@ export async function getWorkerMonthSchedule(
             shiftDate: true,
             startTime: true,
             endTime: true,
+            breakMinutes: true,
             notes: true,
             client: { select: { facilityName: true, address: true } },
           },
@@ -108,7 +109,7 @@ export async function getWorkerMonthSchedule(
     notes: a.order.notes,
     facilityName: a.order.client.facilityName,
     address: a.order.client.address,
-    scheduledHours: netShiftHours(a.order.startTime, a.order.endTime),
+    scheduledHours: netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes),
     confirmedHours:
       a.serviceConfirmation?.hoursWorked != null
         ? Number(a.serviceConfirmation.hoursWorked)

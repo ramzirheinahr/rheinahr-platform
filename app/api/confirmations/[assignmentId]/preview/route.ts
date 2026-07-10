@@ -30,6 +30,7 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
           shiftDate: true,
           startTime: true,
           endTime: true,
+          breakMinutes: true,
           client: { select: { facilityName: true, userId: true } },
         },
       },
@@ -51,7 +52,7 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
   const hours =
     Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24
       ? parsedHours
-      : netShiftHours(a.order.startTime, a.order.endTime);
+      : netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes);
 
   const pdf = await renderLeistungsnachweisPdf({
     facilityName: a.order.client.facilityName,

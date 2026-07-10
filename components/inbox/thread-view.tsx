@@ -68,6 +68,7 @@ export async function ThreadView({
                 shiftDate: true,
                 startTime: true,
                 endTime: true,
+                breakMinutes: true,
                 client: { select: { facilityName: true } },
               },
             },
@@ -85,7 +86,7 @@ export async function ThreadView({
       newStart: sc.requestedStart!,
       newEnd: sc.requestedEnd!,
       oldHours: sc.hoursWorked === null ? null : Number(sc.hoursWorked),
-      newHours: netShiftHours(sc.requestedStart!, sc.requestedEnd!),
+      newHours: netShiftHours(sc.requestedStart!, sc.requestedEnd!, sc.assignment.order.breakMinutes),
       clientNotes: sc.clientNotes,
     }));
   }

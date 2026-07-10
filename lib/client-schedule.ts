@@ -54,7 +54,7 @@ export async function getClientMonthSchedule(
       orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
       include: {
         order: {
-          select: { shiftDate: true, startTime: true, endTime: true, notes: true },
+          select: { shiftDate: true, startTime: true, endTime: true, breakMinutes: true, notes: true },
         },
         worker: { select: { fullName: true, qualification: true } },
         serviceConfirmation: { select: { hoursWorked: true } },
@@ -81,7 +81,7 @@ export async function getClientMonthSchedule(
       workerName: a.worker.fullName,
       qualification: a.worker.qualification,
       confirmedHours,
-      scheduledHours: netShiftHours(a.order.startTime, a.order.endTime),
+      scheduledHours: netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes),
       billing,
     };
   });

@@ -81,6 +81,7 @@ export default async function AdminRequestDetail({
       date: d(o.shiftDate),
       start: o.startTime,
       end: o.endTime,
+      pause: o.breakMinutes,
       quantity: o.quantity,
       bereich: o.notes ?? "",
     })),
@@ -108,7 +109,7 @@ export default async function AdminRequestDetail({
       quantity: o.quantity,
       label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
       selectable,
-      scheduledHours: netShiftHours(o.startTime, o.endTime),
+      scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes),
       assignments: o.assignments.map((a) => ({
         id: a.id,
         workerName: a.worker.fullName,

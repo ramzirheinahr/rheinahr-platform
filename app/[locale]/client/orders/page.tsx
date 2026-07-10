@@ -25,6 +25,7 @@ type Row = {
   shiftDate: Date;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
   quantity: number;
   requiredQualification: Qualification;
   status: OrderStatus;
@@ -68,6 +69,7 @@ async function getOrders(): Promise<{
         shiftDate: true,
         startTime: true,
         endTime: true,
+        breakMinutes: true,
         quantity: true,
         requiredQualification: true,
         status: true,

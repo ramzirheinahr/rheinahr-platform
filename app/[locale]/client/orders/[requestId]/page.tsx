@@ -59,6 +59,7 @@ export default async function ClientRequestDetail({
       shiftDate: true,
       startTime: true,
       endTime: true,
+      breakMinutes: true,
       requiredQualification: true,
       quantity: true,
       notes: true,
@@ -90,6 +91,7 @@ export default async function ClientRequestDetail({
       date: d(o.shiftDate),
       start: o.startTime,
       end: o.endTime,
+      pause: o.breakMinutes,
       quantity: o.quantity,
       bereich: o.notes ?? "",
     })),
@@ -106,7 +108,7 @@ export default async function ClientRequestDetail({
     const endDateTime = new Date(o.shiftDate);
     endDateTime.setUTCHours(eh, em, 0, 0);
     const isPast = Date.now() > endDateTime.getTime();
-    const scheduledHours = netShiftHours(o.startTime, o.endTime);
+    const scheduledHours = netShiftHours(o.startTime, o.endTime, o.breakMinutes);
 
     shiftMeta[`${date}:${slot}`] = {
       orderId: o.id,

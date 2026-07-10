@@ -87,8 +87,8 @@ export function resolveNightWindow(
   };
 }
 
-// Break (minutes) assumed for billing — per-shift breaks are not persisted, so
-// pricing always uses the builder's default.
+// Fallback break (minutes) for callers without a persisted per-shift break
+// (orders store their own `breakMinutes` since 2026-07).
 export const DEFAULT_BREAK_MIN = 30;
 
 const toMin = (t: string) => {
@@ -208,6 +208,7 @@ export function requestNetTotal(
     shiftDate: Date;
     startTime: string;
     endTime: string;
+    breakMinutes?: number;
     quantity: number;
     requiredQualification: string;
   }[],
@@ -233,7 +234,7 @@ export function requestNetTotal(
       date,
       s.startTime,
       s.endTime,
-      DEFAULT_BREAK_MIN,
+      s.breakMinutes ?? DEFAULT_BREAK_MIN,
       isHoliday,
       night,
     );

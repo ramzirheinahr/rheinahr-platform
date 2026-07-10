@@ -125,6 +125,7 @@ export type GridJob = {
   facilityName: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number; // unpaid break (minutes)
   ward: string | null; // Wohnbereich/Station from Order.notes
   status: "pending" | "confirmed";
   clientConfirmed: boolean; // Leistungsnachweis signed
@@ -171,6 +172,7 @@ export type UnassignedShift = {
   facilityName: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number; // unpaid break (minutes)
   ward: string | null;
   remaining: number; // still-open headcount (quantity − non-declined assignments)
 };
@@ -240,9 +242,9 @@ export function masterScheduleCsv(
 
 export type GridOperation =
   | { type: "saveAvail"; workerId: string; date: string; letters: string }
-  | { type: "assign"; tempId: string; workerId: string; date: string; shift: ShiftKey; clientId: string; ward?: string; force?: boolean; startTime: string; endTime: string }
+  | { type: "assign"; tempId: string; workerId: string; date: string; shift: ShiftKey; clientId: string; ward?: string; force?: boolean; startTime: string; endTime: string; breakMinutes: number }
   | { type: "unassign"; assignmentId: string }
   | { type: "delete"; assignmentId: string }
-  | { type: "createOrder"; tempOrderId: string; clientId: string; date: string; shift: ShiftKey; qualification: string; ward?: string; quantity: number; startTime: string; endTime: string }
+  | { type: "createOrder"; tempOrderId: string; clientId: string; date: string; shift: ShiftKey; qualification: string; ward?: string; quantity: number; startTime: string; endTime: string; breakMinutes: number }
   | { type: "assignOrder"; orderId: string; workerId: string; force?: boolean }
   | { type: "deleteOpenOrder"; orderId: string };

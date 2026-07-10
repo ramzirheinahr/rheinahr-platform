@@ -298,6 +298,7 @@ model Order {
   shiftDate             DateTime      @map("shift_date") @db.Date
   startTime             String        @map("start_time") // "HH:mm"
   endTime               String        @map("end_time") // "HH:mm"
+  breakMinutes          Int           @default(30) @map("break_minutes") // unpaid break, subtracted from billable hours
   quantity              Int           @default(1)
   status                OrderStatus   @default(pending)
   notes                 String?

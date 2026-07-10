@@ -752,6 +752,7 @@ function OpenShiftEditor({
             facilityName: shift.facilityName,
             startTime: shift.startTime,
             endTime: shift.endTime,
+            breakMinutes: shift.breakMinutes,
             ward: shift.ward,
             status: "pending",
             clientConfirmed: false,
@@ -922,6 +923,7 @@ function NewOrderEditor({
   // Shift window, editable — the preset only pre-fills it.
   const [start, setStart] = useState<string>(SHIFT_PRESETS.early.start);
   const [end, setEnd] = useState<string>(SHIFT_PRESETS.early.end);
+  const [breakMin, setBreakMin] = useState(30);
   const [clientId, setClientId] = useState("");
   const [ward, setWard] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -949,7 +951,7 @@ function NewOrderEditor({
     const dayIndex = parseInt(date.split("-")[2], 10);
     
     addLocalOperation(
-      { type: "createOrder", tempOrderId, clientId, date, shift, qualification, ward: ward.trim() || undefined, quantity, startTime: start, endTime: end },
+      { type: "createOrder", tempOrderId, clientId, date, shift, qualification, ward: ward.trim() || undefined, quantity, startTime: start, endTime: end, breakMinutes: breakMin },
       (draft) => {
         draft.unassigned.push({
           orderId: tempOrderId,
@@ -959,6 +961,7 @@ function NewOrderEditor({
           facilityName: facility.name,
           startTime: start,
           endTime: end,
+          breakMinutes: breakMin,
           ward: ward.trim() || null,
           remaining: quantity
         });
@@ -1019,7 +1022,7 @@ function NewOrderEditor({
             title={t("quantity")}
           />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <label className="space-y-1 text-xs text-muted-foreground">
             {t("timeFrom")}
             <input
@@ -1035,6 +1038,18 @@ function NewOrderEditor({
               type="time"
               value={end}
               onChange={(e) => setEnd(e.target.value)}
+              className={field}
+            />
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            {oq("pause")}
+            <input
+              type="number"
+              min={0}
+              max={480}
+              step={5}
+              value={breakMin}
+              onChange={(e) => setBreakMin(Math.max(0, Number(e.target.value) || 0))}
               className={field}
             />
           </label>
@@ -1123,6 +1138,7 @@ function CellEditor({
   // Shift window, editable — the preset only pre-fills it.
   const [start, setStart] = useState<string>(SHIFT_PRESETS.early.start);
   const [end, setEnd] = useState<string>(SHIFT_PRESETS.early.end);
+  const [breakMin, setBreakMin] = useState(30);
   const [clientId, setClientId] = useState("");
   const [ward, setWard] = useState("");
   // Set when the server rejected the assignment as busy/unavailable; the admin
@@ -1139,7 +1155,7 @@ function CellEditor({
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     
     addLocalOperation(
-      { type: "assign", tempId, workerId: row.workerId, date, shift, clientId, ward: ward.trim() || undefined, force, startTime: start, endTime: end },
+      { type: "assign", tempId, workerId: row.workerId, date, shift, clientId, ward: ward.trim() || undefined, force, startTime: start, endTime: end, breakMinutes: breakMin },
       (draft) => {
         const r = draft.rows.find((x) => x.workerId === row.workerId);
         if (r) {
@@ -1152,6 +1168,7 @@ function CellEditor({
             facilityName: facility.name,
             startTime: start,
             endTime: end,
+            breakMinutes: breakMin,
             ward: ward.trim() || null,
             status: "pending",
             clientConfirmed: false,
@@ -1374,7 +1391,7 @@ function CellEditor({
                   <div className="flex justify-end border-t pt-1.5">
                     <ConfirmServiceDialog
                       assignmentId={j.assignmentId}
-                      scheduledHours={netShiftHours(j.startTime, j.endTime)}
+                      scheduledHours={netShiftHours(j.startTime, j.endTime, j.breakMinutes)}
                       scheduledStart={j.startTime}
                       scheduledEnd={j.endTime}
                     />
@@ -1445,7 +1462,7 @@ function CellEditor({
               className={field}
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <label className="space-y-1 text-xs text-muted-foreground">
               {t("timeFrom")}
               <input
@@ -1467,6 +1484,18 @@ function CellEditor({
                   setEnd(e.target.value);
                   setConflict(null);
                 }}
+                className={field}
+              />
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">
+              {oq("pause")}
+              <input
+                type="number"
+                min={0}
+                max={480}
+                step={5}
+                value={breakMin}
+                onChange={(e) => setBreakMin(Math.max(0, Number(e.target.value) || 0))}
                 className={field}
               />
             </label>

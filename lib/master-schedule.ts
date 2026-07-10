@@ -64,6 +64,7 @@ export async function getMasterSchedule(
                 shiftDate: true,
                 startTime: true,
                 endTime: true,
+                breakMinutes: true,
                 notes: true,
                 client: { select: { shortCode: true, facilityName: true } },
               },
@@ -103,6 +104,7 @@ export async function getMasterSchedule(
         shiftDate: true,
         startTime: true,
         endTime: true,
+        breakMinutes: true,
         quantity: true,
         notes: true,
         client: { select: { shortCode: true, facilityName: true } },
@@ -146,6 +148,7 @@ export async function getMasterSchedule(
         facilityName: a.order.client.facilityName,
         startTime: a.order.startTime,
         endTime: a.order.endTime,
+        breakMinutes: a.order.breakMinutes,
         ward: a.order.notes,
         status: a.status as "pending" | "confirmed",
         clientConfirmed: a.serviceConfirmation !== null,
@@ -177,7 +180,7 @@ export async function getMasterSchedule(
 
     let acceptedHours = w.assignments.reduce((sum, a) => {
       if (a.status === "confirmed" && !a.serviceConfirmation) {
-        return sum + netShiftHours(a.order.startTime, a.order.endTime);
+        return sum + netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes);
       }
       return sum;
     }, 0);
@@ -211,6 +214,7 @@ export async function getMasterSchedule(
       facilityName: o.client.facilityName,
       startTime: o.startTime,
       endTime: o.endTime,
+      breakMinutes: o.breakMinutes,
       ward: o.notes,
       remaining,
     });

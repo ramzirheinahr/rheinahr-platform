@@ -42,6 +42,7 @@ export type InitialRequest = {
     date: string;
     start: string;
     end: string;
+    pause: number;
     quantity: number;
     bereich: string;
   }[];
@@ -96,7 +97,7 @@ function fromInitial(shifts: InitialRequest["shifts"]) {
       type: matchPreset(s.start, s.end),
       start: s.start,
       end: s.end,
-      pause: 30,
+      pause: s.pause,
       quantity: s.quantity,
       bereich: s.bereich,
     };
@@ -410,6 +411,7 @@ export function OrderRequestBuilder({
         requiredQualification: qual,
         startTime: s.start,
         endTime: s.end,
+        pause: s.pause,
         quantity: s.quantity,
         bereich: s.bereich.trim() || undefined,
       })),

@@ -212,7 +212,13 @@ Re‑seed demo data anytime: `npm run db:seed:demo` (wipes non‑super_admin dat
   (null = whole day), unique `[workerId,date]` **dropped** (multiple blocks/day). Matcher
   uses **time overlap**.
 - `ServiceConfirmation.confirmedById` nullable + `onDelete: SetNull` (GDPR‑safe erasure).
-- Per‑shift **Pause/net hours are UI‑only** (not persisted); `Wohnbereich` stored in `Order.notes`.
+- Per‑shift **Pause is persisted** (2026‑07‑10): `Order.breakMinutes` (int, default 30,
+  `db push`ed). Set in the order builder (`pause` in `orderShiftSchema`) and in both
+  master‑grid dialogs (new‑order + assign, `GridOperation.breakMinutes`); a break‑only
+  edit is an in‑place update in `diffRequestShifts` (keeps assignments). All net‑hour /
+  pricing paths (`netShiftHours`, `requestNetTotal`, schedules, PDF preview, time‑change
+  approval) read the stored value — `DEFAULT_BREAK_MIN` is only a fallback.
+  `Wohnbereich` stored in `Order.notes`.
 - **Inbox schema** (2026‑07‑03, already `db push`ed — additive/safe): new
   `conversations` (`subject`, `assignment_id` unique‑nullable, `request_group_id`,
   `last_message_at`) + `conversation_participants` (`@@unique([conversationId,userId])`,

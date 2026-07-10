@@ -60,6 +60,7 @@ export type ExistingShift = {
   shiftDate: Date;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
   quantity: number;
   notes: string | null;
   requiredQualification: string;
@@ -70,6 +71,7 @@ export type IncomingShift = {
   requiredQualification: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
   quantity: number;
   notes: string | null;
 };
@@ -77,13 +79,13 @@ export type IncomingShift = {
 // Minimal-change diff between a request's persisted shifts and an edited
 // submission, so an edit only touches what actually changed: untouched shifts
 // keep their orders (and assignments/confirmations); a shift whose only change
-// is headcount or ward is updated in place; anything else is delete + create —
-// only the modified shift loses its assignments.
+// is headcount, break or ward is updated in place; anything else is delete +
+// create — only the modified shift loses its assignments.
 export function diffRequestShifts(
   existing: ExistingShift[],
   incoming: IncomingShift[],
 ): {
-  updates: { id: string; quantity: number; notes: string | null }[];
+  updates: { id: string; quantity: number; breakMinutes: number; notes: string | null }[];
   creates: IncomingShift[];
   deleteIds: string[];
 } {
@@ -93,7 +95,7 @@ export function diffRequestShifts(
     const i = remaining.findIndex(pred);
     return i < 0 ? undefined : remaining.splice(i, 1)[0];
   };
-  const updates: { id: string; quantity: number; notes: string | null }[] = [];
+  const updates: { id: string; quantity: number; breakMinutes: number; notes: string | null }[] = [];
   const creates: IncomingShift[] = [];
   for (const s of incoming) {
     const sameSlot = (e: ExistingShift) =>
@@ -101,12 +103,20 @@ export function diffRequestShifts(
       e.startTime === s.startTime &&
       e.endTime === s.endTime &&
       e.requiredQualification === s.requiredQualification;
-    if (take((e) => sameSlot(e) && e.quantity === s.quantity && (e.notes ?? null) === s.notes)) {
+    if (
+      take(
+        (e) =>
+          sameSlot(e) &&
+          e.quantity === s.quantity &&
+          e.breakMinutes === s.breakMinutes &&
+          (e.notes ?? null) === s.notes,
+      )
+    ) {
       continue; // identical — leave the order untouched
     }
     const near = take(sameSlot);
     if (near) {
-      updates.push({ id: near.id, quantity: s.quantity, notes: s.notes });
+      updates.push({ id: near.id, quantity: s.quantity, breakMinutes: s.breakMinutes, notes: s.notes });
       continue;
     }
     creates.push(s);

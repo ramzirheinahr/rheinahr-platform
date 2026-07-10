@@ -71,6 +71,7 @@ export async function updateOrderRequest(
       shiftDate: true,
       startTime: true,
       endTime: true,
+      breakMinutes: true,
       quantity: true,
       notes: true,
       requiredQualification: true,
@@ -90,6 +91,7 @@ export async function updateOrderRequest(
       requiredQualification: s.requiredQualification,
       startTime: s.startTime,
       endTime: s.endTime,
+      breakMinutes: s.pause,
       quantity: s.quantity,
       notes: s.bereich ?? notes ?? null,
     })),
@@ -104,7 +106,7 @@ export async function updateOrderRequest(
     ...updates.map((u) =>
       prisma.order.update({
         where: { id: u.id },
-        data: { quantity: u.quantity, notes: u.notes },
+        data: { quantity: u.quantity, breakMinutes: u.breakMinutes, notes: u.notes },
       }),
     ),
     ...(creates.length
@@ -117,6 +119,7 @@ export async function updateOrderRequest(
               shiftDate: new Date(`${s.date}T00:00:00.000Z`),
               startTime: s.startTime,
               endTime: s.endTime,
+              breakMinutes: s.breakMinutes,
               quantity: s.quantity,
               notes: s.notes,
               status: "pending" as const,
@@ -301,6 +304,7 @@ export async function createOrderRequest(
       shiftDate: new Date(`${s.date}T00:00:00.000Z`),
       startTime: s.startTime,
       endTime: s.endTime,
+      breakMinutes: s.pause,
       quantity: s.quantity,
       notes: s.bereich ?? notes ?? null, // per-shift Wohnbereich, else request note
       status: "pending" as const,
