@@ -586,11 +586,10 @@ function WorkerInfo({
     timeZone: "UTC",
   }).format(new Date(Date.UTC(year, month - 1, 1)));
 
-  // Office ledger: this month's soll − carryover balance (positive = credit
-  // from last month) − everything worked (confirmed + amber accepted).
-  // Positive remaining = the worker still owes hours.
+  // Positive remaining = credit for next month (worker provided more than needed).
+  // Negative remaining = deficit (worker owes hours).
   const worked = row.acceptedHours + row.confirmedHours;
-  const remaining = row.requiredHours - row.carryoverHours - worked;
+  const remaining = worked + row.carryoverHours - row.requiredHours;
   const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
 
   const counts: Record<JobState, number> = { pending: 0, accepted: 0, done: 0, signed: 0 };
@@ -651,8 +650,8 @@ function WorkerInfo({
           </div>
           <div className="flex justify-between gap-2 border-t pt-1">
             <span className="text-muted-foreground">{av("remainingHoursLabel")}</span>
-            <span className={cn("font-bold", remaining > 0 ? "text-rose-600" : "text-emerald-600")}>
-              {hoursFmt.format(remaining)}
+            <span className={cn("font-bold", remaining < 0 ? "text-rose-600" : "text-emerald-600")}>
+              {signed(remaining)}
             </span>
           </div>
         </div>

@@ -22,6 +22,7 @@ export type WorkerScheduleRow = {
   cancelNote: string | null;
   distanceKm?: number | null; // one-way distance to the facility
   travelCost?: number | null; // allowance for this shift (both ways)
+  mealAllowance?: number | null; // meal allowance for this shift
 };
 
 export type WorkerLeaveDay = {
@@ -50,7 +51,7 @@ export async function getWorkerMonthSchedule(
 ): Promise<{ rows: WorkerScheduleRow[]; leaveDays: WorkerLeaveDay[]; totals: WorkerScheduleTotals }> {
   const worker = await prisma.worker.findUnique({
     where: { id: workerId },
-    select: { requiredHours: true, carryoverHours: true, address: true, travelAllowanceEnabled: true, travelAllowancePerKm: true },
+    select: { requiredHours: true, carryoverHours: true, address: true, travelAllowanceEnabled: true, travelAllowancePerKm: true, mealAllowanceEnabled: true, mealAllowance: true },
   });
   
   const assignments = await prisma.assignment
@@ -108,14 +109,19 @@ export async function getWorkerMonthSchedule(
     assignments.map(async (a) => {
       let distanceKm: number | null = null;
       let travelCost: number | null = null;
+      let mealAllowance: number | null = null;
       
-      if (worker?.travelAllowanceEnabled && worker?.address && a.order.client.address) {
+      if (worker?.address && a.order.client.address) {
         distanceKm = await getDrivingDistanceKm(worker.address, a.order.client.address);
-        if (distanceKm != null) {
-          // German law: both ways * distance * rate
+        if (distanceKm != null && worker?.travelAllowanceEnabled) {
+          // Client request: one-way distance * rate
           const rate = worker.travelAllowancePerKm ?? 0.30;
-          travelCost = (distanceKm * 2) * rate;
+          travelCost = distanceKm * rate;
         }
+      }
+
+      if (worker?.mealAllowanceEnabled || a.addMealAllowance) {
+        mealAllowance = worker?.mealAllowance ?? 14.0;
       }
 
       return {
@@ -140,6 +146,7 @@ export async function getWorkerMonthSchedule(
         cancelNote: a.cancelNote,
         distanceKm,
         travelCost,
+        mealAllowance,
       };
     })
   );

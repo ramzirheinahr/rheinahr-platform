@@ -370,6 +370,9 @@ model Assignment {
   cancelRequested   Boolean          @default(false) @map("cancel_requested")
   cancelNote        String?          @map("cancel_note")
   cancelRequestedAt DateTime?        @map("cancel_requested_at")
+  // Exceptionally add meal allowance to this assignment even if the worker
+  // does not globally receive meal allowances.
+  addMealAllowance  Boolean          @default(false) @map("add_meal_allowance")
 
   order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)

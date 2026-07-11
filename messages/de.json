@@ -24,7 +24,9 @@
     "exportData": "Meine Daten exportieren",
     "view": "Ansehen",
     "expandMenu": "Menü einblenden",
-    "collapseMenu": "Menü einklappen"
+    "collapseMenu": "Menü einklappen",
+    "undo": "Rückgängig",
+    "redo": "Wiederholen"
   },
   "landing": {
     "nav": {
@@ -234,6 +236,7 @@
     "scheduleEmpty": "Keine Einsätze in diesem Monat.",
     "carryoverHours": "Übertrag (Stunden)",
     "carryoverHoursHint": "Stundensaldo aus Vormonaten: positiv = Guthaben (senkt das Monatssoll), negativ = Fehlstunden.",
+    "contractSection": "Vertragsdaten",
     "searchPlaceholder": "Pflegekraft suchen…",
     "noSearchMatch": "Keine Treffer."
   },

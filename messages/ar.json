@@ -24,7 +24,9 @@
     "exportData": "تصدير بياناتي",
     "view": "عرض",
     "expandMenu": "توسيع القائمة",
-    "collapseMenu": "طي القائمة"
+    "collapseMenu": "طي القائمة",
+    "undo": "تراجع",
+    "redo": "إعادة"
   },
   "landing": {
     "nav": {
@@ -234,6 +236,7 @@
     "scheduleEmpty": "لا توجد ورديات في هذا الشهر.",
     "carryoverHours": "الرصيد المُرحَّل (ساعات)",
     "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = رصيد فائض يُخصم من مطلوب هذا الشهر، سالب = عجز يُضاف إليه.",
+    "contractSection": "بيانات العقد",
     "searchPlaceholder": "ابحث عن كادر…",
     "noSearchMatch": "لا توجد نتائج."
   },

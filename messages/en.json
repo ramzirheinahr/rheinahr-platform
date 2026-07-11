@@ -24,7 +24,9 @@
     "exportData": "Export my data",
     "view": "View",
     "expandMenu": "Expand menu",
-    "collapseMenu": "Collapse menu"
+    "collapseMenu": "Collapse menu",
+    "undo": "Undo",
+    "redo": "Redo"
   },
   "landing": {
     "nav": {
@@ -234,6 +236,7 @@
     "scheduleEmpty": "No assignments in this month.",
     "carryoverHours": "Carryover (hours)",
     "carryoverHoursHint": "Hours balance from previous months: positive = credit (reduces this month's target), negative = deficit.",
+    "contractSection": "Contract data",
     "searchPlaceholder": "Search staff…",
     "noSearchMatch": "No matches."
   },

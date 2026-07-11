@@ -753,6 +753,50 @@ export async function approveTimeChange(input: {
   return { ok: true };
 }
 
+// Exceptionally toggle meal allowance for a specific assignment.
+export async function toggleAssignmentMealAllowance(
+  assignmentId: string,
+  addMealAllowance: boolean,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const { z } = await import("zod");
+  if (!z.string().uuid().safeParse(assignmentId).success) {
+    return { ok: false, error: "saveError" };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: { order: { select: { requestGroupId: true, id: true } } },
+  });
+
+  if (!assignment) return { ok: false, error: "saveError" };
+
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: { addMealAllowance },
+  });
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.toggleMealAllowance",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: { addMealAllowance },
+  });
+
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${reqGroup}`);
+  revalidatePath("/admin/schedule");
+  return { ok: true };
+}
+
 export async function rejectTimeChange(assignmentId: string): Promise<ActionState> {
   let admin;
   try {

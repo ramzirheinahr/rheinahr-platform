@@ -534,6 +534,7 @@ export function AvailabilityBuilder({
               <th className="p-2 text-start">{oq("bis")}</th>
               <th className="p-2 text-start">Fahrtstrecke</th>
               <th className="p-2 text-start">Fahrtkosten</th>
+              <th className="p-2 text-start">Verpflegung</th>
               <th className="p-2 text-end">{t("hoursHeader")}</th>
             </tr>
           </thead>
@@ -562,7 +563,7 @@ export function AvailabilityBuilder({
                             </div>
                           ) : null}
                         </td>
-                        <td className="p-2" colSpan={5}>
+                        <td className="p-2" colSpan={7}>
                           <div className="flex items-center gap-2">
                             {isPending ? (
                               <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-transparent">
@@ -680,6 +681,9 @@ export function AvailabilityBuilder({
                         <td className="p-2 whitespace-nowrap text-muted-foreground">
                           {a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}
                         </td>
+                        <td className="p-2 whitespace-nowrap text-muted-foreground">
+                          {a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}
+                        </td>
                         <td className="p-2 whitespace-nowrap text-end">
                           {a.confirmedHours != null ? (
                             <span className="font-semibold text-emerald-600">
@@ -753,14 +757,10 @@ export function AvailabilityBuilder({
                 </td>
                 <td className="whitespace-nowrap p-3 text-end align-middle">
                   {(() => {
-                    // Per the office's ledger: this month's soll, minus the
-                    // carryover balance from last month (positive = credit that
-                    // reduces the soll), minus everything worked — confirmed
-                    // (green) AND still-unconfirmed accepted (amber) alike.
-                    // Remaining is what's still owed, so it's POSITIVE while the
-                    // worker is short and ≤ 0 once the soll is met.
+                    // Positive remaining = credit for next month (worker provided more than needed).
+                    // Negative remaining = deficit (worker owes hours).
                     const worked = totals.acceptedHours + totals.hours;
-                    const remaining = (requiredHours ?? 0) - carryoverHours - worked;
+                    const remaining = worked + carryoverHours - (requiredHours ?? 0);
                     const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
                     return (
                       <div className="flex flex-col items-end gap-1">
@@ -795,8 +795,8 @@ export function AvailabilityBuilder({
                         {requiredHours !== undefined && (
                           <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
                             <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
-                            <span className={cn("font-bold", remaining > 0 ? "text-destructive" : "text-emerald-600")}>
-                              {hoursFmt.format(remaining)} {t("hoursUnit")}
+                            <span className={cn("font-bold", remaining < 0 ? "text-destructive" : "text-emerald-600")}>
+                              {signed(remaining)} {t("hoursUnit")}
                             </span>
                           </div>
                         )}
@@ -881,11 +881,21 @@ export function AvailabilityBuilder({
                         {a.notes ? (
                           <div className="mt-0.5 text-xs font-medium">{a.notes}</div>
                         ) : null}
-                        {(a.distanceKm != null || a.travelCost != null) ? (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : ""}
-                            {a.distanceKm != null && a.travelCost != null ? " • " : ""}
-                            {a.travelCost != null ? `${a.travelCost.toFixed(2)} € Fahrtkosten` : ""}
+                        {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null) ? (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                            {a.distanceKm != null || a.travelCost != null ? (
+                              <span>
+                                {a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : ""}
+                                {a.distanceKm != null && a.travelCost != null ? " • " : ""}
+                                {a.travelCost != null ? `${a.travelCost.toFixed(2)} € Fahrtkosten` : ""}
+                              </span>
+                            ) : null}
+                            {a.mealAllowance != null ? (
+                              <span>
+                                {a.distanceKm != null || a.travelCost != null ? " • " : ""}
+                                {a.mealAllowance.toFixed(2)} € Verpflegung
+                              </span>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
