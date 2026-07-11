@@ -14,6 +14,8 @@ import { useUndoStack } from "@/hooks/use-undo-stack";
 import { useWarnUnsaved } from "@/hooks/use-warn-unsaved";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { ShiftCancelControls } from "@/components/worker/shift-cancel-controls";
+import { ToggleMealAllowanceButton } from "@/components/orders/toggle-meal-allowance-button";
+import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +49,9 @@ export type Assignment = {
   cancelNote?: string | null;
   distanceKm?: number | null;
   travelCost?: number | null;
+  mealAllowance?: number | null;
+  addMealAllowance?: boolean;
+  bonusHours?: number;
 };
 
 export type InitialBlock = { date: string; startTime: string | null; endTime: string | null };
@@ -97,6 +102,7 @@ export function AvailabilityBuilder({
   leaveDays = [],
   requiredHours,
   carryoverHours = 0,
+  mealAllowanceEnabled,
 }: {
   year: number;
   month: number;
@@ -108,6 +114,7 @@ export function AvailabilityBuilder({
   requiredHours?: number;
   carryoverHours?: number;
   leaveDays?: { id: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
+  mealAllowanceEnabled?: boolean;
 }) {
   const t = useTranslations("availability");
   const oq = useTranslations("orderRequest");
@@ -140,7 +147,7 @@ export function AvailabilityBuilder({
         confirmed.reduce((sum, a) => sum + (a.confirmedHours ?? 0), 0) +
         leaves.reduce((sum, l) => sum + (l.hours ?? 0), 0),
       shifts: confirmed.length,
-      acceptedHours: accepted.reduce((sum, a) => sum + (a.scheduledHours ?? 0), 0),
+      acceptedHours: accepted.reduce((sum, a) => sum + (a.scheduledHours ?? 0) + (a.bonusHours ?? 0), 0),
       acceptedShifts: accepted.length,
     };
   }, [assignments, leaveDays]);
@@ -534,7 +541,8 @@ export function AvailabilityBuilder({
               <th className="p-2 text-start">{oq("bis")}</th>
               <th className="p-2 text-start">Fahrtstrecke</th>
               <th className="p-2 text-start">Fahrtkosten</th>
-              <th className="p-2 text-start">Verpflegung</th>
+              {!mealAllowanceEnabled && <th className="p-2 text-start">Verpflegung</th>}
+              <th className="p-2 text-start">Bonus Std.</th>
               <th className="p-2 text-end">{t("hoursHeader")}</th>
             </tr>
           </thead>
@@ -563,7 +571,7 @@ export function AvailabilityBuilder({
                             </div>
                           ) : null}
                         </td>
-                        <td className="p-2" colSpan={7}>
+                        <td className="p-2" colSpan={mealAllowanceEnabled ? 8 : 9}>
                           <div className="flex items-center gap-2">
                             {isPending ? (
                               <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-transparent">
@@ -681,8 +689,24 @@ export function AvailabilityBuilder({
                         <td className="p-2 whitespace-nowrap text-muted-foreground">
                           {a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}
                         </td>
+                        {!mealAllowanceEnabled && (
+                          <td className="p-2 whitespace-nowrap text-muted-foreground">
+                            {workerId ? (
+                              <div className="flex items-center gap-1.5">
+                                <span>{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
+                                <ToggleMealAllowanceButton assignmentId={a.id} addMealAllowance={a.addMealAllowance} />
+                              </div>
+                            ) : (
+                              a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"
+                            )}
+                          </td>
+                        )}
                         <td className="p-2 whitespace-nowrap text-muted-foreground">
-                          {a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}
+                          {workerId ? (
+                            <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
+                          ) : (
+                            a.bonusHours ? `+${a.bonusHours} Std.` : "—"
+                          )}
                         </td>
                         <td className="p-2 whitespace-nowrap text-end">
                           {a.confirmedHours != null ? (
@@ -746,7 +770,7 @@ export function AvailabilityBuilder({
           {totals.shifts > 0 || totals.acceptedHours > 0 || requiredHours !== undefined ? (
             <tfoot>
               <tr className="border-t-2 bg-emerald-500/10">
-                <td colSpan={6} className="p-3">
+                <td colSpan={mealAllowanceEnabled ? 9 : 10} className="p-3">
                   <div className="flex items-center gap-2 font-semibold">
                     <Clock className="size-4 text-emerald-600" />
                     {t("monthTotal")}
@@ -881,7 +905,7 @@ export function AvailabilityBuilder({
                         {a.notes ? (
                           <div className="mt-0.5 text-xs font-medium">{a.notes}</div>
                         ) : null}
-                        {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null) ? (
+                        {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null || a.bonusHours || workerId) ? (
                           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                             {a.distanceKm != null || a.travelCost != null ? (
                               <span>
@@ -890,10 +914,24 @@ export function AvailabilityBuilder({
                                 {a.travelCost != null ? `${a.travelCost.toFixed(2)} € Fahrtkosten` : ""}
                               </span>
                             ) : null}
-                            {a.mealAllowance != null ? (
-                              <span>
-                                {a.distanceKm != null || a.travelCost != null ? " • " : ""}
-                                {a.mealAllowance.toFixed(2)} € Verpflegung
+                            {!mealAllowanceEnabled && (a.mealAllowance != null || workerId) ? (
+                              <span className="flex items-center gap-1">
+                                {(a.distanceKm != null || a.travelCost != null) && !workerId ? " • " : ""}
+                                {a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} € Verpflegung` : "Keine Verpflegung"}
+                                {workerId && <ToggleMealAllowanceButton assignmentId={a.id} addMealAllowance={a.addMealAllowance} />}
+                              </span>
+                            ) : null}
+                            {a.bonusHours || workerId ? (
+                              <span className="flex items-center gap-1">
+                                {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null) && !workerId ? " • " : ""}
+                                {workerId ? (
+                                  <>
+                                    <span>Bonus Std:</span>
+                                    <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
+                                  </>
+                                ) : (
+                                  `+${a.bonusHours} Std. Bonus`
+                                )}
                               </span>
                             ) : null}
                           </div>

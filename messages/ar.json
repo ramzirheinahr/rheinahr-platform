@@ -354,7 +354,8 @@
     "cancelInvitation": "إلغاء الدعوة",
     "cancelInvitationConfirm": "هل تريد فعلاً إلغاء دعوة الوردية لـ {name}؟ ستُعاد الوردية إلى المتاح.",
     "invitationCancelled": "تم إلغاء الدعوة.",
-    "cannotRemoveSigned": "لا يمكن إزالة الورديات الموقّعة."
+    "cannotRemoveSigned": "لا يمكن إزالة الورديات الموقّعة.",
+    "searchPlaceholder": "البحث عن الطلبات…"
   },
   "orderRequest": {
     "prev": "السابق",

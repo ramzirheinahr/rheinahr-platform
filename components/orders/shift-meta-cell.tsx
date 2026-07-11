@@ -22,6 +22,7 @@ import { RemoveAssignmentButton } from "@/components/admin/remove-assignment-but
 import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
 import { useAssignSelection } from "@/components/orders/assign-selection";
 import { ToggleMealAllowanceButton } from "@/components/orders/toggle-meal-allowance-button";
+import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, MessageSquare, Users, UserRound } from "lucide-react";
 import type { AssignmentStatus, OrderStatus } from "@prisma/client";
@@ -46,6 +47,7 @@ export type ShiftMeta = {
     hours?: number | null;
     hasConfirmation?: boolean;
     addMealAllowance?: boolean;
+    bonusHours?: number;
     // Admin proposed corrected hours awaiting the client's re-confirmation.
     correctionHours?: number | null;
     worker?: {
@@ -265,6 +267,10 @@ export function ShiftMetaCell({
                           />
                         ))}
                       <ToggleMealAllowanceButton assignmentId={a.id} addMealAllowance={a.addMealAllowance} />
+                      <div className="flex items-center gap-1.5" title="Bonusstunden (nur für Mitarbeiter)">
+                        <span className="text-xs text-muted-foreground">Bonus:</span>
+                        <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"

@@ -772,7 +772,10 @@ export async function toggleAssignmentMealAllowance(
 
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
-    select: { order: { select: { requestGroupId: true, id: true } } },
+    select: {
+      workerId: true,
+      order: { select: { requestGroupId: true, id: true } },
+    },
   });
 
   if (!assignment) return { ok: false, error: "saveError" };
@@ -794,6 +797,61 @@ export async function toggleAssignmentMealAllowance(
   revalidatePath("/admin/orders");
   revalidatePath(`/admin/orders/${reqGroup}`);
   revalidatePath("/admin/schedule");
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+  revalidatePath("/worker");
+  return { ok: true };
+}
+
+// Exceptionally update bonus hours for a specific assignment.
+export async function updateAssignmentBonusHours(
+  assignmentId: string,
+  bonusHours: number,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const { z } = await import("zod");
+  if (!z.string().uuid().safeParse(assignmentId).success) {
+    return { ok: false, error: "saveError" };
+  }
+
+  if (typeof bonusHours !== "number" || isNaN(bonusHours) || bonusHours < 0) {
+    return { ok: false, error: "saveError" };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      workerId: true,
+      order: { select: { requestGroupId: true, id: true } },
+    },
+  });
+
+  if (!assignment) return { ok: false, error: "saveError" };
+
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: { bonusHours },
+  });
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.updateBonusHours",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: { bonusHours },
+  });
+
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${reqGroup}`);
+  revalidatePath("/admin/schedule");
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+  revalidatePath("/worker");
   return { ok: true };
 }
 

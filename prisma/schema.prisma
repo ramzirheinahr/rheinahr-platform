@@ -373,6 +373,8 @@ model Assignment {
   // Exceptionally add meal allowance to this assignment even if the worker
   // does not globally receive meal allowances.
   addMealAllowance  Boolean          @default(false) @map("add_meal_allowance")
+  // Bonus hours added exceptionally to this assignment (only paid to worker, not billed to client)
+  bonusHours        Float            @default(0) @map("bonus_hours")
 
   order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   worker              Worker               @relation(fields: [workerId], references: [id], onDelete: Cascade)

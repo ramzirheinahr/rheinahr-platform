@@ -58,6 +58,7 @@ export async function getMasterSchedule(
             status: true,
             cancelRequested: true,
             cancelNote: true,
+            bonusHours: true,
             order: {
               select: {
                 id: true,
@@ -173,14 +174,14 @@ export async function getMasterSchedule(
 
     let confirmedHours = w.assignments.reduce((sum, a) => {
       if (a.serviceConfirmation?.hoursWorked) {
-        return sum + Number(a.serviceConfirmation.hoursWorked);
+        return sum + Number(a.serviceConfirmation.hoursWorked) + (a.bonusHours ?? 0);
       }
       return sum;
     }, 0);
 
     const acceptedHours = w.assignments.reduce((sum, a) => {
       if (a.status === "confirmed" && !a.serviceConfirmation) {
-        return sum + netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes);
+        return sum + netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes) + (a.bonusHours ?? 0);
       }
       return sum;
     }, 0);

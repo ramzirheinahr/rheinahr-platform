@@ -13,6 +13,13 @@ export const HOURLY_RATES: Record<Qualification, number> = {
   pflegedienstleitung: 64.9,
 };
 
+export const WORKER_HOURLY_RATES: Record<Qualification, number> = {
+  pflegefachkraft: 28.00,
+  pflegehelfer: 17.00,
+  betreuungskraft: 19.00,
+  pflegedienstleitung: 32.00,
+};
+
 export type Rates = Record<Qualification, number>;
 export const DEFAULT_RATES: Rates = HOURLY_RATES;
 
@@ -24,6 +31,19 @@ export function resolveRates(o?: { hourlyRates?: unknown } | null): Rates {
       ? (o.hourlyRates as Record<string, unknown>)
       : {};
   const out = { ...HOURLY_RATES };
+  for (const q of qualifications) {
+    const v = override[q];
+    if (typeof v === "number" && v >= 0) out[q] = v;
+  }
+  return out;
+}
+
+export function resolveWorkerRates(o?: { hourlyRates?: unknown } | null): Rates {
+  const override =
+    o && typeof o.hourlyRates === "object" && o.hourlyRates !== null
+      ? (o.hourlyRates as Record<string, unknown>)
+      : {};
+  const out = { ...WORKER_HOURLY_RATES };
   for (const q of qualifications) {
     const v = override[q];
     if (typeof v === "number" && v >= 0) out[q] = v;

@@ -355,7 +355,7 @@
     "cancelInvitationConfirm": "Einsatz-Einladung für {name} wirklich zurückziehen? Die Schicht wird wieder freigegeben.",
     "invitationCancelled": "Einladung zurückgezogen.",
     "cannotRemoveSigned": "Bereits unterschriebene Einsätze können nicht entfernt werden.",
-    "searchPlaceholder": "Einrichtung suchen…"
+    "searchPlaceholder": "Anfragen durchsuchen…"
   },
   "orderRequest": {
     "prev": "Zurück",

@@ -8,7 +8,7 @@ import {
 import { AvailabilityBuilder } from "@/components/worker/availability-builder";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Download } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ export default async function AdminWorkerSchedulePage({
   const c = await getTranslations("common");
 
   const worker = await prisma.worker
-    .findUnique({ where: { id }, select: { id: true, fullName: true } })
+    .findUnique({ where: { id }, select: { id: true, fullName: true, mealAllowanceEnabled: true } })
     .catch(() => null);
   if (!worker) notFound();
 
@@ -82,7 +82,18 @@ export default async function AdminWorkerSchedulePage({
           <ChevronLeft className="size-4 rtl:rotate-180" />
           {av("prevMonth")}
         </Button>
-        <span className="font-semibold">{monthLabel}</span>
+        <div className="flex items-center gap-4">
+          <span className="font-semibold">{monthLabel}</span>
+          <a
+            href={`${base}/export?year=${year}&month=${month}`}
+            className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Download className="size-3" />
+            Abrechnung exportieren
+          </a>
+        </div>
         <Button
           variant="ghost"
           size="sm"
@@ -119,10 +130,14 @@ export default async function AdminWorkerSchedulePage({
             cancelNote: a.cancelNote,
             distanceKm: a.distanceKm,
             travelCost: a.travelCost,
+            mealAllowance: a.mealAllowance,
+            addMealAllowance: a.addMealAllowance,
+            bonusHours: a.bonusHours,
           }))}
           requiredHours={totals.requiredHours}
           carryoverHours={totals.carryoverHours}
           leaveDays={leaveDays}
+          mealAllowanceEnabled={worker.mealAllowanceEnabled}
         />
       </section>
     </div>

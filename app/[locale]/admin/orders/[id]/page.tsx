@@ -119,6 +119,7 @@ export default async function AdminRequestDetail({
           : null,
         hasConfirmation: !!a.serviceConfirmation,
         addMealAllowance: a.addMealAllowance,
+        bonusHours: a.bonusHours,
         correctionHours:
           a.serviceConfirmation?.correctionHours != null
             ? Number(a.serviceConfirmation.correctionHours)

@@ -23,6 +23,8 @@ export type WorkerScheduleRow = {
   distanceKm?: number | null; // one-way distance to the facility
   travelCost?: number | null; // allowance for this shift (both ways)
   mealAllowance?: number | null; // meal allowance for this shift
+  addMealAllowance?: boolean; // exceptionally added meal allowance
+  bonusHours?: number; // bonus hours for this shift
 };
 
 export type WorkerLeaveDay = {
@@ -140,13 +142,15 @@ export async function getWorkerMonthSchedule(
         ),
         confirmedHours:
           a.serviceConfirmation?.hoursWorked != null
-            ? Number(a.serviceConfirmation.hoursWorked)
+            ? Number(a.serviceConfirmation.hoursWorked) + (a.bonusHours ?? 0)
             : null,
         cancelRequested: a.cancelRequested,
         cancelNote: a.cancelNote,
         distanceKm,
         travelCost,
         mealAllowance,
+        addMealAllowance: a.addMealAllowance,
+        bonusHours: a.bonusHours,
       };
     })
   );
