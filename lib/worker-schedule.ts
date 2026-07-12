@@ -16,6 +16,7 @@ export type WorkerScheduleRow = {
   notes: string | null;
   facilityName: string;
   address: string | null;
+  breakMinutes: number; // added to pass to payroll for surcharge split
   scheduledHours: number; // planned net hours (break deducted)
   confirmedHours: number | null; // client-confirmed net hours, null until signed
   cancelRequested: boolean; // worker asked the office to be taken off this shift
@@ -137,10 +138,11 @@ export async function getWorkerMonthSchedule(
         notes: a.order.notes,
         facilityName: a.order.client.facilityName,
         address: a.order.client.address,
+        breakMinutes: a.order.breakMinutes ?? 30,
         scheduledHours: netShiftHours(
           a.order.startTime,
           a.order.endTime,
-          a.order.breakMinutes || 30,
+          a.order.breakMinutes ?? 30,
         ),
         confirmedHours:
           a.serviceConfirmation?.hoursWorked != null

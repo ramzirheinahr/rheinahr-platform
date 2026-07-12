@@ -115,6 +115,7 @@ export default async function AdminOrdersPage() {
       shiftsCount: g.shifts.length,
       netLabel: fmtEur(total),
       status: first.status,
+      qualification: first.requiredQualification,
       cancelled: g.shifts.every((s) => s.status === "cancelled"),
     };
   });

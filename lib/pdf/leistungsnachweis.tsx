@@ -129,7 +129,7 @@ function LeistungsnachweisDocument({ d }: { d: LeistungsnachweisData }) {
         ) : null}
 
         <Field label="Einrichtung" value={d.facilityName} />
-        <Field label="Fachkraft" value={d.workerName} />
+        <Field label="Mitarbeiter" value={d.workerName} />
         <Field label="Qualifikation" value={d.qualificationLabel} />
         <Field label="Datum" value={d.shiftDate} />
         <Field label="Schicht" value={`${d.startTime} – ${d.endTime}`} />

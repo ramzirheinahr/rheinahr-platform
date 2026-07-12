@@ -203,7 +203,7 @@ export function ShiftMetaCell({
           {active}/{meta.quantity}
         </span>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="h-[100dvh] max-h-[100dvh] w-full !max-w-none border-0 rounded-none p-4 pt-10 sm:h-auto sm:max-h-[85vh] sm:!max-w-4xl sm:rounded-xl sm:border sm:p-6 sm:pt-6 overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{meta.label}</DialogTitle>
         </DialogHeader>
@@ -303,42 +303,44 @@ export function ShiftMetaCell({
             </div>
           ) : null}
 
-          <div>
-            <h3 className="mb-2 text-sm font-semibold">{t("eligibleWorkers")}</h3>
-            {candidates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("noEligible")}</p>
-            ) : (
-              <ul className="divide-y rounded-md border">
-                {candidates.map((cand) => (
-                  <li
-                    key={cand.workerId}
-                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
-                  >
-                    <div>
-                      <div className="text-sm font-medium">{cand.fullName}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {cand.email}
-                        {cand.status === "busy" && cand.conflictTimes.length
-                          ? ` · ${cand.conflictTimes.join(", ")}`
-                          : ""}
+          {!["completed", "confirmed", "cancelled"].includes(meta.status) && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold">{t("eligibleWorkers")}</h3>
+              {candidates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t("noEligible")}</p>
+              ) : (
+                <ul className="divide-y rounded-md border">
+                  {candidates.map((cand) => (
+                    <li
+                      key={cand.workerId}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                    >
+                      <div>
+                        <div className="text-sm font-medium">{cand.fullName}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {cand.email}
+                          {cand.status === "busy" && cand.conflictTimes.length
+                            ? ` · ${cand.conflictTimes.join(", ")}`
+                            : ""}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={cn("text-xs font-medium", candColor[cand.status])}
-                      >
-                        {wLabel[cand.status]}
-                      </span>
-                      <AssignWorkerButton
-                        orderId={meta.orderId}
-                        workerId={cand.workerId}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn("text-xs font-medium", candColor[cand.status])}
+                        >
+                          {wLabel[cand.status]}
+                        </span>
+                        <AssignWorkerButton
+                          orderId={meta.orderId}
+                          workerId={cand.workerId}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
       </Dialog>

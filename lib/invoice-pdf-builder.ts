@@ -43,7 +43,7 @@ export function buildInvoicePdfData(
     group.assignments.push(a);
 
     const shiftDateStr = a.order.shiftDate.toISOString().slice(0, 10);
-    const split = shiftSurchargeHours(shiftDateStr, a.order.startTime, a.order.endTime, a.order.breakMinutes || 30, isHoliday, nightWindow);
+    const split = shiftSurchargeHours(shiftDateStr, a.order.startTime, a.order.endTime, a.order.breakMinutes ?? 30, isHoliday, nightWindow);
     
     for (const chunk of split.values()) {
       group.baseHours += chunk.hours;

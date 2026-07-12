@@ -15,7 +15,6 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   token: z.string().min(10).max(256),
-  pin: z.string().regex(/^\d{6}$/),
 });
 
 // Uniform response so a wrong PIN can't be told apart from an unknown token.
@@ -29,7 +28,7 @@ export async function POST(req: NextRequest) {
   const json = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return invalid();
-  const { token, pin } = parsed.data;
+  const { token } = parsed.data;
 
   const user = await prisma.user.findUnique({
     where: { loginToken: token },
@@ -38,43 +37,9 @@ export async function POST(req: NextRequest) {
       email: true,
       role: true,
       active: true,
-      loginPinHash: true,
-      loginPinAttempts: true,
-      loginPinLockUntil: true,
     },
   });
-  if (!user || !user.active || !user.loginPinHash) return invalid();
-
-  // Temporary lockout after too many wrong PINs (brute-force protection).
-  if (user.loginPinLockUntil && user.loginPinLockUntil > new Date()) {
-    return NextResponse.json({ ok: false, error: "locked" }, { status: 429 });
-  }
-
-  const match = await bcrypt.compare(pin, user.loginPinHash);
-  if (!match) {
-    const attempts = user.loginPinAttempts + 1;
-    const locking = attempts >= PIN_MAX_ATTEMPTS;
-    await prisma.user.update({
-      where: { id: user.id },
-      data: locking
-        ? {
-            loginPinAttempts: 0,
-            loginPinLockUntil: new Date(Date.now() + PIN_LOCK_MINUTES * 60_000),
-          }
-        : { loginPinAttempts: attempts },
-    });
-    await audit({
-      userId: user.id,
-      action: "access.pin.fail",
-      entity: "User",
-      entityId: user.id,
-      ipAddress: ip,
-      metadata: { locked: locking },
-    });
-    return locking
-      ? NextResponse.json({ ok: false, error: "locked" }, { status: 429 })
-      : invalid();
-  }
+  if (!user || !user.active) return invalid();
 
   // Correct PIN — mint session tokens and hand them to the browser, which stores
   // them via supabase.auth.setSession() exactly like the email login does. We do
@@ -104,10 +69,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "session" }, { status: 500 });
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { loginPinAttempts: 0, loginPinLockUntil: null },
-  });
+  // No need to reset pin attempts anymore
   await audit({
     userId: user.id,
     action: "access.pin.success",

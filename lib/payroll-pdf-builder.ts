@@ -57,10 +57,9 @@ export function buildPayrollPdfData(
       totalMealAllowance += a.mealAllowance;
     }
 
-    // Default break minutes logic since we don't have order.breakMinutes here 
-    // Wait, let's just use 30 as a fallback or assume 0 for night calculations?
-    // Invoicing does this: `a.order.breakMinutes || 30`
-    const breakMinutes = 30; // 30 is default
+    // But wait, do we have breakMinutes in the query?
+    // Let's check `lib/payroll-pdf-builder.ts`
+    const breakMinutes = a.breakMinutes;
     const split = shiftSurchargeHours(a.date, a.startTime, a.endTime, breakMinutes, isHoliday, nightWindow);
     
     for (const chunk of split.values()) {

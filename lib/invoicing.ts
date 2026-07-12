@@ -94,7 +94,7 @@ export function toCsv(rows: InvoiceRow[]): string {
   const headers = [
     "Datum",
     "Einrichtung",
-    "Fachkraft",
+    "Mitarbeiter",
     "Qualifikation",
     "Beginn",
     "Ende",

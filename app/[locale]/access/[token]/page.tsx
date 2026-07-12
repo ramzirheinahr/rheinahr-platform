@@ -58,7 +58,7 @@ export default async function AccessPage({
                   ? t("welcome", { name: account!.fullName })
                   : t("welcomeGeneric")}
               </CardTitle>
-              <CardDescription>{t("enterPin")}</CardDescription>
+              <CardDescription>{t("clickToLogin") || "Click the button below to securely sign in."}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <PinLoginForm token={token} />

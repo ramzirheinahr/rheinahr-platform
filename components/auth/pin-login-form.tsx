@@ -16,18 +16,16 @@ export function PinLoginForm({ token }: { token: string }) {
   const t = useTranslations("access");
   const c = useTranslations("common");
   const locale = useLocale();
-  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (pin.length !== 6 || loading) return;
+  async function onLogin() {
+    if (loading) return;
     setLoading(true);
     try {
       const res = await fetch("/api/access/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, pin }),
+        body: JSON.stringify({ token }),
       });
       const data = (await res.json().catch(() => null)) as
         | {
@@ -46,7 +44,7 @@ export function PinLoginForm({ token }: { token: string }) {
         const { data: check } = await supabase.auth.getSession();
         if (error || !check.session) {
           toast.error(c("error"));
-          setPin("");
+          setLoading(false);
           return;
         }
         // Full page load so the server receives the freshly written session cookie
@@ -54,41 +52,19 @@ export function PinLoginForm({ token }: { token: string }) {
         window.location.assign(`/${locale}${data.redirect}`);
         return;
       }
-      if (res.status === 429 || data?.error === "locked") {
-        toast.error(t("locked"));
-      } else {
-        toast.error(t("wrongPin"));
-      }
-      setPin("");
+      toast.error(c("error"));
+      setLoading(false);
     } catch {
       toast.error(c("error"));
-    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="pin">{t("pinLabel")}</Label>
-        <Input
-          id="pin"
-          name="pin"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="\d{6}"
-          maxLength={6}
-          autoFocus
-          required
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          className="text-center text-2xl tracking-[0.6em]"
-          placeholder="••••••"
-        />
-      </div>
-      <Button type="submit" className="w-full" disabled={loading || pin.length !== 6}>
+    <div className="space-y-4">
+      <Button onClick={onLogin} className="w-full" size="lg" disabled={loading}>
         {loading ? c("loading") : t("submit")}
       </Button>
-    </form>
+    </div>
   );
 }

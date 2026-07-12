@@ -307,7 +307,7 @@ export function AvailabilityBuilder({
     return (
       <>
         <td className="p-1">
-          <select value={b.type} onChange={(e) => onType(date, slot, e.target.value as BType)} className={cn(field, "min-w-28")}>
+          <select value={b.type} onChange={(e) => onType(date, slot, e.target.value as BType)} className={cn(field, "min-w-[90px]")}>
             <option value="none">{oq("presetNone")}</option>
             <option value="full">{t("fullDay")}</option>
             <option value="early">{oq("preset_early")}</option>
@@ -323,7 +323,7 @@ export function AvailabilityBuilder({
             disabled={!timed}
             defaultValue={b.start}
             onChange={(e) => set(date, slot, { start: e.target.value })}
-            className={cn(field, "min-w-24")}
+            className={cn(field, "min-w-[80px]")}
           />
         </td>
         <td className="p-1">
@@ -333,7 +333,7 @@ export function AvailabilityBuilder({
             disabled={!timed}
             defaultValue={b.end}
             onChange={(e) => set(date, slot, { end: e.target.value })}
-            className={cn(field, "min-w-24")}
+            className={cn(field, "min-w-[80px]")}
           />
         </td>
       </>
@@ -539,14 +539,14 @@ export function AvailabilityBuilder({
             <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
               <th className="p-2 text-start whitespace-nowrap w-1">Datum</th>
               <th className="p-2 text-start w-full">Einsatz</th>
-              <th className="p-2 text-start whitespace-nowrap">{oq("ward")}</th>
-              <th className="p-2 text-start whitespace-nowrap w-1">Status</th>
+              <th className="p-2 text-start">{oq("ward")}</th>
+              <th className="p-2 text-start w-1">Status</th>
               <th className="p-2 text-start whitespace-nowrap w-1">{oq("von")}</th>
               <th className="p-2 text-start whitespace-nowrap w-1">{oq("bis")}</th>
-              <th className="p-2 text-start whitespace-nowrap w-1">Fahrt</th>
-              <th className="p-2 text-start whitespace-nowrap w-1">Verpf.</th>
-              <th className="p-2 text-start whitespace-nowrap w-1">Bonus</th>
-              <th className="p-2 text-end whitespace-nowrap w-1">{t("hoursHeader")}</th>
+              <th className="p-2 text-start w-1">Fahrt</th>
+              <th className="p-2 text-start w-1">Verpf.</th>
+              <th className="p-2 text-start w-1">Bonus</th>
+              <th className="p-2 text-end w-1">{t("hoursHeader")}</th>
             </tr>
           </thead>
           <tbody>
@@ -683,10 +683,10 @@ export function AvailabilityBuilder({
                         <td className="p-2 whitespace-nowrap font-medium text-primary">
                           {a.startTime}
                         </td>
-                        <td className="p-2 whitespace-nowrap font-medium text-primary">
+                        <td className="p-2 font-medium text-primary">
                           {a.endTime}
                         </td>
-                        <td className="p-2 whitespace-nowrap text-muted-foreground">
+                        <td className="p-2 text-muted-foreground">
                           {workerId ? (
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1.5 justify-between">
@@ -702,7 +702,7 @@ export function AvailabilityBuilder({
                             </div>
                           )}
                         </td>
-                        <td className="p-2 whitespace-nowrap text-muted-foreground">
+                        <td className="p-2 text-muted-foreground">
                           {workerId ? (
                             <div className="flex items-center gap-1.5 justify-between">
                               <span>{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
@@ -717,14 +717,14 @@ export function AvailabilityBuilder({
                             a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"
                           )}
                         </td>
-                        <td className="p-2 whitespace-nowrap text-muted-foreground">
+                        <td className="p-2 text-muted-foreground">
                           {workerId ? (
                             <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
                           ) : (
                             a.bonusHours ? `+${a.bonusHours} Std.` : "—"
                           )}
                         </td>
-                        <td className="p-2 whitespace-nowrap text-end">
+                        <td className="p-2 text-end">
                           {a.confirmedHours != null ? (
                             <span className="font-semibold text-emerald-600">
                               {hoursFmt.format(a.confirmedHours)} {t("hoursUnit")}

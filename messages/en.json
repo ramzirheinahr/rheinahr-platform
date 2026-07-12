@@ -132,7 +132,7 @@
   "access": {
     "welcome": "Welcome, {name}",
     "welcomeGeneric": "Welcome",
-    "enterPin": "Enter your 6-digit PIN to sign in.",
+    "clickToLogin": "Click the button below to securely sign in.",
     "pinLabel": "PIN",
     "submit": "Sign in",
     "wrongPin": "Wrong PIN. Please try again.",
@@ -376,7 +376,7 @@
     "shift1": "Shift 1",
     "shift2": "Shift 2",
     "shift3": "Shift 3",
-    "ward": "Ward/Station/Floor",
+    "ward": "Ward",
     "von": "Start",
     "bis": "End",
     "pause": "Break (min)",
@@ -522,7 +522,7 @@
       "accepted": "Accepted (worker)",
       "in_progress": "In progress",
       "completed": "Completed",
-      "confirmed": "Service confirmed",
+      "confirmed": "Service confirmed (client)",
       "cancelled": "Cancelled"
     },
     "assignmentStatus": {

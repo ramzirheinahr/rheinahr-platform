@@ -16,6 +16,7 @@ export type OrderGroupSummary = {
   shiftsCount: number;
   netLabel: string;
   status: OrderStatus;
+  qualification: string;
   cancelled: boolean;
 };
 
@@ -46,6 +47,7 @@ export function OrdersList({
 }) {
   const t = useTranslations("orders");
   const es = useTranslations("enums.orderStatus");
+  const eq = useTranslations("enums.qualification");
   const [selected, setSelected] = useState<Set<OrderStatus>>(new Set());
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -196,8 +198,11 @@ export function OrdersList({
               )}
             >
               <div>
-                <div className={cn("font-medium", g.cancelled && "text-destructive line-through")}>
+                <div className={cn("font-medium flex items-center gap-2", g.cancelled && "text-destructive line-through")}>
                   {g.facilityName}
+                  <span className="text-xs font-normal text-muted-foreground border rounded-full px-2 py-0.5 bg-background">
+                    {eq(g.qualification)}
+                  </span>
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {g.range} · {g.shiftsCount} {t("shiftsCount")} · {g.netLabel} {t("net")}
