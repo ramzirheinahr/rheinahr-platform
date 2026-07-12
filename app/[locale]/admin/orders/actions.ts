@@ -802,6 +802,94 @@ export async function toggleAssignmentMealAllowance(
   return { ok: true };
 }
 
+// Exceptionally exclude meal allowance for a specific assignment.
+export async function toggleExcludeMealAllowance(
+  assignmentId: string,
+  excludeMealAllowance: boolean,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      workerId: true,
+      order: { select: { requestGroupId: true, id: true } },
+    },
+  });
+
+  if (!assignment) return { ok: false, error: "saveError" };
+
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: { excludeMealAllowance },
+  });
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.toggleExcludeMealAllowance",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: { excludeMealAllowance },
+  });
+
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${reqGroup}`);
+  revalidatePath("/admin/schedule");
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+  revalidatePath("/worker");
+  return { ok: true };
+}
+
+// Exceptionally exclude travel allowance for a specific assignment.
+export async function toggleExcludeTravelAllowance(
+  assignmentId: string,
+  excludeTravelAllowance: boolean,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      workerId: true,
+      order: { select: { requestGroupId: true, id: true } },
+    },
+  });
+
+  if (!assignment) return { ok: false, error: "saveError" };
+
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: { excludeTravelAllowance },
+  });
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.toggleExcludeTravelAllowance",
+    entity: "Assignment",
+    entityId: assignmentId,
+    metadata: { excludeTravelAllowance },
+  });
+
+  const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${reqGroup}`);
+  revalidatePath("/admin/schedule");
+  revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+  revalidatePath("/worker");
+  return { ok: true };
+}
+
 // Exceptionally update bonus hours for a specific assignment.
 export async function updateAssignmentBonusHours(
   assignmentId: string,

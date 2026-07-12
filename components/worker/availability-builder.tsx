@@ -14,7 +14,7 @@ import { useUndoStack } from "@/hooks/use-undo-stack";
 import { useWarnUnsaved } from "@/hooks/use-warn-unsaved";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { ShiftCancelControls } from "@/components/worker/shift-cancel-controls";
-import { ToggleMealAllowanceButton } from "@/components/orders/toggle-meal-allowance-button";
+import { ToggleMealAllowanceButton, ToggleTravelAllowanceButton } from "@/components/orders/allowance-toggles";
 import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
 import {
   Dialog,
@@ -51,6 +51,8 @@ export type Assignment = {
   travelCost?: number | null;
   mealAllowance?: number | null;
   addMealAllowance?: boolean;
+  excludeMealAllowance?: boolean;
+  excludeTravelAllowance?: boolean;
   bonusHours?: number;
 };
 
@@ -103,6 +105,7 @@ export function AvailabilityBuilder({
   requiredHours,
   carryoverHours = 0,
   mealAllowanceEnabled,
+  travelAllowanceEnabled,
 }: {
   year: number;
   month: number;
@@ -115,6 +118,7 @@ export function AvailabilityBuilder({
   carryoverHours?: number;
   leaveDays?: { id: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
   mealAllowanceEnabled?: boolean;
+  travelAllowanceEnabled?: boolean;
 }) {
   const t = useTranslations("availability");
   const oq = useTranslations("orderRequest");
@@ -533,17 +537,16 @@ export function AvailabilityBuilder({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
-              <th className="p-2 text-start">Datum</th>
-              <th className="p-2 text-start">{t("shiftOrTask")}</th>
-              <th className="p-2 text-start">{oq("ward")}</th>
-              <th className="p-2 text-start">{t("availableHeader")}</th>
-              <th className="p-2 text-start">{oq("von")}</th>
-              <th className="p-2 text-start">{oq("bis")}</th>
-              <th className="p-2 text-start">Fahrtstrecke</th>
-              <th className="p-2 text-start">Fahrtkosten</th>
-              {!mealAllowanceEnabled && <th className="p-2 text-start">Verpflegung</th>}
-              <th className="p-2 text-start">Bonus Std.</th>
-              <th className="p-2 text-end">{t("hoursHeader")}</th>
+              <th className="p-2 text-start whitespace-nowrap w-1">Datum</th>
+              <th className="p-2 text-start w-full">Einsatz</th>
+              <th className="p-2 text-start whitespace-nowrap">{oq("ward")}</th>
+              <th className="p-2 text-start whitespace-nowrap w-1">Status</th>
+              <th className="p-2 text-start whitespace-nowrap w-1">{oq("von")}</th>
+              <th className="p-2 text-start whitespace-nowrap w-1">{oq("bis")}</th>
+              <th className="p-2 text-start whitespace-nowrap w-1">Fahrt</th>
+              <th className="p-2 text-start whitespace-nowrap w-1">Verpf.</th>
+              <th className="p-2 text-start whitespace-nowrap w-1">Bonus</th>
+              <th className="p-2 text-end whitespace-nowrap w-1">{t("hoursHeader")}</th>
             </tr>
           </thead>
           <tbody>
@@ -571,7 +574,7 @@ export function AvailabilityBuilder({
                             </div>
                           ) : null}
                         </td>
-                        <td className="p-2" colSpan={mealAllowanceEnabled ? 8 : 9}>
+                        <td className="p-2" colSpan={9}>
                           <div className="flex items-center gap-2">
                             {isPending ? (
                               <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-transparent">
@@ -684,23 +687,36 @@ export function AvailabilityBuilder({
                           {a.endTime}
                         </td>
                         <td className="p-2 whitespace-nowrap text-muted-foreground">
-                          {a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}
+                          {workerId ? (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 justify-between">
+                                <span>{a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}</span>
+                                {travelAllowanceEnabled && <ToggleTravelAllowanceButton assignmentId={a.id} excludeTravelAllowance={a.excludeTravelAllowance} />}
+                              </div>
+                              <span className="text-xs text-muted-foreground/70">{a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              <span>{a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}</span>
+                              <span className="text-xs text-muted-foreground/70">{a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}</span>
+                            </div>
+                          )}
                         </td>
                         <td className="p-2 whitespace-nowrap text-muted-foreground">
-                          {a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}
+                          {workerId ? (
+                            <div className="flex items-center gap-1.5 justify-between">
+                              <span>{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
+                              <ToggleMealAllowanceButton 
+                                assignmentId={a.id} 
+                                globalEnabled={mealAllowanceEnabled ?? false}
+                                addMealAllowance={a.addMealAllowance} 
+                                excludeMealAllowance={a.excludeMealAllowance} 
+                              />
+                            </div>
+                          ) : (
+                            a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"
+                          )}
                         </td>
-                        {!mealAllowanceEnabled && (
-                          <td className="p-2 whitespace-nowrap text-muted-foreground">
-                            {workerId ? (
-                              <div className="flex items-center gap-1.5">
-                                <span>{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
-                                <ToggleMealAllowanceButton assignmentId={a.id} addMealAllowance={a.addMealAllowance} />
-                              </div>
-                            ) : (
-                              a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"
-                            )}
-                          </td>
-                        )}
                         <td className="p-2 whitespace-nowrap text-muted-foreground">
                           {workerId ? (
                             <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
@@ -907,18 +923,28 @@ export function AvailabilityBuilder({
                         ) : null}
                         {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null || a.bonusHours || workerId) ? (
                           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                            {a.distanceKm != null || a.travelCost != null ? (
-                              <span>
+                            {a.distanceKm != null || a.travelCost != null || (workerId && travelAllowanceEnabled) ? (
+                              <span className="flex items-center gap-1">
                                 {a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : ""}
                                 {a.distanceKm != null && a.travelCost != null ? " • " : ""}
                                 {a.travelCost != null ? `${a.travelCost.toFixed(2)} € Fahrtkosten` : ""}
+                                {workerId && travelAllowanceEnabled && (
+                                  <ToggleTravelAllowanceButton assignmentId={a.id} excludeTravelAllowance={a.excludeTravelAllowance} />
+                                )}
                               </span>
                             ) : null}
-                            {!mealAllowanceEnabled && (a.mealAllowance != null || workerId) ? (
+                            {a.mealAllowance != null || workerId ? (
                               <span className="flex items-center gap-1">
                                 {(a.distanceKm != null || a.travelCost != null) && !workerId ? " • " : ""}
                                 {a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} € Verpflegung` : "Keine Verpflegung"}
-                                {workerId && <ToggleMealAllowanceButton assignmentId={a.id} addMealAllowance={a.addMealAllowance} />}
+                                {workerId && (
+                                  <ToggleMealAllowanceButton 
+                                    assignmentId={a.id} 
+                                    globalEnabled={mealAllowanceEnabled ?? false}
+                                    addMealAllowance={a.addMealAllowance} 
+                                    excludeMealAllowance={a.excludeMealAllowance} 
+                                  />
+                                )}
                               </span>
                             ) : null}
                             {a.bonusHours || workerId ? (

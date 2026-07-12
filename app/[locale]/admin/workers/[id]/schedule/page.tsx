@@ -29,7 +29,10 @@ export default async function AdminWorkerSchedulePage({
   const c = await getTranslations("common");
 
   const worker = await prisma.worker
-    .findUnique({ where: { id }, select: { id: true, fullName: true, mealAllowanceEnabled: true } })
+    .findUnique({ 
+      where: { id }, 
+      select: { id: true, fullName: true, carryoverHours: true, mealAllowanceEnabled: true, travelAllowanceEnabled: true } 
+    })
     .catch(() => null);
   if (!worker) notFound();
 
@@ -132,12 +135,15 @@ export default async function AdminWorkerSchedulePage({
             travelCost: a.travelCost,
             mealAllowance: a.mealAllowance,
             addMealAllowance: a.addMealAllowance,
+            excludeMealAllowance: a.excludeMealAllowance,
+            excludeTravelAllowance: a.excludeTravelAllowance,
             bonusHours: a.bonusHours,
           }))}
           requiredHours={totals.requiredHours}
-          carryoverHours={totals.carryoverHours}
+          carryoverHours={worker.carryoverHours}
           leaveDays={leaveDays}
           mealAllowanceEnabled={worker.mealAllowanceEnabled}
+          travelAllowanceEnabled={worker.travelAllowanceEnabled}
         />
       </section>
     </div>

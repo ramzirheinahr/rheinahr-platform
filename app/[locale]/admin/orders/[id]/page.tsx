@@ -49,7 +49,7 @@ export default async function AdminRequestDetail({
       },
       assignments: {
         include: {
-          worker: { select: { fullName: true } },
+          worker: { select: { id: true, fullName: true, photoPath: true, mealAllowanceEnabled: true, travelAllowanceEnabled: true } },
           serviceConfirmation: { select: { hoursWorked: true, correctionHours: true } },
         },
       },
@@ -119,11 +119,20 @@ export default async function AdminRequestDetail({
           : null,
         hasConfirmation: !!a.serviceConfirmation,
         addMealAllowance: a.addMealAllowance,
+        excludeMealAllowance: a.excludeMealAllowance,
+        excludeTravelAllowance: a.excludeTravelAllowance,
         bonusHours: a.bonusHours,
         correctionHours:
           a.serviceConfirmation?.correctionHours != null
             ? Number(a.serviceConfirmation.correctionHours)
             : null,
+        worker: {
+          id: a.worker.id,
+          fullName: a.worker.fullName,
+          hasPhoto: !!a.worker.photoPath,
+          mealAllowanceEnabled: a.worker.mealAllowanceEnabled,
+          travelAllowanceEnabled: a.worker.travelAllowanceEnabled,
+        },
       })),
       candidates: candidates[i],
     };

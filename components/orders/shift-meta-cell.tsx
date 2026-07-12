@@ -21,7 +21,7 @@ import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { RemoveAssignmentButton } from "@/components/admin/remove-assignment-button";
 import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
 import { useAssignSelection } from "@/components/orders/assign-selection";
-import { ToggleMealAllowanceButton } from "@/components/orders/toggle-meal-allowance-button";
+import { ToggleMealAllowanceButton } from "@/components/orders/allowance-toggles";
 import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, MessageSquare, Users, UserRound } from "lucide-react";
@@ -47,6 +47,8 @@ export type ShiftMeta = {
     hours?: number | null;
     hasConfirmation?: boolean;
     addMealAllowance?: boolean;
+    excludeMealAllowance?: boolean;
+    excludeTravelAllowance?: boolean;
     bonusHours?: number;
     // Admin proposed corrected hours awaiting the client's re-confirmation.
     correctionHours?: number | null;
@@ -54,6 +56,8 @@ export type ShiftMeta = {
       id: string;
       fullName: string;
       hasPhoto: boolean;
+      mealAllowanceEnabled?: boolean;
+      travelAllowanceEnabled?: boolean;
     };
   }[];
   candidates?: {
@@ -266,7 +270,12 @@ export function ShiftMetaCell({
                             currentHours={a.hours ?? null}
                           />
                         ))}
-                      <ToggleMealAllowanceButton assignmentId={a.id} addMealAllowance={a.addMealAllowance} />
+                      <ToggleMealAllowanceButton 
+                        assignmentId={a.id} 
+                        globalEnabled={a.worker?.mealAllowanceEnabled ?? false}
+                        addMealAllowance={a.addMealAllowance} 
+                        excludeMealAllowance={a.excludeMealAllowance}
+                      />
                       <div className="flex items-center gap-1.5" title="Bonusstunden (nur für Mitarbeiter)">
                         <span className="text-xs text-muted-foreground">Bonus:</span>
                         <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />

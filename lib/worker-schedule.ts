@@ -24,6 +24,8 @@ export type WorkerScheduleRow = {
   travelCost?: number | null; // allowance for this shift (both ways)
   mealAllowance?: number | null; // meal allowance for this shift
   addMealAllowance?: boolean; // exceptionally added meal allowance
+  excludeMealAllowance?: boolean; // exceptionally excluded meal allowance
+  excludeTravelAllowance?: boolean; // exceptionally excluded travel allowance
   bonusHours?: number; // bonus hours for this shift
 };
 
@@ -115,14 +117,14 @@ export async function getWorkerMonthSchedule(
       
       if (worker?.address && a.order.client.address) {
         distanceKm = await getDrivingDistanceKm(worker.address, a.order.client.address);
-        if (distanceKm != null && worker?.travelAllowanceEnabled) {
+        if (distanceKm != null && worker?.travelAllowanceEnabled && !a.excludeTravelAllowance) {
           // Client request: one-way distance * rate
           const rate = worker.travelAllowancePerKm ?? 0.30;
           travelCost = distanceKm * rate;
         }
       }
 
-      if (worker?.mealAllowanceEnabled || a.addMealAllowance) {
+      if (!a.excludeMealAllowance && (worker?.mealAllowanceEnabled || a.addMealAllowance)) {
         mealAllowance = worker?.mealAllowance ?? 14.0;
       }
 
@@ -150,6 +152,8 @@ export async function getWorkerMonthSchedule(
         travelCost,
         mealAllowance,
         addMealAllowance: a.addMealAllowance,
+        excludeMealAllowance: a.excludeMealAllowance,
+        excludeTravelAllowance: a.excludeTravelAllowance,
         bonusHours: a.bonusHours,
       };
     })
