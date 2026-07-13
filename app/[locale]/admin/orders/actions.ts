@@ -17,8 +17,7 @@ import {
   type BulkShift,
 } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
-import { offerAssignmentsBulk } from "@/lib/assignments";
-import { orderLink, workerShiftLink } from "@/lib/notify";
+import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import type { OrderStatus, Qualification } from "@prisma/client";
 
@@ -250,7 +249,7 @@ export async function cancelOrderRequestAsAdmin(
 
   const existing = await prisma.order.findMany({
     where: { requestGroupId },
-    select: { id: true, clientId: true, status: true },
+    select: { id: true, clientId: true, status: true, shiftDate: true, startTime: true, endTime: true, requiredQualification: true, notes: true, quantity: true },
   });
   if (existing.length === 0) return { ok: false, error: "saveError" };
   if (!isRequestCancelable(existing)) return { ok: false, error: "locked" };
@@ -302,10 +301,23 @@ export async function cancelOrderRequestAsAdmin(
   ]);
 
   if (workerUserIds.length > 0) {
+    const shiftsHtml = `
+      <p>Der folgende Einsatz wurde storniert und gelöscht:</p>
+      ${buildShiftHtmlTable(existing.map(s => ({
+        date: s.shiftDate,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        qualification: s.requiredQualification,
+        notes: s.notes || undefined,
+        quantity: s.quantity,
+        facilityName: client?.facilityName,
+      })))}
+    `;
     await pushToUsers(workerUserIds, {
       title: "Einsatz gelöscht",
       body: client?.facilityName ?? "Anfrage entfernt",
       url: workerShiftLink(),
+      htmlBody: shiftsHtml,
     });
   }
 
@@ -371,11 +383,11 @@ export async function assignWorker(
   const [order, worker] = await Promise.all([
     prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, status: true, shiftDate: true, startTime: true, endTime: true },
+      select: { id: true, status: true, shiftDate: true, startTime: true, endTime: true, requiredQualification: true, notes: true, client: { select: { facilityName: true } } },
     }),
     prisma.worker.findUnique({
       where: { id: workerId },
-      select: { userId: true },
+      select: { userId: true, fullName: true, qualification: true },
     }),
   ]);
   if (!order || !worker) return { ok: false, error: "saveError" };
@@ -416,10 +428,24 @@ export async function assignWorker(
     metadata: { workerId },
   });
 
+  const assignHtml = `
+    <p>Sie wurden für folgenden Einsatz eingeteilt:</p>
+    ${buildShiftHtmlTable([{
+      date: order.shiftDate,
+      startTime: order.startTime,
+      endTime: order.endTime,
+      qualification: worker.qualification,
+      notes: order.notes || undefined,
+      facilityName: order.client.facilityName,
+      workerName: worker.fullName,
+    }])}
+  `;
+
   await pushToUsers([worker.userId], {
     title: "Neuer Einsatz",
     body: `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime}`,
     url: workerShiftLink(),
+    htmlBody: assignHtml,
   });
 
   revalidatePath(`/admin/orders/${orderId}`);
@@ -759,9 +785,23 @@ export async function approveTimeChange(input: {
       link: r.role === "worker" ? workerShiftLink() : orderLink("client", reqGroup),
     })),
   });
+  const approveHtml = `
+    <p>Die Zeitkorrektur für folgenden Einsatz wurde genehmigt:</p>
+    ${buildShiftHtmlTable([{
+      date: assignment.order.shiftDate,
+      startTime: newStart,
+      endTime: newEnd,
+      qualification: assignment.worker.qualification,
+      notes: `Vorher: ${oldWindow}`,
+      facilityName: assignment.order.client.facilityName,
+      workerName: assignment.worker.fullName,
+    }])}
+    <p><strong>Neue Stunden:</strong> ${newHours} Std.</p>
+  `;
+
   await pushToUsers(
     recipients.map((r) => r.id),
-    { title: "Zeitkorrektur genehmigt", body: summary, url: "/" },
+    { title: "Zeitkorrektur genehmigt", body: summary, url: "/", htmlBody: approveHtml },
   );
 
   await audit({

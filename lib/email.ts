@@ -52,7 +52,7 @@ export async function sendEmailToUsers(
 
   if (users.length === 0) return;
 
-  const emails = users.map((u) => u.email).filter(Boolean);
+  const emails = [...new Set(users.map((u) => u.email).filter(Boolean))];
   if (emails.length === 0) return;
 
   let textBody = payload.body;

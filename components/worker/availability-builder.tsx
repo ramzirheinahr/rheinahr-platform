@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { germanHolidays } from "@/lib/holidays";
+import { respondAssignmentsBulk } from "@/app/[locale]/worker/assignments/actions";
 import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
 import { Plus, Calendar, CheckCircle2, Download, MapPin, Save, X, Clock, Undo2, Redo2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -128,8 +129,10 @@ export function AvailabilityBuilder({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [leavePending, startLeaveTransition] = useTransition();
+  const [bulkPending, startBulkTransition] = useTransition();
   const [leaveDates, setLeaveDates] = useState<string[]>([]);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
+  const [pendingResponses, setPendingResponses] = useState<Record<string, boolean>>({});
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const holidays = useMemo(() => germanHolidays(year), [year]);
@@ -300,6 +303,24 @@ export function AvailabilityBuilder({
     });
   }
 
+  function saveBulkResponses() {
+    const responses = Object.entries(pendingResponses).map(([id, accept]) => ({ id, accept }));
+    if (responses.length === 0) return;
+    
+    startBulkTransition(async () => {
+      const res = await respondAssignmentsBulk(responses);
+      if (res.ok) {
+        toast.success(c("saved") || "Gespeichert");
+        setPendingResponses({});
+        router.refresh();
+      } else {
+        toast.error(c("saveError") || "Fehler beim Speichern");
+        setPendingResponses({});
+        router.refresh();
+      }
+    });
+  }
+
   function TypeCells(date: string, slot: number) {
     const b = get(date, slot);
     const timed = b.type !== "none" && b.type !== "full";
@@ -417,9 +438,20 @@ export function AvailabilityBuilder({
             {eas(a.status)}
           </Badge>
         )}
-        {a.status === "pending" && !past ? <AssignmentActions assignmentId={a.id} /> : null}
+        {a.status === "pending" && !past ? (
+          <AssignmentActions 
+            assignmentId={a.id} 
+            queuedResponse={pendingResponses[a.id]}
+            onRespond={(accept) => setPendingResponses(p => ({ ...p, [a.id]: accept }))}
+          />
+        ) : null}
         {a.status === "declined" && !past ? (
-          <AssignmentActions assignmentId={a.id} declined />
+          <AssignmentActions 
+            assignmentId={a.id} 
+            declined 
+            queuedResponse={pendingResponses[a.id]}
+            onRespond={(accept) => setPendingResponses(p => ({ ...p, [a.id]: accept }))}
+          />
         ) : null}
         {a.status !== "pending" ? (
           <ShiftCancelControls
@@ -661,11 +693,20 @@ export function AvailabilityBuilder({
                               </Badge>
                             )}
                             {a.status === "pending" && !d.past ? (
-                              <AssignmentActions assignmentId={a.id} />
+                              <AssignmentActions 
+                                assignmentId={a.id} 
+                                queuedResponse={pendingResponses[a.id]}
+                                onRespond={(accept) => setPendingResponses(p => ({ ...p, [a.id]: accept }))}
+                              />
                             ) : null}
                             {a.status === "declined" && !d.past ? (
                               // Mistaken decline → let the worker take the shift back.
-                              <AssignmentActions assignmentId={a.id} declined />
+                              <AssignmentActions 
+                                assignmentId={a.id} 
+                                declined 
+                                queuedResponse={pendingResponses[a.id]}
+                                onRespond={(accept) => setPendingResponses(p => ({ ...p, [a.id]: accept }))}
+                              />
                             ) : null}
                             {a.status !== "pending" ? (
                               <ShiftCancelControls
@@ -1097,6 +1138,36 @@ export function AvailabilityBuilder({
           {pending ? c("loading") : t("save")}
         </Button>
       </div>
+
+      {Object.keys(pendingResponses).length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-full bg-primary text-primary-foreground px-4 py-3 shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
+          <div className="text-sm font-medium whitespace-nowrap">
+            {Object.keys(pendingResponses).length} Änderungen ausgewählt
+          </div>
+          <Button 
+            onClick={saveBulkResponses} 
+            disabled={bulkPending} 
+            size="sm" 
+            variant="secondary"
+            className="rounded-full gap-2 whitespace-nowrap hover:bg-secondary/90"
+          >
+            {bulkPending ? (
+              <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            ) : (
+              <Save className="size-4" />
+            )}
+            Speichern & Senden
+          </Button>
+          <button 
+            type="button"
+            onClick={() => setPendingResponses({})}
+            disabled={bulkPending}
+            className="text-primary-foreground/70 hover:text-primary-foreground rounded-full p-1"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
     </div>
     </div>
   );

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { buildShiftHtmlTable } from "@/lib/notify";
+import { pushToUsers } from "@/lib/push";
 
 export async function generateMonthContracts(clientId: string, year: number, month: number) {
   const user = await getCurrentUser();
@@ -21,8 +23,20 @@ export async function generateMonthContracts(clientId: string, year: number, mon
       },
       contractId: null,
       status: "confirmed" // Or completed. Usually we want confirmed or completed. Wait, confirmed is fine.
-    },
-    select: { id: true }
+    select: { 
+      id: true,
+      worker: { select: { fullName: true, qualification: true } },
+      order: { 
+        select: { 
+          shiftDate: true, 
+          startTime: true, 
+          endTime: true, 
+          notes: true, 
+          requiredQualification: true,
+          client: { select: { facilityName: true } } 
+        } 
+      }
+    }
   });
 
   if (!assignments.length) {
@@ -52,6 +66,28 @@ export async function generateMonthContracts(clientId: string, year: number, mon
       content: `Ein neuer AÜV für ${periodLabel} steht zur Signatur bereit.`,
       link: `/client/schedule?year=${year}&month=${month}`
     }
+  });
+
+  const contractHtml = `
+    <p>Ein neuer Arbeitnehmerüberlassungsvertrag (AÜV) für <strong>${periodLabel}</strong> wurde erstellt und steht zur Signatur bereit.</p>
+    <p>Folgende Einsätze sind Bestandteil dieses Vertrags:</p>
+    ${buildShiftHtmlTable(assignments.map(a => ({
+      date: a.order.shiftDate,
+      startTime: a.order.startTime,
+      endTime: a.order.endTime,
+      qualification: a.worker.qualification,
+      notes: a.order.notes || undefined,
+      facilityName: a.order.client.facilityName,
+      workerName: a.worker.fullName,
+    })))}
+    <p>Bitte prüfen und unterzeichnen Sie den Vertrag in Ihrem Kundenportal.</p>
+  `;
+
+  await pushToUsers([contract.client.userId], {
+    title: "Neuer Vertrag zur Signatur",
+    body: `Ein neuer AÜV für ${periodLabel} steht zur Signatur bereit.`,
+    url: `/client/schedule?year=${year}&month=${month}`,
+    htmlBody: contractHtml,
   });
 
   await audit({

@@ -1,0 +1,167 @@
+diff --git a/components/worker/availability-builder.tsx b/components/worker/availability-builder.tsx
+index 8211121..12fbf1b 100644
+--- a/components/worker/availability-builder.tsx
++++ b/components/worker/availability-builder.tsx
+@@ -7,6 +7,7 @@ import { toast } from "sonner";
+ import { Button } from "@/components/ui/button";
+ import { cn } from "@/lib/utils";
+ import { germanHolidays } from "@/lib/holidays";
++import { respondAssignmentsBulk } from "@/app/[locale]/worker/assignments/actions";
+ import { saveAvailability } from "@/app/[locale]/worker/availability/actions";
+ import { Plus, Calendar, CheckCircle2, Download, MapPin, Save, X, Clock, Undo2, Redo2 } from "lucide-react";
+ import { Badge } from "@/components/ui/badge";
+@@ -128,8 +129,10 @@ export function AvailabilityBuilder({
+   const router = useRouter();
+   const [pending, startTransition] = useTransition();
+   const [leavePending, startLeaveTransition] = useTransition();
++  const [bulkPending, startBulkTransition] = useTransition();
+   const [leaveDates, setLeaveDates] = useState<string[]>([]);
+   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
++  const [pendingResponses, setPendingResponses] = useState<Record<string, boolean>>({});
+ 
+   const todayStr = new Date().toISOString().slice(0, 10);
+   const holidays = useMemo(() => germanHolidays(year), [year]);
+@@ -300,6 +303,25 @@ export function AvailabilityBuilder({
+     });
+   }
+ 
++  function saveBulkResponses() {
++    const responses = Object.entries(pendingResponses).map(([id, accept]) => ({ id, accept }));
++    if (responses.length === 0) return;
++    
++    startBulkTransition(async () => {
++      const res = await respondAssignmentsBulk(responses);
++      if (res.ok) {
++        toast.success(c("saved") || "Gespeichert");
++        setPendingResponses({});
++        router.refresh();
++      } else {
++        toast.error(c("saveError") || "Fehler beim Speichern");
++        // Always refresh to get the latest state since some might have succeeded
++        setPendingResponses({});
++        router.refresh();
++      }
++    });
++  }
++
+   function TypeCells(date: string, slot: number) {
+     const b = get(date, slot);
+     const timed = b.type !== "none" && b.type !== "full";
+@@ -417,9 +439,20 @@ export function AvailabilityBuilder({
+             {eas(a.status)}
+           </Badge>
+         )}
+-        {a.status === "pending" && !past ? <AssignmentActions assignmentId={a.id} /> : null}
++        {a.status === "pending" && !past ? (
++          <AssignmentActions 
++            assignmentId={a.id} 
++            queuedResponse={pendingResponses[a.id]}
++            onRespond={(accept) => setPendingResponses(p => ({ ...p, [a.id]: accept }))}
++          />
++        ) : null}
+         {a.status === "declined" && !past ? (
+-          <AssignmentActions assignmentId={a.id} declined />
++          <AssignmentActions 
++            assignmentId={a.id} 
++            declined 
++            queuedResponse={pendingResponses[a.id]}
++            onRespond={(accept) => setPendingResponses(p => ({ ...p, [a.id]: accept }))}
++          />
+         ) : null}
+         {a.status !== "pending" ? (
+           <ShiftCancelControls
+@@ -661,11 +694,20 @@ export function AvailabilityBuilder({
+                               </Badge>
+                             )}
+                             {a.status === "pending" && !d.past ? (
+-                              <AssignmentActions assignmentId={a.id} />
++                              <AssignmentActions 
++                                assignmentId={a.id} 
++                                queuedResponse={pendingResponses[a.id]}
++                                onRespond={(accept) => setPendingResponses(p => ({ ...p, [a.id]: accept }))}
++                              />
+                             ) : null}
+                             {a.status === "declined" && !d.past ? (
+                               // Mistaken decline → let the worker take the shift back.
+-                              <AssignmentActions assignmentId={a.id} declined />
++                              <AssignmentActions 
++                                assignmentId={a.id} 
++                                declined 
++                                queuedResponse={pendingResponses[a.id]}
++                                onRespond={(accept) => setPendingResponses(p => ({ ...p, [a.id]: accept }))}
++                              />
+                             ) : null}
+                             {a.status !== "pending" ? (
+                               <ShiftCancelControls
+@@ -885,28 +927,53 @@ export function AvailabilityBuilder({
+               <div className="space-y-3 p-3">
+                 {dayLeaves.map((l) => (
+                   <div key={l.id} className="flex items-center justify-between gap-2">
+-                    {l.status === "pending" ? (
+-                      <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-600">
+-                        {t("leavePending") || "Urlaubsantrag ausstehend"}
+-                      </Badge>
+-                    ) : (
+-                      <Badge className="border-transparent bg-rose-600 text-white hover:bg-rose-700">
+-                        {t("leaveApproved") || "Urlaub (Bitte nicht stören)"}
+-                      </Badge>
+-                    )}
+-                    {l.status === "approved" ? (
+-                      <span className="text-sm font-semibold text-emerald-600">
+-                        {hoursFmt.format(l.hours)} {t("hoursUnit")}
+-                      </span>
+-                    ) : null}
++            <div key={d.date} className="rounded-lg border bg-card text-card-foreground shadow-sm">
++              <div className={cn("flex flex-col gap-3 p-4", (d.weekend || d.holiday) && "bg-rose-500/5")}>
++                {/* Header */}
++                <div className="flex items-center justify-between border-b pb-3">
++                  <div className="flex items-center gap-2">
++                    <span className="font-semibold">{d.label}</span>
++                    {d.holiday ? <Badge variant="destructive" className="text-[10px] uppercase">{t("holiday")}</Badge> : null}
++                  </div>
++                  {!d.past && count === 1 ? (
++                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addSlot(d.date)}>
++                      <Plus className="mr-1 size-3" />
++                      {t("addSlot")}
++                    </Button>
++                  ) : null}
++                </div>
++
++                {/* Leaves */}
++                {dayLeaves.map(l => (
++                  <div key={l.id} className={cn("rounded-md border p-3", l.status === "pending" ? "border-amber-200 bg-amber-50" : "border-rose-200 bg-rose-50")}>
++                    <div className="flex items-start justify-between gap-2">
++                      <div>
++                        <div className="flex items-center gap-2 mb-1">
++                          <Calendar className="size-4" />
++                          <span className="font-medium text-sm">
++                            {l.status === "pending" ? (t("leavePending") || "Urlaubsantrag ausstehend") : (t("leaveApproved") || "Urlaub")}
++                          </span>
++                        </div>
++                      </div>
++                      <div className="text-right">
++                        {l.status === "approved" ? (
++                          <span className="font-semibold text-emerald-600">
++                            {hoursFmt.format(l.hours)} {t("hoursUnit")}
++                          </span>
++                        ) : (
++                          <span className="text-xs text-muted-foreground">—</span>
++                        )}
++                      </div>
++                    </div>
+                   </div>
+                 ))}
+ 
++                {/* Assignments */}
+                 {dayAssignments.map((a) => (
+-                  <div key={a.id} className="space-y-2 rounded-md border bg-primary/5 p-2.5">
+-                    <div className="flex items-start justify-between gap-2">
+-                      <div className="min-w-0">
+-                        <div className="font-medium text-primary">{a.facilityName}</div>
++                  <div key={a.id} className="rounded-md border border-primary/20 bg-primary/5 p-3">
++                    <div className="flex items-start justify-between gap-2 mb-2">
++                      <div>
++                        <div className="font-medium">{a.facilityName}</div>
+                         {a.address ? (
+                           <a
+                             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.address)}`}

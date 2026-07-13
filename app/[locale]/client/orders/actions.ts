@@ -9,7 +9,7 @@ import { audit } from "@/lib/audit";
 import { diffRequestShifts, isRequestEditable, isRequestCancelable } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
 import { orderRequestSchema, type OrderRequestInput } from "@/lib/validations";
-import { orderLink, inboxLink, workerShiftLink } from "@/lib/notify";
+import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import type { Qualification } from "@prisma/client";
 
@@ -204,7 +204,7 @@ export async function cancelOrderRequest(
   const existing = await prisma.order.findMany({
     where: { requestGroupId, clientId: client.id },
     orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
-    select: { id: true, status: true, shiftDate: true },
+    select: { id: true, status: true, shiftDate: true, startTime: true, endTime: true, requiredQualification: true, notes: true, quantity: true },
   });
   if (existing.length === 0) return { ok: false, error: "forbidden" };
   if (!isRequestCancelable(existing)) return { ok: false, error: "locked" };
@@ -240,15 +240,28 @@ export async function cancelOrderRequest(
     ),
   ]);
 
+  const dateLabel = formatDateDE(existing[0].shiftDate);
+
+  const shiftsHtml = `
+    <p><strong>${client.facilityName}</strong> hat die folgende Anfrage (bzw. Schichten) storniert und gelöscht:</p>
+    ${buildShiftHtmlTable(existing.map(s => ({
+      date: s.shiftDate,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      qualification: s.requiredQualification,
+      notes: s.notes || undefined,
+      quantity: s.quantity,
+    })))}
+  `;
+
   if (workerUserIds.length > 0) {
     await pushToUsers(workerUserIds, {
       title: "Einsatz gelöscht",
       body: client.facilityName,
       url: workerShiftLink(),
+      htmlBody: shiftsHtml,
     });
   }
-
-  const dateLabel = formatDateDE(existing[0].shiftDate);
 
   // In-app notification to every admin. The request rows are gone, so the link
   // goes to the orders list, not the (now dead) request detail.
@@ -256,6 +269,7 @@ export async function cancelOrderRequest(
     "order_status_changed",
     `${client.facilityName}: Anfrage gelöscht – ${existing.length} Schicht(en)`,
     "/admin/orders",
+    shiftsHtml
   );
 
   // Message into the request's inbox thread so it reaches the office mailbox.
@@ -501,7 +515,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
           client: { select: { userId: true, facilityName: true } },
         },
       },
-      worker: { select: { userId: true } },
+      worker: { select: { userId: true, fullName: true, qualification: true } },
     },
   });
   if (
@@ -724,15 +738,30 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     where: { role: { in: ["admin", "super_admin"] }, active: true },
     select: { id: true },
   });
+
+  const confirmHtml = `
+    <p>Die Leistung für den folgenden Einsatz wurde bestätigt:</p>
+    ${buildShiftHtmlTable([{
+      date: assignment.order.shiftDate,
+      startTime: assignment.order.startTime,
+      endTime: assignment.order.endTime,
+      qualification: assignment.worker.qualification,
+      facilityName: assignment.order.client.facilityName,
+      workerName: assignment.worker.fullName,
+    }])}
+    <p><strong>Bestätigte Stunden:</strong> ${data.hoursWorked} Std.</p>
+  `;
+
   await Promise.all([
     pushToUsers([assignment.worker.userId], {
       title: "Leistung bestätigt",
       body: confirmBody,
       url: workerShiftLink(),
+      htmlBody: confirmHtml,
     }),
     pushToUsers(
       pushAdmins.map((a) => a.id),
-      { title: "Leistung bestätigt", body: confirmBody, url: orderLink("admin", confirmGroup) },
+      { title: "Leistung bestätigt", body: confirmBody, url: orderLink("admin", confirmGroup), htmlBody: confirmHtml },
     ),
   ]);
 

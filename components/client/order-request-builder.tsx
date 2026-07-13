@@ -176,7 +176,7 @@ export function OrderRequestBuilder({
   );
   const [qual, setQual] = useState<Qual>((initial?.qual as Qual) ?? qualifications[0]);
 
-  const { state: undoState, set: setUndoState, undo, redo, canUndo, canRedo, clearHistory } = useUndoStack<{
+  const { state: undoState, set: setUndoState, undo: undoOriginal, redo: redoOriginal, canUndo, canRedo, clearHistory } = useUndoStack<{
     cells: Record<string, Cell>;
     counts: Record<string, number>;
   }>({
@@ -185,6 +185,10 @@ export function OrderRequestBuilder({
   });
   const cells = undoState.cells;
   const slotCounts = undoState.counts;
+  
+  const [historyVer, setHistoryVer] = useState(0);
+  const undo = () => { undoOriginal(); setHistoryVer((v) => v + 1); };
+  const redo = () => { redoOriginal(); setHistoryVer((v) => v + 1); };
   
   useWarnUnsaved(canUndo);
 
@@ -464,7 +468,7 @@ export function OrderRequestBuilder({
         </td>
         <td className="p-1">
           <input
-            key={`s-${date}-${slot}-${ver[`${date}:${slot}`] ?? 0}`}
+            key={`s-${date}-${slot}-${ver[`${date}:${slot}`] ?? 0}-${historyVer}`}
             type="time"
             disabled={past}
             defaultValue={cell.start}
@@ -474,7 +478,7 @@ export function OrderRequestBuilder({
         </td>
         <td className="p-1">
           <input
-            key={`e-${date}-${slot}-${ver[`${date}:${slot}`] ?? 0}`}
+            key={`e-${date}-${slot}-${ver[`${date}:${slot}`] ?? 0}-${historyVer}`}
             type="time"
             disabled={past}
             defaultValue={cell.end}
@@ -522,8 +526,54 @@ export function OrderRequestBuilder({
     );
   }
 
+  const renderActionButtons = () => {
+    if (ro) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center rounded-md border p-0.5 mr-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            disabled={!canUndo || pending}
+            onClick={undo}
+            aria-label={t("undo") || "Rückgängig"}
+            title={t("undo") || "Rückgängig"}
+          >
+            <Undo2 className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            disabled={!canRedo || pending}
+            onClick={redo}
+            aria-label={t("redo") || "Wiederholen"}
+            title={t("redo") || "Wiederholen"}
+          >
+            <Redo2 className="size-4" />
+          </Button>
+        </div>
+        <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId) || (!canUndo && !initial)} className="gap-2">
+          <Send className="size-4" />
+          {pending ? c("loading") : t("submit")}
+        </Button>
+        <Button variant="outline" onClick={() => router.push(cancelHref)}>
+          {c("cancel")}
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
+      {/* Top Actions */}
+      {!ro && (
+        <div className="flex justify-end">
+          {renderActionButtons()}
+        </div>
+      )}
+
       {/* Controls */}
       <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
         {isAdmin ? (
@@ -802,37 +852,7 @@ export function OrderRequestBuilder({
         {ro ? null : (
           <div className="flex flex-wrap items-center gap-2">
             <span className="hidden sm:block sm:flex-1" />
-            <div className="flex items-center rounded-md border p-0.5 mr-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                disabled={!canUndo || pending}
-                onClick={undo}
-                aria-label={t("undo") || "Rückgängig"}
-                title={t("undo") || "Rückgängig"}
-              >
-                <Undo2 className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                disabled={!canRedo || pending}
-                onClick={redo}
-                aria-label={t("redo") || "Wiederholen"}
-                title={t("redo") || "Wiederholen"}
-              >
-                <Redo2 className="size-4" />
-              </Button>
-            </div>
-            <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId) || (!canUndo && !initial)} className="gap-2">
-              <Send className="size-4" />
-              {pending ? c("loading") : t("submit")}
-            </Button>
-            <Button variant="outline" onClick={() => router.push(cancelHref)}>
-              {c("cancel")}
-            </Button>
+            {renderActionButtons()}
           </div>
         )}
       </div>

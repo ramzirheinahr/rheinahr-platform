@@ -22,6 +22,7 @@ export type PushPayload = {
   url?: string; // deep link opened on click
   tag?: string; // coalesce repeats (e.g. one per conversation)
   htmlBody?: string;
+  skipEmail?: boolean;
 };
 
 import { sendEmailToUsers } from "@/lib/email";
@@ -34,12 +35,14 @@ export async function pushToUsers(
   payload: PushPayload,
 ): Promise<void> {
   // Fire and forget email notification
-  sendEmailToUsers(userIds, {
-    subject: payload.title,
-    body: payload.body,
-    html: payload.htmlBody,
-    url: payload.url,
-  }).catch((err) => console.error("Failed to send email notification", err));
+  if (!payload.skipEmail) {
+    sendEmailToUsers(userIds, {
+      subject: payload.title,
+      body: payload.body,
+      html: payload.htmlBody,
+      url: payload.url,
+    }).catch((err) => console.error("Failed to send email notification", err));
+  }
 
   if (!ensureConfigured() || userIds.length === 0) return;
 

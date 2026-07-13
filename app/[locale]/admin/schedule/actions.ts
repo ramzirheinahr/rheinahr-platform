@@ -10,7 +10,7 @@ import { candidatesForShift, type Candidate } from "@/lib/orders";
 import { offerAssignment } from "@/lib/assignments";
 import { qualifications } from "@/lib/validations";
 import { formatDateDE } from "@/lib/utils";
-import { orderLink, workerShiftLink } from "@/lib/notify";
+import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import type { Qualification } from "@prisma/client";
 
@@ -159,6 +159,7 @@ export async function assignFromGrid(input: {
       select: {
         id: true,
         userId: true,
+        fullName: true,
         qualification: true,
         availability: {
           where: { date: day, status: "available" },
@@ -265,10 +266,24 @@ export async function assignFromGrid(input: {
     metadata: { date, shift, clientId, via: "master-schedule", forced: !!force },
   });
 
+  const assignHtml = `
+    <p>Sie wurden für folgenden Einsatz eingeteilt:</p>
+    ${buildShiftHtmlTable([{
+      date: day,
+      startTime: start,
+      endTime: end,
+      qualification: worker.qualification,
+      notes: ward || undefined,
+      facilityName: client.facilityName,
+      workerName: worker.fullName,
+    }])}
+  `;
+
   await pushToUsers([worker.userId], {
     title: "Neuer Einsatz",
     body: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
     url: workerShiftLink(),
+    htmlBody: assignHtml,
   });
 
   revalidatePath("/admin/schedule");
@@ -433,6 +448,8 @@ export async function assignWorkerToOrder(
       shiftDate: true,
       startTime: true,
       endTime: true,
+      requiredQualification: true,
+      notes: true,
       client: { select: { facilityName: true } },
     },
   });
@@ -442,6 +459,7 @@ export async function assignWorkerToOrder(
     where: { id: workerId },
     select: {
       userId: true,
+      fullName: true,
       availability: {
         where: { date: order.shiftDate, status: "available" },
         select: { startTime: true, endTime: true },
@@ -501,10 +519,24 @@ export async function assignWorkerToOrder(
     metadata: { workerId, via: "master-schedule-unassigned", forced: force },
   });
 
+  const assignHtml = `
+    <p>Sie wurden für folgenden Einsatz eingeteilt:</p>
+    ${buildShiftHtmlTable([{
+      date: order.shiftDate,
+      startTime: order.startTime,
+      endTime: order.endTime,
+      qualification: order.requiredQualification,
+      notes: order.notes || undefined,
+      facilityName: order.client.facilityName,
+      workerName: worker.fullName,
+    }])}
+  `;
+
   await pushToUsers([worker.userId], {
     title: "Neuer Einsatz",
     body: `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime} · ${order.client.facilityName}`,
     url: workerShiftLink(),
+    htmlBody: assignHtml,
   });
 
   revalidatePath("/admin/schedule");
@@ -540,6 +572,8 @@ async function releaseAssignmentCore(
           shiftDate: true,
           startTime: true,
           endTime: true,
+          requiredQualification: true,
+          notes: true,
           client: { select: { facilityName: true } },
           assignments: { where: { status: { not: "declined" } }, select: { id: true } },
         },
@@ -567,10 +601,23 @@ async function releaseAssignmentCore(
     });
   });
 
+  const releaseHtml = `
+    <p>${notice.title}</p>
+    ${buildShiftHtmlTable([{
+      date: assignment.order.shiftDate,
+      startTime: assignment.order.startTime,
+      endTime: assignment.order.endTime,
+      qualification: assignment.order.requiredQualification,
+      notes: assignment.order.notes || undefined,
+      facilityName: assignment.order.client.facilityName,
+    }])}
+  `;
+
   await pushToUsers([assignment.worker.userId], {
     title: notice.title,
     body: notice.body,
     url: workerShiftLink(),
+    htmlBody: releaseHtml,
   });
 
   await audit({
@@ -656,6 +703,8 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
           shiftDate: true,
           startTime: true,
           endTime: true,
+          requiredQualification: true,
+          notes: true,
           client: { select: { userId: true, facilityName: true } },
         },
       },
@@ -699,10 +748,23 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
     }
   });
 
+  const deleteHtml = `
+    <p>Der folgende Einsatz wurde storniert und gelöscht:</p>
+    ${buildShiftHtmlTable([{
+      date: assignment.order.shiftDate,
+      startTime: assignment.order.startTime,
+      endTime: assignment.order.endTime,
+      qualification: assignment.order.requiredQualification,
+      notes: assignment.order.notes || undefined,
+      facilityName: assignment.order.client.facilityName,
+    }])}
+  `;
+
   await pushToUsers([assignment.worker.userId], {
     title: "Einsatz gelöscht",
     body: label,
     url: workerShiftLink(),
+    htmlBody: deleteHtml,
   });
 
   await audit({
@@ -774,12 +836,14 @@ export async function rejectShiftCancellation(assignmentId: string): Promise<Act
     where: { id: assignmentId },
     select: {
       workerId: true,
-      worker: { select: { userId: true } },
+      worker: { select: { userId: true, fullName: true, qualification: true } },
       order: {
         select: {
           shiftDate: true,
           startTime: true,
           endTime: true,
+          requiredQualification: true,
+          notes: true,
           client: { select: { facilityName: true } },
         },
       },
@@ -791,6 +855,19 @@ export async function rejectShiftCancellation(assignmentId: string): Promise<Act
     where: { id: assignmentId },
     data: { cancelRequested: false, cancelNote: null, cancelRequestedAt: null },
   });
+
+  const rejectHtml = `
+    <p>Ihre Abmeldung für folgenden Einsatz wurde abgelehnt. Sie sind weiterhin eingeteilt:</p>
+    ${buildShiftHtmlTable([{
+      date: assignment.order.shiftDate,
+      startTime: assignment.order.startTime,
+      endTime: assignment.order.endTime,
+      qualification: assignment.worker.qualification,
+      notes: assignment.order.notes || undefined,
+      facilityName: assignment.order.client.facilityName,
+      workerName: assignment.worker.fullName,
+    }])}
+  `;
 
   const body = `Abmeldung abgelehnt – ${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime} · ${assignment.order.client.facilityName}`;
   await prisma.notification.create({
@@ -806,6 +883,7 @@ export async function rejectShiftCancellation(assignmentId: string): Promise<Act
     title: "Abmeldung abgelehnt",
     body,
     url: workerShiftLink(),
+    htmlBody: rejectHtml,
   });
 
   await audit({

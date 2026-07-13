@@ -6,6 +6,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { workerShiftLink } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
+import { formatDateDE } from "@/lib/utils";
 
 export async function reviewLeaveRequest(
   requestId: string,
@@ -103,6 +104,7 @@ export async function cancelLeaveEntirely(
       select: {
         id: true,
         workerId: true,
+        days: { select: { date: true } },
         worker: { select: { fullName: true, userId: true } },
       },
     });
@@ -143,10 +145,35 @@ export async function cancelLeaveEntirely(
       });
     });
 
+    const dates = request.days.map((d) => d.date.getTime()).sort((a, b) => a - b);
+    const startDate = dates.length ? new Date(dates[0]) : new Date();
+    const endDate = dates.length ? new Date(dates[dates.length - 1]) : new Date();
+
+    const cancelHtml = `
+      <p>Ihr Urlaub wurde von der Verwaltung storniert.</p>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; font-family: sans-serif; font-size: 14px;">
+        <thead>
+          <tr style="background-color: #f3f4f6; text-align: left;">
+            <th style="padding: 10px; border: 1px solid #e5e7eb;">Mitarbeiter</th>
+            <th style="padding: 10px; border: 1px solid #e5e7eb;">Von</th>
+            <th style="padding: 10px; border: 1px solid #e5e7eb;">Bis</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${request.worker.fullName}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${dates.length ? formatDateDE(startDate) : '-'}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${dates.length ? formatDateDE(endDate) : '-'}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
     await pushToUsers([request.worker.userId], {
       title: "Urlaub storniert",
       body: "Ihr Urlaub wurde von der Verwaltung storniert.",
       url: workerShiftLink(),
+      htmlBody: cancelHtml,
     });
 
     await audit({
