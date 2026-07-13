@@ -55,13 +55,33 @@ export async function sendEmailToUsers(
   const emails = users.map((u) => u.email).filter(Boolean);
   if (emails.length === 0) return;
 
-  // Append URL if provided
   let textBody = payload.body;
-  if (payload.url) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://platform.rheinahr-gmbh.de";
-    const fullUrl = payload.url.startsWith("http") ? payload.url : `${appUrl}${payload.url}`;
-    textBody += `\n\nLink: ${fullUrl}`;
-  }
+
+  const contentHtml = payload.html || textBody.replace(/\n/g, "<br>");
+  
+  const signatureHtml = `
+<br><br>
+<hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;" />
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #555; line-height: 1.6;">
+  Mit freundlichen Grüßen<br><br>
+  <strong>Mohammed Abuibaid</strong><br>
+  Einsatzleiter<br><br>
+  <div style="margin-top: 15px; margin-bottom: 15px;">
+    <img src="https://platform.rheinahr-gmbh.de/logo.png" alt="RheinAhr Dienstleistungen GmbH" style="max-height: 50px; width: auto;" />
+  </div>
+  <strong>RheinAhr Dienstleistungen GmbH</strong> | Am Fronhof 4, 53177 Bonn<br>
+  Telefon: +49 (228) 28683821 | Handy: +49 (1523) 3646562 | Telefax: +49 (228) 36039105<br>
+  Email: <a href="mailto:info@rheinahr-gmbh.de" style="color: #0056b3; text-decoration: none;">info@rheinahr-gmbh.de</a> | Web: <a href="http://www.rheinahr-gmbh.de" style="color: #0056b3; text-decoration: none;">http://www.rheinahr-gmbh.de</a><br>
+  Portal: <a href="https://platform.rheinahr-gmbh.de/de/admin" style="color: #0056b3; text-decoration: none;">platform.rheinahr-gmbh.de/de/admin</a>
+</div>
+  `;
+
+  const finalHtml = `
+<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+  ${contentHtml}
+  ${signatureHtml}
+</div>
+  `;
 
   // To prevent exposing all emails to each other, we can send individually or use BCC.
   // Using BCC is more efficient for multiple recipients of the exact same message.
@@ -72,7 +92,7 @@ export async function sendEmailToUsers(
       bcc: emails,    // BCC the actual recipients
       subject: payload.subject,
       text: textBody,
-      html: payload.html || textBody.replace(/\n/g, "<br>"),
+      html: finalHtml,
       attachments: payload.attachments,
     });
   } catch (error) {

@@ -21,6 +21,7 @@ export type PushPayload = {
   body: string;
   url?: string; // deep link opened on click
   tag?: string; // coalesce repeats (e.g. one per conversation)
+  htmlBody?: string;
 };
 
 import { sendEmailToUsers } from "@/lib/email";
@@ -36,6 +37,7 @@ export async function pushToUsers(
   sendEmailToUsers(userIds, {
     subject: payload.title,
     body: payload.body,
+    html: payload.htmlBody,
     url: payload.url,
   }).catch((err) => console.error("Failed to send email notification", err));
 

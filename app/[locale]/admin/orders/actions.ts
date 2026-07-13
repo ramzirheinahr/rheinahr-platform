@@ -82,10 +82,38 @@ export async function createOrderRequestForClient(
         link: orderLink("client", requestGroupId),
       },
     });
+
+    const shiftsHtml = `
+      <p>Es wurde eine neue Anfrage für <strong>${client.facilityName}</strong> erstellt:</p>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; font-family: sans-serif; font-size: 14px;">
+        <thead>
+          <tr style="background-color: #f3f4f6; text-align: left;">
+            <th style="padding: 10px; border: 1px solid #e5e7eb;">Datum</th>
+            <th style="padding: 10px; border: 1px solid #e5e7eb;">Zeit</th>
+            <th style="padding: 10px; border: 1px solid #e5e7eb;">Qualifikation</th>
+            <th style="padding: 10px; border: 1px solid #e5e7eb;">Bereich/Notizen</th>
+            <th style="padding: 10px; border: 1px solid #e5e7eb;">Anzahl</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${shifts.map(s => `
+            <tr>
+              <td style="padding: 10px; border: 1px solid #e5e7eb;">${formatDateDE(new Date(s.date))}</td>
+              <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.startTime} - ${s.endTime}</td>
+              <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.requiredQualification}</td>
+              <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.bereich ?? notes ?? '-'}</td>
+              <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.quantity}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
     await pushToUsers([client.userId], {
       title: "Neue Anfrage",
       body: `${client.facilityName}: ${shifts.length} Schicht(en)`,
       url: orderLink("client", requestGroupId),
+      htmlBody: shiftsHtml
     });
   }
 

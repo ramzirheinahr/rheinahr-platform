@@ -25,6 +25,7 @@ async function notifyAdmins(
   type: "new_order" | "order_status_changed" | "new_message",
   content: string,
   link?: string,
+  htmlContent?: string,
 ) {
   const admins = await prisma.user.findMany({
     where: { role: { in: ["admin", "super_admin"] }, active: true },
@@ -42,7 +43,7 @@ async function notifyAdmins(
   });
   await pushToUsers(
     admins.map((a) => a.id),
-    { title: PUSH_TITLE[type], body: content, url: link },
+    { title: PUSH_TITLE[type], body: content, url: link, htmlBody: htmlContent },
   );
 }
 
@@ -129,11 +130,38 @@ export async function updateOrderRequest(
       : []),
   ]);
 
+  const shiftsHtml = `
+    <p><strong>${client.facilityName}</strong> hat die Anfrage aktualisiert. Folgende Schichten sind nun Teil der Anfrage:</p>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; font-family: sans-serif; font-size: 14px;">
+      <thead>
+        <tr style="background-color: #f3f4f6; text-align: left;">
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Datum</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Zeit</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Qualifikation</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Bereich/Notizen</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Anzahl</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${shifts.map(s => `
+          <tr>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${formatDateDE(new Date(s.date))}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.startTime} - ${s.endTime}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.requiredQualification}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.bereich ?? notes ?? '-'}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.quantity}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
   // Changed shifts re-enter the pipeline — tell the admins to re-process.
   await notifyAdmins(
     "order_status_changed",
     `${client.facilityName}: Anfrage geändert – ${changes} Schicht(en) betroffen`,
     orderLink("admin", requestGroupId),
+    shiftsHtml
   );
 
   await audit({
@@ -311,11 +339,38 @@ export async function createOrderRequest(
     })),
   });
 
+  const shiftsHtml = `
+    <p><strong>${client.facilityName}</strong> hat eine neue Anfrage erstellt:</p>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; font-family: sans-serif; font-size: 14px;">
+      <thead>
+        <tr style="background-color: #f3f4f6; text-align: left;">
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Datum</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Zeit</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Qualifikation</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Bereich/Notizen</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Anzahl</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${shifts.map(s => `
+          <tr>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${formatDateDE(new Date(s.date))}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.startTime} - ${s.endTime}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.requiredQualification}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.bereich ?? notes ?? '-'}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.quantity}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
   // One summary notification per admin for the whole request.
   await notifyAdmins(
     "new_order",
     `${client.facilityName}: ${shifts.length} Schicht(en)`,
     orderLink("admin", requestGroupId),
+    shiftsHtml
   );
 
   await audit({
