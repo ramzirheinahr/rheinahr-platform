@@ -23,6 +23,7 @@ export async function generateMonthContracts(clientId: string, year: number, mon
       },
       contractId: null,
       status: "confirmed" // Or completed. Usually we want confirmed or completed. Wait, confirmed is fine.
+    },
     select: { 
       id: true,
       worker: { select: { fullName: true, qualification: true } },

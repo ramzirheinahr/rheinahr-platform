@@ -617,6 +617,7 @@ export async function requestShiftCancellation(
           shiftDate: true,
           startTime: true,
           endTime: true,
+          requiredQualification: true,
           client: { select: { facilityName: true } },
         },
       },
@@ -689,7 +690,7 @@ export async function requestShiftCancellation(
     date: assignment.order.shiftDate,
     startTime: assignment.order.startTime,
     endTime: assignment.order.endTime,
-    qualification: assignment.worker.qualification, // The worker's qualification or the order's required qualification.
+    qualification: assignment.order.requiredQualification, // The order's required qualification.
     facilityName: assignment.order.client.facilityName,
     workerName: assignment.worker.fullName,
   }]);
@@ -700,11 +701,11 @@ export async function requestShiftCancellation(
       title: "Abmeldung angefragt",
       body: summary,
       url: conversation ? inboxLink("admin", conversation.id) : orderLink("admin", reqGroup),
-      htmlBody: \`
-        <p>Der Mitarbeiter <strong>\${assignment.worker.fullName}</strong> bittet um Abmeldung von folgendem Einsatz:</p>
-        <p><strong>Notiz:</strong> \${parsedNote.data || '-'}</p>
-        \${shiftsHtml}
-      \`
+      htmlBody: `
+        <p>Der Mitarbeiter <strong>${assignment.worker.fullName}</strong> bittet um Abmeldung von folgendem Einsatz:</p>
+        <p><strong>Notiz:</strong> ${parsedNote.data || '-'}</p>
+        ${shiftsHtml}
+      `
     },
   );
 

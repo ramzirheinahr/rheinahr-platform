@@ -16,6 +16,7 @@ import {
   type BulkCandidate,
   type BulkShift,
 } from "@/lib/orders";
+import { offerAssignmentsBulk } from "@/lib/assignments";
 import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
