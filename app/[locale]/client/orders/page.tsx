@@ -37,12 +37,14 @@ async function getOrders(): Promise<{
   surcharges: Surcharges;
   rates: Rates;
   night: NightWindow;
+  facilityName: string | null;
 }> {
   const empty = {
     rows: [],
     surcharges: resolveSurcharges(null),
     rates: resolveRates(null),
     night: resolveNightWindow(null),
+    facilityName: null,
   };
   const user = await getCurrentUser();
   if (!user) return empty;
