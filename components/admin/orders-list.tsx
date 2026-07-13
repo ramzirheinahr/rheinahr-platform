@@ -41,9 +41,11 @@ function matches(g: OrderGroupSummary, query: string): boolean {
 export function OrdersList({
   groups,
   statuses,
+  basePath = "/admin/orders",
 }: {
   groups: OrderGroupSummary[];
   statuses: OrderStatus[];
+  basePath?: string;
 }) {
   const t = useTranslations("orders");
   const es = useTranslations("enums.orderStatus");
@@ -191,7 +193,7 @@ export function OrdersList({
           {filtered.map((g) => (
             <Link
               key={g.key}
-              href={`/admin/orders/${g.key}`}
+              href={`${basePath}/${g.key}`}
               className={cn(
                 "flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-muted/40",
                 g.cancelled && "border-destructive/40 bg-destructive/5",

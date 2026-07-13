@@ -13,8 +13,9 @@ import {
 import { formatDateDE, cn } from "@/lib/utils";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { OrderStatusBadge } from "@/components/orders/order-status-badge";
-import { Plus, ChevronRight } from "lucide-react";
+import { OrdersList, type OrderGroupSummary } from "@/components/admin/orders-list";
+import { orderStatuses } from "@/lib/validations";
+import { Plus } from "lucide-react";
 import type { OrderStatus, Qualification } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,7 @@ async function getOrders(): Promise<{
         nightStart: true,
         nightEnd: true,
         hourlyRates: true,
+        facilityName: true,
       },
     });
     if (!client) return empty;
@@ -80,6 +82,7 @@ async function getOrders(): Promise<{
       surcharges: resolveSurcharges(client),
       rates: resolveRates(client),
       night: resolveNightWindow(client),
+      facilityName: client.facilityName,
     };
   } catch {
     return empty;
@@ -105,10 +108,30 @@ function groupOrders(rows: Row[]) {
 export default async function ClientOrdersPage() {
   const t = await getTranslations("orders");
   const locale = await getLocale();
-  const { rows, surcharges, rates, night } = await getOrders();
+  const { rows, surcharges, rates, night, facilityName } = await getOrders();
   const groups = groupOrders(rows);
   const fmtEur = (n: number) =>
     n.toLocaleString(locale, { style: "currency", currency: "EUR" });
+
+  const summaries: OrderGroupSummary[] = groups.map((g) => {
+    const first = g.shifts[0];
+    const last = g.shifts[g.shifts.length - 1];
+    const range =
+      formatDateDE(first.shiftDate) === formatDateDE(last.shiftDate)
+        ? formatDateDE(first.shiftDate)
+        : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
+    const total = requestNetTotal(g.shifts, surcharges, rates, night);
+    return {
+      key: g.key,
+      facilityName: facilityName ?? "Client",
+      range,
+      shiftsCount: g.shifts.length,
+      netLabel: fmtEur(total),
+      status: first.status,
+      qualification: first.requiredQualification,
+      cancelled: g.shifts.every((s) => s.status === "cancelled"),
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -120,49 +143,7 @@ export default async function ClientOrdersPage() {
         </Button>
       </div>
 
-      {groups.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {t("emptyClient")}
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {groups.map((g) => {
-            const first = g.shifts[0];
-            const last = g.shifts[g.shifts.length - 1];
-            const range =
-              formatDateDE(first.shiftDate) === formatDateDE(last.shiftDate)
-                ? formatDateDE(first.shiftDate)
-                : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
-            const confirmed = g.shifts.filter((s) => s.status === "confirmed").length;
-            const cancelled = g.shifts.every((s) => s.status === "cancelled");
-            const total = requestNetTotal(g.shifts, surcharges, rates, night);
-            return (
-              <Link
-                key={g.key}
-                href={`/client/orders/${g.key}`}
-                className={cn(
-                  "flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-muted/40",
-                  cancelled && "border-destructive/40 bg-destructive/5",
-                )}
-              >
-                <div>
-                  <div className={cn("font-medium", cancelled && "text-destructive line-through")}>
-                    {range}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {g.shifts.length} {t("shiftsCount")} · {confirmed}/{g.shifts.length} ✓ ·{" "}
-                    {fmtEur(total)} {t("net")}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <OrderStatusBadge status={first.status} />
-                  <ChevronRight className="size-4 text-muted-foreground rtl:rotate-180" />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      <OrdersList groups={summaries} statuses={[...orderStatuses] as OrderStatus[]} basePath="/client/orders" />
     </div>
   );
 }
