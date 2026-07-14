@@ -37,6 +37,9 @@ type ClientData = {
   nightEnd: string | null;
   // Per-qualification hourly rate overrides (EUR), missing = platform default.
   hourlyRates: Partial<Record<(typeof qualifications)[number], number | null>>;
+  user: {
+    receiveEmails: boolean;
+  };
 };
 
 const toPct = (v: number | null) =>
@@ -197,6 +200,17 @@ export function ClientForm({ client }: { client: ClientData }) {
         </div>
         <p className="text-xs text-muted-foreground">{t("nightWindowHint")}</p>
       </fieldset>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="receiveEmails"
+          name="receiveEmails"
+          defaultChecked={client.user?.receiveEmails ?? true}
+          className="size-4"
+        />
+        <Label htmlFor="receiveEmails">E-Mail Benachrichtigungen senden</Label>
+      </div>
 
       <HourlyRatesFieldset values={client.hourlyRates} />
 

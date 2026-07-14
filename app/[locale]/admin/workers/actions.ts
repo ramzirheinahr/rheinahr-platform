@@ -164,6 +164,7 @@ export async function createWorker(formData: FormData): Promise<ActionState> {
           id: authId,
           email: base.data.email,
           fullName: data.fullName,
+          receiveEmails: formData.get("receiveEmails") === "on",
           role: "worker",
           passwordHash,
           createdById: actor.id,
@@ -210,7 +211,12 @@ export async function updateWorker(
     data: {
       ...toWorkerColumns(data),
       // Keep the account display name in sync with the profile.
-      user: { update: { fullName: data.fullName } },
+      user: { 
+        update: { 
+          fullName: data.fullName,
+          receiveEmails: formData.get("receiveEmails") === "on"
+        } 
+      },
     },
   });
 

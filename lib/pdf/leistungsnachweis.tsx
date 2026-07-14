@@ -161,7 +161,12 @@ function LeistungsnachweisDocument({ d }: { d: LeistungsnachweisData }) {
                 : `Elektronisch bestätigt in Textform (§ 126b BGB) durch ${d.signerName ?? d.confirmedByEmail} — ${d.facilityName}, ${d.confirmedAt}${d.ipAddress ? `, IP ${d.ipAddress}` : ""}`}
             </Text>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.sigBox}>
+             <View style={styles.sigLine} />
+             <Text style={styles.sigCaption}>Datum, Unterschrift {d.facilityName}</Text>
+          </View>
+        )}
 
         <Text style={styles.footer}>
           {d.draft

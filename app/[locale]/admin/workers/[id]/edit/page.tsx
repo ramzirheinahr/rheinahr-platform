@@ -31,7 +31,7 @@ export default async function EditWorkerPage({
     .findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, email: true, active: true, loginToken: true } },
+        user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true } },
         documents: { orderBy: { uploadedAt: "desc" } },
       },
     })
@@ -107,6 +107,9 @@ export default async function EditWorkerPage({
           hourlyRates: worker.hourlyRates as Record<string, number> | null,
           employmentStartDate: toDateInput(worker.employmentStartDate),
           employmentEndDate: toDateInput(worker.employmentEndDate),
+          user: {
+            receiveEmails: worker.user.receiveEmails,
+          },
         }}
       />
 

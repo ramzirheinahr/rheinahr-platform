@@ -1393,6 +1393,7 @@ function CellEditor({
                       scheduledHours={netShiftHours(j.startTime, j.endTime, j.breakMinutes)}
                       scheduledStart={j.startTime}
                       scheduledEnd={j.endTime}
+                      isAdmin={true}
                     />
                   </div>
                 ) : null}

@@ -124,6 +124,7 @@ export async function createClient(formData: FormData): Promise<ActionState> {
           id: authId,
           email: base.data.email,
           fullName: base.data.fullName,
+          receiveEmails: formData.get("receiveEmails") === "on",
           role: "client",
           passwordHash,
           createdById: actor.id,
@@ -199,7 +200,10 @@ export async function updateClient(
         hourlyRates: ratesJson(data) ?? Prisma.JsonNull,
         // Keep the account display name in sync with the profile.
         user: {
-          update: { fullName: data.contactPerson || data.facilityName },
+          update: { 
+            fullName: data.contactPerson || data.facilityName,
+            receiveEmails: formData.get("receiveEmails") === "on",
+          },
         },
       },
     });

@@ -40,7 +40,7 @@ export default async function EditClientPage({
     .findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, email: true, active: true, loginToken: true } },
+        user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true } },
       },
     })
     .catch(() => null);
@@ -81,6 +81,9 @@ export default async function EditClientPage({
           nightStart: client.nightStart,
           nightEnd: client.nightEnd,
           hourlyRates: resolveRateOverrides(client.hourlyRates),
+          user: {
+            receiveEmails: client.user.receiveEmails,
+          },
         }}
       />
 

@@ -255,6 +255,7 @@ export function ShiftMetaCell({
                           scheduledHours={meta.scheduledHours ?? 0}
                           scheduledStart={scheduledStart}
                           scheduledEnd={scheduledEnd}
+                          isAdmin={assignable}
                         />
                       )}
                       {/* Signed shift → admin may propose an hours correction

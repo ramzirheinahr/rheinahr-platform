@@ -52,6 +52,9 @@ export type WorkerData = {
   hourlyRates?: Record<string, number> | null;
   employmentStartDate?: string | null;
   employmentEndDate?: string | null;
+  user: {
+    receiveEmails: boolean;
+  };
 };
 
 const textareaClass =
@@ -360,6 +363,17 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
           />
         </div>
       </fieldset>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="receiveEmails"
+          name="receiveEmails"
+          defaultChecked={worker.user?.receiveEmails ?? true}
+          className="size-4"
+        />
+        <Label htmlFor="receiveEmails">E-Mail Benachrichtigungen senden</Label>
+      </div>
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

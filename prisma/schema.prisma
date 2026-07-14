@@ -144,6 +144,7 @@ model User {
   passwordHash      String    @map("password_hash")
   role              Role
   active            Boolean   @default(true) // disabled accounts cannot sign in
+  receiveEmails     Boolean   @default(true) @map("receive_emails")
   preferredLanguage Language  @default(de) @map("preferred_language")
   twoFactorEnabled  Boolean   @default(false) @map("2fa_enabled")
   // Passwordless "access link + PIN" login (client/worker convenience). The admin
