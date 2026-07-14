@@ -12,6 +12,7 @@ import { Pencil, Clock, Search } from "lucide-react";
 export type WorkerTableRow = {
   id: string;
   fullName: string;
+  internalNumber: string;
   email: string;
   qualification: string;
   qualificationLabel: string;
@@ -26,14 +27,11 @@ function normalize(s: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-// Smart, incremental search: split the query into tokens and keep rows whose
-// combined text contains EVERY token — so partial words in any order match
-// (e.g. "mül pfl" → "Anna Müller · Pflegefachkraft") without completing words.
 function matches(row: WorkerTableRow, query: string): boolean {
   const tokens = normalize(query).split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return true;
   const hay = normalize(
-    `${row.fullName} ${row.email} ${row.qualificationLabel} ${row.contractLabel} ${row.phone}`,
+    `${row.fullName} ${row.internalNumber} ${row.email} ${row.qualificationLabel} ${row.contractLabel} ${row.phone}`,
   );
   return tokens.every((tok) => hay.includes(tok));
 }
@@ -49,11 +47,47 @@ export function WorkersTable({
   const c = useTranslations("common");
   const [query, setQuery] = useState("");
 
-  // Rows arrive already alphabetically sorted from the server; keep that order.
-  const filtered = useMemo(() => rows.filter((r) => matches(r, query)), [rows, query]);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
+
+  const filteredAndSorted = useMemo(() => {
+    let result = rows.filter((r) => matches(r, query));
+    
+    if (sortConfig) {
+      result = [...result].sort((a, b) => {
+        let aVal = a[sortConfig.key as keyof WorkerTableRow] ?? "";
+        let bVal = b[sortConfig.key as keyof WorkerTableRow] ?? "";
+        
+        // If sorting by internalNumber and both are numeric, we can sort them numerically
+        if (sortConfig.key === "internalNumber") {
+          const aNum = Number(aVal);
+          const bNum = Number(bVal);
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
+          }
+        }
+        
+        // Fallback to string locale compare
+        const cmp = String(aVal).localeCompare(String(bVal));
+        return sortConfig.direction === "asc" ? cmp : -cmp;
+      });
+    }
+    
+    return result;
+  }, [rows, query, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig((current) => {
+      if (current?.key === key) {
+        if (current.direction === "asc") return { key, direction: "desc" };
+        return null; // cycle to no-sort
+      }
+      return { key, direction: "asc" };
+    });
+  };
 
   const columns: Column<WorkerTableRow>[] = [
-    { header: t("fullName"), primary: true, cell: (w) => w.fullName },
+    { id: "internalNumber", header: "Int. Nummer", sortable: true, cell: (w) => w.internalNumber || "—" },
+    { id: "fullName", header: t("fullName"), sortable: true, primary: true, cell: (w) => w.fullName },
     { header: t("email"), cell: (w) => w.email },
     ...(showQualColumn
       ? [
@@ -110,9 +144,11 @@ export function WorkersTable({
       </div>
       <ResponsiveTable
         columns={columns}
-        rows={filtered}
+        rows={filteredAndSorted}
         getRowKey={(w) => w.id}
         empty={query ? t("noSearchMatch") : t("empty")}
+        sortConfig={sortConfig}
+        onSort={handleSort}
       />
     </div>
   );

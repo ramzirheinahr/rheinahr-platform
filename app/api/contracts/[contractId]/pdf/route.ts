@@ -77,10 +77,35 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
     })
   };
 
-  const pdfBuffer = await renderContractPdf(pdfData);
+  // If the contract is signed and has a document URL, serve it instead of rendering a new one.
+  if (contract.documentUrl && contract.status === "signed") {
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.storage
+      .from("confirmations")
+      .download(contract.documentUrl);
+    if (!error && data) {
+      await audit({
+        userId: user.id,
+        action: "contract.pdf_download_signed",
+        entity: "ClientContract",
+        entityId: contract.id
+      });
+      const url = new URL(_req.url);
+      const isDownload = url.searchParams.get("download") === "true";
+      const disposition = isDownload ? "attachment" : "inline";
+      return new NextResponse(new Uint8Array(await data.arrayBuffer()), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `${disposition}; filename="AUEG-Vertrag-${contract.client.facilityName.replace(/\s+/g, "_")}.pdf"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    // Fallback to rendering dynamically if file is missing
+  }
 
-  // If we wanted to archive it to Supabase Storage like Leistungsnachweis we would do it on signing.
-  // For now, we generate it dynamically on request.
+  const pdfBuffer = await renderContractPdf(pdfData);
 
   await audit({
     userId: user.id,

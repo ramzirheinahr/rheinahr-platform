@@ -30,6 +30,7 @@ async function assertSuperAdmin() {
 function parseProfile(formData: FormData) {
   return clientSchema.safeParse({
     facilityName: formData.get("facilityName"),
+    internalNumber: formData.get("internalNumber") || undefined,
     shortCode: formData.get("shortCode"),
     facilityType: formData.get("facilityType"),
     address: formData.get("address") || undefined,
@@ -134,6 +135,7 @@ export async function createClient(formData: FormData): Promise<ActionState> {
         data: {
           userId: authId,
           facilityName: data.facilityName,
+          internalNumber: data.internalNumber ?? null,
           shortCode: data.shortCode ?? null,
           facilityType: data.facilityType,
           address: data.address,
@@ -186,6 +188,7 @@ export async function updateClient(
       where: { id },
       data: {
         facilityName: data.facilityName,
+        internalNumber: data.internalNumber ?? null,
         shortCode: data.shortCode ?? null,
         facilityType: data.facilityType,
         address: data.address,

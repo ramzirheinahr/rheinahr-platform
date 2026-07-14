@@ -1,10 +1,13 @@
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { resolveSurcharges, resolveRates, resolveNightWindow } from "@/lib/pricing";
+import { resolveSurcharges, resolveRates, resolveNightWindow, netShiftHours } from "@/lib/pricing";
+import { candidatesForShift } from "@/lib/orders";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
+import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
+import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -24,28 +27,39 @@ export default async function AdminEditRequestPage({
   const orders = await prisma.order.findMany({
     where: { requestGroupId: id },
     orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
-    select: {
-      shiftDate: true,
-      startTime: true,
-      endTime: true,
-      breakMinutes: true,
-      requiredQualification: true,
-      quantity: true,
-      notes: true,
+    include: {
       client: {
         select: {
           surchargeSat: true,
           surchargeSun: true,
           surchargeHoliday: true,
-        surchargeNight: true,
-        nightStart: true,
-        nightEnd: true,
-        hourlyRates: true,
+          surchargeNight: true,
+          nightStart: true,
+          nightEnd: true,
+          hourlyRates: true,
+        },
+      },
+      assignments: {
+        include: {
+          worker: { select: { id: true, fullName: true, photoPath: true, mealAllowanceEnabled: true, travelAllowanceEnabled: true } },
+          serviceConfirmation: { select: { hoursWorked: true, correctionHours: true } },
         },
       },
     },
   });
   if (orders.length === 0) notFound();
+
+  const candidates = await Promise.all(
+    orders.map((o) =>
+      candidatesForShift({
+        id: o.id,
+        shiftDate: o.shiftDate,
+        startTime: o.startTime,
+        endTime: o.endTime,
+        requiredQualification: o.requiredQualification,
+      }),
+    ),
+  );
 
   const initial = {
     requestGroupId: id,
@@ -59,6 +73,51 @@ export default async function AdminEditRequestPage({
       bereich: o.notes ?? "",
     })),
   };
+
+  const shiftMeta: Record<string, ShiftMeta> = {};
+  const slotByDate: Record<string, number> = {};
+  orders.forEach((o, i) => {
+    const date = d(o.shiftDate);
+    const slot = slotByDate[date] ?? 0;
+    slotByDate[date] = slot + 1;
+    const confirmedCount = o.assignments.filter((a) => a.status === "confirmed").length;
+    const selectable =
+      !["cancelled", "completed", "confirmed"].includes(o.status) &&
+      confirmedCount < o.quantity;
+    shiftMeta[`${date}:${slot}`] = {
+      orderId: o.id,
+      status: o.status,
+      quantity: o.quantity,
+      label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
+      selectable,
+      scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes),
+      assignments: o.assignments.map((a) => ({
+        id: a.id,
+        workerName: a.worker.fullName,
+        status: a.status,
+        hours: a.serviceConfirmation
+          ? Number(a.serviceConfirmation.hoursWorked)
+          : null,
+        hasConfirmation: !!a.serviceConfirmation,
+        addMealAllowance: a.addMealAllowance,
+        excludeMealAllowance: a.excludeMealAllowance,
+        excludeTravelAllowance: a.excludeTravelAllowance,
+        bonusHours: a.bonusHours,
+        correctionHours:
+          a.serviceConfirmation?.correctionHours != null
+            ? Number(a.serviceConfirmation.correctionHours)
+            : null,
+        worker: {
+          id: a.worker.id,
+          fullName: a.worker.fullName,
+          hasPhoto: !!a.worker.photoPath,
+          mealAllowanceEnabled: a.worker.mealAllowanceEnabled,
+          travelAllowanceEnabled: a.worker.travelAllowanceEnabled,
+        },
+      })),
+      candidates: candidates[i],
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -81,6 +140,7 @@ export default async function AdminEditRequestPage({
         nightWindow={resolveNightWindow(orders[0].client)}
         adminEdit
         backHref={`/admin/orders/${id}`}
+        shiftMeta={shiftMeta}
       />
     </div>
   );

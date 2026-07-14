@@ -55,6 +55,7 @@ export default async function WorkersPage({
   const rows: WorkerTableRow[] = workers.map((w) => ({
     id: w.id,
     fullName: w.fullName,
+    internalNumber: w.internalNumber ?? "",
     email: w.user.email,
     qualification: w.qualification,
     qualificationLabel: eq(w.qualification),

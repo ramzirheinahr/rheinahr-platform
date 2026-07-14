@@ -194,6 +194,7 @@ model PushSubscription {
 model Worker {
   id                   String        @id @default(uuid())
   userId               String        @unique @map("user_id")
+  internalNumber       String?       @map("internal_number")
   fullName             String        @map("full_name")
   qualification        Qualification
   certifications       String[]      @default([])
@@ -296,6 +297,7 @@ model WorkerAvailability {
 model Client {
   id                         String       @id @default(uuid())
   userId                     String       @unique @map("user_id")
+  internalNumber             String?      @map("internal_number")
   facilityName               String       @map("facility_name")
   // Dienstplan-Kürzel: the 2–3 letter facility code used on the master
   // schedule grid (e.g. "WB" = Limbachstift Wachtberg). Admin-assigned.

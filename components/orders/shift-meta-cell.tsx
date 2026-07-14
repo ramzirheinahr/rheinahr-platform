@@ -49,7 +49,7 @@ export type ShiftMeta = {
     addMealAllowance?: boolean;
     excludeMealAllowance?: boolean;
     excludeTravelAllowance?: boolean;
-    bonusHours?: number;
+    bonusHours?: number | null;
     // Admin proposed corrected hours awaiting the client's re-confirmation.
     correctionHours?: number | null;
     worker?: {

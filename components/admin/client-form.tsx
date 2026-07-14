@@ -22,6 +22,7 @@ import { updateClient } from "@/app/[locale]/admin/clients/actions";
 type ClientData = {
   id: string;
   facilityName: string;
+  internalNumber?: string | null;
   shortCode: string | null;
   facilityType: string;
   address: string | null;
@@ -76,6 +77,14 @@ export function ClientForm({ client }: { client: ClientData }) {
           defaultName={client.facilityName}
           defaultCode={client.shortCode ?? ""}
         />
+        <div className="space-y-2">
+          <Label htmlFor="internalNumber">Interne Nummer</Label>
+          <Input
+            id="internalNumber"
+            name="internalNumber"
+            defaultValue={client.internalNumber || ""}
+          />
+        </div>
         <div className="space-y-2">
           <Label>{t("facilityType")}</Label>
           <Select name="facilityType" defaultValue={client.facilityType}>

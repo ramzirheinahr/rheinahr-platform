@@ -358,7 +358,9 @@
     "searchPlaceholder": "Search orders…"
   },
   "orderRequest": {
-    "prev": "Back",
+    "undo": "Undo",
+    "redo": "Redo",
+    "prev": "Previous",
     "next": "Next",
     "addHint": "Tap a day to add a shift.",
     "selectedShifts": "Selected shifts",

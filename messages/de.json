@@ -358,6 +358,8 @@
     "searchPlaceholder": "Anfragen durchsuchen…"
   },
   "orderRequest": {
+    "undo": "Rückgängig",
+    "redo": "Wiederholen",
     "prev": "Zurück",
     "next": "Weiter",
     "addHint": "Tippen Sie auf einen Tag, um eine Schicht hinzuzufügen.",

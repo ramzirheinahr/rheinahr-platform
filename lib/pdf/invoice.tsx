@@ -127,8 +127,8 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
           <Text style={styles.returnAddress}>RheinAhr Dienstleistungen GmbH , Theaterplatz 1 , 53177 Bonn</Text>
           <View style={styles.clientAddress}>
             <Text>{data.clientName}</Text>
-            {data.clientAddress.split('\n').map((line, i) => (
-              <Text key={i}>{line}</Text>
+            {data.clientAddress.split(/[\n,]+/).map((line, i) => (
+              <Text key={i}>{line.trim()}</Text>
             ))}
           </View>
         </View>

@@ -30,6 +30,7 @@ export default async function ClientsPage() {
   const rows: ClientTableRow[] = clients.map((cl) => ({
     id: cl.id,
     facilityName: cl.facilityName,
+    internalNumber: cl.internalNumber ?? "",
     facilityTypeLabel: ef(cl.facilityType),
     contactPerson: cl.contactPerson || c("none"),
     email: cl.user.email,

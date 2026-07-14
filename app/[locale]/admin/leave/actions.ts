@@ -38,21 +38,24 @@ export async function reviewLeaveRequest(
         data: { status: overallStatus },
       });
 
-      // Update each day
-      for (const decision of decisions) {
-        const dayRecord = request.days.find(
-          (d) => d.date.toISOString().slice(0, 10) === decision.date
-        );
-        if (dayRecord) {
-          await tx.leaveDay.update({
-            where: { id: dayRecord.id },
-            data: {
-              status: decision.status,
-              hours: decision.hours,
-            },
-          });
-        }
-      }
+      // Update each day concurrently to avoid transaction timeout on large requests
+      await Promise.all(
+        decisions.map((decision) => {
+          const dayRecord = request.days.find(
+            (d) => d.date.toISOString().slice(0, 10) === decision.date
+          );
+          if (dayRecord) {
+            return tx.leaveDay.update({
+              where: { id: dayRecord.id },
+              data: {
+                status: decision.status,
+                hours: decision.hours,
+              },
+            });
+          }
+          return Promise.resolve();
+        })
+      );
 
       // Add a system message to the conversation to notify the worker
       const conversation = await tx.conversation.findUnique({
@@ -77,7 +80,7 @@ export async function reviewLeaveRequest(
       }
 
       return { ok: true };
-    });
+    }, { maxWait: 5000, timeout: 30000 });
 
     return result;
   } catch (error) {

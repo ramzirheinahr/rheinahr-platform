@@ -22,6 +22,7 @@ import { updateWorker } from "@/app/[locale]/admin/workers/actions";
 export type WorkerData = {
   id: string;
   fullName: string;
+  internalNumber?: string | null;
   qualification: string;
   contractType: string;
   phone: string | null;
@@ -87,9 +88,15 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
 
   return (
     <form onSubmit={onSubmit} className="max-w-2xl space-y-5">
-      <div className="space-y-2">
-        <Label htmlFor="fullName">{t("fullName")}</Label>
-        <Input id="fullName" name="fullName" required defaultValue={worker.fullName} />
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="fullName">{t("fullName")}</Label>
+          <Input id="fullName" name="fullName" required defaultValue={worker.fullName} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="internalNumber">Interne Nummer</Label>
+          <Input id="internalNumber" name="internalNumber" defaultValue={worker.internalNumber || ""} />
+        </div>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">

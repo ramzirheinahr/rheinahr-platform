@@ -17,6 +17,9 @@ import { LiveRefresher } from "@/components/portal/live-refresher";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft, Pencil } from "lucide-react";
+import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
+import { OrderContractsBanner } from "@/components/admin/order-contracts-banner";
+import { OrderInvoicesBanner } from "@/components/admin/order-invoices-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +76,56 @@ export default async function AdminRequestDetail({
   const firstDate = formatDateDE(orders[0].shiftDate);
   const lastDate = formatDateDE(orders[orders.length - 1].shiftDate);
   const range = firstDate === lastDate ? firstDate : `${firstDate} – ${lastDate}`;
+
+  const contracts = await prisma.clientContract.findMany({
+    where: {
+      assignments: {
+        some: {
+          order: { requestGroupId: id }
+        }
+      }
+    },
+    include: {
+      client: true,
+      assignments: {
+        include: { order: true, worker: true }
+      }
+    }
+  });
+
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      assignments: {
+        some: {
+          order: { requestGroupId: id }
+        }
+      }
+    }
+  });
+
+  const uncontractedAssignments = orders.flatMap(o => 
+    o.assignments
+      .filter(a => a.status === "confirmed" && !a.contractId)
+      .map(a => ({
+        id: a.id,
+        workerName: a.worker.fullName,
+        shiftDate: formatDateDE(o.shiftDate),
+        startTime: o.startTime,
+        endTime: o.endTime
+      }))
+  );
+
+  const uninvoicedAssignments = orders.flatMap(o =>
+    o.assignments
+      .filter(a => a.status === "confirmed" && a.serviceConfirmation && !a.invoiceId)
+      .map(a => ({
+        id: a.id,
+        workerName: a.worker.fullName,
+        shiftDate: formatDateDE(o.shiftDate),
+        startTime: o.startTime,
+        endTime: o.endTime
+      }))
+  );
 
   const initial = {
     requestGroupId: id,
@@ -155,6 +208,7 @@ export default async function AdminRequestDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <CopyPublicLinkButton requestGroupId={id} />
           {isRequestCancelable(orders) ? (
             <CancelRequestButton requestGroupId={id} admin />
           ) : null}
@@ -164,6 +218,18 @@ export default async function AdminRequestDetail({
           </Button>
         </div>
       </div>
+
+      <OrderContractsBanner 
+        requestGroupId={id} 
+        contracts={contracts} 
+        uncontractedAssignments={uncontractedAssignments} 
+      />
+
+      <OrderInvoicesBanner 
+        requestGroupId={id} 
+        invoices={invoices} 
+        uninvoicedAssignments={uninvoicedAssignments} 
+      />
 
       {/* The request in the same shape as when it was created; each shift row
           carries its status chip, which opens the assignment dialog. Ticking

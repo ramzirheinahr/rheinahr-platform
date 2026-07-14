@@ -86,6 +86,7 @@ function toWorkerColumns(d: ProfileInput) {
 
   return {
     fullName: d.fullName,
+    internalNumber: d.internalNumber ?? null,
     qualification: d.qualification,
     contractType: d.contractType,
     certifications: d.certifications,

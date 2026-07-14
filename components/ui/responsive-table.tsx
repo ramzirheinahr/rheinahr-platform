@@ -8,8 +8,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 export type Column<T> = {
+  id?: string;
   header: ReactNode;
   cell: (row: T) => ReactNode;
   /** Extra classes for the desktop header + cell (e.g. "text-end"). */
@@ -18,6 +20,8 @@ export type Column<T> = {
   primary?: boolean;
   /** Mobile: render right-aligned at the card footer without a label (actions). */
   action?: boolean;
+  /** Is this column sortable? Requires 'id' to be set. */
+  sortable?: boolean;
 };
 
 // Renders a normal table on md+ screens and a stacked-card list on mobile,
@@ -27,11 +31,15 @@ export function ResponsiveTable<T>({
   rows,
   getRowKey,
   empty,
+  sortConfig,
+  onSort,
 }: {
   columns: Column<T>[];
   rows: T[];
   getRowKey: (row: T) => string;
   empty: ReactNode;
+  sortConfig?: { key: string; direction: "asc" | "desc" } | null;
+  onSort?: (key: string) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -53,8 +61,29 @@ export function ResponsiveTable<T>({
           <TableHeader>
             <TableRow>
               {columns.map((c, i) => (
-                <TableHead key={i} className={c.className}>
-                  {c.header}
+                <TableHead key={c.id || i} className={c.className}>
+                  {c.sortable && c.id && onSort ? (
+                    <button
+                      onClick={() => onSort(c.id!)}
+                      className={cn(
+                        "flex items-center gap-1 hover:text-foreground transition-colors",
+                        sortConfig?.key === c.id ? "text-foreground font-medium" : "text-muted-foreground"
+                      )}
+                    >
+                      {c.header}
+                      {sortConfig?.key === c.id ? (
+                        sortConfig.direction === "asc" ? (
+                          <ArrowUp className="size-3.5" />
+                        ) : (
+                          <ArrowDown className="size-3.5" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="size-3.5 opacity-50" />
+                      )}
+                    </button>
+                  ) : (
+                    c.header
+                  )}
                 </TableHead>
               ))}
             </TableRow>
@@ -63,7 +92,7 @@ export function ResponsiveTable<T>({
             {rows.map((row) => (
               <TableRow key={getRowKey(row)}>
                 {columns.map((c, i) => (
-                  <TableCell key={i} className={c.className}>
+                  <TableCell key={c.id || i} className={c.className}>
                     {c.cell(row)}
                   </TableCell>
                 ))}
@@ -83,7 +112,7 @@ export function ResponsiveTable<T>({
             <dl className="space-y-1.5">
               {details.map((c, i) => (
                 <div
-                  key={i}
+                  key={c.id || i}
                   className="flex items-center justify-between gap-3 text-sm"
                 >
                   <dt className="shrink-0 text-muted-foreground">{c.header}</dt>
@@ -94,7 +123,7 @@ export function ResponsiveTable<T>({
             {actions.length ? (
               <div className="mt-3 flex justify-end gap-2 border-t pt-3">
                 {actions.map((c, i) => (
-                  <span key={i}>{c.cell(row)}</span>
+                  <span key={c.id || i}>{c.cell(row)}</span>
                 ))}
               </div>
             ) : null}

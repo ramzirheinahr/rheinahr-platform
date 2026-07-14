@@ -118,6 +118,7 @@ const optionalRate = z.preprocess(
 
 export const workerSchema = z.object({
   fullName: z.string().min(2).max(120),
+  internalNumber: z.string().max(40).optional(),
   qualification: z.enum(qualifications),
   contractType: z.enum(contractTypes),
   certifications: z.array(z.string().max(120)).default([]),
@@ -173,6 +174,7 @@ export const workerSchema = z.object({
 
 export const clientSchema = z.object({
   facilityName: z.string().min(2).max(160),
+  internalNumber: z.string().max(40).optional(),
   // Dienstplan-Kürzel shown on the master schedule grid (2–3 letters/digits).
   shortCode: z.preprocess(
     (v) => (typeof v === "string" && v.trim() ? v.trim().toUpperCase() : undefined),

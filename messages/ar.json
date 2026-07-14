@@ -358,6 +358,8 @@
     "searchPlaceholder": "البحث عن الطلبات…"
   },
   "orderRequest": {
+    "undo": "تراجع",
+    "redo": "إعادة",
     "prev": "السابق",
     "next": "التالي",
     "addHint": "اضغط على يوم لإضافة وردية.",

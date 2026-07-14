@@ -12,6 +12,7 @@ import { Pencil, Clock, Search } from "lucide-react";
 export type ClientTableRow = {
   id: string;
   facilityName: string;
+  internalNumber: string;
   facilityTypeLabel: string;
   contactPerson: string;
   email: string;
@@ -25,13 +26,11 @@ function normalize(s: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-// Smart, incremental search: keep rows whose combined text contains EVERY token,
-// so partial words in any order match without completing them.
 function matches(row: ClientTableRow, query: string): boolean {
   const tokens = normalize(query).split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return true;
   const hay = normalize(
-    `${row.facilityName} ${row.facilityTypeLabel} ${row.contactPerson} ${row.email} ${row.shortCode}`,
+    `${row.facilityName} ${row.internalNumber} ${row.facilityTypeLabel} ${row.contactPerson} ${row.email} ${row.shortCode}`,
   );
   return tokens.every((tok) => hay.includes(tok));
 }
@@ -41,11 +40,47 @@ export function ClientsTable({ rows }: { rows: ClientTableRow[] }) {
   const c = useTranslations("common");
   const [query, setQuery] = useState("");
 
-  // Rows arrive alphabetically sorted from the server; keep that order.
-  const filtered = useMemo(() => rows.filter((r) => matches(r, query)), [rows, query]);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
+
+  const filteredAndSorted = useMemo(() => {
+    let result = rows.filter((r) => matches(r, query));
+    
+    if (sortConfig) {
+      result = [...result].sort((a, b) => {
+        let aVal = a[sortConfig.key as keyof ClientTableRow] ?? "";
+        let bVal = b[sortConfig.key as keyof ClientTableRow] ?? "";
+        
+        // If sorting by internalNumber and both are numeric, we can sort them numerically
+        if (sortConfig.key === "internalNumber") {
+          const aNum = Number(aVal);
+          const bNum = Number(bVal);
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
+          }
+        }
+        
+        // Fallback to string locale compare
+        const cmp = String(aVal).localeCompare(String(bVal));
+        return sortConfig.direction === "asc" ? cmp : -cmp;
+      });
+    }
+    
+    return result;
+  }, [rows, query, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig((current) => {
+      if (current?.key === key) {
+        if (current.direction === "asc") return { key, direction: "desc" };
+        return null; // cycle to no-sort
+      }
+      return { key, direction: "asc" };
+    });
+  };
 
   const columns: Column<ClientTableRow>[] = [
-    { header: t("facilityName"), primary: true, cell: (cl) => cl.facilityName },
+    { id: "internalNumber", header: "Int. Nummer", sortable: true, cell: (cl) => cl.internalNumber || "—" },
+    { id: "facilityName", header: t("facilityName"), sortable: true, primary: true, cell: (cl) => cl.facilityName },
     {
       header: t("facilityType"),
       cell: (cl) => <Badge variant="secondary">{cl.facilityTypeLabel}</Badge>,
@@ -95,9 +130,11 @@ export function ClientsTable({ rows }: { rows: ClientTableRow[] }) {
       </div>
       <ResponsiveTable
         columns={columns}
-        rows={filtered}
+        rows={filteredAndSorted}
         getRowKey={(cl) => cl.id}
         empty={query ? t("noSearchMatch") : t("empty")}
+        sortConfig={sortConfig}
+        onSort={handleSort}
       />
     </div>
   );

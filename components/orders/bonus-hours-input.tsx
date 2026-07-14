@@ -9,13 +9,13 @@ export function BonusHoursInput({
   initialBonusHours = 0,
 }: {
   assignmentId: string;
-  initialBonusHours?: number;
+  initialBonusHours?: number | null;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [value, setValue] = useState(initialBonusHours.toString());
+  const [value, setValue] = useState((initialBonusHours ?? 0).toString());
 
   useEffect(() => {
-    setValue(initialBonusHours.toString());
+    setValue((initialBonusHours ?? 0).toString());
   }, [initialBonusHours]);
 
   const handleBlur = () => {
