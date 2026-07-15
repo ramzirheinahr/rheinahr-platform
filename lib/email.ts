@@ -84,19 +84,21 @@ export async function sendEmailToUsers(
   `;
 
   try {
-    await Promise.all(
-      emails.map((email) =>
-        mailer.sendMail({
+    for (const email of emails) {
+      try {
+        await mailer.sendMail({
           from: EMAIL_FROM,
           to: email,
           subject: payload.subject,
           text: textBody,
           html: finalHtml,
           attachments: payload.attachments,
-        })
-      )
-    );
+        });
+      } catch (err) {
+        console.error(`Failed to send email to ${email}:`, err);
+      }
+    }
   } catch (error) {
-    console.error("Error sending email:", error);
+    console.error("Error sending emails sequentially:", error);
   }
 }

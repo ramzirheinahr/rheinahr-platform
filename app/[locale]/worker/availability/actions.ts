@@ -37,9 +37,9 @@ export async function saveAvailability(
 
   const worker = isStaff
     ? workerId
-      ? await prisma.worker.findUnique({ where: { id: workerId }, select: { id: true } })
+      ? await prisma.worker.findUnique({ where: { id: workerId }, include: { user: { select: { fullName: true } } } })
       : null
-    : await prisma.worker.findUnique({ where: { userId: user.id }, select: { id: true } });
+    : await prisma.worker.findUnique({ where: { userId: user.id }, include: { user: { select: { fullName: true } } } });
   if (!worker) return { ok: false, error: "saveError" };
 
   const start = new Date(Date.UTC(year, month - 1, 1));
@@ -82,6 +82,34 @@ export async function saveAvailability(
     entityId: worker.id,
     metadata: { year, month, blocks: clean.length, actorRole: user.role },
   });
+
+  if (!isStaff) {
+    const admins = await prisma.user.findMany({
+      where: { role: { in: ["admin", "super_admin"] }, receiveEmails: true },
+      select: { id: true },
+    });
+    
+    if (admins.length > 0) {
+      const { sendEmailToUsers } = await import("@/lib/email");
+      const adminIds = admins.map((a) => a.id);
+      
+      const sortedBlocks = [...clean].sort((a, b) => a.date.localeCompare(b.date));
+      const blocksList = sortedBlocks.length > 0 
+        ? sortedBlocks.map((b) => {
+            const time = b.startTime === null && b.endTime === null 
+              ? "Ganztägig" 
+              : `${b.startTime} - ${b.endTime}`;
+            return `- ${b.date}: ${time}`;
+          }).join("\n")
+        : "Keine Zeiten angegeben (Verfügbarkeit gelöscht/leer).";
+        
+      const fullName = worker.user?.fullName || "Ein Mitarbeiter";
+      const subject = `Verfügbarkeit aktualisiert: ${fullName}`;
+      const body = `Der Mitarbeiter ${fullName} hat seine Verfügbarkeit für ${month}/${year} aktualisiert.\n\nEingereichte Zeiten:\n${blocksList}\n\nBitte prüfen Sie den Dienstplan im Admin-Bereich.`;
+      
+      await sendEmailToUsers(adminIds, { subject, body }).catch(console.error);
+    }
+  }
 
   revalidatePath("/worker");
   revalidatePath(`/admin/workers/${worker.id}/schedule`);
