@@ -16,7 +16,7 @@ export function ClientInvoicesBanner({
       <div>
         <h3 className="text-base font-semibold flex items-center gap-2">
           <Receipt className="size-4 text-emerald-600" />
-          Ihre Rechnungen für diesen Monat
+          Ihre Rechnungen
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           Laden Sie Ihre Rechnungen herunter.

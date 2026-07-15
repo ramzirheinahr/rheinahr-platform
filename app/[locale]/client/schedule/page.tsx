@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { getClientMonthSchedule } from "@/lib/client-schedule";
 import { MonthScheduleTable } from "@/components/client/month-schedule-table";
-import { ClientContractsBanner } from "@/components/client/client-contracts-banner";
-import { ClientInvoicesBanner } from "@/components/client/client-invoices-banner";
+
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, FileDown, Sheet } from "lucide-react";
@@ -61,31 +60,6 @@ export default async function ClientSchedulePage({
   const startDate = new Date(Date.UTC(year, month - 1, 1));
   const endDate = new Date(Date.UTC(year, month, 1));
   
-  const contracts = client ? await prisma.clientContract.findMany({
-    where: {
-      clientId: client.id,
-      assignments: {
-        some: {
-          order: {
-            shiftDate: { gte: startDate, lt: endDate }
-          }
-        }
-      }
-    },
-    include: {
-      client: true,
-      assignments: {
-        include: { order: true, worker: true }
-      }
-    }
-  }) : [];
-
-  const invoices = client ? await prisma.invoice.findMany({
-    where: {
-      clientId: client.id,
-      date: { gte: startDate, lt: endDate }
-    }
-  }) : [];
 
   const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
@@ -121,8 +95,6 @@ export default async function ClientSchedulePage({
         </div>
       </div>
 
-      <ClientContractsBanner contracts={contracts} />
-      <ClientInvoicesBanner invoices={invoices} />
 
       <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-2 py-1.5">
         <Button

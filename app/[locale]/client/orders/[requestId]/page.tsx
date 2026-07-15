@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { RequestMessageButton } from "@/components/client/request-message-button";
 import { CancelRequestButton } from "@/components/orders/cancel-request-button";
+import { ClientContractsBanner } from "@/components/client/client-contracts-banner";
+import { ClientInvoicesBanner } from "@/components/client/client-invoices-banner";
 import { LiveRefresher } from "@/components/portal/live-refresher";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
@@ -77,6 +79,36 @@ export default async function ClientRequestDetail({
     },
   });
   if (orders.length === 0) notFound();
+
+  const orderIds = orders.map((o) => o.id);
+
+  const contracts = await prisma.clientContract.findMany({
+    where: {
+      clientId: client.id,
+      assignments: {
+        some: {
+          orderId: { in: orderIds }
+        }
+      }
+    },
+    include: {
+      client: true,
+      assignments: {
+        include: { order: true, worker: true }
+      }
+    }
+  });
+
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      clientId: client.id,
+      assignments: {
+        some: {
+          orderId: { in: orderIds }
+        }
+      }
+    }
+  });
 
   const editable = isRequestEditable(orders);
   const cancelable = isRequestCancelable(orders);
@@ -171,6 +203,9 @@ export default async function ClientRequestDetail({
           )}
         </div>
       </div>
+
+      <ClientContractsBanner contracts={contracts} />
+      <ClientInvoicesBanner invoices={invoices} />
 
       <OrderRequestBuilder
         initial={initial}

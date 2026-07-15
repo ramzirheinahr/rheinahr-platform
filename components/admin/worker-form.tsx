@@ -87,7 +87,7 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-8 pb-10">
       
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle>Profil</CardTitle>
         </CardHeader>
@@ -105,7 +105,7 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle>{t("profileSection")}</CardTitle>
         </CardHeader>
@@ -176,28 +176,7 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
               />
             </div>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="yearsExperience">{t("yearsExperience")}</Label>
-              <Input
-                id="yearsExperience"
-                name="yearsExperience"
-                type="number"
-                min={0}
-                max={80}
-                defaultValue={worker.yearsExperience ?? ""}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="employedSince">{t("employedSince")}</Label>
-              <Input
-                id="employedSince"
-                name="employedSince"
-                type="date"
-                defaultValue={worker.employedSince ?? ""}
-              />
-            </div>
-          </div>
+
           <div className="space-y-2">
             <Label htmlFor="bio">{t("bio")}</Label>
             <textarea
@@ -211,7 +190,7 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle>{t("personalSection")}</CardTitle>
         </CardHeader>
@@ -250,11 +229,34 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle>{t("contractSection") || "Vertrag & Finanzen"}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-8">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="yearsExperience">{t("yearsExperience")}</Label>
+              <Input
+                id="yearsExperience"
+                name="yearsExperience"
+                type="number"
+                min={0}
+                max={80}
+                defaultValue={worker.yearsExperience ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="employedSince">{t("employedSince")}</Label>
+              <Input
+                id="employedSince"
+                name="employedSince"
+                type="date"
+                defaultValue={worker.employedSince ?? ""}
+              />
+            </div>
+          </div>
+          
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="requiredHours">{t("requiredHours")}</Label>

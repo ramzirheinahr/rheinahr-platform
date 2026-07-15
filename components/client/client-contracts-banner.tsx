@@ -16,7 +16,7 @@ export function ClientContractsBanner({
       <div>
         <h3 className="text-base font-semibold flex items-center gap-2">
           <FileSignature className="size-4 text-blue-600" />
-          Ihre AÜV Verträge für diesen Monat
+          Ihre AÜV Verträge
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           Bitte überprüfen und signieren Sie offene Verträge.

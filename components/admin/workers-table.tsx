@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
-import { Pencil, Clock, Search } from "lucide-react";
+import { Pencil, Clock, Search, Eye, EyeOff } from "lucide-react";
 
 export type WorkerTableRow = {
   id: string;
   fullName: string;
   internalNumber: string;
   email: string;
+  active: boolean;
   qualification: string;
   qualificationLabel: string;
   contractLabel: string;
@@ -46,11 +47,12 @@ export function WorkersTable({
   const t = useTranslations("workers");
   const c = useTranslations("common");
   const [query, setQuery] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
 
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
 
   const filteredAndSorted = useMemo(() => {
-    let result = rows.filter((r) => matches(r, query));
+    let result = rows.filter((r) => matches(r, query) && (showInactive || r.active));
     
     if (sortConfig) {
       result = [...result].sort((a, b) => {
@@ -132,15 +134,25 @@ export function WorkersTable({
 
   return (
     <div className="space-y-4">
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("searchPlaceholder")}
-          className="ps-9"
-          aria-label={t("searchPlaceholder")}
-        />
+      <div className="flex items-center justify-between gap-4">
+        <div className="relative max-w-sm flex-1">
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="ps-9"
+            aria-label={t("searchPlaceholder")}
+          />
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setShowInactive((prev) => !prev)}
+          className="gap-2"
+        >
+          {showInactive ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          {showInactive ? "Inaktive ausblenden" : "Inaktive anzeigen"}
+        </Button>
       </div>
       <ResponsiveTable
         columns={columns}
