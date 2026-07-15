@@ -29,7 +29,7 @@ export default async function DatenschutzPage({
         <br />
         RheinAhr Dienstleistungen GmbH
         <br />
-        Fronhof 4, 53177 Bonn, Deutschland
+        Theaterplatz 1, 53177 Bonn, Deutschland
         <br />
         Geschäftsführer: Basem Aldanaf
         <br />

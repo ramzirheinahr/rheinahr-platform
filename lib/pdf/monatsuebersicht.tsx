@@ -114,7 +114,7 @@ function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
         <View style={styles.headerRow} fixed>
           <View>
             <Text style={styles.brand}>RheinAhr Dienstleistungen GmbH</Text>
-            <Text style={styles.brandSub}>Fronhof 4, 53177 Bonn · info@rheinahr-gmbh.de</Text>
+            <Text style={styles.brandSub}>Theaterplatz 1, 53177 Bonn · info@rheinahr-gmbh.de</Text>
           </View>
           <Text style={styles.brandSub}>HRB 23459 · USt-IdNr. DE316507908</Text>
         </View>

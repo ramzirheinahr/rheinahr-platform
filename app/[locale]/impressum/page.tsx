@@ -20,7 +20,7 @@ export default async function ImpressumPage({
       <p>
         RheinAhr Dienstleistungen GmbH
         <br />
-        Fronhof 4
+        Theaterplatz 1
         <br />
         53177 Bonn
         <br />
@@ -72,7 +72,7 @@ export default async function ImpressumPage({
       <p>
         Basem Aldanaf
         <br />
-        Fronhof 4, 53177 Bonn
+        Theaterplatz 1, 53177 Bonn
       </p>
 
       <h2>EU-Streitschlichtung</h2>

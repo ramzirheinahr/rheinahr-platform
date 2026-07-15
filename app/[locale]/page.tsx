@@ -29,7 +29,7 @@ const COMPANY = {
   phone: "0228 / 28 68 3821",
   tel: "+4922828683821",
   email: "info@rheinahr-gmbh.de",
-  address: "Fronhof 4, 53177 Bonn",
+  address: "Theaterplatz 1, 53177 Bonn",
 };
 
 export default async function LandingPage({

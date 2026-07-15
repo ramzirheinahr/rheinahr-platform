@@ -69,7 +69,7 @@ export async function sendEmailToUsers(
   <div style="margin-top: 15px; margin-bottom: 15px;">
     <img src="https://platform.rheinahr-gmbh.de/logo.png" alt="RheinAhr Dienstleistungen GmbH" style="max-height: 50px; width: auto;" />
   </div>
-  <strong>RheinAhr Dienstleistungen GmbH</strong> | Am Fronhof 4, 53177 Bonn<br>
+  <strong>RheinAhr Dienstleistungen GmbH</strong> | Theaterplatz 1, 53177 Bonn<br>
   Telefon: +49 (228) 28683821 | Handy: +49 (1523) 3646562 | Telefax: +49 (228) 36039105<br>
   Email: <a href="mailto:info@rheinahr-gmbh.de" style="color: #0056b3; text-decoration: none;">info@rheinahr-gmbh.de</a> | Web: <a href="http://www.rheinahr-gmbh.de" style="color: #0056b3; text-decoration: none;">http://www.rheinahr-gmbh.de</a><br>
   Portal: <a href="https://platform.rheinahr-gmbh.de/de/admin" style="color: #0056b3; text-decoration: none;">platform.rheinahr-gmbh.de/de/admin</a>

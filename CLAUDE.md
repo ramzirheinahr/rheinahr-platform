@@ -13,7 +13,7 @@
 |---|---|
 | Legal name | RheinAhr Dienstleistungen GmbH |
 | Rechtsform | GmbH |
-| Address | Fronhof 4, 53177 Bonn, Deutschland |
+| Address | Theaterplatz 1, 53177 Bonn, Deutschland |
 | Phone | 0228 / 28 68 3821 |
 | Fax | 0228 / 360 391 05 |
 | Email | info@rheinahr-gmbh.de |

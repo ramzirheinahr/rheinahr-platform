@@ -113,7 +113,7 @@ function LeistungsnachweisDocument({ d }: { d: LeistungsnachweisData }) {
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.brand}>RheinAhr Dienstleistungen GmbH</Text>
-            <Text style={styles.brandSub}>Fronhof 4, 53177 Bonn · info@rheinahr-gmbh.de</Text>
+            <Text style={styles.brandSub}>Theaterplatz 1, 53177 Bonn · info@rheinahr-gmbh.de</Text>
           </View>
           <Text style={styles.brandSub}>HRB 23459 · USt-IdNr. DE316507908</Text>
         </View>
@@ -171,7 +171,9 @@ function LeistungsnachweisDocument({ d }: { d: LeistungsnachweisData }) {
         <Text style={styles.footer}>
           {d.draft
             ? `Entwurf des Leistungsnachweises — noch nicht rechtsverbindlich bestätigt. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`
-            : `Dieser Leistungsnachweis wurde digital erstellt und ist ohne handschriftliche Unterschrift gültig. Zeitstempel und IP-Adresse wurden gemäß DSGVO protokolliert. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`}
+            : d.isElectronic
+              ? `Dieser Leistungsnachweis wurde digital erstellt und ist ohne handschriftliche Unterschrift gültig. Zeitstempel und IP-Adresse wurden gemäß DSGVO protokolliert. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`
+              : `Bitte unterzeichnen Sie dieses Dokument handschriftlich. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`}
         </Text>
       </Page>
     </Document>
