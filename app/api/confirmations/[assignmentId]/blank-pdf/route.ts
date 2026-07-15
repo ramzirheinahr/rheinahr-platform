@@ -76,7 +76,7 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
     methodLabel: "Unterschrift (Handschriftlich)",
     isElectronic: false,
     signatureData: null,
-    confirmedByEmail: user.email,
+    confirmedByEmail: user?.email || "Öffentlicher Link",
     confirmedAt: "",
     ipAddress: null,
     orderId: a.order.id,
