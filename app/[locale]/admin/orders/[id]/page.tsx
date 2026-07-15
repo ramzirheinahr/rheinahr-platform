@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { CancelRequestButton } from "@/components/orders/cancel-request-button";
 import { AssignSelectionProvider } from "@/components/orders/assign-selection";
+import { PendingResponsesProvider } from "@/components/orders/pending-responses-provider";
 import { LiveRefresher } from "@/components/portal/live-refresher";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
@@ -234,18 +235,20 @@ export default async function AdminRequestDetail({
       {/* The request in the same shape as when it was created; each shift row
           carries its status chip, which opens the assignment dialog. Ticking
           several shifts reveals a bulk-assign bar (AssignSelectionProvider). */}
-      <AssignSelectionProvider selectableOrderIds={selectableOrderIds}>
-        <OrderRequestBuilder
-          initial={initial}
-          surcharges={resolveSurcharges(orders[0].client)}
-          rates={resolveRates(orders[0].client)}
-          nightWindow={resolveNightWindow(orders[0].client)}
-          readOnly
-          backHref={`/admin/orders/${id}`}
-          shiftMeta={shiftMeta}
-          assignable
-        />
-      </AssignSelectionProvider>
+      <PendingResponsesProvider>
+        <AssignSelectionProvider selectableOrderIds={selectableOrderIds}>
+          <OrderRequestBuilder
+            initial={initial}
+            surcharges={resolveSurcharges(orders[0].client)}
+            rates={resolveRates(orders[0].client)}
+            nightWindow={resolveNightWindow(orders[0].client)}
+            readOnly
+            backHref={`/admin/orders/${id}`}
+            shiftMeta={shiftMeta}
+            assignable
+          />
+        </AssignSelectionProvider>
+      </PendingResponsesProvider>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { RemoveAssignmentButton } from "@/components/admin/remove-assignment-button";
 import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
 import { useAssignSelection } from "@/components/orders/assign-selection";
+import { usePendingResponses } from "@/components/orders/pending-responses-provider";
 import { ToggleMealAllowanceButton } from "@/components/orders/allowance-toggles";
 import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
 import { cn } from "@/lib/utils";
@@ -89,6 +90,7 @@ export function ShiftMetaCell({
   const cf = useTranslations("confirmations");
   const eas = useTranslations("enums.assignmentStatus");
   const selection = useAssignSelection();
+  const pendingResponsesCtx = usePendingResponses();
 
   const assignments = meta.assignments ?? [];
   const active = assignments.filter((a) => a.status !== "declined").length;
@@ -241,11 +243,20 @@ export function ShiftMetaCell({
                       {/* Admin accepts/declines the shift on the worker's
                           behalf (e.g. confirmed by phone). */}
                       {a.status === "pending" && (
-                        <AssignmentActions assignmentId={a.id} />
+                        <AssignmentActions 
+                          assignmentId={a.id} 
+                          queuedResponse={pendingResponsesCtx?.pendingResponses[a.id]}
+                          onRespond={(accept) => pendingResponsesCtx?.setPendingResponse(a.id, accept)}
+                        />
                       )}
                       {/* Reverse a decline made by mistake (on the worker's behalf). */}
                       {a.status === "declined" && (
-                        <AssignmentActions assignmentId={a.id} declined />
+                        <AssignmentActions 
+                          assignmentId={a.id} 
+                          declined 
+                          queuedResponse={pendingResponsesCtx?.pendingResponses[a.id]}
+                          onRespond={(accept) => pendingResponsesCtx?.setPendingResponse(a.id, accept)}
+                        />
                       )}
                       {/* Admin confirms the Leistungsnachweis on the client's
                           behalf — any confirmed shift, past/present/future. */}

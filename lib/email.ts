@@ -83,18 +83,19 @@ export async function sendEmailToUsers(
 </div>
   `;
 
-  // To prevent exposing all emails to each other, we can send individually or use BCC.
-  // Using BCC is more efficient for multiple recipients of the exact same message.
   try {
-    await mailer.sendMail({
-      from: EMAIL_FROM,
-      to: EMAIL_FROM, // Send to self
-      bcc: emails,    // BCC the actual recipients
-      subject: payload.subject,
-      text: textBody,
-      html: finalHtml,
-      attachments: payload.attachments,
-    });
+    await Promise.all(
+      emails.map((email) =>
+        mailer.sendMail({
+          from: EMAIL_FROM,
+          to: email,
+          subject: payload.subject,
+          text: textBody,
+          html: finalHtml,
+          attachments: payload.attachments,
+        })
+      )
+    );
   } catch (error) {
     console.error("Error sending email:", error);
   }
