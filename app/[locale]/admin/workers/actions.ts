@@ -37,6 +37,7 @@ function parseList(value: FormDataEntryValue | null): string[] {
 function parseProfile(formData: FormData) {
   return workerSchema.safeParse({
     fullName: formData.get("fullName"),
+    internalNumber: formData.get("internalNumber") || undefined,
     qualification: formData.get("qualification"),
     contractType: formData.get("contractType"),
     phone: formData.get("phone") || undefined,
