@@ -112,7 +112,6 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
         entityId: contract.id,
         ipAddress: requestGroupIdParam ? "public_link" : undefined
       });
-      const url = new URL(_req.url);
       const isDownload = url.searchParams.get("download") === "true";
       const disposition = isDownload ? "attachment" : "inline";
       return new NextResponse(new Uint8Array(await data.arrayBuffer()), {
@@ -136,7 +135,6 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
     ipAddress: requestGroupIdParam ? "public_link" : undefined
   });
 
-  const url = new URL(_req.url);
   const isDownload = url.searchParams.get("download") === "true";
   const disposition = isDownload ? "attachment" : "inline";
 
