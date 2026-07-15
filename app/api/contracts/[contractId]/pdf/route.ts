@@ -13,8 +13,13 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, props: { params: Promise<{ contractId: string }> }) {
   const params = await props.params;
   const { contractId } = params;
+  const url = new URL(_req.url);
+  const requestGroupIdParam = url.searchParams.get("requestGroupId");
+
   const user = await getCurrentUser();
-  if (!user) return new NextResponse("Unauthorized", { status: 401 });
+  if (!user && !requestGroupIdParam) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
 
   const contract = await prisma.clientContract.findUnique({
     where: { id: contractId },
@@ -23,7 +28,16 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
       assignments: {
         include: {
           worker: true,
-          order: true
+          order: {
+            select: {
+              shiftDate: true,
+              startTime: true,
+              endTime: true,
+              breakMinutes: true,
+              requiredQualification: true,
+              requestGroupId: true
+            }
+          }
         },
         orderBy: { order: { shiftDate: "asc" } }
       }
@@ -32,7 +46,13 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
 
   if (!contract) return new NextResponse("Not found", { status: 404 });
 
-  const allowed = roleSatisfies(user.role, ["admin"]) || contract.client.userId === user.id;
+  let allowed = false;
+  if (user) {
+    allowed = roleSatisfies(user.role, ["admin"]) || contract.client.userId === user.id;
+  } else if (requestGroupIdParam) {
+    allowed = contract.assignments.some(a => a.order.requestGroupId === requestGroupIdParam);
+  }
+  
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
   // Map data to PDF template props
@@ -86,10 +106,11 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
       .download(contract.documentUrl);
     if (!error && data) {
       await audit({
-        userId: user.id,
+        userId: user?.id,
         action: "contract.pdf_download_signed",
         entity: "ClientContract",
-        entityId: contract.id
+        entityId: contract.id,
+        ipAddress: requestGroupIdParam ? "public_link" : undefined
       });
       const url = new URL(_req.url);
       const isDownload = url.searchParams.get("download") === "true";
@@ -108,10 +129,11 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
   const pdfBuffer = await renderContractPdf(pdfData);
 
   await audit({
-    userId: user.id,
+    userId: user?.id,
     action: "contract.pdf",
     entity: "ClientContract",
-    entityId: contract.id
+    entityId: contract.id,
+    ipAddress: requestGroupIdParam ? "public_link" : undefined
   });
 
   const url = new URL(_req.url);

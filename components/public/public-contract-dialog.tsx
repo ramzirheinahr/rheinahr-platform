@@ -14,16 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShieldCheck } from "lucide-react";
-import { confirmServicePublic } from "@/app/[locale]/public/confirm/[id]/actions";
+import { signContractPublic } from "@/app/[locale]/public/contract/[id]/actions";
 
-export function PublicConfirmDialog({
+export function PublicContractDialog({
   requestGroupId,
-  assignmentId,
-  scheduledHours,
+  contractId,
 }: {
   requestGroupId: string;
-  assignmentId: string;
-  scheduledHours: number;
+  contractId: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -53,53 +51,51 @@ export function PublicConfirmDialog({
     }
 
     startTransition(async () => {
-      const res = await confirmServicePublic({
+      const res = await signContractPublic({
         requestGroupId,
-        assignmentId,
+        contractId,
         signerName: signerName.trim(),
         signatureData,
-        hoursWorked: scheduledHours, // the public flow currently assumes they confirm the scheduled hours exactly
       });
 
-      if (res.ok && res.documentUrl) {
-        toast.success("Erfolgreich bestätigt!");
-        setSignedPdfUrl(res.documentUrl);
+      if (res.ok) {
+        toast.success("Vertrag erfolgreich signiert!");
+        // The PDF endpoint itself will now serve the signed contract because its status changed to signed!
+        setSignedPdfUrl(`/api/contracts/${contractId}/pdf?requestGroupId=${requestGroupId}`);
       } else {
-        toast.error(res.error === "alreadyConfirmed" ? "Bereits bestätigt" : "Fehler beim Bestätigen.");
+        toast.error("Fehler beim Signieren.");
       }
     });
   };
 
-  // We are not using Radix Checkbox because it is not available, we use native input
   return (
     <Dialog open={open} onOpenChange={(val) => {
       setOpen(val);
       if (!val) {
-        // Reset state when closing so if opened again it starts fresh (though already confirmed ones will be removed from list)
         setTimeout(() => setSignedPdfUrl(null), 300);
       }
     }}>
       <DialogTrigger render={<Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" />}>
-        Bestätigen
+        Vertrag signieren
       </DialogTrigger>
-      <DialogContent className="max-w-2xl w-[95vw] max-h-[95vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="max-w-3xl w-[95vw] max-h-[95vh] flex flex-col p-0 overflow-hidden">
         <div className="flex flex-col h-full overflow-hidden">
           <DialogHeader className="p-4 border-b">
             <DialogTitle>
-              {signedPdfUrl ? "Leistungsnachweis bestätigt" : "Leistungsnachweis elektronisch signieren"}
+              {signedPdfUrl ? "Vertrag signiert" : "Arbeitnehmerüberlassungsvertrag elektronisch signieren"}
             </DialogTitle>
             <DialogDescription>
               {signedPdfUrl 
-                ? "Der Leistungsnachweis wurde erfolgreich signiert." 
-                : "Bitte prüfen Sie die Angaben im PDF und bestätigen Sie die Leistung elektronisch."}
+                ? "Der Vertrag wurde erfolgreich signiert." 
+                : "Bitte prüfen Sie die Vertragsbedingungen im PDF und unterzeichnen Sie elektronisch."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            <div className="h-[400px] border rounded bg-slate-100 overflow-hidden relative">
+            <div className="h-[500px] border rounded bg-slate-100 overflow-hidden relative">
               {open && !signedPdfUrl && (
                 <iframe
-                  src={`/api/confirmations/${assignmentId}/blank-pdf?requestGroupId=${requestGroupId}`}
+                  src={`/api/contracts/${contractId}/pdf?requestGroupId=${requestGroupId}`}
                   className="w-full h-full border-0"
                   title="PDF Vorschau"
                 />
@@ -114,7 +110,7 @@ export function PublicConfirmDialog({
             </div>
 
             {!signedPdfUrl && (
-              <form id="confirm-form" onSubmit={handleSubmit} className="space-y-4">
+              <form id="contract-form" onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signerName">Name des Unterzeichners</Label>
                   <Input
@@ -138,10 +134,9 @@ export function PublicConfirmDialog({
                     htmlFor="consent"
                     className="text-sm font-normal leading-snug cursor-pointer"
                   >
-                    Ich bin zeichnungsberechtigt für den Kunden und bestätige die
-                    Erbringung der oben genannten Dienstleistung (§ 126b BGB Textform).
-                    Meine IP-Adresse und der Zeitstempel werden als Signaturbeweis
-                    sicher protokolliert.
+                    Ich bin zeichnungsberechtigt für den Kunden und akzeptiere die Bedingungen 
+                    dieses Vertrages (§ 126b BGB Textform) im Rahmen unserer Hauptvereinbarung (Rahmenvertrag). 
+                    Meine IP-Adresse und der Zeitstempel werden als Signaturbeweis sicher protokolliert.
                   </Label>
                 </div>
               </form>
@@ -161,8 +156,8 @@ export function PublicConfirmDialog({
                   </Button>
                   <Button type="button" className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={() => {
                     const link = document.createElement("a");
-                    link.href = signedPdfUrl;
-                    link.download = `Leistungsnachweis_${signerName.replace(/\s+/g, "_")}.pdf`;
+                    link.href = signedPdfUrl + "&download=true";
+                    link.download = `AUEG_Vertrag_${signerName.replace(/\s+/g, "_")}.pdf`;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -175,7 +170,7 @@ export function PublicConfirmDialog({
                   <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>
                     Abbrechen
                   </Button>
-                  <Button type="submit" form="confirm-form" className="gap-2 bg-blue-600 hover:bg-blue-700" disabled={pending || !consent || !signerName.trim()}>
+                  <Button type="submit" form="contract-form" className="gap-2 bg-blue-600 hover:bg-blue-700" disabled={pending || !consent || !signerName.trim()}>
                     {pending ? "Wird signiert..." : "Verbindlich signieren"}
                   </Button>
                 </>

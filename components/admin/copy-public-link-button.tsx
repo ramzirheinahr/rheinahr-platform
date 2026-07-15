@@ -5,13 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Link as LinkIcon, Check } from "lucide-react";
 import { toast } from "sonner";
 
-export function CopyPublicLinkButton({ requestGroupId }: { requestGroupId: string }) {
+export function CopyPublicLinkButton({ 
+  requestGroupId, 
+  type = "confirm" 
+}: { 
+  requestGroupId: string,
+  type?: "confirm" | "contract"
+}) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
-      // The public route is unauthenticated, locale doesn't heavily matter, we use /de/
-      const url = `${window.location.origin}/de/public/confirm/${requestGroupId}`;
+      const path = type === "contract" ? "contract" : "confirm";
+      const url = `${window.location.origin}/de/public/${path}/${requestGroupId}`;
       await navigator.clipboard.writeText(url);
       setCopied(true);
       toast.success("Link erfolgreich kopiert!");
@@ -29,7 +35,7 @@ export function CopyPublicLinkButton({ requestGroupId }: { requestGroupId: strin
       className="gap-2 shrink-0 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
     >
       {copied ? <Check className="size-4" /> : <LinkIcon className="size-4" />}
-      Öffentlichen Link kopieren
+      {type === "contract" ? "Vertrags-Link kopieren" : "Öffentlichen Link kopieren"}
     </Button>
   );
 }

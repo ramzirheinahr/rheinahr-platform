@@ -15,8 +15,13 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, props: { params: Promise<{ assignmentId: string }> }) {
   const params = await props.params;
   const { assignmentId } = params;
+  const url = new URL(req.url);
+  const requestGroupIdParam = url.searchParams.get("requestGroupId");
+
   const user = await getCurrentUser();
-  if (!user) return new NextResponse("Unauthorized", { status: 401 });
+  if (!user && !requestGroupIdParam) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
 
   const a = await prisma.assignment.findUnique({
     where: { id: assignmentId },
@@ -27,6 +32,7 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
       order: {
         select: {
           id: true,
+          requestGroupId: true,
           shiftDate: true,
           startTime: true,
           endTime: true,
@@ -40,10 +46,15 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const allowed =
-    roleSatisfies(user.role, ["admin"]) ||
-    a.order.client.userId === user.id ||
-    a.worker.userId === user.id;
+  let allowed = false;
+  if (user) {
+    allowed =
+      roleSatisfies(user.role, ["admin"]) ||
+      a.order.client.userId === user.id ||
+      a.worker.userId === user.id;
+  } else if (requestGroupIdParam) {
+    allowed = a.order.requestGroupId === requestGroupIdParam;
+  }
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
   // Optional live hours from the confirmation form; else the scheduled net hours.
@@ -76,7 +87,7 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="leistungsnachweis-manuell.pdf"`,
+      "Content-Disposition": `inline; filename="leistungsnachweis-manuell.pdf"`,
       "Cache-Control": "no-store",
     },
   });
