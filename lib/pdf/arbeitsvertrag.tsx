@@ -32,6 +32,7 @@ const styles = StyleSheet.create({
   signatureContainer: { flexDirection: "row", justifyContent: "space-between", marginTop: 40 },
   signatureBox: { borderTopWidth: 1, borderTopColor: "#000", paddingTop: 8, width: 200, fontSize: 10 },
   checkbox: { width: 10, height: 10, borderWidth: 1, borderColor: "#000", marginRight: 6 },
+  checkboxChecked: { backgroundColor: "#000" },
   checkboxRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 4 }
 });
 

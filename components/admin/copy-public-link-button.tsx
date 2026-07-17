@@ -95,10 +95,8 @@ export function CopyPublicLinkButton({
   if (type === "confirm") {
     return (
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className={buttonClass}>
-            {buttonContent}
-          </Button>
+        <DialogTrigger render={<Button variant="outline" size="sm" className={buttonClass} />}>
+          {buttonContent}
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
