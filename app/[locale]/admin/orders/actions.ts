@@ -517,6 +517,8 @@ export async function bulkAssignWorkers(
       endTime: true,
       requiredQualification: true,
       quantity: true,
+      notes: true,
+      client: { select: { facilityName: true } },
       assignments: { select: { workerId: true, status: true } },
     },
   });
@@ -534,6 +536,7 @@ export async function bulkAssignWorkers(
     select: {
       id: true,
       userId: true,
+      fullName: true,
       qualification: true,
       availability: {
         where: { date: { in: dates }, status: "available" },
@@ -547,7 +550,7 @@ export async function bulkAssignWorkers(
   });
   const workerById = new Map(workers.map((w) => [w.id, w]));
 
-  const offers: { orderId: string; workerId: string; userId: string; content: string }[] = [];
+  const offers: { orderId: string; workerId: string; userId: string; content: string; shiftData?: any }[] = [];
   const advanceIds: string[] = [];
   let skipped = 0;
 
@@ -588,7 +591,21 @@ export async function bulkAssignWorkers(
         skipped += 1;
         continue;
       }
-      offers.push({ orderId: order.id, workerId: wid, userId: w.userId, content });
+      offers.push({ 
+        orderId: order.id, 
+        workerId: wid, 
+        userId: w.userId, 
+        content,
+        shiftData: {
+          date: order.shiftDate,
+          startTime: order.startTime,
+          endTime: order.endTime,
+          qualification: order.requiredQualification,
+          notes: order.notes || undefined,
+          facilityName: order.client.facilityName,
+          workerName: w.fullName,
+        }
+      });
       addedForOrder += 1;
     }
     if (
@@ -645,16 +662,28 @@ export async function bulkAssignWorkers(
   });
 
   // One push per worker summarising how many shifts they were freshly offered.
-  const perWorker = new Map<string, number>();
-  for (const o of notify) perWorker.set(o.userId, (perWorker.get(o.userId) ?? 0) + 1);
+  const perWorker = new Map<string, any[]>();
+  for (const o of notify) {
+    if (!perWorker.has(o.userId)) perWorker.set(o.userId, []);
+    if (o.shiftData) perWorker.get(o.userId)!.push(o.shiftData);
+  }
   await Promise.all(
-    [...perWorker].map(([userId, n]) =>
-      pushToUsers([userId], {
+    [...perWorker].map(([userId, shifts]) => {
+      const n = shifts.length;
+      const bodyText = n === 1 ? notify.find((o) => o.userId === userId)!.content : `${n} neue Schicht(en)`;
+      const htmlBody = `
+        <p>Hallo,</p>
+        <p>Sie haben <strong>${n}</strong> neue Schicht(en) erhalten:</p>
+        ${buildShiftHtmlTable(shifts)}
+        <p>Bitte prüfen Sie die Einsätze in Ihrem Portal und bestätigen oder lehnen Sie diese ab.</p>
+      `;
+      return pushToUsers([userId], {
         title: "Neue Einsätze",
-        body: n === 1 ? notify.find((o) => o.userId === userId)!.content : `${n} neue Schicht(en)`,
+        body: bodyText,
+        htmlBody,
         url: workerShiftLink(),
-      }),
-    ),
+      });
+    })
   );
 
   revalidatePath("/admin/orders");
