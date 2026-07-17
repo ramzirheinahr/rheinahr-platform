@@ -209,7 +209,12 @@ export default async function AdminRequestDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <CopyPublicLinkButton requestGroupId={id} type="confirm" />
+          <CopyPublicLinkButton 
+            requestGroupId={id} 
+            type="confirm" 
+            defaultStartDate={initial.shifts.map(s => s.date).sort()[0]}
+            defaultEndDate={initial.shifts.map(s => s.date).sort().pop()}
+          />
           {isRequestCancelable(orders) ? (
             <CancelRequestButton requestGroupId={id} admin />
           ) : null}

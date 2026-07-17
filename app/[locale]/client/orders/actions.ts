@@ -537,6 +537,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   if (data.method === "upload") {
     // Method B — upload the signed scan to the private Storage bucket.
     const file = formData.get("document");
+    console.log("Upload form data document:", file);
     if (!file || typeof file !== "object" || !('size' in file) || file.size === 0) {
       return { ok: false, error: "fileRequired" };
     }
@@ -550,7 +551,10 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
         contentType: uploadedFile.type,
         upsert: false,
       });
-    if (error) return { ok: false, error: "saveError" };
+    if (error) {
+      console.error("Supabase upload error:", error);
+      return { ok: false, error: "saveError" };
+    }
     documentUrl = path;
   } else {
     // Method A — electronic confirmation in Textform (§ 126b BGB): the confirmer

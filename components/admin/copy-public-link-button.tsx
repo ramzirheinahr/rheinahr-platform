@@ -20,16 +20,20 @@ import { sendPublicLinkEmail } from "@/app/[locale]/admin/orders/[id]/link-actio
 export function CopyPublicLinkButton({ 
   requestGroupId, 
   type = "confirm",
-  contractId
+  contractId,
+  defaultStartDate,
+  defaultEndDate
 }: { 
   requestGroupId: string,
   type?: "confirm" | "contract",
-  contractId?: string
+  contractId?: string,
+  defaultStartDate?: string,
+  defaultEndDate?: string
 }) {
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(defaultStartDate || "");
+  const [endDate, setEndDate] = useState(defaultEndDate || "");
   const [isPending, startTransition] = useTransition();
 
   const handleCopy = async (e?: React.MouseEvent) => {

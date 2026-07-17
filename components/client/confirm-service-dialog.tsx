@@ -273,20 +273,22 @@ export function ConfirmServiceDialog({
         </form>
             </TabsContent>
             <TabsContent value="manual">
-              <form action={async (formData) => {
-                formData.set("method", "upload");
-                formData.set("assignmentId", assignmentId);
-                formData.set("hoursWorked", hours.toString());
-                const res = await confirmService(formData);
-                if (res.ok) {
-                  toast.success(t("confirmed"));
-                  setOpen(false);
-                  router.refresh();
-                } else {
-                  const errorKey = res.error === "fileRequired" ? "fileRequired" : "saveError";
-                  toast.error(t(errorKey) || t("saveError"));
-                }
+              <form action={(formData) => {
+                startTransition(async () => {
+                  const res = await confirmService(formData);
+                  if (res.ok) {
+                    toast.success(t("confirmed"));
+                    setOpen(false);
+                    router.refresh();
+                  } else {
+                    const errorKey = res.error === "fileRequired" ? "fileRequired" : "saveError";
+                    toast.error(t(errorKey) || t("saveError"));
+                  }
+                });
               }} className="flex flex-col gap-5">
+                <input type="hidden" name="method" value="upload" />
+                <input type="hidden" name="assignmentId" value={assignmentId} />
+                <input type="hidden" name="hoursWorked" value={hours.toString()} />
                 <div className="rounded-lg border p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
