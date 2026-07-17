@@ -3,17 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { ShieldCheck, CheckCircle2, FileText } from "lucide-react";
 import { PublicContractDialog } from "@/components/public/public-contract-dialog";
 
-export default async function PublicContractPage({
-  params
-}: {
-  params: Promise<{ id: string }>
+export default async function PublicContractPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { id } = await params;
+  const { id } = await props.params;
+  const searchParams = await props.searchParams;
+  const contractId = typeof searchParams.contractId === "string" ? searchParams.contractId : undefined;
   
   // Find all pending contracts associated with this requestGroupId
   // A contract is associated with a requestGroupId if any of its assignments belong to an order with that requestGroupId
   const contracts = await prisma.clientContract.findMany({
     where: {
+      ...(contractId ? { id: contractId } : {}),
       assignments: {
         some: { order: { requestGroupId: id } }
       }

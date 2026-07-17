@@ -70,6 +70,9 @@ function parseProfile(formData: FormData) {
     ratePflegedienstleitung: formData.get("ratePflegedienstleitung") || undefined,
     employmentStartDate: formData.get("employmentStartDate") || undefined,
     employmentEndDate: formData.get("employmentEndDate") || undefined,
+    weeklyHours: formData.get("weeklyHours") || undefined,
+    monthlySalary: formData.get("monthlySalary") || undefined,
+    entgeltgruppe: formData.get("entgeltgruppe") || undefined,
   });
 }
 
@@ -118,6 +121,9 @@ function toWorkerColumns(d: ProfileInput) {
     hourlyRates: hourlyRates ? (hourlyRates as any) : null,
     employmentStartDate: d.employmentStartDate ?? null,
     employmentEndDate: d.employmentEndDate ?? null,
+    weeklyHours: d.weeklyHours ?? null,
+    monthlySalary: d.monthlySalary ?? null,
+    entgeltgruppe: d.entgeltgruppe ?? null,
   };
 }
 

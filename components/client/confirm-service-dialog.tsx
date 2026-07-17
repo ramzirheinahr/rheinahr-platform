@@ -277,16 +277,15 @@ export function ConfirmServiceDialog({
                 formData.set("method", "upload");
                 formData.set("assignmentId", assignmentId);
                 formData.set("hoursWorked", hours.toString());
-                startTransition(async () => {
-                   const res = await confirmService(formData);
-                   if (res.ok) {
-                     toast.success(t("confirmed"));
-                     setOpen(false);
-                     router.refresh();
-                   } else {
-                     toast.error(t("saveError"));
-                   }
-                });
+                const res = await confirmService(formData);
+                if (res.ok) {
+                  toast.success(t("confirmed"));
+                  setOpen(false);
+                  router.refresh();
+                } else {
+                  const errorKey = res.error === "fileRequired" ? "fileRequired" : "saveError";
+                  toast.error(t(errorKey) || t("saveError"));
+                }
               }} className="flex flex-col gap-5">
                 <div className="rounded-lg border p-4 space-y-4">
                   <div className="flex items-center justify-between">

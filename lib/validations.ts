@@ -140,6 +140,9 @@ export const workerSchema = z.object({
   // Hours-account carryover (signed): positive = credit from last month that
   // REDUCES this month's soll; negative = deficit that adds to it.
   carryoverHours: z.coerce.number().min(-9999).max(9999).optional().default(0),
+  weeklyHours: z.coerce.number().min(0).max(168).optional(),
+  monthlySalary: z.coerce.number().min(0).max(100000).optional(),
+  entgeltgruppe: z.string().max(20).optional(),
 
   // Financial & Allowances
   travelAllowanceEnabled: z.boolean().optional().default(false),

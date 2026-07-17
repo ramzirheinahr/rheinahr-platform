@@ -243,6 +243,9 @@ model Worker {
   employmentEndDate      DateTime? @map("employment_end_date") @db.Date
   arbeitsvertragUrl      String?   @map("arbeitsvertrag_url")
   arbeitsvertragSignedAt DateTime? @map("arbeitsvertrag_signed_at")
+  weeklyHours            Float?    @map("weekly_hours")
+  monthlySalary          Float?    @map("monthly_salary")
+  entgeltgruppe          String?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

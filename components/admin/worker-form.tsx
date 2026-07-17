@@ -53,6 +53,9 @@ export type WorkerData = {
   hourlyRates?: Record<string, number> | null;
   employmentStartDate?: string | null;
   employmentEndDate?: string | null;
+  weeklyHours?: number | null;
+  monthlySalary?: number | null;
+  entgeltgruppe?: string | null;
   user: {
     receiveEmails: boolean;
   };
@@ -268,6 +271,38 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
                 min={0}
                 max={744}
                 defaultValue={worker.requiredHours ?? 151.67}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="weeklyHours">Wöchentliche Arbeitszeit</Label>
+              <Input
+                id="weeklyHours"
+                name="weeklyHours"
+                type="number"
+                step="0.01"
+                min={0}
+                max={168}
+                defaultValue={worker.weeklyHours ?? 35}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="monthlySalary">Monatsgehalt (€)</Label>
+              <Input
+                id="monthlySalary"
+                name="monthlySalary"
+                type="number"
+                step="0.01"
+                min={0}
+                defaultValue={worker.monthlySalary ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="entgeltgruppe">Entgeltgruppe</Label>
+              <Input
+                id="entgeltgruppe"
+                name="entgeltgruppe"
+                defaultValue={worker.entgeltgruppe ?? ""}
+                placeholder="z.B. 2a"
               />
             </div>
             <div className="space-y-2">

@@ -10,16 +10,29 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-export default async function PublicConfirmPage({
-  params
-}: {
-  params: { id: string }
+export default async function PublicConfirmPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { id } = await params;
+  const { id } = await props.params;
+  const searchParams = await props.searchParams;
+  const fromStr = typeof searchParams.from === "string" ? searchParams.from : undefined;
+  const toStr = typeof searchParams.to === "string" ? searchParams.to : undefined;
+  
+  const dateFilter: any = {};
+  if (fromStr) {
+    dateFilter.gte = new Date(`${fromStr}T00:00:00.000Z`);
+  }
+  if (toStr) {
+    dateFilter.lte = new Date(`${toStr}T23:59:59.999Z`);
+  }
   
   // Find all assignments for this requestGroupId that are confirmed and need service confirmation
   const orders = await prisma.order.findMany({
-    where: { requestGroupId: id },
+    where: { 
+      requestGroupId: id,
+      ...(Object.keys(dateFilter).length > 0 ? { shiftDate: dateFilter } : {})
+    },
     include: {
       client: true,
       assignments: {

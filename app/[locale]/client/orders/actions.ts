@@ -537,16 +537,17 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   if (data.method === "upload") {
     // Method B — upload the signed scan to the private Storage bucket.
     const file = formData.get("document");
-    if (!(file instanceof File) || file.size === 0) {
+    if (!file || typeof file !== "object" || !('size' in file) || file.size === 0) {
       return { ok: false, error: "fileRequired" };
     }
-    const path = `${data.assignmentId}/${Date.now()}-${file.name}`;
+    const uploadedFile = file as File;
+    const path = `${data.assignmentId}/${Date.now()}-${uploadedFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
     const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
     const supabase = createSupabaseAdminClient();
     const { error } = await supabase.storage
       .from(BUCKET)
-      .upload(path, await file.arrayBuffer(), {
-        contentType: file.type,
+      .upload(path, await uploadedFile.arrayBuffer(), {
+        contentType: uploadedFile.type,
         upsert: false,
       });
     if (error) return { ok: false, error: "saveError" };

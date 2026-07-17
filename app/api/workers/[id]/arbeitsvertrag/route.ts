@@ -33,6 +33,9 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     endDate: worker.employmentEndDate,
     qualification: worker.qualification,
     requiredHours: worker.requiredHours,
+    weeklyHours: worker.weeklyHours,
+    monthlySalary: worker.monthlySalary,
+    entgeltgruppe: worker.entgeltgruppe,
     hourlyRate,
     createdAt: new Date(),
   };

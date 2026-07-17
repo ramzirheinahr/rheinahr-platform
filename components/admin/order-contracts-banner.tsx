@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { generateOrderContracts } from "@/app/[locale]/admin/orders/[id]/contract-actions";
 import { ContractAdminDialog } from "./contract-admin-dialog";
+import { CopyPublicLinkButton } from "./copy-public-link-button";
 
 import { SelectAssignmentsDialog, type SelectableAssignment } from "./select-assignments-dialog";
 
@@ -48,16 +49,20 @@ export function OrderContractsBanner({
 
       <div className="flex flex-wrap items-center gap-3">
         {contracts.map(c => (
-          <ContractAdminDialog 
-            key={c.id} 
-            contract={c} 
-            triggerIcon={
-              <button className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors hover:bg-slate-50 ${c.status === "signed" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-                {c.status === "signed" ? <CheckCircle2 className="size-3.5" /> : <FileClock className="size-3.5" />}
-                Vertrag {c.id.substring(0, 4)}...
-              </button>
-            } 
-          />
+          <div key={c.id} className="flex items-center gap-2">
+            <ContractAdminDialog 
+              contract={c} 
+              triggerIcon={
+                <button className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors hover:bg-slate-50 ${c.status === "signed" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+                  {c.status === "signed" ? <CheckCircle2 className="size-3.5" /> : <FileClock className="size-3.5" />}
+                  Vertrag {c.id.substring(0, 4)}...
+                </button>
+              } 
+            />
+            {c.status !== "signed" && (
+              <CopyPublicLinkButton requestGroupId={requestGroupId} type="contract" contractId={c.id} />
+            )}
+          </div>
         ))}
 
         {uncontractedAssignments.length > 0 && (
