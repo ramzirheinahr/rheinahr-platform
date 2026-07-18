@@ -121,7 +121,8 @@
     "schedule": "Shifts & Availability",
     "scheduleSubtitle": "Accept and confirm your shifts, and keep your availability up to date.",
     "clientSchedule": "Monthly overview",
-    "masterSchedule": "Duty roster"
+    "masterSchedule": "Duty roster",
+    "appointments": "Appointments"
   },
   "auth": {
     "signInTitle": "Sign in to your account",
@@ -808,5 +809,27 @@
     "signed": "Signed",
     "period": "Period",
     "sign": "Sign"
+  },
+  "appointments": {
+    "title": "Appointments",
+    "subtitle": "Manage your admin appointments.",
+    "new": "New Appointment",
+    "edit": "Edit Appointment",
+    "deleteConfirmTitle": "Delete Appointment?",
+    "deleteConfirmDesc": "Are you sure you want to permanently delete this appointment?",
+    "empty": "No appointments.",
+    "form": {
+      "title": "Title",
+      "date": "Date",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "description": "Description",
+      "location": "Location",
+      "client": "Facility (optional)",
+      "worker": "Worker (optional)"
+    },
+    "created": "Appointment created.",
+    "updated": "Appointment updated.",
+    "deleted": "Appointment deleted."
   }
 }

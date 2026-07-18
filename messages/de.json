@@ -121,7 +121,8 @@
     "schedule": "Einsätze & Verfügbarkeit",
     "scheduleSubtitle": "Einsätze annehmen und bestätigen, Verfügbarkeit pflegen.",
     "clientSchedule": "Monatsübersicht",
-    "masterSchedule": "Dienstplan"
+    "masterSchedule": "Dienstplan",
+    "appointments": "Termine"
   },
   "auth": {
     "signInTitle": "Bei Ihrem Konto anmelden",
@@ -808,5 +809,27 @@
     "signed": "Unterschrieben",
     "period": "Zeitraum",
     "sign": "Unterschreiben"
+  },
+  "appointments": {
+    "title": "Termine",
+    "subtitle": "Verwalten Sie Ihre Verwaltungstermine.",
+    "new": "Neuer Termin",
+    "edit": "Termin bearbeiten",
+    "deleteConfirmTitle": "Termin löschen?",
+    "deleteConfirmDesc": "Sind Sie sicher, dass Sie diesen Termin endgültig löschen möchten?",
+    "empty": "Keine Termine vorhanden.",
+    "form": {
+      "title": "Titel",
+      "date": "Datum",
+      "startTime": "Startzeit",
+      "endTime": "Endzeit",
+      "description": "Beschreibung",
+      "location": "Ort",
+      "client": "Einrichtung (optional)",
+      "worker": "Pflegekraft (optional)"
+    },
+    "created": "Termin erstellt.",
+    "updated": "Termin aktualisiert.",
+    "deleted": "Termin gelöscht."
   }
 }

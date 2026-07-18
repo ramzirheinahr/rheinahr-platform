@@ -490,13 +490,16 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     assignmentId: formData.get("assignmentId"),
     method: formData.get("method"),
     hoursWorked: formData.get("hoursWorked"),
-    clientNotes: formData.get("clientNotes"),
+    clientNotes: formData.get("clientNotes") || undefined,
     signerName: formData.get("signerName") || undefined,
     signatureData: formData.get("signatureData") || undefined,
     adjustStart: formData.get("adjustStart") || undefined,
     adjustEnd: formData.get("adjustEnd") || undefined,
   });
-  if (!parsed.success) return { ok: false, error: "saveError" };
+  if (!parsed.success) {
+    console.error("Zod Parse Error in confirmService:", parsed.error);
+    return { ok: false, error: `Validation Error: ${parsed.error.message}` };
+  }
   const data = parsed.data;
 
   // The assignment must belong to one of this client's orders, be worker-confirmed,
@@ -553,7 +556,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
       });
     if (error) {
       console.error("Supabase upload error:", error);
-      return { ok: false, error: "saveError" };
+      return { ok: false, error: `Supabase Error: ${error.message}` };
     }
     documentUrl = path;
   } else {

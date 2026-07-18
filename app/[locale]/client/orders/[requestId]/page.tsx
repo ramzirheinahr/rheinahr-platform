@@ -70,7 +70,7 @@ export default async function ClientRequestDetail({
         select: {
           id: true,
           status: true,
-          serviceConfirmation: { select: { id: true, correctionHours: true } },
+          serviceConfirmation: { select: { id: true, correctionHours: true, method: true } },
           worker: {
             select: { id: true, fullName: true, photoPath: true },
           },
@@ -154,6 +154,7 @@ export default async function ClientRequestDetail({
         id: a.id,
         status: a.status,
         hasConfirmation: !!a.serviceConfirmation,
+        confirmationMethod: a.serviceConfirmation?.method,
         correctionHours:
           a.serviceConfirmation?.correctionHours != null
             ? Number(a.serviceConfirmation.correctionHours)

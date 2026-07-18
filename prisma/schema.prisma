@@ -135,6 +135,12 @@ enum DocumentCategory {
   other
 }
 
+enum AppointmentStatus {
+  scheduled
+  completed
+  cancelled
+}
+
 // ─────────────────────────── Models ───────────────────────────
 
 model User {
@@ -166,6 +172,7 @@ model User {
   conversations        ConversationParticipant[]
   createdConversations Conversation[]
   pushSubscriptions    PushSubscription[]
+  appointments         Appointment[]             @relation("ManagerAppointments")
 
   createdBy    User?  @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers User[] @relation("UserCreatedBy")
@@ -255,6 +262,7 @@ model Worker {
   assignments   Assignment[]
   documents     WorkerDocument[]
   leaveRequests LeaveRequest[]
+  appointments  Appointment[]
 
   @@index([qualification])
   @@map("workers")
@@ -333,6 +341,7 @@ model Client {
   orders    Order[]
   contracts ClientContract[]
   invoices  Invoice[]
+  appointments Appointment[]
 
   @@map("clients")
 }
@@ -602,4 +611,27 @@ model Invoice {
 
   @@index([clientId, status])
   @@map("invoices")
+}
+
+model Appointment {
+  id          String            @id @default(uuid())
+  title       String
+  description String?
+  date        DateTime          @db.Date
+  startTime   String            @map("start_time") // "HH:mm"
+  endTime     String            @map("end_time") // "HH:mm"
+  location    String?
+  status      AppointmentStatus @default(scheduled)
+  managerId   String            @map("manager_id")
+  clientId    String?           @map("client_id")
+  workerId    String?           @map("worker_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  manager User    @relation("ManagerAppointments", fields: [managerId], references: [id], onDelete: Cascade)
+  client  Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  worker  Worker? @relation(fields: [workerId], references: [id], onDelete: SetNull)
+
+  @@index([managerId, date])
+  @@map("appointments")
 }

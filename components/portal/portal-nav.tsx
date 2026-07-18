@@ -15,6 +15,7 @@ import {
   Receipt,
   FileText,
   FileSignature,
+  CalendarCheck,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -49,6 +50,7 @@ const ICONS: Record<string, LucideIcon> = {
   invoicing: Receipt,
   documents: FileText,
   contracts: FileSignature,
+  appointments: CalendarCheck,
 };
 
 export function PortalNav({

@@ -54,7 +54,7 @@ export default async function AdminRequestDetail({
       assignments: {
         include: {
           worker: { select: { id: true, fullName: true, photoPath: true, mealAllowanceEnabled: true, travelAllowanceEnabled: true } },
-          serviceConfirmation: { select: { hoursWorked: true, correctionHours: true } },
+          serviceConfirmation: { select: { hoursWorked: true, correctionHours: true, method: true } },
         },
       },
     },
@@ -172,6 +172,7 @@ export default async function AdminRequestDetail({
           ? Number(a.serviceConfirmation.hoursWorked)
           : null,
         hasConfirmation: !!a.serviceConfirmation,
+        confirmationMethod: a.serviceConfirmation?.method,
         addMealAllowance: a.addMealAllowance,
         excludeMealAllowance: a.excludeMealAllowance,
         excludeTravelAllowance: a.excludeTravelAllowance,

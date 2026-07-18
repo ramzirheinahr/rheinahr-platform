@@ -43,6 +43,7 @@ export default async function AdminLayout({
       ],
     },
     { href: "/admin/clients", label: t("clients"), icon: "clients" },
+    { href: "/admin/appointments", label: t("appointments"), icon: "appointments" },
     { href: "/admin/reports", label: tr("title"), icon: "reports" },
     { href: "/admin/invoicing", label: ti("title"), icon: "invoicing" },
   ];

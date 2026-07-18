@@ -121,7 +121,8 @@
     "schedule": "الورديات والتوفّر",
     "scheduleSubtitle": "وافق على وردياتك وصادِق عليها، وحدّث توفّرك.",
     "clientSchedule": "الجدول الشهري",
-    "masterSchedule": "جدول الورديات"
+    "masterSchedule": "جدول الورديات",
+    "appointments": "المواعيد"
   },
   "auth": {
     "signInTitle": "تسجيل الدخول إلى حسابك",
@@ -808,5 +809,27 @@
     "signed": "موقع",
     "period": "الفترة",
     "sign": "توقيع"
+  },
+  "appointments": {
+    "title": "المواعيد",
+    "subtitle": "إدارة مواعيد الإدارة الخاصة بك.",
+    "new": "موعد جديد",
+    "edit": "تعديل الموعد",
+    "deleteConfirmTitle": "حذف الموعد؟",
+    "deleteConfirmDesc": "هل أنت متأكد من حذف هذا الموعد نهائيًا؟",
+    "empty": "لا توجد مواعيد.",
+    "form": {
+      "title": "العنوان",
+      "date": "التاريخ",
+      "startTime": "وقت البدء",
+      "endTime": "وقت الانتهاء",
+      "description": "الوصف",
+      "location": "المكان",
+      "client": "المنشأة (اختياري)",
+      "worker": "كادر الرعاية (اختياري)"
+    },
+    "created": "تم إنشاء الموعد.",
+    "updated": "تم تحديث الموعد.",
+    "deleted": "تم حذف الموعد."
   }
 }

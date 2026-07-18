@@ -25,7 +25,7 @@ import { usePendingResponses } from "@/components/orders/pending-responses-provi
 import { ToggleMealAllowanceButton } from "@/components/orders/allowance-toggles";
 import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, MessageSquare, Users, UserRound } from "lucide-react";
+import { CheckCircle2, MessageSquare, Users, UserRound, Download } from "lucide-react";
 import type { AssignmentStatus, OrderStatus } from "@prisma/client";
 
 // Per-shift pipeline data shown inside the request table, keyed like the
@@ -47,6 +47,7 @@ export type ShiftMeta = {
     status: AssignmentStatus;
     hours?: number | null;
     hasConfirmation?: boolean;
+    confirmationMethod?: string | null;
     addMealAllowance?: boolean;
     excludeMealAllowance?: boolean;
     excludeTravelAllowance?: boolean;
@@ -155,7 +156,17 @@ export function ShiftMetaCell({
                     newHours={a.correctionHours}
                   />
                 ) : meta.isPast && a.hasConfirmation ? (
-                  <CheckCircle2 className="size-4 text-primary" />
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 className="size-4 text-primary" />
+                    <a
+                      href={`/api/confirmations/${a.id}/${a.confirmationMethod === "upload" ? "document" : "pdf"}`}
+                      target="_blank"
+                      className="text-muted-foreground hover:text-foreground ml-1"
+                      title={cf("viewDocument") || "Download"}
+                    >
+                      <Download className="size-3.5" />
+                    </a>
+                  </div>
                 ) : null}
               </div>
             ))}
@@ -227,6 +238,14 @@ export function ShiftMetaCell({
                         <span className="flex items-center gap-1 text-xs text-primary">
                           <CheckCircle2 className="size-3.5" />
                           {a.hours}h
+                          <a
+                            href={`/api/confirmations/${a.id}/${a.confirmationMethod === "upload" ? "document" : "pdf"}`}
+                            target="_blank"
+                            className="text-muted-foreground hover:text-foreground ml-1"
+                            title={cf("viewDocument") || "Download"}
+                          >
+                            <Download className="size-3.5" />
+                          </a>
                         </span>
                       ) : null}
                       <Badge

@@ -273,16 +273,20 @@ export function ConfirmServiceDialog({
         </form>
             </TabsContent>
             <TabsContent value="manual">
-              <form action={(formData) => {
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
                 startTransition(async () => {
-                  const res = await confirmService(formData);
+                  const res = await confirmService(fd);
                   if (res.ok) {
                     toast.success(t("confirmed"));
                     setOpen(false);
                     router.refresh();
                   } else {
-                    const errorKey = res.error === "fileRequired" ? "fileRequired" : "saveError";
-                    toast.error(t(errorKey) || t("saveError"));
+                    const knownKeys = ["fileRequired", "nameRequired", "saveError", "alreadyConfirmed", "consentRequired", "forbidden"];
+                    const isKnown = res.error && knownKeys.includes(res.error);
+                    const errorMsg = isKnown && res.error ? t(res.error as any) : (res.error || t("saveError"));
+                    toast.error(errorMsg);
                   }
                 });
               }} className="flex flex-col gap-5">
