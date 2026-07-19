@@ -366,6 +366,8 @@
     "searchPlaceholder": "Anfragen durchsuchen…"
   },
   "orderRequest": {
+    "importedToast": "Erfolgreich importiert.",
+    "importError": "Fehler beim Importieren.",
     "undo": "Rückgängig",
     "redo": "Wiederholen",
     "prev": "Zurück",

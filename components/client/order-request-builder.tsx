@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition, useRef } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
@@ -47,7 +47,8 @@ export type InitialRequest = {
     bereich: string;
   }[];
 };
-import { Send, Plus, X, Copy, ClipboardPaste, Info, Undo2, Redo2 } from "lucide-react";
+import { Send, Plus, X, Copy, ClipboardPaste, Info, Undo2, Redo2, Download, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 
 type Qual = (typeof qualifications)[number];
 type ShiftType = "none" | "early" | "late" | "night";
@@ -321,6 +322,146 @@ export function OrderRequestBuilder({
     update(date, slot, { type: val as ShiftType, start: p.start, end: p.end });
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function exportToExcel() {
+    const rows: any[] = [];
+    days.forEach((d) => {
+      const count = effCount(d.date);
+      let dayHasShifts = false;
+      for (let slot = 0; slot < count; slot++) {
+        const cell = get(d.date, slot);
+        if (cell.start && cell.end) dayHasShifts = true;
+      }
+      
+      // If there are no shifts for the day, export a blank row as a template
+      if (!dayHasShifts) {
+        rows.push({
+          Datum: d.date,
+          Schicht: "",
+          Von: "",
+          Bis: "",
+          Pause: 30,
+          Anzahl: 1,
+          Wohnbereich: "",
+        });
+      } else {
+        for (let slot = 0; slot < count; slot++) {
+          const cell = get(d.date, slot);
+          if (cell.start && cell.end) {
+            rows.push({
+              Datum: d.date,
+              Schicht: cell.type === "none" ? "" : cell.type,
+              Von: cell.start,
+              Bis: cell.end,
+              Pause: cell.pause,
+              Anzahl: cell.quantity,
+              Wohnbereich: cell.bereich,
+            });
+          }
+        }
+      }
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Bestellung");
+    XLSX.writeFile(workbook, `Bestellung_${year}_${pad(month)}.xlsx`);
+  }
+
+  function importFromExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const buffer = evt.target?.result;
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+        const newCells: Record<string, Cell> = {};
+        const newCounts: Record<string, number> = {};
+        const slotCounters: Record<string, number> = {};
+
+        for (const row of data) {
+          if (!row.Datum) continue;
+          
+          let dateStr = row.Datum;
+          if (typeof row.Datum === "number") {
+             const d = XLSX.SSF.parse_date_code(row.Datum);
+             dateStr = `${d.y}-${pad(d.m)}-${pad(d.d)}`;
+          } else if (typeof dateStr === "string") {
+             // Handle DD.MM.YYYY or D.M.YYYY
+             const match = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+             if (match) {
+                 dateStr = `${match[3]}-${pad(Number(match[2]))}-${pad(Number(match[1]))}`;
+             }
+             // Handle MM/DD/YYYY or DD/MM/YYYY
+             const match2 = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+             if (match2) {
+                 // Assuming DD/MM/YYYY for Europe
+                 dateStr = `${match2[3]}-${pad(Number(match2[2]))}-${pad(Number(match2[1]))}`;
+             }
+          }
+
+          if (!days.find(d => d.date === dateStr)) continue;
+
+          const slot = slotCounters[dateStr] || 0;
+          slotCounters[dateStr] = slot + 1;
+          newCounts[dateStr] = slot + 1;
+
+          let startStr = row.Von || "";
+          let endStr = row.Bis || "";
+          
+          if (typeof startStr === "number") {
+             const d = XLSX.SSF.parse_date_code(startStr);
+             startStr = `${pad(d.H)}:${pad(d.M)}`;
+          } else if (typeof startStr === "string") {
+              const parts = startStr.split(":");
+              if (parts.length >= 2) startStr = `${pad(Number(parts[0]))}:${pad(Number(parts[1]))}`;
+          }
+          
+          if (typeof endStr === "number") {
+             const d = XLSX.SSF.parse_date_code(endStr);
+             endStr = `${pad(d.H)}:${pad(d.M)}`;
+          } else if (typeof endStr === "string") {
+              const parts = endStr.split(":");
+              if (parts.length >= 2) endStr = `${pad(Number(parts[0]))}:${pad(Number(parts[1]))}`;
+          }
+
+          newCells[`${dateStr}:${slot}`] = {
+            type: (row.Schicht as ShiftType) || (startStr && endStr ? matchPreset(startStr, endStr) : "none"),
+            start: startStr,
+            end: endStr,
+            pause: Number(row.Pause) || 30,
+            quantity: Number(row.Anzahl) || 1,
+            bereich: row.Wohnbereich || "",
+          };
+          bump(dateStr, slot);
+        }
+
+        setUndoState((prev) => ({
+          ...prev,
+          cells: newCells,
+          counts: newCounts,
+        }));
+        
+        toast.success(t("importedToast") || "Erfolgreich importiert");
+      } catch (err) {
+        console.error("Excel import error:", err);
+        toast.error(t("importError") || "Fehler beim Importieren");
+      }
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
   const activeShifts = useMemo(
     () =>
       Object.entries(cells)
@@ -559,6 +700,25 @@ export function OrderRequestBuilder({
             <Redo2 className="size-4" />
           </Button>
         </div>
+        
+        <div className="flex items-center gap-2 mr-4">
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={importFromExcel}
+          />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2" title="Import Excel">
+            <Upload className="size-4" />
+            Import
+          </Button>
+          <Button variant="outline" onClick={exportToExcel} className="gap-2" title="Download Template">
+            <Download className="size-4" />
+            Export
+          </Button>
+        </div>
+
         <Button onClick={submit} disabled={pending || activeShifts.length === 0 || (isAdmin && !clientId) || (!canUndo && !initial)} className="gap-2">
           <Send className="size-4" />
           {pending ? c("loading") : t("submit")}

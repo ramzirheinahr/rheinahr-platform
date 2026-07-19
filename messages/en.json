@@ -366,6 +366,8 @@
     "searchPlaceholder": "Search orders…"
   },
   "orderRequest": {
+    "importedToast": "Imported successfully.",
+    "importError": "Error importing file.",
     "undo": "Undo",
     "redo": "Redo",
     "prev": "Previous",
@@ -838,5 +840,44 @@
     "created": "Appointment created.",
     "updated": "Appointment updated.",
     "deleted": "Appointment deleted."
+  },
+  "users": {
+    "title": "User Management",
+    "subtitle": "Manage administrators",
+    "new": "New Administrator",
+    "edit": "Edit Administrator",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "active": "Active",
+    "permissions": "Permissions",
+    "created": "User created.",
+    "updated": "User updated.",
+    "deleted": "User deleted.",
+    "saveError": "Error saving.",
+    "emailInUse": "Email is already in use.",
+    "empty": "No users found.",
+    "permissionsList": {
+      "manage_workers": "Manage workers",
+      "manage_clients": "Manage facilities",
+      "manage_orders": "Orders & Dispatching",
+      "manage_confirmations": "Service Confirmations",
+      "manage_invoices": "Billing & Invoices"
+    }
+  },
+  "clientUsers": {
+    "title": "Facility Users",
+    "subtitle": "Manage accounts for your staff.",
+    "new": "New User",
+    "edit": "Edit User",
+    "jobTitle": "Position / Title",
+    "jobTitlePlaceholder": "e.g. Director of Nursing",
+    "created": "User created.",
+    "updated": "User updated.",
+    "deleted": "User deleted.",
+    "active": "Account active",
+    "mainUser": "Main Account",
+    "subUser": "Sub Account",
+    "empty": "No additional users created."
   }
 }
