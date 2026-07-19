@@ -1,6 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, resolveClientId } from "@/lib/auth";
 import {
   requestNetTotal,
   resolveSurcharges,
@@ -49,8 +49,10 @@ async function getOrders(): Promise<{
   const user = await getCurrentUser();
   if (!user) return empty;
   try {
+    const clientId = await resolveClientId(user);
+    if (!clientId) return empty;
     const client = await prisma.client.findUnique({
-      where: { userId: user.id },
+      where: { id: clientId },
       select: {
         id: true,
         surchargeSat: true,

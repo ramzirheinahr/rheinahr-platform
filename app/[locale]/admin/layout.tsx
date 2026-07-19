@@ -48,6 +48,11 @@ export default async function AdminLayout({
     { href: "/admin/invoicing", label: ti("title"), icon: "invoicing" },
   ];
 
+  if (user.role === "super_admin") {
+    const tu = await getTranslations("users");
+    nav.push({ href: "/admin/users", label: tu("title"), icon: "users" as any });
+  }
+
   return (
     <PortalShell
       title={t("adminTitle")}

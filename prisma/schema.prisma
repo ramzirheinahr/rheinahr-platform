@@ -161,11 +161,16 @@ model User {
   loginPinAttempts  Int       @default(0) @map("login_pin_attempts") // brute-force counter
   loginPinLockUntil DateTime? @map("login_pin_lock_until") // temporary lockout after failures
   createdById       String?   @map("created_by") // which admin provisioned this account
+  
+  permissions       String[]  @default([]) // RBAC for admins
+  jobTitle          String?   @map("job_title") // for client sub-users
+  clientId          String?   @map("client_id") // links sub-user to a client facility
+
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   worker               Worker?
-  client               Client?
+  client               Client? @relation("ClientPrimaryUser")
   notifications        Notification[]
   serviceConfirmations ServiceConfirmation[]
   sentMessages         Message[]
@@ -173,6 +178,8 @@ model User {
   createdConversations Conversation[]
   pushSubscriptions    PushSubscription[]
   appointments         Appointment[]             @relation("ManagerAppointments")
+
+  clientFacility Client? @relation("FacilityUsers", fields: [clientId], references: [id], onDelete: Cascade)
 
   createdBy    User?  @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers User[] @relation("UserCreatedBy")
@@ -337,7 +344,8 @@ model Client {
   createdAt                  DateTime     @default(now()) @map("created_at")
   updatedAt                  DateTime     @updatedAt @map("updated_at")
 
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User             @relation("ClientPrimaryUser", fields: [userId], references: [id], onDelete: Cascade)
+  subUsers  User[]           @relation("FacilityUsers")
   orders    Order[]
   contracts ClientContract[]
   invoices  Invoice[]

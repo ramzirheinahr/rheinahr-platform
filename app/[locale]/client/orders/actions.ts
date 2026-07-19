@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, resolveClientId } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { diffRequestShifts, isRequestEditable, isRequestCancelable } from "@/lib/orders";
 import { formatDateDE } from "@/lib/utils";
@@ -58,8 +58,10 @@ export async function updateOrderRequest(
   const user = await getCurrentUser();
   if (!user || user.role !== "client") return { ok: false, error: "forbidden" };
 
+  const clientId = await resolveClientId(user);
+  if (!clientId) return { ok: false, error: "saveError" };
   const client = await prisma.client.findUnique({
-    where: { userId: user.id },
+    where: { id: clientId },
     select: { id: true, facilityName: true },
   });
   if (!client) return { ok: false, error: "saveError" };
@@ -195,8 +197,10 @@ export async function cancelOrderRequest(
   const user = await getCurrentUser();
   if (!user || user.role !== "client") return { ok: false, error: "forbidden" };
 
+  const clientId = await resolveClientId(user);
+  if (!clientId) return { ok: false, error: "saveError" };
   const client = await prisma.client.findUnique({
-    where: { userId: user.id },
+    where: { id: clientId },
     select: { id: true, facilityName: true },
   });
   if (!client) return { ok: false, error: "saveError" };
@@ -326,8 +330,10 @@ export async function createOrderRequest(
   const user = await getCurrentUser();
   if (!user || user.role !== "client") return { ok: false, error: "forbidden" };
 
+  const clientId = await resolveClientId(user);
+  if (!clientId) return { ok: false, error: "saveError" };
   const client = await prisma.client.findUnique({
-    where: { userId: user.id },
+    where: { id: clientId },
     select: { id: true, facilityName: true },
   });
   if (!client) return { ok: false, error: "saveError" };
@@ -411,8 +417,10 @@ export async function sendRequestMessage(
   const user = await getCurrentUser();
   if (!user || user.role !== "client") return { ok: false, error: "forbidden" };
 
+  const clientId = await resolveClientId(user);
+  if (!clientId) return { ok: false, error: "saveError" };
   const client = await prisma.client.findUnique({
-    where: { userId: user.id },
+    where: { id: clientId },
     select: { id: true, facilityName: true },
   });
   if (!client) return { ok: false, error: "saveError" };

@@ -22,6 +22,7 @@ export default async function ClientLayout({
     { href: "/client/orders", label: t("orders"), icon: "orders" },
     { href: "/client/inbox", label: t("inbox"), icon: "inbox" },
     { href: "/client/schedule", label: t("clientSchedule"), icon: "schedule" },
+    { href: "/client/settings", label: "Einstellungen", icon: "dashboard" }, // Using dashboard icon as generic fallback
   ];
 
   return (

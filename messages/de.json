@@ -831,5 +831,44 @@
     "created": "Termin erstellt.",
     "updated": "Termin aktualisiert.",
     "deleted": "Termin gelöscht."
+  },
+  "users": {
+    "title": "Benutzerverwaltung",
+    "subtitle": "Administratoren verwalten",
+    "new": "Neuer Administrator",
+    "edit": "Administrator bearbeiten",
+    "name": "Name",
+    "email": "E-Mail",
+    "role": "Rolle",
+    "active": "Aktiv",
+    "permissions": "Berechtigungen",
+    "created": "Benutzer erstellt.",
+    "updated": "Benutzer aktualisiert.",
+    "deleted": "Benutzer gelöscht.",
+    "saveError": "Fehler beim Speichern.",
+    "emailInUse": "E-Mail wird bereits verwendet.",
+    "empty": "Keine Benutzer gefunden.",
+    "permissionsList": {
+      "manage_workers": "Pflegekräfte verwalten",
+      "manage_clients": "Einrichtungen verwalten",
+      "manage_orders": "Aufträge & Disposition",
+      "manage_confirmations": "Leistungsnachweise",
+      "manage_invoices": "Abrechnung & Rechnungen"
+    }
+  },
+  "clientUsers": {
+    "title": "Benutzer der Einrichtung",
+    "subtitle": "Verwalten Sie Konten für Ihre Mitarbeiter.",
+    "new": "Neuer Benutzer",
+    "edit": "Benutzer bearbeiten",
+    "jobTitle": "Position / Titel",
+    "jobTitlePlaceholder": "z.B. Pflegedienstleitung",
+    "created": "Benutzer erstellt.",
+    "updated": "Benutzer aktualisiert.",
+    "deleted": "Benutzer gelöscht.",
+    "active": "Konto aktiv",
+    "mainUser": "Hauptkonto",
+    "subUser": "Unterkonto",
+    "empty": "Keine weiteren Benutzer angelegt."
   }
 }

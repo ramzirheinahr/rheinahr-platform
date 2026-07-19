@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, resolveClientId } from "@/lib/auth";
 import { isRequestEditable } from "@/lib/orders";
 import { redirect } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
@@ -26,9 +26,11 @@ export default async function EditRequestPage({
 
   const user = await getCurrentUser();
   if (!user) notFound();
+  const clientId = await resolveClientId(user);
+  if (!clientId) notFound();
   const client = await prisma.client
     .findUnique({
-      where: { userId: user.id },
+      where: { id: clientId },
       select: {
         id: true,
         surchargeSat: true,

@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, resolveClientId } from "@/lib/auth";
 import { getClientMonthSchedule } from "@/lib/client-schedule";
 import { MonthScheduleTable } from "@/components/client/month-schedule-table";
 
@@ -33,13 +33,9 @@ export default async function ClientSchedulePage({
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
   const user = await getCurrentUser();
-  const client = user
-    ? await prisma.client
-        .findUnique({ where: { userId: user.id }, select: { id: true } })
-        .catch(() => null)
-    : null;
-  const { rows, totals } = client
-    ? await getClientMonthSchedule(client.id, year, month)
+  const clientId = user ? await resolveClientId(user) : null;
+  const { rows, totals } = clientId
+    ? await getClientMonthSchedule(clientId, year, month)
     : {
         rows: [],
         totals: {

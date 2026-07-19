@@ -26,6 +26,8 @@ function resolveRateOverrides(
   return out;
 }
 
+import { SubUsersSection } from "@/app/[locale]/client/settings/sub-users-section";
+
 export default async function EditClientPage({
   params,
 }: {
@@ -40,7 +42,8 @@ export default async function EditClientPage({
     .findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true } },
+        user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true, fullName: true, jobTitle: true } },
+        subUsers: { select: { id: true, email: true, fullName: true, jobTitle: true, active: true } }
       },
     })
     .catch(() => null);
@@ -102,6 +105,34 @@ export default async function EditClientPage({
           active={client.user.active}
           hasLink={!!client.user.loginToken}
         />
+      )}
+
+      {/* Sub-users management */}
+      {actor?.role === "super_admin" && (
+        <div className="pt-4 border-t">
+          <SubUsersSection 
+            users={[
+              {
+                id: client.user.id,
+                email: client.user.email,
+                fullName: client.user.fullName,
+                jobTitle: client.user.jobTitle,
+                active: client.user.active,
+                isMainUser: true,
+              },
+              ...client.subUsers.map(u => ({
+                id: u.id,
+                email: u.email,
+                fullName: u.fullName,
+                jobTitle: u.jobTitle,
+                active: u.active,
+                isMainUser: false,
+              }))
+            ]}
+            isMainUser={true}
+            clientId={client.id}
+          />
+        </div>
       )}
     </div>
   );
