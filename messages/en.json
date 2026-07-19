@@ -278,6 +278,13 @@
     "noSearchMatch": "No matches."
   },
   "orders": {
+    "sortDateDesc": "Date (Newest first)",
+    "sortDateAsc": "Date (Oldest first)",
+    "sortFacilityAsc": "Facility (A-Z)",
+    "sortFacilityDesc": "Facility (Z-A)",
+    "completed": "Completed",
+    "showCompleted": "✓ Completed",
+    "showIncomplete": "Incomplete",
     "title": "Orders",
     "newOrder": "New order",
     "detailTitle": "Order",

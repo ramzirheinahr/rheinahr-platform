@@ -278,6 +278,13 @@
     "noSearchMatch": "Keine Treffer."
   },
   "orders": {
+    "sortDateDesc": "Datum (Neueste zuerst)",
+    "sortDateAsc": "Datum (Älteste zuerst)",
+    "sortFacilityAsc": "Einrichtung (A-Z)",
+    "sortFacilityDesc": "Einrichtung (Z-A)",
+    "completed": "Abgeschlossen",
+    "showCompleted": "✓ Abgeschlossen",
+    "showIncomplete": "Unvollständig",
     "title": "Aufträge",
     "newOrder": "Neuer Auftrag",
     "detailTitle": "Auftrag",

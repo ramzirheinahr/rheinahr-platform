@@ -278,6 +278,13 @@
     "noSearchMatch": "لا توجد نتائج."
   },
   "orders": {
+    "sortDateDesc": "التاريخ (الأحدث أولاً)",
+    "sortDateAsc": "التاريخ (الأقدم أولاً)",
+    "sortFacilityAsc": "المنشأة (أ-ي)",
+    "sortFacilityDesc": "المنشأة (ي-أ)",
+    "completed": "مكتملة",
+    "showCompleted": "✓ منتهية",
+    "showIncomplete": "غير منتهية",
     "title": "الطلبات",
     "newOrder": "طلب جديد",
     "detailTitle": "الطلب",

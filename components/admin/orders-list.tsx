@@ -143,19 +143,19 @@ export function OrdersList({
           onChange={(e) => setSortBy(e.target.value as any)}
           className={cn(chip, "border h-9 py-0 outline-none")}
         >
-          <option value="date_desc">التاريخ (الأحدث أولاً)</option>
-          <option value="date_asc">التاريخ (الأقدم أولاً)</option>
-          <option value="facility_asc">المنشأة (أ-ي)</option>
-          <option value="facility_desc">المنشأة (ي-أ)</option>
+          <option value="date_desc">{t("sortDateDesc")}</option>
+          <option value="date_asc">{t("sortDateAsc")}</option>
+          <option value="facility_asc">{t("sortFacilityAsc")}</option>
+          <option value="facility_desc">{t("sortFacilityDesc")}</option>
         </select>
 
         <label className={cn(chip, "border h-9 cursor-pointer select-none", !showCompleted && "opacity-50 grayscale")}>
           <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} className="hidden" />
-          <span className={showCompleted ? "text-primary" : "text-muted-foreground"}>✓ منتهية</span>
+          <span className={showCompleted ? "text-primary" : "text-muted-foreground"}>{t("showCompleted")}</span>
         </label>
         <label className={cn(chip, "border h-9 cursor-pointer select-none", !showIncomplete && "opacity-50 grayscale")}>
           <input type="checkbox" checked={showIncomplete} onChange={(e) => setShowIncomplete(e.target.checked)} className="hidden" />
-          <span className={showIncomplete ? "text-primary" : "text-muted-foreground"}>غير منتهية</span>
+          <span className={showIncomplete ? "text-primary" : "text-muted-foreground"}>{t("showIncomplete")}</span>
         </label>
 
         <div ref={ref} className="relative">
@@ -255,7 +255,7 @@ export function OrdersList({
                   </span>
                   {g.isFullyCompleted ? (
                     <span className="text-xs font-normal text-green-600 border border-green-200 bg-green-100 rounded-full px-2 py-0.5 ml-2 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400">
-                      مكتملة
+                      {t("completed")}
                     </span>
                   ) : null}
                 </div>
