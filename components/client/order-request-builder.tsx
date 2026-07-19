@@ -325,8 +325,13 @@ export function OrderRequestBuilder({
     () =>
       Object.entries(cells)
         .filter(([, v]) => v.start && v.end)
-        .map(([k, v]) => ({ date: k.split(":")[0], ...v })),
-    [cells],
+        .map(([k, v]) => ({ date: k.split(":")[0], ...v }))
+        .filter((s) => {
+          const sYear = Number(s.date.slice(0, 4));
+          const sMonth = Number(s.date.slice(5, 7));
+          return sYear === year && sMonth === month;
+        }),
+    [cells, year, month],
   );
 
   // Total net work hours for the whole request (each shift × its headcount).

@@ -18,6 +18,8 @@ export type OrderGroupSummary = {
   status: OrderStatus;
   qualification: string;
   cancelled: boolean;
+  isFullyCompleted?: boolean;
+  timestamp?: number;
 };
 
 function normalize(s: string): string {
@@ -53,6 +55,9 @@ export function OrdersList({
   const [selected, setSelected] = useState<Set<OrderStatus>>(new Set());
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "facility_asc" | "facility_desc">("date_desc");
+  const [showCompleted, setShowCompleted] = useState(true);
+  const [showIncomplete, setShowIncomplete] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,19 +75,41 @@ export function OrdersList({
     return m;
   }, [groups]);
 
-  const filtered = useMemo(() => {
+  const filteredAndSorted = useMemo(() => {
     let result = groups;
+
+    result = result.filter(g => {
+      if (g.isFullyCompleted && !showCompleted) return false;
+      if (!g.isFullyCompleted && !showIncomplete) return false;
+      return true;
+    });
+
     if (query) {
       result = result.filter((g) => matches(g, query));
     }
     // Explicit selection wins — show exactly the chosen statuses.
-    if (selected.size > 0) return result.filter((g) => selected.has(g.status));
-    // Default view hides finished/cancelled requests to keep the list actionable;
-    // the user can still reveal them by selecting those statuses in the filter.
-    return result.filter(
-      (g) => !g.cancelled && g.status !== "completed" && g.status !== "cancelled",
-    );
-  }, [groups, selected, query]);
+    if (selected.size > 0) {
+      result = result.filter((g) => selected.has(g.status));
+    } else {
+      // Default view hides finished/cancelled requests to keep the list actionable;
+      // the user can still reveal them by selecting those statuses in the filter.
+      result = result.filter(
+        (g) => !g.cancelled && g.status !== "completed" && g.status !== "cancelled",
+      );
+    }
+
+    return result.sort((a, b) => {
+      const ta = a.timestamp ?? 0;
+      const tb = b.timestamp ?? 0;
+      switch (sortBy) {
+        case "date_asc": return ta - tb;
+        case "date_desc": return tb - ta;
+        case "facility_asc": return a.facilityName.localeCompare(b.facilityName);
+        case "facility_desc": return b.facilityName.localeCompare(a.facilityName);
+        default: return 0;
+      }
+    });
+  }, [groups, selected, query, showCompleted, showIncomplete, sortBy]);
 
   function toggle(s: OrderStatus) {
     setSelected((prev) => {
@@ -110,6 +137,26 @@ export function OrdersList({
             aria-label={t("searchPlaceholder")}
           />
         </div>
+
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as any)}
+          className={cn(chip, "border h-9 py-0 outline-none")}
+        >
+          <option value="date_desc">التاريخ (الأحدث أولاً)</option>
+          <option value="date_asc">التاريخ (الأقدم أولاً)</option>
+          <option value="facility_asc">المنشأة (أ-ي)</option>
+          <option value="facility_desc">المنشأة (ي-أ)</option>
+        </select>
+
+        <label className={cn(chip, "border h-9 cursor-pointer select-none", !showCompleted && "opacity-50 grayscale")}>
+          <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} className="hidden" />
+          <span className={showCompleted ? "text-primary" : "text-muted-foreground"}>✓ منتهية</span>
+        </label>
+        <label className={cn(chip, "border h-9 cursor-pointer select-none", !showIncomplete && "opacity-50 grayscale")}>
+          <input type="checkbox" checked={showIncomplete} onChange={(e) => setShowIncomplete(e.target.checked)} className="hidden" />
+          <span className={showIncomplete ? "text-primary" : "text-muted-foreground"}>غير منتهية</span>
+        </label>
 
         <div ref={ref} className="relative">
           <button
@@ -184,19 +231,20 @@ export function OrdersList({
       </div>
 
       {/* Request list */}
-      {filtered.length === 0 ? (
+      {filteredAndSorted.length === 0 ? (
         <p className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
           {query ? t("noSearchMatch") : selected.size > 0 ? t("noStatusMatch") : t("empty")}
         </p>
       ) : (
         <div className="space-y-3">
-          {filtered.map((g) => (
+          {filteredAndSorted.map((g) => (
             <Link
               key={g.key}
               href={`${basePath}/${g.key}`}
               className={cn(
                 "flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-muted/40",
                 g.cancelled && "border-destructive/40 bg-destructive/5",
+                g.isFullyCompleted && "border-green-500/40 bg-green-50 dark:bg-green-500/10"
               )}
             >
               <div>
@@ -205,6 +253,11 @@ export function OrdersList({
                   <span className="text-xs font-normal text-muted-foreground border rounded-full px-2 py-0.5 bg-background">
                     {eq(g.qualification)}
                   </span>
+                  {g.isFullyCompleted ? (
+                    <span className="text-xs font-normal text-green-600 border border-green-200 bg-green-100 rounded-full px-2 py-0.5 ml-2 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400">
+                      مكتملة
+                    </span>
+                  ) : null}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {g.range} · {g.shiftsCount} {t("shiftsCount")} · {g.netLabel} {t("net")}
