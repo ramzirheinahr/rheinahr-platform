@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { requestNetTotal, resolveRates, resolveSurcharges, resolveNightWindow, VAT_RATE } from "@/lib/pricing";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Users, FileText, CheckCircle, Clock, Euro } from "lucide-react";
 import { ActionItems } from "./components/action-items";
@@ -23,14 +24,15 @@ async function getStats(monthStr?: string) {
       }
     }
 
-    const firstDayOfMonth = new Date(targetYear, targetMonth, 1);
-    const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0);
+    const firstDayOfMonth = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
+    const lastDayOfMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0, 23, 59, 59, 999));
 
     const [
       pendingOrders,
       assignedShiftsCount,
       hoursResult,
       totalActiveWorkers,
+      allOrdersThisMonth,
       pendingConfirmations,
       pendingLeaves,
       unverifiedDocs,
@@ -62,8 +64,17 @@ async function getStats(monthStr?: string) {
       }),
       prisma.worker.count({ where: { user: { active: true } } }), // Still overall active workers
 
-      // Action Items (Overall system state, not necessarily month bound, except confirmations)
-      prisma.order.count({ where: { status: "completed" } }),
+      // All orders for revenue calculation (exclude cancelled)
+      prisma.order.findMany({
+        where: { 
+          shiftDate: { gte: firstDayOfMonth, lte: lastDayOfMonth },
+          status: { not: "cancelled" }
+        },
+        include: { client: true }
+      }),
+
+      // Action Items
+      prisma.order.count({ where: { status: "completed", shiftDate: { gte: firstDayOfMonth, lte: lastDayOfMonth } } }),
       prisma.leaveRequest.count({ where: { status: "pending" } }),
       prisma.workerDocument.count({ where: { verified: false } }),
       prisma.clientContract.count({ where: { status: "pending" } }),
@@ -111,10 +122,18 @@ async function getStats(monthStr?: string) {
       value: o._count,
     }));
     
+    // Calculate expected total revenue for all orders (gross)
     let totalRevenue = 0;
+    for (const order of allOrdersThisMonth) {
+      const rates = resolveRates(order.client);
+      const surcharges = resolveSurcharges(order.client);
+      const nightWindow = resolveNightWindow(order.client);
+      const net = requestNetTotal([order], surcharges, rates, nightWindow);
+      totalRevenue += net * (1 + VAT_RATE);
+    }
+
     const invoiceData = invoicesByStatus.map((i) => {
       const val = Number(i._sum.grossAmount || 0);
-      totalRevenue += val;
       return {
         name: i.status,
         value: val,
@@ -236,14 +255,14 @@ export default async function AdminDashboard({
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Umsatz (Rechnungen)</CardTitle>
+            <CardTitle className="text-sm font-medium">Auftragswert (Gesamt)</CardTitle>
             <Euro className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(stats.kpis.totalRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground">Bruttoumsatz im Monat</p>
+            <p className="text-xs text-muted-foreground">Erwartet (Brutto) für alle Schichten</p>
           </CardContent>
         </Card>
       </div>
