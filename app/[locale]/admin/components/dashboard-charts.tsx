@@ -87,7 +87,7 @@ export function DashboardCharts({ fulfillmentData, qualificationData, invoiceDat
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{ fill: "transparent" }} formatter={(value: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value)} />
+                  <Tooltip cursor={{ fill: "transparent" }} formatter={(value: any) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(value) || 0)} />
                   <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
