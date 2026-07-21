@@ -17,7 +17,8 @@ export function MonthPicker({ currentMonth }: { currentMonth: string }) {
     months.push({ value, label });
   }
 
-  const handleChange = (val: string) => {
+  const handleChange = (val: string | null) => {
+    if (!val) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("month", val);
     router.push(`?${params.toString()}`);
