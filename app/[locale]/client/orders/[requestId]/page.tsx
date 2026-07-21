@@ -74,7 +74,7 @@ export default async function ClientRequestDetail({
           status: true,
           serviceConfirmation: { select: { id: true, correctionHours: true, method: true } },
           worker: {
-            select: { id: true, fullName: true, photoPath: true },
+            select: { id: true, fullName: true, phone: true, photoPath: true },
           },
         },
       },
@@ -164,6 +164,7 @@ export default async function ClientRequestDetail({
         worker: {
           id: a.worker.id,
           fullName: a.worker.fullName,
+          phone: a.worker.phone,
           hasPhoto: !!a.worker.photoPath,
         },
       })),
