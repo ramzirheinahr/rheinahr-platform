@@ -68,7 +68,7 @@ export async function getMasterSchedule(
                 endTime: true,
                 breakMinutes: true,
                 notes: true,
-                client: { select: { shortCode: true, facilityName: true } },
+                client: { select: { shortCode: true, facilityName: true, address: true } },
               },
             },
             serviceConfirmation: { select: { id: true, hoursWorked: true } },
@@ -90,7 +90,7 @@ export async function getMasterSchedule(
     }),
     prisma.client.findMany({
       orderBy: { facilityName: "asc" },
-      select: { id: true, shortCode: true, facilityName: true },
+      select: { id: true, shortCode: true, facilityName: true, address: true },
     }),
     // Requested shifts of this qualification that still have open headcount —
     // the grey "not yet dispatched" section. Terminal states are excluded.
@@ -148,6 +148,7 @@ export async function getMasterSchedule(
         letter: shiftLetterForStart(a.order.startTime),
         code: facilityCode(a.order.client.shortCode, a.order.client.facilityName),
         facilityName: a.order.client.facilityName,
+        facilityAddress: a.order.client.address,
         startTime: a.order.startTime,
         endTime: a.order.endTime,
         breakMinutes: a.order.breakMinutes,
@@ -225,11 +226,12 @@ export async function getMasterSchedule(
 
   return {
     rows,
-    facilities: facilities.map((f) => ({
-      clientId: f.id,
-      code: facilityCode(f.shortCode, f.facilityName),
-      name: f.facilityName,
-      hasCode: f.shortCode !== null,
+    facilities: facilities.map((c) => ({
+      clientId: c.id,
+      code: facilityCode(c.shortCode, c.facilityName),
+      name: c.facilityName,
+      address: c.address,
+      hasCode: c.shortCode !== null,
     })),
     unassigned,
     daysInMonth,

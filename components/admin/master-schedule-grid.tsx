@@ -1166,6 +1166,7 @@ function CellEditor({
             letter: shift === "early" ? "F" : shift === "late" ? "S" : "N",
             code: facility.code,
             facilityName: facility.name,
+            facilityAddress: facility.address ?? null,
             startTime: start,
             endTime: end,
             breakMinutes: breakMin,
@@ -1353,7 +1354,10 @@ function CellEditor({
                     {row.phone ? (
                       <a
                         href={`https://wa.me/${row.phone.replace(/[^\d+]/g, "")}?text=${encodeURIComponent(
-                          `Hallo ${row.name},\n\nHier sind die Details für deine Schicht am ${dateLabel}:\n\nEinrichtung: ${j.facilityName}\n${j.ward ? `Wohnbereich: ${j.ward}\n` : ""}Uhrzeit: ${j.startTime} - ${j.endTime}`
+                          `Hallo ${row.name},\n\nHier sind die Details für deine Schicht am ${dateLabel}:\n\nEinrichtung: ${j.facilityName}\n` +
+                          (j.facilityAddress ? `Adresse: ${j.facilityAddress}\nKarte: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(j.facilityAddress)}\n` : "") +
+                          (j.ward ? `Wohnbereich: ${j.ward}\n` : "") +
+                          `Uhrzeit: ${j.startTime} - ${j.endTime}`
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"

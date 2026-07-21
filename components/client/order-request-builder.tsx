@@ -1119,7 +1119,6 @@ export function OrderRequestBuilder({
               to: nightWin.end,
             })}
           </span>
-          <span className="block text-xs">{t("stackNote")}</span>
         </div>
         {ro ? null : (
           <div className="flex flex-wrap items-center gap-2">

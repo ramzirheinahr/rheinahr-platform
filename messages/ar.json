@@ -798,6 +798,8 @@
     "newOrderTitle": "إنشاء طلب وردية",
     "newOrderAria": "إنشاء وردية مفتوحة",
     "quantity": "العدد",
+    "timeFrom": "من",
+    "timeTo": "إلى",
     "createOrder": "إنشاء الوردية",
     "orderCreated": "تم إنشاء الوردية.",
     "searchFacility": "ابحث عن مؤسسة…",

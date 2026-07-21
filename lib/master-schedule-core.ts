@@ -123,6 +123,7 @@ export type GridJob = {
   letter: "F" | "S" | "N";
   code: string;
   facilityName: string;
+  facilityAddress: string | null;
   startTime: string;
   endTime: string;
   breakMinutes: number; // unpaid break (minutes)
@@ -160,6 +161,7 @@ export type GridFacility = {
   clientId: string;
   code: string;
   name: string;
+  address: string | null;
   hasCode: boolean; // false = derived fallback, admin should set one
 };
 

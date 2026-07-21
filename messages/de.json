@@ -798,6 +798,8 @@
     "newOrderTitle": "Neuen Dienst anlegen",
     "newOrderAria": "Offenen Dienst anlegen",
     "quantity": "Anzahl",
+    "timeFrom": "Von",
+    "timeTo": "Bis",
     "createOrder": "Dienst anlegen",
     "orderCreated": "Dienst wurde angelegt.",
     "searchFacility": "Einrichtung suchen…",

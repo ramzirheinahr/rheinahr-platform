@@ -798,6 +798,8 @@
     "newOrderTitle": "Create shift request",
     "newOrderAria": "Create open shift",
     "quantity": "Count",
+    "timeFrom": "From",
+    "timeTo": "To",
     "createOrder": "Create shift",
     "orderCreated": "Shift request created.",
     "searchFacility": "Search facility…",

@@ -25,7 +25,7 @@ import { usePendingResponses } from "@/components/orders/pending-responses-provi
 import { ToggleMealAllowanceButton } from "@/components/orders/allowance-toggles";
 import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, MessageSquare, Users, UserRound, Download } from "lucide-react";
+import { CheckCircle2, MessageSquare, MessageCircle, Users, UserRound, Download } from "lucide-react";
 import type { AssignmentStatus, OrderStatus } from "@prisma/client";
 
 // Per-shift pipeline data shown inside the request table, keyed like the
@@ -36,6 +36,12 @@ export type ShiftMeta = {
   status: OrderStatus;
   quantity: number;
   label: string; // "dd.mm.yyyy · HH:mm–HH:mm" dialog heading
+  facilityName: string;
+  facilityAddress: string | null;
+  ward: string | null;
+  shiftDate: string;
+  startTime: string;
+  endTime: string;
   isPast?: boolean;
   // Admin bulk-assign: this shift can still take workers (not cancelled/full) →
   // a multi-select checkbox is shown next to its chip.
@@ -57,6 +63,7 @@ export type ShiftMeta = {
     worker?: {
       id: string;
       fullName: string;
+      phone: string | null;
       hasPhoto: boolean;
       mealAllowanceEnabled?: boolean;
       travelAllowanceEnabled?: boolean;
@@ -232,7 +239,25 @@ export function ShiftMetaCell({
                     key={a.id}
                     className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
                   >
-                    <span className="font-medium">{a.workerName}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{a.workerName}</span>
+                      {a.worker?.phone && (
+                        <a
+                          href={`https://wa.me/${a.worker.phone.replace(/[^\d+]/g, "")}?text=${encodeURIComponent(
+                            `Hallo ${a.workerName},\n\nHier sind die Details für deine Schicht am ${meta.shiftDate}:\n\nEinrichtung: ${meta.facilityName}\n` +
+                            (meta.facilityAddress ? `Adresse: ${meta.facilityAddress}\nKarte: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(meta.facilityAddress)}\n` : "") +
+                            (meta.ward ? `Wohnbereich: ${meta.ward}\n` : "") +
+                            `Uhrzeit: ${meta.startTime} - ${meta.endTime}`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-md bg-[#25D366] hover:bg-[#20b858] text-white h-7 w-7 text-xs font-medium shrink-0 shadow-sm"
+                          title="Per WhatsApp senden"
+                        >
+                          <MessageCircle className="size-3.5" />
+                        </a>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       {a.hours !== null ? (
                         <span className="flex items-center gap-1 text-xs text-primary">

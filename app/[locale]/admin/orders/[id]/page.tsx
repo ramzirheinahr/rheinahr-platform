@@ -42,6 +42,7 @@ export default async function AdminRequestDetail({
       client: {
         select: {
           facilityName: true,
+          address: true,
           surchargeSat: true,
           surchargeSun: true,
           surchargeHoliday: true,
@@ -53,7 +54,7 @@ export default async function AdminRequestDetail({
       },
       assignments: {
         include: {
-          worker: { select: { id: true, fullName: true, photoPath: true, mealAllowanceEnabled: true, travelAllowanceEnabled: true } },
+          worker: { select: { id: true, fullName: true, phone: true, photoPath: true, mealAllowanceEnabled: true, travelAllowanceEnabled: true } },
           serviceConfirmation: { select: { hoursWorked: true, correctionHours: true, method: true } },
         },
       },
@@ -162,6 +163,12 @@ export default async function AdminRequestDetail({
       status: o.status,
       quantity: o.quantity,
       label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
+      facilityName: o.client.facilityName,
+      facilityAddress: o.client.address,
+      ward: o.notes,
+      shiftDate: formatDateDE(o.shiftDate),
+      startTime: o.startTime,
+      endTime: o.endTime,
       selectable,
       scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes),
       assignments: o.assignments.map((a) => ({
@@ -184,6 +191,7 @@ export default async function AdminRequestDetail({
         worker: {
           id: a.worker.id,
           fullName: a.worker.fullName,
+          phone: a.worker.phone,
           hasPhoto: !!a.worker.photoPath,
           mealAllowanceEnabled: a.worker.mealAllowanceEnabled,
           travelAllowanceEnabled: a.worker.travelAllowanceEnabled,
