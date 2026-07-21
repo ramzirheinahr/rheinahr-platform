@@ -47,7 +47,16 @@ export type InitialRequest = {
     bereich: string;
   }[];
 };
-import { Send, Plus, X, Copy, ClipboardPaste, Info, Undo2, Redo2, Download, Upload } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Send, Plus, X, Copy, ClipboardPaste, Info, Undo2, Redo2, Download, Upload, Clipboard } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type Qual = (typeof qualifications)[number];
@@ -253,37 +262,46 @@ export function OrderRequestBuilder({
   // Effective number of shift rows for a day: the chosen count, but never fewer
   // than needed to show already-filled shifts.
   function effCount(date: string) {
-    let n = slotCounts[date] ?? 1;
-    if (get(date, 2).start && get(date, 2).end) return 3;
-    if (get(date, 1).start && get(date, 1).end) n = Math.max(n, 2);
-    return Math.min(3, Math.max(1, n));
+    let maxSlot = -1;
+    for (const key in cells) {
+      if (key.startsWith(`${date}:`)) {
+        const cell = cells[key];
+        if (cell && (cell.start || cell.end)) {
+          const slotStr = key.split(":")[1];
+          if (slotStr) maxSlot = Math.max(maxSlot, parseInt(slotStr, 10));
+        }
+      }
+    }
+    const n = slotCounts[date] ?? 1;
+    return Math.max(1, n, maxSlot + 1);
   }
+
   function addSlot(date: string) {
     setUndoState((prev) => ({
       ...prev,
-      counts: { ...prev.counts, [date]: Math.min(3, effCount(date) + 1) },
+      counts: { ...prev.counts, [date]: effCount(date) + 1 },
     }));
   }
+
   // Cancel/zero a single shift: remove that row and pull the later shifts of the
-  // day up one slot (max 3), so there are never gaps. Zeroing the only shift of
-  // a day just empties its first row. On save the diff drops the removed order
-  // (and any assignments) — see diffRequestShifts.
+  // day up one slot, so there are never gaps. Zeroing the only shift of
+  // a day just empties its first row.
   function removeShiftRow(date: string, slot: number) {
     const n = effCount(date);
     setUndoState((prev) => {
       const nextCells = { ...prev.cells };
-      for (let s = slot; s < 2; s++) {
+      for (let s = slot; s < n - 1; s++) {
         const above = nextCells[`${date}:${s + 1}`];
         if (above) nextCells[`${date}:${s}`] = above;
         else delete nextCells[`${date}:${s}`];
       }
-      delete nextCells[`${date}:2`];
+      delete nextCells[`${date}:${n - 1}`];
       return {
         cells: nextCells,
         counts: { ...prev.counts, [date]: Math.max(1, n - 1) },
       };
     });
-    for (let s = slot; s <= 2; s++) bump(date, s); // re-mount time inputs
+    for (let s = slot; s < n; s++) bump(date, s); // re-mount time inputs
   }
   // Row-level copy/paste: copy a filled day's shifts, paste them onto empty days
   // so clients can replicate a recurring shift pattern without retyping.
@@ -369,6 +387,130 @@ export function OrderRequestBuilder({
     XLSX.writeFile(workbook, `Bestellung_${year}_${pad(month)}.xlsx`);
   }
 
+  function processImportedData(data: any[]) {
+    const mergedCells = { ...undoState.cells };
+    const mergedCounts = { ...undoState.counts };
+
+    for (const row of data) {
+      if (!row.Datum) continue;
+      
+      let dateStr = row.Datum;
+      if (typeof row.Datum === "number") {
+         const d = XLSX.SSF.parse_date_code(row.Datum);
+         dateStr = `${d.y}-${pad(d.m)}-${pad(d.d)}`;
+      } else if (typeof dateStr === "string") {
+         const match = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+         if (match) {
+             dateStr = `${match[3]}-${pad(Number(match[2]))}-${pad(Number(match[1]))}`;
+         }
+         const match2 = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+         if (match2) {
+             dateStr = `${match2[3]}-${pad(Number(match2[2]))}-${pad(Number(match2[1]))}`;
+         }
+      }
+
+      if (!days.find(d => d.date === dateStr)) continue;
+
+      let startStr = row.Von || "";
+      let endStr = row.Bis || "";
+      
+      if (typeof startStr === "number") {
+         const d = XLSX.SSF.parse_date_code(startStr);
+         startStr = `${pad(d.H)}:${pad(d.M)}`;
+      } else if (typeof startStr === "string") {
+          const parts = startStr.split(":");
+          if (parts.length >= 2) startStr = `${pad(Number(parts[0]))}:${pad(Number(parts[1]))}`;
+      }
+      
+      if (typeof endStr === "number") {
+         const d = XLSX.SSF.parse_date_code(endStr);
+         endStr = `${pad(d.H)}:${pad(d.M)}`;
+      } else if (typeof endStr === "string") {
+          const parts = endStr.split(":");
+          if (parts.length >= 2) endStr = `${pad(Number(parts[0]))}:${pad(Number(parts[1]))}`;
+      }
+
+      const importedQuantity = Number(row.Anzahl) || 1;
+      const importedBereich = row.Wohnbereich || "";
+      const importedPause = Number(row.Pause) || 30;
+      const importedType = (row.Schicht as ShiftType) || (startStr && endStr ? matchPreset(startStr, endStr) : "none");
+
+      const existingCount = mergedCounts[dateStr] || 0;
+      let merged = false;
+
+      // Try to find an existing shift with EXACT same start, end, and bereich
+      for (let i = 0; i < existingCount; i++) {
+        const key = `${dateStr}:${i}`;
+        const existingCell = mergedCells[key];
+        if (existingCell && existingCell.start === startStr && existingCell.end === endStr && existingCell.bereich === importedBereich) {
+          // Merge!
+          mergedCells[key] = {
+            ...existingCell,
+            quantity: existingCell.quantity + importedQuantity
+          };
+          bump(dateStr, i);
+          merged = true;
+          break;
+        }
+      }
+
+      // If no merge happened, find first empty slot or append
+      if (!merged) {
+        let emptySlot = -1;
+        for (let i = 0; i < existingCount; i++) {
+           const key = `${dateStr}:${i}`;
+           const cell = mergedCells[key];
+           if (!cell || (!cell.start && !cell.end)) {
+              emptySlot = i;
+              break;
+           }
+        }
+        
+        let slotToUse = emptySlot !== -1 ? emptySlot : existingCount;
+        if (slotToUse >= existingCount) {
+           mergedCounts[dateStr] = slotToUse + 1;
+        }
+
+        mergedCells[`${dateStr}:${slotToUse}`] = {
+          type: importedType,
+          start: startStr,
+          end: endStr,
+          pause: importedPause,
+          quantity: importedQuantity,
+          bereich: importedBereich,
+        };
+        bump(dateStr, slotToUse);
+      }
+    }
+
+    setUndoState((prev) => ({
+      ...prev,
+      cells: mergedCells,
+      counts: mergedCounts,
+    }));
+    
+    toast.success(t("importedToast") || "Erfolgreich importiert");
+  }
+
+  const [pasteText, setPasteText] = useState("");
+  const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+
+  function handlePasteText() {
+    if (!pasteText.trim()) return;
+    try {
+      const workbook = XLSX.read(pasteText, { type: "string" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet) as any[];
+      processImportedData(data);
+      setPasteDialogOpen(false);
+      setPasteText("");
+    } catch (err) {
+      console.error("Paste import error:", err);
+      toast.error(t("importError") || "Fehler beim Importieren");
+    }
+  }
+
   function importFromExcel(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -382,74 +524,7 @@ export function OrderRequestBuilder({
         const worksheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(worksheet) as any[];
 
-        const newCells: Record<string, Cell> = {};
-        const newCounts: Record<string, number> = {};
-        const slotCounters: Record<string, number> = {};
-
-        for (const row of data) {
-          if (!row.Datum) continue;
-          
-          let dateStr = row.Datum;
-          if (typeof row.Datum === "number") {
-             const d = XLSX.SSF.parse_date_code(row.Datum);
-             dateStr = `${d.y}-${pad(d.m)}-${pad(d.d)}`;
-          } else if (typeof dateStr === "string") {
-             // Handle DD.MM.YYYY or D.M.YYYY
-             const match = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-             if (match) {
-                 dateStr = `${match[3]}-${pad(Number(match[2]))}-${pad(Number(match[1]))}`;
-             }
-             // Handle MM/DD/YYYY or DD/MM/YYYY
-             const match2 = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-             if (match2) {
-                 // Assuming DD/MM/YYYY for Europe
-                 dateStr = `${match2[3]}-${pad(Number(match2[2]))}-${pad(Number(match2[1]))}`;
-             }
-          }
-
-          if (!days.find(d => d.date === dateStr)) continue;
-
-          const slot = slotCounters[dateStr] || 0;
-          slotCounters[dateStr] = slot + 1;
-          newCounts[dateStr] = slot + 1;
-
-          let startStr = row.Von || "";
-          let endStr = row.Bis || "";
-          
-          if (typeof startStr === "number") {
-             const d = XLSX.SSF.parse_date_code(startStr);
-             startStr = `${pad(d.H)}:${pad(d.M)}`;
-          } else if (typeof startStr === "string") {
-              const parts = startStr.split(":");
-              if (parts.length >= 2) startStr = `${pad(Number(parts[0]))}:${pad(Number(parts[1]))}`;
-          }
-          
-          if (typeof endStr === "number") {
-             const d = XLSX.SSF.parse_date_code(endStr);
-             endStr = `${pad(d.H)}:${pad(d.M)}`;
-          } else if (typeof endStr === "string") {
-              const parts = endStr.split(":");
-              if (parts.length >= 2) endStr = `${pad(Number(parts[0]))}:${pad(Number(parts[1]))}`;
-          }
-
-          newCells[`${dateStr}:${slot}`] = {
-            type: (row.Schicht as ShiftType) || (startStr && endStr ? matchPreset(startStr, endStr) : "none"),
-            start: startStr,
-            end: endStr,
-            pause: Number(row.Pause) || 30,
-            quantity: Number(row.Anzahl) || 1,
-            bereich: row.Wohnbereich || "",
-          };
-          bump(dateStr, slot);
-        }
-
-        setUndoState((prev) => ({
-          ...prev,
-          cells: newCells,
-          counts: newCounts,
-        }));
-        
-        toast.success(t("importedToast") || "Erfolgreich importiert");
+        processImportedData(data);
       } catch (err) {
         console.error("Excel import error:", err);
         toast.error(t("importError") || "Fehler beim Importieren");
@@ -713,6 +788,38 @@ export function OrderRequestBuilder({
             <Upload className="size-4" />
             Import
           </Button>
+
+          <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
+            <DialogTrigger
+              render={
+                <Button variant="outline" className="gap-2" title={t("pasteTable")}>
+                  <Clipboard className="size-4" />
+                  {t("pasteTable")}
+                </Button>
+              }
+            />
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>{t("pasteTableTitle")}</DialogTitle>
+                <DialogDescription>
+                  {t("pasteTableDesc")}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Textarea
+                  placeholder="Datum&#9;Schicht&#9;Von&#9;Bis..."
+                  className="min-h-[200px] whitespace-pre"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setPasteDialogOpen(false)}>{t("cancel")}</Button>
+                <Button onClick={handlePasteText} disabled={!pasteText.trim()}>{t("import")}</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Button variant="outline" onClick={exportToExcel} className="gap-2" title="Download Template">
             <Download className="size-4" />
             Export
@@ -861,8 +968,8 @@ export function OrderRequestBuilder({
                               <button
                                 type="button"
                                 onClick={() => addSlot(d.date)}
-                                aria-label={t("shift2")}
-                                title={t("shift2")}
+                                aria-label={t("shiftLabel", { num: 2 })}
+                                title={t("shiftLabel", { num: 2 })}
                                 className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
                               >
                                 <Plus className="size-3.5" />
@@ -891,13 +998,13 @@ export function OrderRequestBuilder({
                           ) : (
                             <span className="size-5" />
                           )}
-                          <span>↳ {t(slot === 1 ? "shift2" : "shift3")}</span>
-                          {!lockedDay && !ro && slot === count - 1 && count < 3 ? (
+                          <span>↳ {t("shiftLabel", { num: slot + 1 })}</span>
+                          {!lockedDay && !ro && slot === count - 1 ? (
                             <button
                               type="button"
                               onClick={() => addSlot(d.date)}
-                              aria-label={t("shift3")}
-                              title={t("shift3")}
+                              aria-label={t("shiftLabel", { num: slot + 2 })}
+                              title={t("shiftLabel", { num: slot + 2 })}
                               className="ms-auto flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
                             >
                               <Plus className="size-3.5" />

@@ -368,6 +368,13 @@
   "orderRequest": {
     "importedToast": "Erfolgreich importiert.",
     "importError": "Fehler beim Importieren.",
+    "pasteTable": "Tabelle einfügen",
+    "pasteTableTitle": "Tabellendaten einfügen",
+    "pasteTableDesc": "Fügen Sie die aus Gemini oder Excel kopierte Tabelle hier ein.",
+    "import": "Importieren",
+    "export": "Exportieren",
+    "cancel": "Abbrechen",
+    "shiftLabel": "Schicht {num}",
     "undo": "Rückgängig",
     "redo": "Wiederholen",
     "prev": "Zurück",

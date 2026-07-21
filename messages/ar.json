@@ -368,6 +368,13 @@
   "orderRequest": {
     "importedToast": "تم الاستيراد بنجاح.",
     "importError": "حدث خطأ أثناء الاستيراد.",
+    "pasteTable": "لصق الجدول",
+    "pasteTableTitle": "لصق بيانات الجدول",
+    "pasteTableDesc": "قم بلصق الجدول المنسوخ من Gemini أو Excel هنا.",
+    "import": "استيراد",
+    "export": "تصدير",
+    "cancel": "إلغاء",
+    "shiftLabel": "الوردية {num}",
     "undo": "تراجع",
     "redo": "إعادة",
     "prev": "السابق",
