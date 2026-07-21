@@ -750,6 +750,7 @@ function OpenShiftEditor({
             letter: shift.letter,
             code: shift.code,
             facilityName: shift.facilityName,
+            facilityAddress: null,
             startTime: shift.startTime,
             endTime: shift.endTime,
             breakMinutes: shift.breakMinutes,
