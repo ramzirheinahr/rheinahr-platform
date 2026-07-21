@@ -30,6 +30,8 @@ export default async function AdminEditRequestPage({
     include: {
       client: {
         select: {
+          facilityName: true,
+          address: true,
           surchargeSat: true,
           surchargeSun: true,
           surchargeHoliday: true,
@@ -89,6 +91,12 @@ export default async function AdminEditRequestPage({
       status: o.status,
       quantity: o.quantity,
       label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
+      facilityName: o.client.facilityName,
+      facilityAddress: o.client.address,
+      ward: o.notes,
+      shiftDate: formatDateDE(o.shiftDate),
+      startTime: o.startTime,
+      endTime: o.endTime,
       selectable,
       scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes),
       assignments: o.assignments.map((a) => ({
