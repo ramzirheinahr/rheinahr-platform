@@ -43,6 +43,8 @@ export default async function ClientRequestDetail({
       where: { id: clientId },
       select: {
         id: true,
+        facilityName: true,
+        address: true,
         surchargeSat: true,
         surchargeSun: true,
         surchargeHoliday: true,
@@ -150,6 +152,12 @@ export default async function ClientRequestDetail({
       status: o.status,
       quantity: o.quantity,
       label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
+      facilityName: client.facilityName,
+      facilityAddress: client.address,
+      ward: o.notes,
+      shiftDate: formatDateDE(o.shiftDate),
+      startTime: o.startTime,
+      endTime: o.endTime,
       isPast,
       scheduledHours,
       assignments: o.assignments.map((a) => ({
