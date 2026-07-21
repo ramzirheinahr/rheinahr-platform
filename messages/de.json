@@ -121,7 +121,7 @@
     "schedule": "Einsätze & Verfügbarkeit",
     "scheduleSubtitle": "Einsätze annehmen und bestätigen, Verfügbarkeit pflegen.",
     "clientSchedule": "Monatsübersicht",
-    "masterSchedule": "Dienstplan",
+    "masterSchedule": "Dienstpläne",
     "appointments": "Termine"
   },
   "auth": {
@@ -757,7 +757,7 @@
     "emptyMonth": "Keine Einsätze in diesem Monat."
   },
   "masterSchedule": {
-    "title": "Dienstplan",
+    "title": "Dienstpläne",
     "subtitle": "Verfügbarkeit (Zeile 1) und geleistete Dienste (Zeile 2) aller Pflegekräfte. Leere Verfügbarkeit = noch nicht eingetragen – Zelle antippen zum Bearbeiten.",
     "empty": "Keine aktiven Pflegekräfte mit dieser Qualifikation.",
     "nameHeader": "Name",
@@ -788,6 +788,7 @@
     "candBusy": "Belegt (gleicher Tag)",
     "candUnavailable": "Nicht verfügbar",
     "noCandidates": "Keine passende Pflegekraft gefunden.",
+    "dayOffRequested": "Urlaub angefragt",
     "assignWorker": "Mitarbeiter zuweisen",
     "requiredHoursLabel": "Soll",
     "remainingHoursLabel": "Rest",

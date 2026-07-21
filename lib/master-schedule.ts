@@ -39,6 +39,7 @@ export async function getMasterSchedule(
       select: {
         id: true,
         fullName: true,
+        phone: true,
         requiredHours: true,
         carryoverHours: true,
         availability: {
@@ -195,6 +196,7 @@ export async function getMasterSchedule(
     return {
       workerId: w.id,
       name: w.fullName,
+      phone: w.phone,
       requiredHours: w.requiredHours,
       carryoverHours: w.carryoverHours,
       confirmedHours,

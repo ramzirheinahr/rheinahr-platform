@@ -36,6 +36,7 @@ import {
   Save,
   Undo2,
   Redo2,
+  MessageCircle,
 } from "lucide-react";
 import { netShiftHours } from "@/lib/pricing";
 import {
@@ -1348,39 +1349,54 @@ function CellEditor({
                       {j.ward ? <> · {oq("ward")}: {j.ward}</> : null}
                     </div>
                   </div>
-                  {j.clientConfirmed ? (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
-                        <CheckCircle2 className="size-3" />
-                        {t("confirmedShort")}
-                      </Badge>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {row.phone ? (
                       <a
-                        href={`/api/confirmations/${j.assignmentId}/pdf`}
-                        className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground"
-                        title="Download PDF"
+                        href={`https://wa.me/${row.phone.replace(/[^\d+]/g, "")}?text=${encodeURIComponent(
+                          `Hallo ${row.name},\n\nHier sind die Details für deine Schicht am ${dateLabel}:\n\nEinrichtung: ${j.facilityName}\n${j.ward ? `Wohnbereich: ${j.ward}\n` : ""}Uhrzeit: ${j.startTime} - ${j.endTime}`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center rounded-md bg-[#25D366] hover:bg-[#20b858] text-white h-7 w-7 text-xs font-medium shrink-0 shadow-sm"
+                        title="Per WhatsApp senden"
                       >
-                        <Download className="size-3.5" />
+                        <MessageCircle className="size-3.5" />
                       </a>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {/* Release: worker off, shift back to the grey pool. */}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-destructive hover:bg-destructive/10"
-                        disabled={pending}
-                        onClick={() => remove(j.assignmentId)}
-                        aria-label={t("releaseShift")}
-                        title={t("releaseShift")}
-                      >
-                        <UserMinus className="size-4" />
-                      </Button>
-                      {/* Permanent delete: shift AND its slot in the client's
-                          request are gone for good (confirm dialog). */}
-                      <DeleteShiftButton assignmentId={j.assignmentId} onDelete={() => deletePerm(j.assignmentId)} disabled={pending} />
-                    </div>
-                  )}
+                    ) : null}
+                    {j.clientConfirmed ? (
+                      <div className="flex items-center gap-1.5 shrink-0 ml-1 border-l pl-2">
+                        <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
+                          <CheckCircle2 className="size-3" />
+                          {t("confirmedShort")}
+                        </Badge>
+                        <a
+                          href={`/api/confirmations/${j.assignmentId}/pdf`}
+                          className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground"
+                          title="Download PDF"
+                        >
+                          <Download className="size-3.5" />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                        {/* Release: worker off, shift back to the grey pool. */}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-destructive hover:bg-destructive/10"
+                          disabled={pending}
+                          onClick={() => remove(j.assignmentId)}
+                          aria-label={t("releaseShift")}
+                          title={t("releaseShift")}
+                        >
+                          <UserMinus className="size-4" />
+                        </Button>
+                        {/* Permanent delete: shift AND its slot in the client's
+                            request are gone for good (confirm dialog). */}
+                        <DeleteShiftButton assignmentId={j.assignmentId} onDelete={() => deletePerm(j.assignmentId)} disabled={pending} />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Worker-confirmed but unsigned → admin signs the

@@ -121,7 +121,7 @@
     "schedule": "Shifts & Availability",
     "scheduleSubtitle": "Accept and confirm your shifts, and keep your availability up to date.",
     "clientSchedule": "Monthly overview",
-    "masterSchedule": "Duty roster",
+    "masterSchedule": "Duty rosters",
     "appointments": "Appointments"
   },
   "auth": {
@@ -757,7 +757,7 @@
     "emptyMonth": "No shifts this month."
   },
   "masterSchedule": {
-    "title": "Duty roster",
+    "title": "Duty rosters",
     "subtitle": "Availability (line 1) and worked shifts (line 2) for all care staff. Blank availability = not yet entered – tap a cell to edit.",
     "empty": "No active care staff with this qualification.",
     "nameHeader": "Name",
@@ -788,6 +788,7 @@
     "candBusy": "Busy (same day)",
     "candUnavailable": "Unavailable",
     "noCandidates": "No matching care worker found.",
+    "dayOffRequested": "Day off requested",
     "assignWorker": "Assign worker",
     "requiredHoursLabel": "Required",
     "remainingHoursLabel": "Remaining",

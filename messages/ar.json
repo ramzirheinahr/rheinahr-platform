@@ -121,7 +121,7 @@
     "schedule": "الورديات والتوفّر",
     "scheduleSubtitle": "وافق على وردياتك وصادِق عليها، وحدّث توفّرك.",
     "clientSchedule": "الجدول الشهري",
-    "masterSchedule": "جدول الورديات",
+    "masterSchedule": "جداول الورديات",
     "appointments": "المواعيد"
   },
   "auth": {
@@ -757,7 +757,7 @@
     "emptyMonth": "لا توجد ورديات في هذا الشهر."
   },
   "masterSchedule": {
-    "title": "جدول الورديات",
+    "title": "جداول الورديات",
     "subtitle": "التوفر (السطر الأول) والورديات المنجزة (السطر الثاني) لجميع كوادر الرعاية. التوفر الفارغ = لم يُدخَل بعد – انقر على الخلية للتعديل.",
     "empty": "لا توجد كوادر رعاية نشطة بهذا المؤهل.",
     "nameHeader": "الاسم",
@@ -788,6 +788,7 @@
     "candBusy": "مشغول (نفس اليوم)",
     "candUnavailable": "غير متاح",
     "noCandidates": "لا يوجد كادر رعاية مطابق.",
+    "dayOffRequested": "إجازة مطلوبة",
     "assignWorker": "تعيين موظف",
     "requiredHoursLabel": "المطلوب",
     "remainingHoursLabel": "المتبقي",

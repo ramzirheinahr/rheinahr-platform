@@ -147,6 +147,7 @@ export type GridDay = {
 export type GridWorkerRow = {
   workerId: string;
   name: string;
+  phone: string | null;
   requiredHours: number;
   // Signed hours-account balance carried from earlier months (see Worker model).
   carryoverHours: number;
