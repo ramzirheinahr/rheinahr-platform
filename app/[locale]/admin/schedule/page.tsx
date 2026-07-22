@@ -7,7 +7,7 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { FileDown, ChevronLeft, ChevronRight } from "lucide-react";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 

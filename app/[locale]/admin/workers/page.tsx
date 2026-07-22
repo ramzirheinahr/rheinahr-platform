@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
-import type { Prisma, Qualification } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { qualifications } from "@/lib/validations";

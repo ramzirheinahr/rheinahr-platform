@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { WorkerCreateForm } from "@/components/admin/worker-create-form";
 import { ArrowLeft } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ export default async function NewWorkerPage({
     ? qualification
     : undefined;
 
+  const allQuals = await prisma.worker.findMany({ select: { qualification: true }, distinct: ["qualification"] });
+  const customQualifications = allQuals
+    .map((w) => w.qualification)
+    .filter((q) => !qualifications.includes(q as any));
+
   const t = await getTranslations("workers");
   const c = await getTranslations("common");
 
@@ -43,7 +49,10 @@ export default async function NewWorkerPage({
         </Button>
         <h1 className="text-2xl font-semibold">{t("new")}</h1>
       </div>
-      <WorkerCreateForm initialQualification={initialQualification} />
+      <WorkerCreateForm
+        initialQualification={initialQualification}
+        customQualifications={customQualifications}
+      />
     </div>
   );
 }

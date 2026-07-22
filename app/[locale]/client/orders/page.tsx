@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { OrdersList, type OrderGroupSummary } from "@/components/admin/orders-list";
 import { orderStatuses } from "@/lib/validations";
 import { Plus } from "lucide-react";
-import type { OrderStatus, Qualification } from "@prisma/client";
+import type { OrderStatus } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 

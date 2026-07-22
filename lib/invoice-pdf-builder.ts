@@ -3,7 +3,7 @@ import { resolveRates, resolveSurcharges, resolveNightWindow, rateFor, shiftSurc
 import { germanHolidays } from "@/lib/holidays";
 import { qualLabel } from "@/lib/invoicing";
 import type { InvoicePdfData } from "@/lib/pdf/invoice";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 const formatNumber = (num: number) => num.toFixed(2).replace(".", ",");
 const formatAmount = (num: number) => `${formatNumber(num)} €`;

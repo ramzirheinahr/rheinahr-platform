@@ -17,6 +17,7 @@ export function Combobox({
   placeholder,
   searchPlaceholder,
   emptyText,
+  allowCreate = false,
 }: {
   options: ComboOption[];
   name: string;
@@ -25,6 +26,7 @@ export function Combobox({
   placeholder?: string;
   searchPlaceholder?: string;
   emptyText?: string;
+  allowCreate?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -129,6 +131,17 @@ export function Combobox({
                 </li>
               );
             })}
+            {allowCreate && query.trim() !== "" && !options.some((o) => o.value === query.trim() || o.label === query.trim()) && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => toggle(query.trim())}
+                  className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent hover:text-accent-foreground text-primary font-medium"
+                >
+                  Create &quot;{query.trim()}&quot;
+                </button>
+              </li>
+            )}
           </ul>
         </div>
       )}

@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { qualifications, contractTypes } from "@/lib/validations";
 import { LanguageSelect } from "@/components/admin/language-select";
@@ -64,7 +65,7 @@ export type WorkerData = {
 const textareaClass =
   "flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-export function WorkerForm({ worker }: { worker: WorkerData }) {
+export function WorkerForm({ worker, customQualifications = [] }: { worker: WorkerData; customQualifications?: string[] }) {
   const t = useTranslations("workers");
   const c = useTranslations("common");
   const eq = useTranslations("enums.qualification");
@@ -116,18 +117,16 @@ export function WorkerForm({ worker }: { worker: WorkerData }) {
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>{t("qualification")}</Label>
-              <Select name="qualification" defaultValue={worker.qualification}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {qualifications.map((q) => (
-                    <SelectItem key={q} value={q}>
-                      {eq(q)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                name="qualification"
+                defaultValue={[worker.qualification]}
+                options={[
+                  ...qualifications.map((q) => ({ value: q, label: eq(q) })),
+                  ...customQualifications.map((q) => ({ value: q, label: q })),
+                ]}
+                allowCreate
+                placeholder={t("qualification")}
+              />
             </div>
             <div className="space-y-2">
               <Label>{t("contractType")}</Label>

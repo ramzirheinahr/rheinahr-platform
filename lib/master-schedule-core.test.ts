@@ -12,6 +12,8 @@ import {
   SHIFT_PRESETS,
   type GridDay,
   type GridJob,
+  type GridWorkerRow,
+  type GridFacility,
   type UnassignedShift,
 } from "./master-schedule-core";
 
@@ -21,6 +23,7 @@ const job = (over: Partial<GridJob>): GridJob => ({
   letter: "F",
   code: "WB",
   facilityName: "Limbachstift Wachtberg",
+  facilityAddress: null,
   startTime: "06:30",
   endTime: "14:00",
   breakMinutes: 30,
@@ -185,10 +188,11 @@ describe("layoutUnassigned", () => {
 
 describe("masterScheduleCsv", () => {
   it("emits two lines per worker plus the legend", () => {
-    const rows = [
+    const rows: GridWorkerRow[] = [
       {
         workerId: "w1",
         name: "Akayezu, Diane",
+        phone: null,
         requiredHours: 160,
         carryoverHours: 0,
         confirmedHours: 0,
@@ -199,8 +203,8 @@ describe("masterScheduleCsv", () => {
         ] as GridDay[],
       },
     ];
-    const facilities = [
-      { clientId: "c1", code: "WB", name: "Limbachstift Wachtberg", hasCode: true },
+    const facilities: GridFacility[] = [
+      { clientId: "c1", code: "WB", name: "Limbachstift Wachtberg", address: null, hasCode: true },
     ];
     const csv = masterScheduleCsv(rows, facilities, 2);
     const lines = csv.replace("﻿", "").split("\r\n");

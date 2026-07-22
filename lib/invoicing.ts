@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import type { Qualification, ConfirmationMethod } from "@prisma/client";
+import type { ConfirmationMethod } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 export type InvoiceRow = {
   shiftDate: string; // YYYY-MM-DD

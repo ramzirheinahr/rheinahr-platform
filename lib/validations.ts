@@ -10,6 +10,9 @@ export const qualifications = [
   "pflegedienstleitung",
 ] as const;
 
+export type Qualification = string;
+export type FacilityType = string;
+
 export const facilityTypes = [
   "pflegeheim",
   "seniorenheim",
@@ -63,7 +66,7 @@ export const loginSchema = z.object({
 
 export const orderSchema = z
   .object({
-    requiredQualification: z.enum(qualifications),
+    requiredQualification: z.string().min(2).max(120),
     shiftDate: z.coerce.date(),
     startTime: z.string().regex(timeRegex),
     endTime: z.string().regex(timeRegex),
@@ -81,7 +84,7 @@ export const orderSchema = z
 export const orderShiftSchema = z
   .object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    requiredQualification: z.enum(qualifications),
+    requiredQualification: z.string().min(2).max(120),
     startTime: z.string().regex(timeRegex),
     endTime: z.string().regex(timeRegex),
     pause: z.coerce.number().int().min(0).max(480).default(30), // unpaid break (minutes)
@@ -119,7 +122,7 @@ const optionalRate = z.preprocess(
 export const workerSchema = z.object({
   fullName: z.string().min(2).max(120),
   internalNumber: z.string().max(40).optional(),
-  qualification: z.enum(qualifications),
+  qualification: z.string().min(2).max(120),
   contractType: z.enum(contractTypes),
   certifications: z.array(z.string().max(120)).default([]),
   skills: z.array(z.string().max(80)).default([]),
@@ -183,7 +186,7 @@ export const clientSchema = z.object({
     (v) => (typeof v === "string" && v.trim() ? v.trim().toUpperCase() : undefined),
     z.string().regex(/^[A-Z0-9ÄÖÜ]{2,3}$/).optional(),
   ),
-  facilityType: z.enum(facilityTypes),
+  facilityType: z.string().min(2).max(120),
   address: z.string().max(240).optional(),
   contactPerson: z.string().max(120).optional(),
   billingInfo: z.string().max(500).optional(),

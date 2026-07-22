@@ -7,13 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { facilityTypes } from "@/lib/validations";
 import { PasswordField } from "@/components/admin/password-field";
 import { FacilityNameCodeFields } from "@/components/admin/facility-name-code-fields";
@@ -22,7 +16,7 @@ import { createClient } from "@/app/[locale]/admin/clients/actions";
 
 // Creates a facility together with its login account (super_admin only) —
 // profile and credentials in one step, no separate accounts page.
-export function ClientCreateForm() {
+export function ClientCreateForm({ customFacilityTypes = [] }: { customFacilityTypes?: string[] }) {
   const t = useTranslations("clients");
   const ta = useTranslations("accounts");
   const c = useTranslations("common");
@@ -59,18 +53,16 @@ export function ClientCreateForm() {
         <FacilityNameCodeFields />
         <div className="space-y-2">
           <Label>{t("facilityType")}</Label>
-          <Select name="facilityType" defaultValue={facilityTypes[0]}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {facilityTypes.map((f) => (
-                <SelectItem key={f} value={f}>
-                  {ef(f)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            name="facilityType"
+            defaultValue={[facilityTypes[0]]}
+            options={[
+              ...facilityTypes.map((f) => ({ value: f, label: ef(f) })),
+              ...customFacilityTypes.map((f) => ({ value: f, label: f })),
+            ]}
+            allowCreate
+            placeholder={t("facilityType")}
+          />
         </div>
       </div>
 

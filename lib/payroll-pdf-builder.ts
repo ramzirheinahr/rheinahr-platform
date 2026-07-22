@@ -4,7 +4,7 @@ import { resolveWorkerRates, resolveSurcharges, resolveNightWindow, rateFor, shi
 import { germanHolidays } from "@/lib/holidays";
 import { qualLabel } from "@/lib/invoicing";
 import type { PayrollPdfData } from "@/lib/pdf/payroll";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 import type { WorkerScheduleRow } from "@/lib/worker-schedule";
 
 const formatNumber = (num: number) => num.toFixed(2).replace(".", ",");

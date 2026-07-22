@@ -6,7 +6,7 @@ import { qualifications } from "@/lib/validations";
 import { qualLabel } from "@/lib/invoicing";
 import { germanHolidays } from "@/lib/holidays";
 import { audit } from "@/lib/audit";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 // Master Dienstplan download (admin only) — the Excel-style grid as a
 // landscape PDF or Excel-friendly CSV, one qualification per sheet.

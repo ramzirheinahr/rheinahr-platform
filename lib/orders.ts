@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { formatDateDE } from "@/lib/utils";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 // Per the AÜG contracts, a request stays editable — even after the admin has
 // processed it — until this many hours before its first shift starts.

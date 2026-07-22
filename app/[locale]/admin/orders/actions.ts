@@ -20,7 +20,8 @@ import { offerAssignmentsBulk } from "@/lib/assignments";
 import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
-import type { OrderStatus, Qualification } from "@prisma/client";
+import type { OrderStatus } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 export type ActionState = { ok: boolean; error?: string };
 

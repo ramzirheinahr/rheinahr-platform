@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { qualLabel } from "@/lib/invoicing";
 import { netShiftHours, resolveRates, rateFor } from "@/lib/pricing";
-import type { AssignmentStatus, Qualification } from "@prisma/client";
+import type { AssignmentStatus } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 // One month of everything worked (or planned) at a client's facility — the
 // client-side mirror of the worker schedule table. Two hour figures matter:

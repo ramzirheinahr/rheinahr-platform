@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 import { netShiftHours } from "@/lib/pricing";
 import {
   availabilityLetters,
@@ -34,7 +34,13 @@ export async function getMasterSchedule(
 
   const [workers, facilities, openOrders] = await Promise.all([
     prisma.worker.findMany({
-      where: { qualification, user: { active: true } },
+      where: {
+        qualification:
+          qualification === "betreuungskraft"
+            ? { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung"] }
+            : qualification,
+        user: { active: true },
+      },
       orderBy: { fullName: "asc" },
       select: {
         id: true,
@@ -96,7 +102,10 @@ export async function getMasterSchedule(
     // the grey "not yet dispatched" section. Terminal states are excluded.
     prisma.order.findMany({
       where: {
-        requiredQualification: qualification,
+        requiredQualification:
+          qualification === "betreuungskraft"
+            ? { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung"] }
+            : qualification,
         shiftDate: { gte: monthStart, lt: monthEnd },
         status: { notIn: ["cancelled", "completed", "confirmed"] },
       },

@@ -11,6 +11,7 @@ import { ArbeitsvertragSection } from "@/components/admin/arbeitsvertrag-section
 import { AccountSection } from "@/components/admin/account-section";
 import { DeleteWorkerButton } from "@/components/admin/delete-worker-button";
 import { ArrowLeft, Eye } from "lucide-react";
+import { qualifications } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,11 @@ export default async function EditWorkerPage({
     .catch(() => null);
 
   if (!worker) notFound();
+
+  const allQuals = await prisma.worker.findMany({ select: { qualification: true }, distinct: ["qualification"] });
+  const customQualifications = allQuals
+    .map((w) => w.qualification)
+    .filter((q) => !qualifications.includes(q as any));
 
   const isAdmin = actor ? actor.role === "admin" || actor.role === "super_admin" : false;
 
@@ -111,6 +117,7 @@ export default async function EditWorkerPage({
             receiveEmails: worker.user.receiveEmails,
           },
         }}
+        customQualifications={customQualifications}
       />
 
       <section className="max-w-2xl space-y-3">

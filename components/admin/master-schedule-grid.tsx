@@ -49,7 +49,7 @@ import {
   type UnassignedShift,
 } from "@/lib/master-schedule-core";
 import type { Candidate } from "@/lib/orders";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 import {
   assignFromGrid,
   assignWorkerToOrder,

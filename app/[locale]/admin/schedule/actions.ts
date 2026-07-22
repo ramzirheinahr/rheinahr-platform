@@ -12,7 +12,7 @@ import { qualifications } from "@/lib/validations";
 import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 // Cell-level edits on the master schedule grid. Every edit here mutates the
 // SAME entities the order/availability pages use (WorkerAvailability, Order,

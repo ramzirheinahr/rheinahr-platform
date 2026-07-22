@@ -32,12 +32,8 @@ enum Language {
 // Elderly-care (Altenpflege) qualifications only — see CLAUDE.md domain focus.
 // pflegefachkraft covers all examinierten Fachkräfte (früher auch Altenpfleger/in
 // und Gesundheits- & Krankenpfleger/in als eigene Werte — 2026-07 zusammengeführt).
-enum Qualification {
-  pflegefachkraft // examinierte Pflegefachkraft (Altenpflege)
-  pflegehelfer // Pflegehilfskraft
-  betreuungskraft // Pflegefachassistent*in (frühere Bezeichnung: Betreuungskraft § 43b)
-  pflegedienstleitung // Pflegedienstleitung (PDL)
-}
+// Note: Qualification is now stored as a String to allow custom values dynamically.
+// Default values: pflegefachkraft, pflegehelfer, betreuungskraft, pflegedienstleitung.
 
 enum ContractType {
   unbefristet // permanent
@@ -53,13 +49,8 @@ enum AvailabilityStatus {
 }
 
 // Elderly-care facility types only.
-enum FacilityType {
-  pflegeheim // Pflegeheim
-  seniorenheim // Senioren-/Altenheim
-  ambulant // ambulanter Pflegedienst
-  tagespflege // Tagespflege
-  kurzzeitpflege // Kurzzeitpflege
-}
+// Note: FacilityType is now stored as a String to allow custom values dynamically.
+// Default values: pflegeheim, seniorenheim, ambulant, tagespflege, kurzzeitpflege.
 
 enum OrderStatus {
   pending // 1. Request submitted
@@ -210,7 +201,7 @@ model Worker {
   userId               String        @unique @map("user_id")
   internalNumber       String?       @map("internal_number")
   fullName             String        @map("full_name")
-  qualification        Qualification
+  qualification        String
   certifications       String[]      @default([])
   contractType         ContractType  @map("contract_type")
   requiredHours        Float         @default(151.67) @map("required_hours")
@@ -320,7 +311,7 @@ model Client {
   // Dienstplan-Kürzel: the 2–3 letter facility code used on the master
   // schedule grid (e.g. "WB" = Limbachstift Wachtberg). Admin-assigned.
   shortCode                  String?      @unique @map("short_code")
-  facilityType               FacilityType @map("facility_type")
+  facilityType               String       @map("facility_type")
   address                    String?
   frameworkAgreementUrl      String?      @map("framework_agreement_url")
   frameworkAgreementSignedAt DateTime?    @map("framework_agreement_signed_at")
@@ -358,7 +349,7 @@ model Order {
   id                    String        @id @default(uuid())
   clientId              String        @map("client_id")
   requestGroupId        String?       @map("request_group_id") // groups shifts submitted together
-  requiredQualification Qualification @map("required_qualification")
+  requiredQualification String @map("required_qualification")
   shiftDate             DateTime      @map("shift_date") @db.Date
   startTime             String        @map("start_time") // "HH:mm"
   endTime               String        @map("end_time") // "HH:mm"

@@ -1,4 +1,4 @@
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 // Availability-matching engine (CLAUDE.md §5 "Availability Engine").
 // Pure & dependency-free so it can be unit-tested in isolation. The DB layer

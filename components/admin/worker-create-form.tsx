@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { qualifications, contractTypes } from "@/lib/validations";
 import { PasswordField } from "@/components/admin/password-field";
@@ -26,8 +27,10 @@ const textareaClass =
 
 export function WorkerCreateForm({
   initialQualification,
+  customQualifications = [],
 }: {
   initialQualification?: string;
+  customQualifications?: string[];
 }) {
   const t = useTranslations("workers");
   const ta = useTranslations("accounts");
@@ -91,21 +94,16 @@ export function WorkerCreateForm({
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>{t("qualification")}</Label>
-              <Select
+              <Combobox
                 name="qualification"
-                defaultValue={initialQualification ?? qualifications[0]}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {qualifications.map((q) => (
-                    <SelectItem key={q} value={q}>
-                      {eq(q)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                defaultValue={[initialQualification ?? qualifications[0]]}
+                options={[
+                  ...qualifications.map((q) => ({ value: q, label: eq(q) })),
+                  ...customQualifications.map((q) => ({ value: q, label: q })),
+                ]}
+                allowCreate
+                placeholder={t("qualification")}
+              />
             </div>
             <div className="space-y-2">
               <Label>{t("contractType")}</Label>

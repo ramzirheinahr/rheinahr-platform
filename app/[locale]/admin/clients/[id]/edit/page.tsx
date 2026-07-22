@@ -9,7 +9,7 @@ import { AccountSection } from "@/components/admin/account-section";
 import { DeleteClientButton } from "@/components/admin/delete-client-button";
 import { RahmenvertragSection } from "@/components/admin/rahmenvertrag-section";
 import { ArrowLeft } from "lucide-react";
-import { qualifications } from "@/lib/validations";
+import { qualifications, facilityTypes } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,11 @@ export default async function EditClientPage({
 
   if (!client) notFound();
 
+  const allTypes = await prisma.client.findMany({ select: { facilityType: true }, distinct: ["facilityType"] });
+  const customFacilityTypes = allTypes
+    .map((c) => c.facilityType)
+    .filter((t) => !facilityTypes.includes(t as any));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -88,6 +93,7 @@ export default async function EditClientPage({
             receiveEmails: client.user.receiveEmails,
           },
         }}
+        customFacilityTypes={customFacilityTypes}
       />
 
       {/* Rahmenvertrag Management */}

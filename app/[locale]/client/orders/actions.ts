@@ -11,7 +11,7 @@ import { formatDateDE } from "@/lib/utils";
 import { orderRequestSchema, type OrderRequestInput } from "@/lib/validations";
 import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
-import type { Qualification } from "@prisma/client";
+import type { Qualification } from "@/lib/validations";
 
 export type ActionState = { ok: boolean; error?: string };
 
