@@ -38,7 +38,19 @@ export async function reviewLeaveRequest(
         data: { status: overallStatus },
       });
 
-      // Update each day concurrently to avoid transaction timeout on large requests
+      // Calculate days to delete (present in request but not in decisions)
+      const decisionDates = decisions.map((d) => d.date);
+      const daysToDelete = request.days.filter(
+        (d) => !decisionDates.includes(d.date.toISOString().slice(0, 10))
+      );
+      
+      if (daysToDelete.length > 0) {
+        await tx.leaveDay.deleteMany({
+          where: { id: { in: daysToDelete.map((d) => d.id) } },
+        });
+      }
+
+      // Update existing days and create new days
       await Promise.all(
         decisions.map((decision) => {
           const dayRecord = request.days.find(
@@ -52,8 +64,16 @@ export async function reviewLeaveRequest(
                 hours: decision.hours,
               },
             });
+          } else {
+            return tx.leaveDay.create({
+              data: {
+                leaveRequestId: requestId,
+                date: new Date(decision.date + "T00:00:00Z"),
+                status: decision.status,
+                hours: decision.hours,
+              },
+            });
           }
-          return Promise.resolve();
         })
       );
 

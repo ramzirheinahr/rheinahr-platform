@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, CheckCircle, XCircle } from "lucide-react";
+import { CalendarDays, CheckCircle, Save, Trash2, Plus } from "lucide-react";
 import { reviewLeaveRequest } from "@/app/[locale]/admin/leave/actions";
 
 type LeaveData = {
@@ -28,6 +28,13 @@ type LeaveData = {
   }[];
 };
 
+type LocalDay = {
+  id: string;
+  date: string;
+  hours: number;
+  status: "pending" | "approved" | "rejected";
+};
+
 export function LeaveReviewDialog({
   leaveRequestId,
 }: {
@@ -39,117 +46,172 @@ export function LeaveReviewDialog({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // Basic structure, since we are doing Server Action for actual data if needed,
-  // or we can just fetch it when opening. To keep it simple, we will fetch it via a server action or API route.
-  // Actually, we can fetch it when the modal opens using a server action.
   const [leaveData, setLeaveData] = useState<LeaveData | null>(null);
-  const [hours, setHours] = useState<Record<string, string>>({});
+  const [localDays, setLocalDays] = useState<LocalDay[]>([]);
+  const [newDate, setNewDate] = useState("");
 
   useEffect(() => {
     if (open && !leaveData) {
-      // Fetch leave request details
       fetch(`/api/leave/${leaveRequestId}`)
         .then((res) => res.json())
         .then((data) => {
           setLeaveData(data);
-          const initialHours: Record<string, string> = {};
-          data.days.forEach((d: NonNullable<LeaveData>["days"][0]) => {
-            initialHours[d.id] = String(d.hours ?? 7);
-          });
-          setHours(initialHours);
+          const days: LocalDay[] = data.days.map((d: any) => ({
+            id: d.id,
+            date: d.date.split("T")[0],
+            hours: Number(d.hours) || 7,
+            status: d.status,
+          }));
+          setLocalDays(days.sort((a, b) => a.date.localeCompare(b.date)));
         })
         .catch((e) => console.error(e));
     }
   }, [open, leaveRequestId, leaveData]);
 
-  function handleAction(status: "approved" | "rejected") {
+  function handleAddDay() {
+    if (!newDate) return;
+    if (localDays.find((d) => d.date === newDate)) {
+      toast.error("Datum existiert bereits");
+      return;
+    }
+    const newDay: LocalDay = {
+      id: `temp-${Date.now()}`,
+      date: newDate,
+      hours: 7,
+      status: "approved", // default to approved if added manually by admin
+    };
+    setLocalDays([...localDays, newDay].sort((a, b) => a.date.localeCompare(b.date)));
+    setNewDate("");
+  }
+
+  function handleRemoveDay(id: string) {
+    setLocalDays(localDays.filter((d) => d.id !== id));
+  }
+
+  function handleUpdateDay(id: string, field: keyof LocalDay, value: any) {
+    setLocalDays(
+      localDays.map((d) => (d.id === id ? { ...d, [field]: value } : d))
+    );
+  }
+
+  function handleSave() {
     startTransition(async () => {
-      if (!leaveData) return;
+      const decisions = localDays.map((d) => ({
+        date: d.date,
+        status: d.status,
+        hours: d.hours,
+      }));
       
-      const decisions = leaveData.days.map((d: NonNullable<LeaveData>["days"][0]) => {
-        return {
-          date: d.date.split("T")[0],
-          status,
-          hours: Number(hours[d.id]) || 7,
-        };
-      });
-      
-      const res = await reviewLeaveRequest(leaveRequestId, decisions);
+      const res = await reviewLeaveRequest(leaveRequestId, decisions as any);
       if (res.ok) {
-        toast.success(status === "approved" ? "Genehmigt" : "Abgelehnt");
+        toast.success(c("saved"));
         setOpen(false);
         router.refresh();
       } else {
-        toast.error("Fehler");
+        toast.error("Fehler beim Speichern");
       }
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(val) => {
+      setOpen(val);
+      if (!val) {
+        // Reset when closing
+        setLeaveData(null);
+        setLocalDays([]);
+      }
+    }}>
       <DialogTrigger
         render={
           <Button variant="outline" className="gap-2">
             <CalendarDays className="size-4" />
-            {t("previewLeave") || "Urlaubsantrag prüfen"}
+            Urlaubsantrag bearbeiten
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{t("previewLeave") || "Urlaubsantrag prüfen"}</DialogTitle>
+          <DialogTitle>Urlaubsantrag bearbeiten</DialogTitle>
         </DialogHeader>
-        <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+        <div className="py-4 space-y-6 max-h-[60vh] overflow-y-auto pr-2">
           {!leaveData ? (
             <p className="text-sm text-muted-foreground">{c("loading")}</p>
           ) : (
             <>
               <p className="text-sm font-medium">
-                {leaveData.worker.fullName} hat Urlaub für folgende Tage beantragt:
+                {leaveData.worker.fullName} hat Urlaub beantragt. Sie können einzelne Tage anpassen:
               </p>
               <div className="space-y-3">
-                {leaveData.days.map((d: NonNullable<LeaveData>["days"][0]) => (
-                  <div key={d.id} className="flex items-center justify-between gap-4 p-2 border rounded">
-                    <span className="text-sm font-medium">{d.date.split("T")[0]}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Std:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={hours[d.id] || "7"}
-                        onChange={(e) => setHours({ ...hours, [d.id]: e.target.value })}
-                        className="w-16 rounded border px-2 py-1 text-sm outline-none focus:border-ring focus:ring-1"
-                        disabled={d.status !== "pending"}
-                      />
+                {localDays.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Keine Tage vorhanden.</p>
+                ) : null}
+                {localDays.map((d) => (
+                  <div key={d.id} className="flex items-center gap-3 p-3 border rounded bg-muted/20">
+                    <span className="text-sm font-medium w-24 whitespace-nowrap">{d.date}</span>
+                    <div className="flex-1 flex items-center gap-3">
+                      <select
+                        className="rounded border px-2 py-1 text-sm outline-none w-32"
+                        value={d.status}
+                        onChange={(e) => handleUpdateDay(d.id, "status", e.target.value)}
+                      >
+                        <option value="pending">Ausstehend</option>
+                        <option value="approved">Genehmigt</option>
+                        <option value="rejected">Abgelehnt</option>
+                      </select>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Std:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={d.hours}
+                          onChange={(e) => handleUpdateDay(d.id, "hours", Number(e.target.value) || 0)}
+                          className="w-16 rounded border px-2 py-1 text-sm outline-none"
+                        />
+                      </div>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
+                      onClick={() => handleRemoveDay(d.id)}
+                      title="Tag entfernen"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   </div>
                 ))}
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium mb-2">Weiteren Tag hinzufügen</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    className="flex-1 rounded border px-3 py-1.5 text-sm outline-none"
+                    value={newDate}
+                    onChange={(e) => setNewDate(e.target.value)}
+                  />
+                  <Button variant="outline" size="sm" onClick={handleAddDay} disabled={!newDate}>
+                    <Plus className="size-4 mr-1" />
+                    Hinzufügen
+                  </Button>
+                </div>
               </div>
             </>
           )}
         </div>
         <DialogFooter>
-          {leaveData && leaveData.status === "pending" && (
-            <>
-              <Button
-                variant="destructive"
-                onClick={() => handleAction("rejected")}
-                disabled={pending}
-                className="gap-2"
-              >
-                <XCircle className="size-4" />
-                Ablehnen
-              </Button>
-              <Button
-                onClick={() => handleAction("approved")}
-                disabled={pending}
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-              >
-                <CheckCircle className="size-4" />
-                Genehmigen
-              </Button>
-            </>
+          {leaveData && (
+            <Button
+              onClick={handleSave}
+              disabled={pending}
+              className="gap-2"
+            >
+              <Save className="size-4" />
+              {c("save")}
+            </Button>
           )}
         </DialogFooter>
       </DialogContent>

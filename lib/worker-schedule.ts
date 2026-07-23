@@ -32,6 +32,7 @@ export type WorkerScheduleRow = {
 
 export type WorkerLeaveDay = {
   id: string;
+  leaveRequestId: string;
   date: string;
   status: "pending" | "approved" | "rejected";
   hours: number;
@@ -97,6 +98,7 @@ export async function getWorkerMonthSchedule(
     },
     select: {
       id: true,
+      leaveRequestId: true,
       date: true,
       status: true,
       hours: true,
@@ -105,6 +107,7 @@ export async function getWorkerMonthSchedule(
 
   const leaveDays: WorkerLeaveDay[] = leaveDaysData.map(ld => ({
     id: ld.id,
+    leaveRequestId: ld.leaveRequestId,
     date: ld.date.toISOString().slice(0, 10),
     status: ld.status,
     hours: ld.hours,

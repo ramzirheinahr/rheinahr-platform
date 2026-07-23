@@ -84,6 +84,7 @@ export default async function EditWorkerPage({
         worker={{
           id: worker.id,
           fullName: worker.fullName,
+          internalNumber: worker.internalNumber,
           qualification: worker.qualification,
           contractType: worker.contractType,
           phone: worker.phone,
@@ -113,6 +114,9 @@ export default async function EditWorkerPage({
           hourlyRates: worker.hourlyRates as Record<string, number> | null,
           employmentStartDate: toDateInput(worker.employmentStartDate),
           employmentEndDate: toDateInput(worker.employmentEndDate),
+          weeklyHours: worker.weeklyHours,
+          monthlySalary: worker.monthlySalary,
+          entgeltgruppe: worker.entgeltgruppe,
           user: {
             receiveEmails: worker.user.receiveEmails,
           },

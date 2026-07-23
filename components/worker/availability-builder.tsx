@@ -26,6 +26,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { submitLeaveRequest } from "@/app/[locale]/worker/leave/actions";
+import { requestLeaveEdit } from "@/app/[locale]/worker/leave/actions";
 
 type BType = "none" | "full" | "early" | "late" | "night" | "custom";
 type Block = { type: BType; start: string; end: string };
@@ -117,7 +118,7 @@ export function AvailabilityBuilder({
   workerId?: string;
   requiredHours?: number;
   carryoverHours?: number;
-  leaveDays?: { id: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
+  leaveDays?: { id: string; leaveRequestId: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
   mealAllowanceEnabled?: boolean;
   travelAllowanceEnabled?: boolean;
 }) {
@@ -133,6 +134,24 @@ export function AvailabilityBuilder({
   const [leaveDates, setLeaveDates] = useState<string[]>([]);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [pendingResponses, setPendingResponses] = useState<Record<string, boolean>>({});
+
+  const [editRequestOpen, setEditRequestOpen] = useState(false);
+  const [editRequestText, setEditRequestText] = useState("");
+  const [selectedLeaveRequestId, setSelectedLeaveRequestId] = useState("");
+  const [editPending, startEditTransition] = useTransition();
+
+  function handleRequestEdit() {
+    startEditTransition(async () => {
+      const res = await requestLeaveEdit(selectedLeaveRequestId, editRequestText);
+      if (res.ok) {
+        toast.success("Änderungsanfrage gesendet");
+        setEditRequestOpen(false);
+        setEditRequestText("");
+      } else {
+        toast.error("Fehler beim Senden");
+      }
+    });
+  }
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const holidays = useMemo(() => germanHolidays(year), [year]);
@@ -563,6 +582,33 @@ export function AvailabilityBuilder({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        
+        <Dialog open={editRequestOpen} onOpenChange={setEditRequestOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Urlaub ändern anfragen</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <p className="text-sm">
+                Bitte beschreiben Sie, wie dieser Urlaub geändert werden soll (z.B. &quot;Letzten Tag entfernen&quot;).
+              </p>
+              <textarea
+                className={cn(field, "min-h-[100px] resize-y")}
+                value={editRequestText}
+                onChange={(e) => setEditRequestText(e.target.value)}
+                placeholder="Ihre Nachricht..."
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditRequestOpen(false)} disabled={editPending}>
+                Abbrechen
+              </Button>
+              <Button onClick={handleRequestEdit} disabled={editPending || !editRequestText.trim()}>
+                {editPending ? c("loading") : "Anfrage senden"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="hidden overflow-x-auto rounded-lg border sm:block">
@@ -617,6 +663,17 @@ export function AvailabilityBuilder({
                                 {t("leaveApproved") || "Urlaub (Bitte nicht stören)"}
                               </Badge>
                             )}
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-6 text-xs px-2 py-0"
+                              onClick={() => {
+                                setSelectedLeaveRequestId(l.leaveRequestId);
+                                setEditRequestOpen(true);
+                              }}
+                            >
+                              Änderung anfragen
+                            </Button>
                           </div>
                         </td>
                         <td className="p-2 whitespace-nowrap text-end">

@@ -76,3 +76,49 @@ export async function submitLeaveRequest(dates: string[]) {
     return { ok: false, error: "Failed to submit request" };
   }
 }
+
+export async function requestLeaveEdit(leaveRequestId: string, message: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "worker") {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  try {
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: leaveRequestId },
+      include: { conversation: true },
+    });
+
+    if (!request) {
+      return { ok: false, error: "Not found" };
+    }
+
+    if (request.workerId !== (await prisma.worker.findUnique({ where: { userId: user.id } }))?.id) {
+      return { ok: false, error: "Unauthorized" };
+    }
+
+    if (!request.conversation) {
+      return { ok: false, error: "Conversation missing" };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.message.create({
+        data: {
+          conversationId: request.conversation!.id,
+          senderId: user.id,
+          body: `Änderungsanfrage für Urlaub: ${message}`,
+        },
+      });
+
+      await tx.conversation.update({
+        where: { id: request.conversation!.id },
+        data: { lastMessageAt: new Date() },
+      });
+    });
+
+    return { ok: true };
+  } catch (error) {
+    console.error("Failed to request leave edit:", error);
+    return { ok: false, error: "Failed to request edit" };
+  }
+}
