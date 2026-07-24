@@ -92,25 +92,26 @@ const styles = StyleSheet.create({
 
 const deDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const deNum = (n: number) => n.toString().replace(".", ",");
-
-const statusText = (r: ClientScheduleRow): string =>
-  r.billing === "confirmed"
+const statusText = (r: ClientScheduleRow): string => {
+  const statusStr = r.status as string;
+  return r.billing === "confirmed"
     ? "Vom Kunden bestätigt"
     : r.billing === "accepted"
       ? "Angenommen (vorläufig)"
-      : r.status === "pending"
+      : statusStr === "pending"
         ? "Ausstehend"
-        : r.status === "declined"
+        : statusStr === "declined"
           ? "Abgelehnt"
-          : r.status === "assigned"
+          : statusStr === "assigned"
             ? "Zugewiesen"
-            : r.status === "cancelled"
+            : statusStr === "cancelled"
               ? "Storniert"
-              : r.status === "in_progress"
+              : statusStr === "in_progress"
                 ? "In Bearbeitung"
-                : r.status === "completed"
+                : statusStr === "completed"
                   ? "Abgeschlossen"
                   : "Bestätigt";
+};
 
 function OrderRequestDocument({ d }: { d: OrderRequestPdfData }) {
   return (

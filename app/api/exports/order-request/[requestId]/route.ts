@@ -83,7 +83,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ requestI
         qualification: o.requiredQualification as any,
         confirmedHours: cNet,
         scheduledHours: rawNet,
-        billing: cNet !== null ? "confirmed" : a.status === "confirmed" ? "accepted" : (a.status === "assigned" ? "assigned" : null) as any,
+        billing: (cNet !== null ? "confirmed" : a.status === "confirmed" ? "accepted" : ((a.status as string) === "assigned" ? "assigned" : null)) as any,
         contractId: null,
         contractStatus: null,
         invoiceId: null,
@@ -93,7 +93,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ requestI
   });
 
   const confirmed = rows.filter((r) => r.billing === "confirmed");
-  const accepted = rows.filter((r) => r.billing === "accepted" || r.billing === "assigned" || !r.billing);
+  const accepted = rows.filter((r) => r.billing === "accepted" || (r.billing as string) === "assigned" || !r.billing);
   const sum = (arr: number[]) => arr.reduce((s, n) => s + n, 0);
 
   const confirmedHours = sum(confirmed.map((r) => r.confirmedHours ?? 0));
