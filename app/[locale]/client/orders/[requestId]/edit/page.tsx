@@ -49,6 +49,7 @@ export default async function EditRequestPage({
     where: { requestGroupId: requestId, clientId: client.id },
     orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
     select: {
+      id: true,
       shiftDate: true,
       startTime: true,
       endTime: true,
