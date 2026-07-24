@@ -83,6 +83,7 @@ export const orderSchema = z
 // each with its own qualification, time and headcount.
 export const orderShiftSchema = z
   .object({
+    id: z.string().optional(),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     requiredQualification: z.string().min(2).max(120),
     startTime: z.string().regex(timeRegex),

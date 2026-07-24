@@ -90,6 +90,7 @@ export async function updateOrderRequest(
   const { updates, creates, deleteIds } = diffRequestShifts(
     existing,
     shifts.map((s) => ({
+      id: s.id,
       date: s.date,
       requiredQualification: s.requiredQualification,
       startTime: s.startTime,
@@ -109,7 +110,15 @@ export async function updateOrderRequest(
     ...updates.map((u) =>
       prisma.order.update({
         where: { id: u.id },
-        data: { quantity: u.quantity, breakMinutes: u.breakMinutes, notes: u.notes },
+        data: { 
+          quantity: u.quantity, 
+          breakMinutes: u.breakMinutes, 
+          notes: u.notes,
+          shiftDate: new Date(`${u.date}T00:00:00.000Z`),
+          startTime: u.startTime,
+          endTime: u.endTime,
+          requiredQualification: u.requiredQualification as Qualification
+        },
       }),
     ),
     ...(creates.length

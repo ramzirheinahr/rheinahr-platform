@@ -39,6 +39,7 @@ export type InitialRequest = {
   requestGroupId: string;
   qual: string;
   shifts: {
+    id?: string;
     date: string;
     start: string;
     end: string;
@@ -62,6 +63,7 @@ import * as XLSX from "xlsx";
 type Qual = (typeof qualifications)[number];
 type ShiftType = "none" | "early" | "late" | "night";
 type Cell = {
+  id?: string;
   type: ShiftType;
   start: string;
   end: string;
@@ -104,6 +106,7 @@ function fromInitial(shifts: InitialRequest["shifts"]) {
     byDate[s.date] = slot + 1;
     counts[s.date] = slot + 1;
     cells[`${s.date}:${slot}`] = {
+      id: s.id,
       type: matchPreset(s.start, s.end),
       start: s.start,
       end: s.end,
@@ -632,6 +635,7 @@ export function OrderRequestBuilder({
     }
     const payload = {
       shifts: activeShifts.map((s) => ({
+        id: s.id,
         date: s.date,
         requiredQualification: qual,
         startTime: s.start,

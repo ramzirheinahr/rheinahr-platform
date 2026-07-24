@@ -17,7 +17,7 @@ import { PendingResponsesProvider } from "@/components/orders/pending-responses-
 import { LiveRefresher } from "@/components/portal/live-refresher";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Pencil, Download } from "lucide-react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
 import { OrderContractsBanner } from "@/components/admin/order-contracts-banner";
 import { OrderInvoicesBanner } from "@/components/admin/order-invoices-banner";
@@ -218,6 +218,14 @@ export default async function AdminRequestDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            render={<a href={`/api/exports/order-request/${id}?format=pdf`} target="_blank" />}
+          >
+            <Download className="size-4" />
+            PDF
+          </Button>
           <CopyPublicLinkButton 
             requestGroupId={id} 
             type="confirm" 

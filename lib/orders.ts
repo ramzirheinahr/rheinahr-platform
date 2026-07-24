@@ -67,6 +67,7 @@ export type ExistingShift = {
 };
 
 export type IncomingShift = {
+  id?: string;
   date: string; // yyyy-mm-dd
   requiredQualification: string;
   startTime: string;
@@ -85,7 +86,7 @@ export function diffRequestShifts(
   existing: ExistingShift[],
   incoming: IncomingShift[],
 ): {
-  updates: { id: string; quantity: number; breakMinutes: number; notes: string | null }[];
+  updates: { id: string; quantity: number; breakMinutes: number; notes: string | null; date: string; startTime: string; endTime: string; requiredQualification: string; }[];
   creates: IncomingShift[];
   deleteIds: string[];
 } {
@@ -95,9 +96,27 @@ export function diffRequestShifts(
     const i = remaining.findIndex(pred);
     return i < 0 ? undefined : remaining.splice(i, 1)[0];
   };
-  const updates: { id: string; quantity: number; breakMinutes: number; notes: string | null }[] = [];
+  const updates: { id: string; quantity: number; breakMinutes: number; notes: string | null; date: string; startTime: string; endTime: string; requiredQualification: string; }[] = [];
   const creates: IncomingShift[] = [];
   for (const s of incoming) {
+    if (s.id) {
+      const near = take((e) => e.id === s.id);
+      if (near) {
+        if (
+          near.quantity === s.quantity &&
+          near.breakMinutes === s.breakMinutes &&
+          (near.notes ?? null) === s.notes &&
+          iso(near.shiftDate) === s.date &&
+          near.startTime === s.startTime &&
+          near.endTime === s.endTime &&
+          near.requiredQualification === s.requiredQualification
+        ) {
+          continue; // identical
+        }
+        updates.push({ id: near.id, quantity: s.quantity, breakMinutes: s.breakMinutes, notes: s.notes, date: s.date, startTime: s.startTime, endTime: s.endTime, requiredQualification: s.requiredQualification });
+        continue;
+      }
+    }
     const sameSlot = (e: ExistingShift) =>
       iso(e.shiftDate) === s.date &&
       e.startTime === s.startTime &&
@@ -116,7 +135,7 @@ export function diffRequestShifts(
     }
     const near = take(sameSlot);
     if (near) {
-      updates.push({ id: near.id, quantity: s.quantity, breakMinutes: s.breakMinutes, notes: s.notes });
+      updates.push({ id: near.id, quantity: s.quantity, breakMinutes: s.breakMinutes, notes: s.notes, date: s.date, startTime: s.startTime, endTime: s.endTime, requiredQualification: s.requiredQualification });
       continue;
     }
     creates.push(s);

@@ -71,6 +71,7 @@ export default async function EditRequestPage({
     requestGroupId: requestId,
     qual: orders[0].requiredQualification,
     shifts: orders.map((o) => ({
+      id: o.id,
       date: d(o.shiftDate),
       start: o.startTime,
       end: o.endTime,
