@@ -94,6 +94,14 @@ export function LeaveReviewDialog({
     );
   }
 
+  function handleApproveAll() {
+    setLocalDays(localDays.map(d => ({ ...d, status: "approved" })));
+  }
+
+  function handleRejectAll() {
+    setLocalDays(localDays.map(d => ({ ...d, status: "rejected" })));
+  }
+
   function handleSave() {
     startTransition(async () => {
       const decisions = localDays.map((d) => ({
@@ -202,7 +210,29 @@ export function LeaveReviewDialog({
             </>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleApproveAll}
+              disabled={pending || !leaveData || localDays.length === 0}
+              className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+            >
+              Alle genehmigen
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRejectAll}
+              disabled={pending || !leaveData || localDays.length === 0}
+              className="text-rose-700 border-rose-200 hover:bg-rose-50"
+            >
+              Alle ablehnen
+            </Button>
+          </div>
           {leaveData && (
             <Button
               onClick={handleSave}

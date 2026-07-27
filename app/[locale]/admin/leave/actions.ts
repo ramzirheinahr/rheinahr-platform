@@ -10,7 +10,7 @@ import { formatDateDE } from "@/lib/utils";
 
 export async function reviewLeaveRequest(
   requestId: string,
-  decisions: { date: string; status: "approved" | "rejected"; hours: number }[]
+  decisions: { date: string; status: "pending" | "approved" | "rejected"; hours: number }[]
 ) {
   const user = await getCurrentUser();
   if (!user || !roleSatisfies(user.role, ["admin", "super_admin"])) {
@@ -30,7 +30,14 @@ export async function reviewLeaveRequest(
 
       // Determine overall status based on decisions
       const hasApproved = decisions.some((d) => d.status === "approved");
-      const overallStatus = hasApproved ? "approved" : "rejected";
+      const hasPending = decisions.some((d) => d.status === "pending");
+      
+      let overallStatus: "pending" | "approved" | "rejected" = "rejected";
+      if (hasApproved) {
+        overallStatus = "approved";
+      } else if (hasPending) {
+        overallStatus = "pending";
+      }
 
       // Update the request status
       await tx.leaveRequest.update({
@@ -83,13 +90,15 @@ export async function reviewLeaveRequest(
       });
 
       if (conversation) {
+        let statusDE = "Ausstehend";
+        if (overallStatus === "approved") statusDE = "Genehmigt";
+        if (overallStatus === "rejected") statusDE = "Abgelehnt";
+
         await tx.message.create({
           data: {
             conversationId: conversation.id,
             senderId: user.id,
-            body: `Dein Urlaubsantrag wurde bearbeitet. Status: ${
-              overallStatus === "approved" ? "Genehmigt" : "Abgelehnt"
-            }.`,
+            body: `Dein Urlaubsantrag wurde bearbeitet. Status: ${statusDE}.`,
           },
         });
 
