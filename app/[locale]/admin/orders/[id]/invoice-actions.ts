@@ -45,7 +45,42 @@ export async function deleteInvoice(invoiceId: string) {
   revalidatePath("/", "layout");
 }
 
-export async function generateOrderInvoices(assignmentIds: string[]) {
+export async function cancelInvoice(invoiceId: string) {
+  const user = await requireRole("de", "admin");
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { assignments: true },
+  });
+
+  if (!invoice) {
+    throw new Error("Rechnung nicht gefunden.");
+  }
+
+  // Release the assignments so they can be re-invoiced and mark invoice as cancelled
+  await prisma.$transaction([
+    prisma.assignment.updateMany({
+      where: { invoiceId },
+      data: { invoiceId: null },
+    }),
+    prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { status: "cancelled" },
+    }),
+  ]);
+
+  await audit({
+    userId: user.id,
+    action: "invoice.cancel",
+    entity: "Invoice",
+    entityId: invoiceId,
+    metadata: { assignmentCount: invoice.assignments.length }
+  });
+
+  revalidatePath("/", "layout");
+}
+
+export async function generateOrderInvoices(assignmentIds: string[], customInvoiceNumber?: string) {
   const user = await requireRole("de", "admin");
   
   if (!assignmentIds || assignmentIds.length === 0) {
@@ -116,7 +151,9 @@ export async function generateOrderInvoices(assignmentIds: string[]) {
   const identifier = client.internalNumber || client.shortCode || client.id.substring(0, 4).toUpperCase();
   const monthStr = String(firstDate.getUTCMonth() + 1).padStart(2, "0");
   const yearStr = String(firstDate.getUTCFullYear()).slice(-2);
-  const invoiceNumber = `${seqNumber}-${identifier}-${monthStr}${yearStr}`;
+  const invoiceNumber = customInvoiceNumber && customInvoiceNumber.trim() !== "" 
+    ? customInvoiceNumber.trim() 
+    : `${seqNumber}-${identifier}-${monthStr}${yearStr}`;
 
   // Create invoice
   const invoice = await prisma.invoice.create({

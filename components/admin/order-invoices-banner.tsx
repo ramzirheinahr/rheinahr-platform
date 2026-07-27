@@ -14,8 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Trash2 } from "lucide-react";
-import { deleteInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { Trash2, Ban } from "lucide-react";
+import { deleteInvoice, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 
 export function OrderInvoicesBanner({ 
   requestGroupId,
@@ -29,13 +29,24 @@ export function OrderInvoicesBanner({
 }) {
   const router = useRouter();
 
-  const handleGenerate = async (selectedIds: string[]) => {
+  const handleGenerate = async (selectedIds: string[], customInvoiceNumber?: string) => {
     try {
-      await generateOrderInvoices(selectedIds);
+      await generateOrderInvoices(selectedIds, customInvoiceNumber);
       toast.success("Rechnungen erfolgreich generiert!");
       router.refresh();
     } catch (e: unknown) {
       toast.error((e as Error).message || "Fehler beim Generieren der Rechnung");
+    }
+  };
+
+  const handleCancel = async (invoiceId: string) => {
+    if (!confirm("Möchten Sie diese Rechnung wirklich stornieren? Zugehörige Schichten werden wieder freigegeben.")) return;
+    try {
+      await cancelInvoice(invoiceId);
+      toast.success("Rechnung erfolgreich storniert!");
+      router.refresh();
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Stornieren der Rechnung");
     }
   };
 
@@ -71,10 +82,10 @@ export function OrderInvoicesBanner({
               <Button 
                 variant="outline"
                 size="sm"
-                className={`gap-2 ${inv.status === "paid" ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-slate-200 bg-slate-50 text-slate-700"}`}
+                className={`gap-2 ${inv.status === "cancelled" ? "border-red-200 bg-red-50 text-red-500 hover:bg-red-100 line-through opacity-75" : inv.status === "paid" ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-slate-200 bg-slate-50 text-slate-700"}`}
               />
             }>
-              {inv.status === "paid" ? <CheckCircle2 className="size-3.5" /> : <FileText className="size-3.5" />}
+              {inv.status === "cancelled" ? <Ban className="size-3.5" /> : inv.status === "paid" ? <CheckCircle2 className="size-3.5" /> : <FileText className="size-3.5" />}
               {inv.invoiceNumber}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -82,6 +93,12 @@ export function OrderInvoicesBanner({
                 <FileText className="size-4 mr-2" />
                 PDF anzeigen
               </DropdownMenuItem>
+              {inv.status !== "cancelled" && (
+                <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleCancel(inv.id)}>
+                  <Ban className="size-4 mr-2" />
+                  Rechnung stornieren
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleDelete(inv.id)}>
                 <Trash2 className="size-4 mr-2" />
                 Rechnung löschen

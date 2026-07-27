@@ -79,6 +79,7 @@ enum ContractStatus {
 enum InvoiceStatus {
   unpaid
   paid
+  cancelled
 }
 
 enum LeaveStatus {

@@ -38,11 +38,12 @@ export function SelectAssignmentsDialog({
   buttonIcon?: any;
   buttonLabel: string;
   buttonClassName?: string;
-  onSubmit: (selectedIds: string[]) => Promise<void>;
+  onSubmit: (selectedIds: string[], customInvoiceNumber?: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(assignments.map((a) => a.id)));
   const [submitting, setSubmitting] = useState(false);
+  const [customInvoiceNumber, setCustomInvoiceNumber] = useState("");
 
   const toggleAssignment = (id: string) => {
     setSelectedIds((prev) => {
@@ -57,6 +58,7 @@ export function SelectAssignmentsDialog({
     setOpen(isOpen);
     if (isOpen) {
       setSelectedIds(new Set(assignments.map((a) => a.id)));
+      setCustomInvoiceNumber("");
     }
   };
 
@@ -64,7 +66,7 @@ export function SelectAssignmentsDialog({
     if (selectedIds.size === 0) return;
     setSubmitting(true);
     try {
-      await onSubmit(Array.from(selectedIds));
+      await onSubmit(Array.from(selectedIds), customInvoiceNumber);
       setOpen(false);
     } finally {
       setSubmitting(false);
@@ -106,6 +108,17 @@ export function SelectAssignmentsDialog({
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="px-1 py-2">
+          <label className="text-sm font-medium mb-1.5 block">Manuelle Rechnungsnummer (Optional)</label>
+          <input
+            type="text"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="Wird andernfalls automatisch generiert..."
+            value={customInvoiceNumber}
+            onChange={(e) => setCustomInvoiceNumber(e.target.value)}
+          />
         </div>
 
         <DialogFooter>

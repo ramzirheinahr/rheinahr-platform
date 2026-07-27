@@ -11,7 +11,7 @@ import { sendEmailToUsers } from "@/lib/email";
 
 const VAT_RATE = 0.19;
 
-export async function generateMonthInvoices(clientId: string, year: number, month: number) {
+export async function generateMonthInvoices(clientId: string, year: number, month: number, customInvoiceNumber?: string) {
   const user = await requireRole("de", "admin"); // Locale doesn't matter for role check here
   
   const startDate = new Date(Date.UTC(year, month - 1, 1));
@@ -73,7 +73,10 @@ export async function generateMonthInvoices(clientId: string, year: number, mont
   const seqNumber = String(seqCount + 1).padStart(4, "0");
   const monthStr = String(month).padStart(2, "0");
   const identifier = client.shortCode || client.id.substring(0, 4).toUpperCase();
-  const invoiceNumber = `279-${identifier}-${year}${monthStr}-${seqNumber}`;
+  const generatedNumber = `279-${identifier}-${year}${monthStr}-${seqNumber}`;
+  const invoiceNumber = customInvoiceNumber && customInvoiceNumber.trim() !== "" 
+    ? customInvoiceNumber.trim() 
+    : generatedNumber;
 
   // Create invoice
   const invoice = await prisma.invoice.create({
