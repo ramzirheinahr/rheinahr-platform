@@ -13,9 +13,7 @@ import {
 } from "@/lib/inbox-actions";
 import type { ConversationMessage } from "@/lib/inbox";
 
-// Live-ish thread: refreshes while the tab is visible and moves the viewer's
-// read cursor whenever new messages arrive.
-const REFRESH_MS = 20_000;
+// Thread: moves the viewer's read cursor whenever new messages arrive.
 
 export function ConversationThread({
   conversationId,
@@ -35,13 +33,7 @@ export function ConversationThread({
     void markConversationRead(conversationId);
   }, [conversationId, messages.length]);
 
-  // Poll for replies while the tab is in the foreground.
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [router]);
+
 
   // Keep the newest message in view.
   useEffect(() => {

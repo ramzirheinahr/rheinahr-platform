@@ -16,7 +16,6 @@ import { RequestMessageButton } from "@/components/client/request-message-button
 import { CancelRequestButton } from "@/components/orders/cancel-request-button";
 import { ClientContractsBanner } from "@/components/client/client-contracts-banner";
 import { ClientInvoicesBanner } from "@/components/client/client-invoices-banner";
-import { LiveRefresher } from "@/components/portal/live-refresher";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft, Pencil, Download } from "lucide-react";
@@ -181,7 +180,6 @@ export default async function ClientRequestDetail({
 
   return (
     <div className="space-y-6">
-      <LiveRefresher tables={["orders", "assignments", "service_confirmations"]} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button

@@ -7,7 +7,6 @@ import { MonthScheduleTable } from "@/components/client/month-schedule-table";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, FileDown, Sheet } from "lucide-react";
-import { LiveRefresher } from "@/components/portal/live-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +62,6 @@ export default async function ClientSchedulePage({
 
   return (
     <div className="space-y-8">
-      <LiveRefresher tables={["orders", "assignments", "service_confirmations"]} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{t("title")}</h1>

@@ -9,7 +9,6 @@ import {
   getWorkerMonthAvailability,
 } from "@/lib/worker-schedule";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { LiveRefresher } from "@/components/portal/live-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +59,6 @@ export default async function WorkerSchedulePage({
 
   return (
     <div className="space-y-8">
-      <LiveRefresher tables={["orders", "assignments", "service_confirmations"]} />
       <div>
         <h1 className="text-2xl font-semibold">{p("schedule")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{p("scheduleSubtitle")}</p>
