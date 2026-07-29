@@ -157,6 +157,7 @@ export default async function ClientRequestDetail({
       shiftDate: formatDateDE(o.shiftDate),
       startTime: o.startTime,
       endTime: o.endTime,
+      breakMinutes: o.breakMinutes,
       isPast,
       scheduledHours,
       assignments: o.assignments.map((a) => ({

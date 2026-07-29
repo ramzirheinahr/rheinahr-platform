@@ -1358,7 +1358,8 @@ function CellEditor({
                           `Hallo ${row.name},\n\nHier sind die Details für deine Schicht am ${dateLabel}:\n\nEinrichtung: ${j.facilityName}\n` +
                           (j.facilityAddress ? `Adresse: ${j.facilityAddress}\nKarte: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(j.facilityAddress)}\n` : "") +
                           (j.ward ? `Wohnbereich: ${j.ward}\n` : "") +
-                          `Uhrzeit: ${j.startTime} - ${j.endTime}`
+                          `Uhrzeit: ${j.startTime} - ${j.endTime}` +
+                          (j.breakMinutes ? `\nPause: ${j.breakMinutes} Min.` : "")
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"

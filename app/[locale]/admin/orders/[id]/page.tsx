@@ -168,6 +168,7 @@ export default async function AdminRequestDetail({
       shiftDate: formatDateDE(o.shiftDate),
       startTime: o.startTime,
       endTime: o.endTime,
+      breakMinutes: o.breakMinutes,
       selectable,
       scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes),
       assignments: o.assignments.map((a) => ({

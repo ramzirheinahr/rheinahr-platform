@@ -42,6 +42,7 @@ export type ShiftMeta = {
   shiftDate: string;
   startTime: string;
   endTime: string;
+  breakMinutes?: number;
   isPast?: boolean;
   // Admin bulk-assign: this shift can still take workers (not cancelled/full) →
   // a multi-select checkbox is shown next to its chip.
@@ -247,7 +248,8 @@ export function ShiftMetaCell({
                             `Hallo ${a.workerName},\n\nHier sind die Details für deine Schicht am ${meta.shiftDate}:\n\nEinrichtung: ${meta.facilityName}\n` +
                             (meta.facilityAddress ? `Adresse: ${meta.facilityAddress}\nKarte: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(meta.facilityAddress)}\n` : "") +
                             (meta.ward ? `Wohnbereich: ${meta.ward}\n` : "") +
-                            `Uhrzeit: ${meta.startTime} - ${meta.endTime}`
+                            `Uhrzeit: ${meta.startTime} - ${meta.endTime}` +
+                            (meta.breakMinutes ? `\nPause: ${meta.breakMinutes} Min.` : "")
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
