@@ -144,7 +144,7 @@ export async function generateOrderInvoices(assignmentIds: string[], customInvoi
   const grossAmount = netAmount + vatAmount;
 
   const seqCount = await prisma.invoice.count();
-  const seqNumber = String(seqCount + 400);
+  const seqNumber = String(seqCount + 304);
   const identifier = client.internalNumber || client.shortCode || client.id.substring(0, 4).toUpperCase();
   const monthStr = String(firstDate.getUTCMonth() + 1).padStart(2, "0");
   const yearStr = String(firstDate.getUTCFullYear()).slice(-2);

@@ -62,12 +62,8 @@ export async function generateMonthInvoices(clientId: string, year: number, mont
 
   // Generate invoice number
   // Format: INV-YYYYMM-[ShortCode or ID]-Seq
-  const seqCount = await prisma.invoice.count({
-    where: {
-      date: { gte: startDate, lt: endDate }
-    }
-  });
-  const seqNumber = String(seqCount + 1).padStart(4, "0");
+  const seqCount = await prisma.invoice.count();
+  const seqNumber = String(seqCount + 304).padStart(4, "0");
   const monthStr = String(month).padStart(2, "0");
   const identifier = client.shortCode || client.id.substring(0, 4).toUpperCase();
   const generatedNumber = `279-${identifier}-${year}${monthStr}-${seqNumber}`;

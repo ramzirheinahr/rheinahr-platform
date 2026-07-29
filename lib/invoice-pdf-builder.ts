@@ -8,12 +8,12 @@ import type { Qualification } from "@/lib/validations";
 const formatNumber = (num: number) => num.toFixed(2).replace(".", ",");
 const formatAmount = (num: number) => `${formatNumber(num)} €`;
 
-import type { Invoice, Client, Assignment, Order } from "@prisma/client";
+import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client";
 
 export function buildInvoicePdfData(
   invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount">,
   client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd">,
-  assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes"> })[]
+  assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[]
 ): InvoicePdfData {
   const rates = resolveRates(client);
   const surcharges = resolveSurcharges(client);
@@ -28,17 +28,22 @@ export function buildInvoicePdfData(
     sunHours: number;
     nightHours: number;
     holidayHours: number;
-    assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes"> })[];
+    assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[];
+    workerName: string;
+    qual: Qualification;
   };
 
-  const grouped = new Map<Qualification, GroupData>();
+  const grouped = new Map<string, GroupData>();
 
   for (const a of assignments) {
     const qual = a.order.requiredQualification as Qualification;
-    let group = grouped.get(qual);
+    const workerName = a.worker.fullName;
+    const key = `${workerName}-${qual}`;
+    
+    let group = grouped.get(key);
     if (!group) {
-      group = { baseHours: 0, satHours: 0, sunHours: 0, nightHours: 0, holidayHours: 0, assignments: [] };
-      grouped.set(qual, group);
+      group = { baseHours: 0, satHours: 0, sunHours: 0, nightHours: 0, holidayHours: 0, assignments: [], workerName, qual };
+      grouped.set(key, group);
     }
     group.assignments.push(a);
 
@@ -57,31 +62,32 @@ export function buildInvoicePdfData(
   let pos = 1;
   const items: InvoicePdfData["items"] = [];
 
-  for (const [qual, group] of grouped.entries()) {
-    const baseRate = rateFor(qual, rates);
-    const qName = qualLabel[qual] || qual;
+  for (const [key, group] of grouped.entries()) {
+    const baseRate = rateFor(group.qual, rates);
+    const qName = qualLabel[group.qual] || group.qual;
+    const wName = group.workerName;
 
     if (group.baseHours > 0) {
       const sorted = [...group.assignments].sort((a, b) => a.order.shiftDate.getTime() - b.order.shiftDate.getTime());
       const startStr = sorted[0] ? format(sorted[0].order.shiftDate, "dd.MM.yyyy") : "";
       const endStr = sorted[sorted.length - 1] ? format(sorted[sorted.length - 1].order.shiftDate, "dd.MM.yyyy") : "";
-      items.push({ pos: pos++, description: `Pflegekraft (${qName}) vom ${startStr} bis ${endStr}`, hours: formatNumber(group.baseHours), rate: formatNumber(baseRate), amount: formatAmount(group.baseHours * baseRate) });
+      items.push({ pos: pos++, description: `${wName} (${qName}) vom ${startStr} bis ${endStr}`, hours: formatNumber(group.baseHours), rate: formatNumber(baseRate), amount: formatAmount(group.baseHours * baseRate) });
     }
     if (group.satHours > 0) {
       const sRate = baseRate * surcharges.sat;
-      items.push({ pos: pos++, description: `Samstagzuschlag (${qName}) ${surcharges.sat * 100}%`, hours: formatNumber(group.satHours), rate: formatNumber(sRate), amount: formatAmount(group.satHours * sRate) });
+      items.push({ pos: pos++, description: `Samstagzuschlag (${wName}) ${surcharges.sat * 100}%`, hours: formatNumber(group.satHours), rate: formatNumber(sRate), amount: formatAmount(group.satHours * sRate) });
     }
     if (group.nightHours > 0) {
       const sRate = baseRate * surcharges.night;
-      items.push({ pos: pos++, description: `Nachtzuschlag (${nightWindow.start}-${nightWindow.end}) (${qName}) ${surcharges.night * 100}%`, hours: formatNumber(group.nightHours), rate: formatNumber(sRate), amount: formatAmount(group.nightHours * sRate) });
+      items.push({ pos: pos++, description: `Nachtzuschlag (${nightWindow.start}-${nightWindow.end}) (${wName}) ${surcharges.night * 100}%`, hours: formatNumber(group.nightHours), rate: formatNumber(sRate), amount: formatAmount(group.nightHours * sRate) });
     }
     if (group.sunHours > 0) {
       const sRate = baseRate * surcharges.sun;
-      items.push({ pos: pos++, description: `Sonntagzuschlag (${qName}) ${surcharges.sun * 100}%`, hours: formatNumber(group.sunHours), rate: formatNumber(sRate), amount: formatAmount(group.sunHours * sRate) });
+      items.push({ pos: pos++, description: `Sonntagzuschlag (${wName}) ${surcharges.sun * 100}%`, hours: formatNumber(group.sunHours), rate: formatNumber(sRate), amount: formatAmount(group.sunHours * sRate) });
     }
     if (group.holidayHours > 0) {
       const sRate = baseRate * surcharges.holiday;
-      items.push({ pos: pos++, description: `Feiertagszuschlag (${qName}) ${surcharges.holiday * 100}%`, hours: formatNumber(group.holidayHours), rate: formatNumber(sRate), amount: formatAmount(group.holidayHours * sRate) });
+      items.push({ pos: pos++, description: `Feiertagszuschlag (${wName}) ${surcharges.holiday * 100}%`, hours: formatNumber(group.holidayHours), rate: formatNumber(sRate), amount: formatAmount(group.holidayHours * sRate) });
     }
   }
 
