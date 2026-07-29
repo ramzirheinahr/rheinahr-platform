@@ -42,15 +42,15 @@ const styles = StyleSheet.create({
   sloganRed: { color: "#d91e18", fontSize: 10, fontFamily: "Helvetica-Bold" },
   sloganBlue: { color: "#1d4ed8", fontSize: 10, fontFamily: "Helvetica-Bold" },
   
-  senderBlock: { width: "40%", marginTop: 20 },
+  senderBlock: { width: "60%", marginTop: 20 },
   companyContactBlock: { width: "40%", textAlign: "right" },
   companyNameBold: { fontFamily: "Helvetica-Bold", marginBottom: 4 },
   
-  returnAddress: { fontSize: 8, textDecoration: "underline", marginBottom: 10 },
+  returnAddress: { fontSize: 8, textDecoration: "underline", marginBottom: 4 },
   
-  clientAddress: { marginTop: 10 },
+  clientAddress: { marginTop: 0 },
   
-  titleBlock: { marginTop: -20, textAlign: "right", width: "100%" },
+  titleBlock: { marginTop: -20, textAlign: "right", width: "40%" },
   titleText: { fontSize: 28, fontFamily: "Helvetica-Bold", marginBottom: 15 },
   
   metaTable: { alignSelf: "flex-end", width: "40%" },
