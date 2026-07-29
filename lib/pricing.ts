@@ -195,9 +195,23 @@ export function shiftSurchargeHours(
     });
   }
 
-  // Gross minutes per surcharge combination.
+  // Handle explicit break deduction from exactly the middle of the shift
+  const isBreakMinute = new Array(dur).fill(false);
+  const breakStartIndex = Math.floor(Math.max(0, dur - breakMin) / 2);
+  let breakLeft = Math.min(dur, breakMin); // protect against break > dur
+  
+  for (let i = 0; i < dur && breakLeft > 0; i++) {
+    if (i >= breakStartIndex) {
+      isBreakMinute[i] = true;
+      breakLeft--;
+    }
+  }
+
+  // Gross minutes per surcharge combination (excluding explicitly assigned break minutes).
   const grossByKey = new Map<string, { components: SurchargeComponent[]; minutes: number }>();
   for (let i = 0; i < dur; i++) {
+    if (isBreakMinute[i]) continue;
+
     const abs = startMin + i;
     const meta = dayMeta[Math.floor(abs / 1440)];
     const mod = abs % 1440;
@@ -212,7 +226,11 @@ export function shiftSurchargeHours(
     else grossByKey.set(key, { components, minutes: 1 });
   }
 
-  const factor = dur > 0 ? Math.max(0, dur - breakMin) / dur : 0;
+  // Spread any REMAINING break (e.g. for day shifts) proportionally over non-break minutes
+  const explicitlyAssigned = breakMin - breakLeft;
+  const remainingGross = dur - explicitlyAssigned;
+  const factor = remainingGross > 0 ? Math.max(0, remainingGross - breakLeft) / remainingGross : 0;
+  
   const out = new Map<string, SurchargeGroup>();
   for (const [key, v] of grossByKey) {
     out.set(key, { components: v.components, hours: (v.minutes / 60) * factor });

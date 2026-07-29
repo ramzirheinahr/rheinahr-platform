@@ -173,7 +173,7 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
             <Text style={styles.colDesc}>{item.description}</Text>
             <Text style={styles.colHours}>{item.hours}</Text>
             <Text style={styles.colRate}>{item.rate} €</Text>
-            <Text style={styles.colAmount}>{item.amount} €</Text>
+            <Text style={styles.colAmount}>{item.amount}</Text>
           </View>
         ))}
       </View>
