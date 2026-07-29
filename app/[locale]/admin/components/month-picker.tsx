@@ -7,10 +7,10 @@ export function MonthPicker({ currentMonth }: { currentMonth: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Generate last 12 months
+  // Generate months from 3 months in the future to 12 months in the past
   const months = [];
   const now = new Date();
-  for (let i = 0; i < 12; i++) {
+  for (let i = -3; i <= 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" }).format(d);
