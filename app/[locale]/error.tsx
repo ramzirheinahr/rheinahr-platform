@@ -26,12 +26,11 @@ export default function ErrorBoundary({
       </div>
       
       <h2 className="text-2xl font-bold tracking-tight mb-2">
-        {/* We use hardcoded fallback as well in case translation fails */}
-        {t('error') || 'عذراً، حدث خطأ غير متوقع'}
+        {t('error') || 'Oops, something went wrong'}
       </h2>
       
       <p className="text-muted-foreground max-w-md mx-auto mb-6">
-        نعتذر عن هذا الخلل. يبدو أن هناك مشكلة في الخادم أو أن الموارد استُنفذت (مثل استهلاك وظائف Vercel).
+        We apologize for the inconvenience. It looks like there is a problem with the server or a resource limit was reached.
       </p>
 
       {error.digest && (
@@ -43,12 +42,12 @@ export default function ErrorBoundary({
       )}
 
       <Button 
-        onClick={() => reset()}
+        onClick={() => window.location.reload()}
         className="gap-2"
         size="lg"
       >
         <RefreshCcw className="w-4 h-4" />
-        إعادة المحاولة
+        Try again
       </Button>
     </div>
   );
