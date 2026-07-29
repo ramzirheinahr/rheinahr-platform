@@ -118,7 +118,7 @@ export default async function AdminRequestDetail({
 
   const uninvoicedAssignments = orders.flatMap(o =>
     o.assignments
-      .filter(a => a.status === "confirmed" && a.serviceConfirmation && !a.invoiceId)
+      .filter(a => a.status === "confirmed" && !a.invoiceId)
       .map(a => ({
         id: a.id,
         workerName: a.worker.fullName,

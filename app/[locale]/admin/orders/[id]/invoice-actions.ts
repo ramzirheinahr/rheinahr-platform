@@ -93,9 +93,6 @@ export async function generateOrderInvoices(assignmentIds: string[], customInvoi
       id: { in: assignmentIds },
       invoiceId: null,
       status: "confirmed",
-      serviceConfirmation: {
-        isNot: null // Meaning it has been confirmed by the client
-      }
     },
     include: {
       order: {

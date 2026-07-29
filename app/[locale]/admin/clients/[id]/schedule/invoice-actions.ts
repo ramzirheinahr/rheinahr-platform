@@ -22,7 +22,7 @@ export async function generateMonthInvoices(clientId: string, year: number, mont
   });
   if (!client) throw new Error("Client not found");
 
-  // We only invoice shifts that are confirmed, have NO invoice yet, and have a signed service confirmation
+  // We only invoice shifts that are confirmed and have NO invoice yet.
   const assignments = await prisma.assignment.findMany({
     where: {
       order: {
@@ -31,9 +31,6 @@ export async function generateMonthInvoices(clientId: string, year: number, mont
       },
       invoiceId: null,
       status: "confirmed",
-      serviceConfirmation: {
-        isNot: null // Meaning it has been confirmed by the client
-      }
     },
     include: {
       order: true,
