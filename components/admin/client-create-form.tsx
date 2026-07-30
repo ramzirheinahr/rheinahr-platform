@@ -87,9 +87,22 @@ export function ClientCreateForm({ customFacilityTypes = [] }: { customFacilityT
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="billingInfo">{t("billingInfo")}</Label>
-        <Input id="billingInfo" name="billingInfo" />
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="billingInfo">{t("billingInfo")}</Label>
+          <Input id="billingInfo" name="billingInfo" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="paymentTermsDays">Zahlungsziel (Tage)</Label>
+          <Input
+            id="paymentTermsDays"
+            name="paymentTermsDays"
+            type="number"
+            min={0}
+            step={1}
+            defaultValue={14}
+          />
+        </div>
       </div>
 
       <fieldset className="space-y-3 rounded-lg border p-4">

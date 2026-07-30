@@ -42,7 +42,7 @@ export async function deleteContract(contractId: string) {
   revalidatePath("/", "layout");
 }
 
-export async function generateOrderContracts(assignmentIds: string[]) {
+export async function generateOrderContracts(assignmentIds: string[], splitByShift?: boolean) {
   const user = await getCurrentUser();
   if (!user || !roleSatisfies(user.role, ["admin"])) throw new Error("forbidden");
 
@@ -104,6 +104,7 @@ export async function generateOrderContracts(assignmentIds: string[]) {
       clientId,
       period: periodLabel,
       status: "pending",
+      splitByShift: splitByShift || false,
       assignments: {
         connect: assignments.map(a => ({ id: a.id }))
       }

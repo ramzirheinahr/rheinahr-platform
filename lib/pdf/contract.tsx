@@ -31,6 +31,7 @@ export type ContractPdfData = {
   signatureData?: string | null;
   signedAt?: string;
   ipAddress?: string | null;
+  splitByShift?: boolean;
 };
 
 const styles = StyleSheet.create({
@@ -49,122 +50,132 @@ const styles = StyleSheet.create({
   audit: { fontSize: 8, color: "#9ca3af", marginTop: 4 },
 });
 
+const ContractPage = ({ data }: { data: ContractPdfData }) => (
+  <Page size="A4" style={styles.page}>
+    <Text style={styles.header}>Arbeitnehmerüberlassungsvertrag</Text>
+    
+    <View style={{ marginBottom: 16 }}>
+      <Text style={styles.paragraph}>Zwischen</Text>
+      <Text style={[styles.paragraph, styles.bold]}>{data.facilityName}</Text>
+      <Text style={styles.paragraph}>{data.facilityAddress}</Text>
+      <Text style={styles.paragraph}>(Auftraggeber)</Text>
+      <Text style={styles.paragraph}>und</Text>
+      <Text style={[styles.paragraph, styles.bold]}>RheinAhr Dienstleistungen GmbH</Text>
+      <Text style={styles.paragraph}>Theaterplatz 1, 53177 Bonn</Text>
+      <Text style={styles.paragraph}>(Personaldienstleister)</Text>
+      <Text style={styles.paragraph}>wird folgender Arbeitnehmerüberlassungsvertrag geschlossen:</Text>
+    </View>
+
+    <Text style={styles.h2}>§ 1 Erlaubnis zur Arbeitnehmerüberlassung</Text>
+    <Text style={styles.paragraph}>
+      Der Personaldienstleister erklärt, im Besitz einer befristeten Erlaubnis zur Arbeitnehmerüberlassung zu sein.
+    </Text>
+
+    <Text style={styles.h2}>§ 2 Inkrafttreten / Gegenstand</Text>
+    <Text style={styles.paragraph}>
+      Der Personaldienstleister verpflichtet sich, dem Betrieb des Auftraggebers Arbeitnehmer zur Arbeitsleistung zu überlassen.
+    </Text>
+
+    <Text style={styles.h2}>§ 5 Überlassungsbedingungen / Konkretisierung</Text>
+    <Text style={styles.paragraph}>
+      Der Personaldienstleister verpflichtet sich, folgende Arbeitnehmer für den Zeitraum {data.period || "angegeben"} zu überlassen:
+    </Text>
+
+    {data.assignments.map((a, i) => (
+      <View key={i} style={styles.shiftBox}>
+        <View style={styles.row}>
+          <Text style={styles.label}>Tätigkeit/Qualifikation:</Text>
+          <Text style={styles.value}>{a.qualification}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Mitarbeiter:</Text>
+          <Text style={styles.value}>{a.workerName}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>SV-Nummer:</Text>
+          <Text style={styles.value}>{a.socialSecurity || "—"}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Nationalität:</Text>
+          <Text style={styles.value}>{a.nationality || "—"}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Geburtsdatum:</Text>
+          <Text style={styles.value}>{a.birthDate || "—"}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Einsatzdatum:</Text>
+          <Text style={styles.value}>{a.shiftDate} ({a.startTime} - {a.endTime})</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Vergütung pro Stunde:</Text>
+          <Text style={styles.value}>{a.hourlyRate?.toFixed(2).replace(".", ",")} € (Basis, zzgl. USt. & Zuschläge)</Text>
+        </View>
+
+      </View>
+    ))}
+
+    <Text style={styles.h2}>§ 14 Schriftform / Vertretung</Text>
+    <Text style={styles.paragraph}>
+      Gemäß § 12 Absatz 1 Satz 1 AÜG bedarf dieser Vertrag der Schriftform. Anstelle der Schriftform darf auch die elektronische Form verwandt werden.
+    </Text>
+
+    <View style={{ marginTop: 60, gap: 32 }}>
+      {data.signedAt ? (
+        <>
+          <View>
+            <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
+              Signiert von {data.facilityName} (Entleiher),
+            </Text>
+            <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
+              am {data.signedAt}
+            </Text>
+          </View>
+          <View>
+            <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
+              Signiert von RheinAhr Dienstleistungen GmbH (Verleiher),
+            </Text>
+            <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
+              am {data.signedAt}
+            </Text>
+          </View>
+        </>
+      ) : (
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <View style={styles.signatureCol}>
+            {data.stampDataUrl ? (
+              <Image src={data.stampDataUrl} style={{ width: 140, height: 60, objectFit: "contain", marginBottom: 5 }} />
+            ) : (
+              <View style={{ height: 65 }} />
+            )}
+            <View style={styles.signatureLine}>
+              <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Personaldienstleister</Text>
+              <Text>RheinAhr Dienstleistungen GmbH</Text>
+            </View>
+          </View>
+          
+          <View style={styles.signatureCol}>
+            <View style={{ height: 65 }} />
+            <View style={styles.signatureLine}>
+              <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Auftraggeber</Text>
+              <Text>{data.facilityName}</Text>
+            </View>
+          </View>
+        </View>
+      )}
+    </View>
+  </Page>
+);
+
 const AuegContractTemplate = ({ data }: { data: ContractPdfData }) => (
   <Document>
-    <Page size="A4" style={styles.page}>
-      <Text style={styles.header}>Arbeitnehmerüberlassungsvertrag</Text>
-      
-      <View style={{ marginBottom: 16 }}>
-        <Text style={styles.paragraph}>Zwischen</Text>
-        <Text style={[styles.paragraph, styles.bold]}>{data.facilityName}</Text>
-        <Text style={styles.paragraph}>{data.facilityAddress}</Text>
-        <Text style={styles.paragraph}>(Auftraggeber)</Text>
-        <Text style={styles.paragraph}>und</Text>
-        <Text style={[styles.paragraph, styles.bold]}>RheinAhr Dienstleistungen GmbH</Text>
-        <Text style={styles.paragraph}>Theaterplatz 1, 53177 Bonn</Text>
-        <Text style={styles.paragraph}>(Personaldienstleister)</Text>
-        <Text style={styles.paragraph}>wird folgender Arbeitnehmerüberlassungsvertrag geschlossen:</Text>
-      </View>
-
-      <Text style={styles.h2}>§ 1 Erlaubnis zur Arbeitnehmerüberlassung</Text>
-      <Text style={styles.paragraph}>
-        Der Personaldienstleister erklärt, im Besitz einer befristeten Erlaubnis zur Arbeitnehmerüberlassung zu sein.
-      </Text>
-
-      <Text style={styles.h2}>§ 2 Inkrafttreten / Gegenstand</Text>
-      <Text style={styles.paragraph}>
-        Der Personaldienstleister verpflichtet sich, dem Betrieb des Auftraggebers Arbeitnehmer zur Arbeitsleistung zu überlassen.
-      </Text>
-
-      <Text style={styles.h2}>§ 5 Überlassungsbedingungen / Konkretisierung</Text>
-      <Text style={styles.paragraph}>
-        Der Personaldienstleister verpflichtet sich, folgende Arbeitnehmer für den Zeitraum {data.period || "angegeben"} zu überlassen:
-      </Text>
-
-      {data.assignments.map((a, i) => (
-        <View key={i} style={styles.shiftBox}>
-          <View style={styles.row}>
-            <Text style={styles.label}>Tätigkeit/Qualifikation:</Text>
-            <Text style={styles.value}>{a.qualification}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Mitarbeiter:</Text>
-            <Text style={styles.value}>{a.workerName}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>SV-Nummer:</Text>
-            <Text style={styles.value}>{a.socialSecurity || "—"}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Nationalität:</Text>
-            <Text style={styles.value}>{a.nationality || "—"}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Geburtsdatum:</Text>
-            <Text style={styles.value}>{a.birthDate || "—"}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Einsatzdatum:</Text>
-            <Text style={styles.value}>{a.shiftDate} ({a.startTime} - {a.endTime})</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Vergütung pro Stunde:</Text>
-            <Text style={styles.value}>{a.hourlyRate?.toFixed(2).replace(".", ",")} € (Basis, zzgl. USt. & Zuschläge)</Text>
-          </View>
-
-        </View>
-      ))}
-
-      <Text style={styles.h2}>§ 14 Schriftform / Vertretung</Text>
-      <Text style={styles.paragraph}>
-        Gemäß § 12 Absatz 1 Satz 1 AÜG bedarf dieser Vertrag der Schriftform. Anstelle der Schriftform darf auch die elektronische Form verwandt werden.
-      </Text>
-
-      <View style={{ marginTop: 60, gap: 32 }}>
-        {data.signedAt ? (
-          <>
-            <View>
-              <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
-                Signiert von {data.facilityName} (Entleiher),
-              </Text>
-              <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
-                am {data.signedAt}
-              </Text>
-            </View>
-            <View>
-              <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
-                Signiert von RheinAhr Dienstleistungen GmbH (Verleiher),
-              </Text>
-              <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
-                am {data.signedAt}
-              </Text>
-            </View>
-          </>
-        ) : (
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <View style={styles.signatureCol}>
-              {data.stampDataUrl ? (
-                <Image src={data.stampDataUrl} style={{ width: 140, height: 60, objectFit: "contain", marginBottom: 5 }} />
-              ) : (
-                <View style={{ height: 65 }} />
-              )}
-              <View style={styles.signatureLine}>
-                <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Personaldienstleister</Text>
-                <Text>RheinAhr Dienstleistungen GmbH</Text>
-              </View>
-            </View>
-            
-            <View style={styles.signatureCol}>
-              <View style={{ height: 65 }} />
-              <View style={styles.signatureLine}>
-                <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Auftraggeber</Text>
-                <Text>{data.facilityName}</Text>
-              </View>
-            </View>
-          </View>
-        )}
-      </View>
-    </Page>
+    {data.splitByShift ? (
+      data.assignments.map((a, i) => (
+        <ContractPage key={i} data={{ ...data, assignments: [a], period: a.shiftDate }} />
+      ))
+    ) : (
+      <ContractPage data={data} />
+    )}
   </Document>
 );
 

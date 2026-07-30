@@ -29,6 +29,7 @@ export function SelectAssignmentsDialog({
   buttonIcon: Icon = Plus,
   buttonLabel,
   buttonClassName,
+  showSplitOption,
   onSubmit,
 }: {
   assignments: SelectableAssignment[];
@@ -38,9 +39,11 @@ export function SelectAssignmentsDialog({
   buttonIcon?: any;
   buttonLabel: string;
   buttonClassName?: string;
-  onSubmit: (selectedIds: string[], customInvoiceNumber?: string) => Promise<void>;
+  showSplitOption?: boolean;
+  onSubmit: (selectedIds: string[], customInvoiceNumber?: string, splitByShift?: boolean) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [splitByShift, setSplitByShift] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(assignments.map((a) => a.id)));
   const [submitting, setSubmitting] = useState(false);
   const [customInvoiceNumber, setCustomInvoiceNumber] = useState("");
@@ -69,6 +72,7 @@ export function SelectAssignmentsDialog({
       setSelectedIds(new Set(assignments.map((a) => a.id)));
       setCustomInvoiceNumber("");
       setWorkerFilter("all");
+      setSplitByShift(false);
     }
   };
 
@@ -76,7 +80,7 @@ export function SelectAssignmentsDialog({
     if (selectedIds.size === 0) return;
     setSubmitting(true);
     try {
-      await onSubmit(Array.from(selectedIds), customInvoiceNumber);
+      await onSubmit(Array.from(selectedIds), customInvoiceNumber, splitByShift);
       setOpen(false);
     } finally {
       setSubmitting(false);
@@ -175,6 +179,21 @@ export function SelectAssignmentsDialog({
             onChange={(e) => setCustomInvoiceNumber(e.target.value)}
           />
         </div>
+
+        {showSplitOption && (
+          <div className="px-1 py-1 flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="split-contract"
+              className="size-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
+              checked={splitByShift}
+              onChange={(e) => setSplitByShift(e.target.checked)}
+            />
+            <label htmlFor="split-contract" className="text-sm font-medium cursor-pointer">
+              Verträge pro Schicht trennen (als Einzelseiten im selben PDF)
+            </label>
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>

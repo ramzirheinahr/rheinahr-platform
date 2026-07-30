@@ -20,6 +20,7 @@ import { ArrowLeft, Pencil, Download } from "lucide-react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
 import { OrderContractsBanner } from "@/components/admin/order-contracts-banner";
 import { OrderInvoicesBanner } from "@/components/admin/order-invoices-banner";
+import { OrderConfirmationsBanner } from "@/components/admin/order-confirmations-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,18 @@ export default async function AdminRequestDetail({
   const uninvoicedAssignments = orders.flatMap(o =>
     o.assignments
       .filter(a => a.status === "confirmed" && !a.invoiceId)
+      .map(a => ({
+        id: a.id,
+        workerName: a.worker.fullName,
+        shiftDate: formatDateDE(o.shiftDate),
+        startTime: o.startTime,
+        endTime: o.endTime
+      }))
+  );
+
+  const confirmedAssignments = orders.flatMap(o =>
+    o.assignments
+      .filter(a => a.status === "confirmed")
       .map(a => ({
         id: a.id,
         workerName: a.worker.fullName,
@@ -246,6 +259,10 @@ export default async function AdminRequestDetail({
         requestGroupId={id} 
         contracts={contracts} 
         uncontractedAssignments={uncontractedAssignments} 
+      />
+
+      <OrderConfirmationsBanner 
+        assignments={confirmedAssignments}
       />
 
       <OrderInvoicesBanner 

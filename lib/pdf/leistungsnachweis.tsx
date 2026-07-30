@@ -103,79 +103,90 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function LeistungsnachweisDocument({ d }: { d: LeistungsnachweisData }) {
+function LeistungsnachweisPage({ d }: { d: LeistungsnachweisData }) {
+  return (
+    <Page size="A4" style={styles.page}>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.brand}>RheinAhr Dienstleistungen GmbH</Text>
+          <Text style={styles.brandSub}>Theaterplatz 1, 53177 Bonn · info@rheinahr-gmbh.de</Text>
+        </View>
+        <Text style={styles.brandSub}>HRB 23459 · USt-IdNr. DE316507908</Text>
+      </View>
+
+      <Text style={styles.title}>Leistungsnachweis</Text>
+
+      {d.draft ? (
+        <Text style={styles.draftBanner}>
+          ENTWURF / VORSCHAU — Dieses Dokument ist noch nicht bestätigt. Bitte
+          prüfen Sie die Angaben und bestätigen Sie die Leistung anschließend
+          elektronisch.
+        </Text>
+      ) : null}
+
+      <Field label="Einrichtung" value={d.facilityName} />
+      <Field label="Mitarbeiter" value={d.workerName} />
+      <Field label="Qualifikation" value={d.qualificationLabel} />
+      <Field label="Datum" value={d.shiftDate} />
+      <Field label="Schicht" value={`${d.startTime} – ${d.endTime}`} />
+      <Field label="Geleistete Stunden" value={`${d.hours} h`} />
+      {d.draft ? null : (
+        <>
+          <Field label="Bestätigungsart" value={d.methodLabel} />
+          <Field label="Bestätigt durch" value={d.confirmedByEmail} />
+          <Field label="Bestätigt am" value={d.confirmedAt} />
+          {d.ipAddress ? <Field label="IP-Adresse" value={d.ipAddress} /> : null}
+        </>
+      )}
+
+      {d.isElectronic ? (
+        <View style={styles.sigBox}>
+          {d.signatureData && !d.draft ? (
+            // eslint-disable-next-line jsx-a11y/alt-text
+            <Image style={styles.sigImage} src={d.signatureData} />
+          ) : d.draft ? (
+            <View style={styles.sigLine} />
+          ) : (
+            <Text style={styles.eSignName}>{d.signerName ?? d.confirmedByEmail}</Text>
+          )}
+          <Text style={styles.sigCaption}>
+            {d.draft
+              ? `Elektronische Bestätigung (Textform) — ${d.facilityName}`
+              : `Elektronisch bestätigt in Textform (§ 126b BGB) durch ${d.signerName ?? d.confirmedByEmail} — ${d.facilityName}, ${d.confirmedAt}${d.ipAddress ? `, IP ${d.ipAddress}` : ""}`}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.sigBox}>
+           <View style={styles.sigLine} />
+           <Text style={styles.sigCaption}>Datum, Unterschrift {d.facilityName}</Text>
+        </View>
+      )}
+
+      <Text style={styles.footer}>
+        {d.draft
+          ? `Entwurf des Leistungsnachweises — noch nicht rechtsverbindlich bestätigt. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`
+          : d.isElectronic
+            ? `Dieser Leistungsnachweis wurde digital erstellt und ist ohne handschriftliche Unterschrift gültig. Zeitstempel und IP-Adresse wurden gemäß DSGVO protokolliert. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`
+            : `Bitte unterzeichnen Sie dieses Dokument handschriftlich. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`}
+      </Text>
+    </Page>
+  );
+}
+
+function LeistungsnachweisDocument({ entries }: { entries: LeistungsnachweisData[] }) {
+  const first = entries[0];
+  const title = entries.length === 1 
+    ? `Leistungsnachweis ${first.shiftDate}` 
+    : `Leistungsnachweise (${entries.length} Einträge)`;
+
   return (
     <Document
-      title={`Leistungsnachweis ${d.shiftDate}`}
+      title={title}
       author="RheinAhr Dienstleistungen GmbH"
     >
-      <Page size="A4" style={styles.page}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.brand}>RheinAhr Dienstleistungen GmbH</Text>
-            <Text style={styles.brandSub}>Theaterplatz 1, 53177 Bonn · info@rheinahr-gmbh.de</Text>
-          </View>
-          <Text style={styles.brandSub}>HRB 23459 · USt-IdNr. DE316507908</Text>
-        </View>
-
-        <Text style={styles.title}>Leistungsnachweis</Text>
-
-        {d.draft ? (
-          <Text style={styles.draftBanner}>
-            ENTWURF / VORSCHAU — Dieses Dokument ist noch nicht bestätigt. Bitte
-            prüfen Sie die Angaben und bestätigen Sie die Leistung anschließend
-            elektronisch.
-          </Text>
-        ) : null}
-
-        <Field label="Einrichtung" value={d.facilityName} />
-        <Field label="Mitarbeiter" value={d.workerName} />
-        <Field label="Qualifikation" value={d.qualificationLabel} />
-        <Field label="Datum" value={d.shiftDate} />
-        <Field label="Schicht" value={`${d.startTime} – ${d.endTime}`} />
-        <Field label="Geleistete Stunden" value={`${d.hours} h`} />
-        {d.draft ? null : (
-          <>
-            <Field label="Bestätigungsart" value={d.methodLabel} />
-            <Field label="Bestätigt durch" value={d.confirmedByEmail} />
-            <Field label="Bestätigt am" value={d.confirmedAt} />
-            {d.ipAddress ? <Field label="IP-Adresse" value={d.ipAddress} /> : null}
-          </>
-        )}
-
-        {d.isElectronic ? (
-          <View style={styles.sigBox}>
-            {d.signatureData && !d.draft ? (
-              // Optional legacy drawn signature. react-pdf Image is not an HTML
-              // <img>; alt-text rule does not apply.
-              // eslint-disable-next-line jsx-a11y/alt-text
-              <Image style={styles.sigImage} src={d.signatureData} />
-            ) : d.draft ? (
-              <View style={styles.sigLine} />
-            ) : (
-              <Text style={styles.eSignName}>{d.signerName ?? d.confirmedByEmail}</Text>
-            )}
-            <Text style={styles.sigCaption}>
-              {d.draft
-                ? `Elektronische Bestätigung (Textform) — ${d.facilityName}`
-                : `Elektronisch bestätigt in Textform (§ 126b BGB) durch ${d.signerName ?? d.confirmedByEmail} — ${d.facilityName}, ${d.confirmedAt}${d.ipAddress ? `, IP ${d.ipAddress}` : ""}`}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.sigBox}>
-             <View style={styles.sigLine} />
-             <Text style={styles.sigCaption}>Datum, Unterschrift {d.facilityName}</Text>
-          </View>
-        )}
-
-        <Text style={styles.footer}>
-          {d.draft
-            ? `Entwurf des Leistungsnachweises — noch nicht rechtsverbindlich bestätigt. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`
-            : d.isElectronic
-              ? `Dieser Leistungsnachweis wurde digital erstellt und ist ohne handschriftliche Unterschrift gültig. Zeitstempel und IP-Adresse wurden gemäß DSGVO protokolliert. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`
-              : `Bitte unterzeichnen Sie dieses Dokument handschriftlich. Auftrag-ID: ${d.orderId} · Einsatz-ID: ${d.assignmentId}`}
-        </Text>
-      </Page>
+      {entries.map((d, i) => (
+        <LeistungsnachweisPage key={i} d={d} />
+      ))}
     </Document>
   );
 }
@@ -183,5 +194,11 @@ function LeistungsnachweisDocument({ d }: { d: LeistungsnachweisData }) {
 export function renderLeistungsnachweisPdf(
   d: LeistungsnachweisData,
 ): Promise<Buffer> {
-  return renderToBuffer(<LeistungsnachweisDocument d={d} />);
+  return renderToBuffer(<LeistungsnachweisDocument entries={[d]} />);
+}
+
+export function renderBulkLeistungsnachweisPdf(
+  entries: LeistungsnachweisData[],
+): Promise<Buffer> {
+  return renderToBuffer(<LeistungsnachweisDocument entries={entries} />);
 }

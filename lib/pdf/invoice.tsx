@@ -29,6 +29,7 @@ export type InvoicePdfData = {
   subtotal: string;
   taxAmount: string;
   total: string;
+  paymentTermsDays: number;
 };
 
 const styles = StyleSheet.create({
@@ -53,9 +54,9 @@ const styles = StyleSheet.create({
   titleBlock: { marginTop: -20, textAlign: "right", width: "40%" },
   titleText: { fontSize: 28, fontFamily: "Helvetica-Bold", marginBottom: 15 },
   
-  metaTable: { alignSelf: "flex-end", width: "40%" },
+  metaTable: { alignSelf: "flex-end", width: "100%" },
   metaRow: { flexDirection: "row", justifyContent: "space-between" },
-  metaLabel: { fontFamily: "Helvetica" },
+  metaLabel: { fontFamily: "Helvetica", marginRight: 10 },
   metaValue: { fontFamily: "Helvetica" },
 
   greeting: { fontFamily: "Helvetica-Bold", marginTop: 20, marginBottom: 5 },
@@ -200,7 +201,7 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
       </View>
 
       <Text style={styles.paymentText}>
-        Bitte überweisen Sie den Endbetrag innerhalb 14 Tagen und geben dabei unbedingt die Rechnungsnummer
+        Bitte überweisen Sie den Endbetrag innerhalb {data.paymentTermsDays} Tagen und geben dabei unbedingt die Rechnungsnummer
         Als Verwendungszweck an.
       </Text>
 

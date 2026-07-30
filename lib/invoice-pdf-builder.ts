@@ -12,7 +12,7 @@ import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client"
 
 export function buildInvoicePdfData(
   invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount">,
-  client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd">,
+  client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
   assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[]
 ): InvoicePdfData {
   const rates = resolveRates(client);
@@ -107,5 +107,6 @@ export function buildInvoicePdfData(
     subtotal: formatAmount(invoice.netAmount),
     taxAmount: formatAmount(invoice.vatAmount),
     total: formatAmount(invoice.grossAmount),
+    paymentTermsDays: client.paymentTermsDays,
   };
 }

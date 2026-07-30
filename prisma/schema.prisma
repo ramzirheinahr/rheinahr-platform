@@ -318,6 +318,7 @@ model Client {
   frameworkAgreementSignedAt DateTime?    @map("framework_agreement_signed_at")
   contactPerson              String?      @map("contact_person")
   billingInfo                String?      @map("billing_info")
+  paymentTermsDays           Int          @default(14) @map("payment_terms_days")
   // Per-client billing surcharges (fractions, e.g. 0.25 = +25 %). Null falls
   // back to the platform default in lib/pricing.ts.
   surchargeSat               Float?       @map("surcharge_sat")
@@ -499,6 +500,7 @@ model Message {
 model ClientContract {
   id            String         @id @default(uuid())
   clientId      String         @map("client_id")
+  splitByShift  Boolean        @default(false) @map("split_by_shift")
   status        ContractStatus @default(pending)
   period        String?
   signatureData String?        @map("signature_data")

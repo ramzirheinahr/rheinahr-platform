@@ -83,6 +83,7 @@ export default async function EditClientPage({
           address: client.address,
           contactPerson: client.contactPerson,
           billingInfo: client.billingInfo,
+          paymentTermsDays: client.paymentTermsDays,
           surchargeSat: client.surchargeSat,
           surchargeSun: client.surchargeSun,
           surchargeHoliday: client.surchargeHoliday,

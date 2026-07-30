@@ -23,9 +23,9 @@ export function OrderContractsBanner({
 }) {
   const router = useRouter();
 
-  const handleGenerate = async (selectedIds: string[]) => {
+  const handleGenerate = async (selectedIds: string[], customInvoiceNumber?: string, splitByShift?: boolean) => {
     try {
-      await generateOrderContracts(selectedIds);
+      await generateOrderContracts(selectedIds, splitByShift);
       toast.success("Verträge erfolgreich generiert!");
       router.refresh();
     } catch (e: unknown) {
@@ -73,6 +73,7 @@ export function OrderContractsBanner({
             submitLabel="Generieren"
             buttonLabel="Vertrag für fehlende Schichten erstellen"
             buttonClassName="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+            showSplitOption={true}
             onSubmit={handleGenerate}
           />
         )}

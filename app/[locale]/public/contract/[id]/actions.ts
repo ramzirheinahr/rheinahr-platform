@@ -77,6 +77,7 @@ export async function signContractPublic({
     signatureData,
     signedAt: signedAtFormatted,
     ipAddress: ip,
+    splitByShift: contract.splitByShift,
     stampDataUrl,
     assignments: contract.assignments.map(a => {
       const baseRate = rateFor(a.order.requiredQualification, rates);
@@ -94,6 +95,16 @@ export async function signContractPublic({
         nightWindow
       );
 
+      let nationalityName = a.worker.nationality || "";
+      if (nationalityName.length === 2) {
+        try {
+          const regionNames = new Intl.DisplayNames(['de'], { type: 'region' });
+          nationalityName = regionNames.of(nationalityName.toUpperCase()) || nationalityName;
+        } catch (e) {
+          // fallback to the original if invalid code
+        }
+      }
+
       return {
         workerName: a.worker.fullName,
         qualification: qualLabel[a.order.requiredQualification] || a.order.requiredQualification,
@@ -102,7 +113,7 @@ export async function signContractPublic({
         endTime: a.order.endTime,
         socialSecurity: a.worker.socialSecurityNumber || "",
         birthDate: a.worker.birthDate ? format(a.worker.birthDate, "dd.MM.yyyy") : "",
-        nationality: a.worker.nationality || "",
+        nationality: nationalityName,
         hourlyRate: baseRate,
         totalAmount: amount
       };
