@@ -269,7 +269,7 @@ export async function candidatesForOrders(orderIds: string[]): Promise<{
   });
   if (orders.length === 0) return { shifts: [], candidates: [] };
 
-  const perOrder = [];
+  const perOrder: Candidate[][] = [];
   for (const o of orders) {
     perOrder.push(await candidatesForShift(o));
   }

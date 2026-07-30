@@ -61,7 +61,7 @@ export default async function AdminRequestDetail({
   });
   if (orders.length === 0) notFound();
 
-  const candidates = [];
+  const candidates: Awaited<ReturnType<typeof candidatesForShift>>[] = [];
   for (const o of orders) {
     candidates.push(
       await candidatesForShift({
