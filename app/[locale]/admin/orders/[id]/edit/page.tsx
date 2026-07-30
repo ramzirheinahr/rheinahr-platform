@@ -51,17 +51,18 @@ export default async function AdminEditRequestPage({
   });
   if (orders.length === 0) notFound();
 
-  const candidates = await Promise.all(
-    orders.map((o) =>
-      candidatesForShift({
+  const candidates = [];
+  for (const o of orders) {
+    candidates.push(
+      await candidatesForShift({
         id: o.id,
         shiftDate: o.shiftDate,
         startTime: o.startTime,
         endTime: o.endTime,
         requiredQualification: o.requiredQualification,
-      }),
-    ),
-  );
+      })
+    );
+  }
 
   const initial = {
     requestGroupId: id,

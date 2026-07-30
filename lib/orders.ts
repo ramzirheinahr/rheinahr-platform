@@ -269,7 +269,10 @@ export async function candidatesForOrders(orderIds: string[]): Promise<{
   });
   if (orders.length === 0) return { shifts: [], candidates: [] };
 
-  const perOrder = await Promise.all(orders.map((o) => candidatesForShift(o)));
+  const perOrder = [];
+  for (const o of orders) {
+    perOrder.push(await candidatesForShift(o));
+  }
 
   const map = new Map<string, BulkCandidate>();
   orders.forEach((o, i) => {
