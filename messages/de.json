@@ -531,7 +531,9 @@
       "seniorenheim": "Seniorenheim",
       "ambulant": "Ambulanter Pflegedienst",
       "tagespflege": "Tagespflege",
-      "kurzzeitpflege": "Kurzzeitpflege"
+      "kurzzeitpflege": "Kurzzeitpflege",
+      "Klinik": "Klinik",
+      "klinik": "Klinik"
     },
     "orderStatus": {
       "pending": "Eingereicht",

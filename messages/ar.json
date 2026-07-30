@@ -531,7 +531,9 @@
       "seniorenheim": "دار مسنّين",
       "ambulant": "خدمة رعاية منزلية",
       "tagespflege": "رعاية نهارية",
-      "kurzzeitpflege": "رعاية قصيرة الأمد"
+      "kurzzeitpflege": "رعاية قصيرة الأمد",
+      "Klinik": "عيادة/مستشفى",
+      "klinik": "عيادة/مستشفى"
     },
     "orderStatus": {
       "pending": "مُقدّم",

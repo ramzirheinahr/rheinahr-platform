@@ -531,7 +531,9 @@
       "seniorenheim": "Senior residence",
       "ambulant": "Outpatient care service",
       "tagespflege": "Day care",
-      "kurzzeitpflege": "Short-term care"
+      "kurzzeitpflege": "Short-term care",
+      "Klinik": "Clinic",
+      "klinik": "Clinic"
     },
     "orderStatus": {
       "pending": "Submitted",
