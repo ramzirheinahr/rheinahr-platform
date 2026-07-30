@@ -35,19 +35,19 @@ export type ContractPdfData = {
 };
 
 const styles = StyleSheet.create({
-  page: { padding: 48, fontSize: 10, color: "#1f2937", fontFamily: "Helvetica", lineHeight: 1.5 },
-  header: { fontSize: 18, fontFamily: "Helvetica-Bold", marginBottom: 24, textAlign: "center" },
-  h2: { fontSize: 12, fontFamily: "Helvetica-Bold", marginTop: 16, marginBottom: 8 },
-  paragraph: { marginBottom: 8, textAlign: "justify" },
+  page: { padding: 32, fontSize: 9, color: "#1f2937", fontFamily: "Helvetica", lineHeight: 1.3 },
+  header: { fontSize: 16, fontFamily: "Helvetica-Bold", marginBottom: 12, textAlign: "center" },
+  h2: { fontSize: 11, fontFamily: "Helvetica-Bold", marginTop: 12, marginBottom: 4 },
+  paragraph: { marginBottom: 4, textAlign: "justify" },
   bold: { fontFamily: "Helvetica-Bold" },
-  row: { flexDirection: "row", marginBottom: 4 },
-  label: { width: 120, fontFamily: "Helvetica-Bold" },
+  row: { flexDirection: "row", marginBottom: 2 },
+  label: { width: 110, fontFamily: "Helvetica-Bold" },
   value: { flex: 1 },
-  shiftBox: { padding: 8, borderWidth: 1, borderColor: "#e5e7eb", marginBottom: 8, borderRadius: 4 },
-  signatureCol: { width: 250 },
-  signatureLine: { borderTopWidth: 1, borderTopColor: "#9ca3af", paddingTop: 8 },
-  signatureImg: { height: 60, objectFit: "contain", marginBottom: 8 },
-  audit: { fontSize: 8, color: "#9ca3af", marginTop: 4 },
+  shiftBox: { padding: 6, borderWidth: 1, borderColor: "#e5e7eb", marginBottom: 4, borderRadius: 4 },
+  signatureCol: { width: 220 },
+  signatureLine: { borderTopWidth: 1, borderTopColor: "#9ca3af", paddingTop: 4 },
+  signatureImg: { height: 50, objectFit: "contain", marginBottom: 4 },
+  audit: { fontSize: 7, color: "#9ca3af", marginTop: 2 },
 });
 
 const ContractPage = ({ data }: { data: ContractPdfData }) => (
@@ -120,7 +120,7 @@ const ContractPage = ({ data }: { data: ContractPdfData }) => (
       Gemäß § 12 Absatz 1 Satz 1 AÜG bedarf dieser Vertrag der Schriftform. Anstelle der Schriftform darf auch die elektronische Form verwandt werden.
     </Text>
 
-    <View style={{ marginTop: 60, gap: 32 }}>
+    <View style={{ marginTop: 16, gap: 16 }}>
       {data.signedAt ? (
         <>
           <View>
@@ -144,20 +144,20 @@ const ContractPage = ({ data }: { data: ContractPdfData }) => (
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <View style={styles.signatureCol}>
             {data.stampDataUrl ? (
-              <Image src={data.stampDataUrl} style={{ width: 140, height: 60, objectFit: "contain", marginBottom: 5 }} />
+              <Image src={data.stampDataUrl} style={{ width: 120, height: 40, objectFit: "contain", marginBottom: 4 }} />
             ) : (
-              <View style={{ height: 65 }} />
+              <View style={{ height: 44 }} />
             )}
             <View style={styles.signatureLine}>
-              <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Personaldienstleister</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 4 }}>Personaldienstleister</Text>
               <Text>RheinAhr Dienstleistungen GmbH</Text>
             </View>
           </View>
           
           <View style={styles.signatureCol}>
-            <View style={{ height: 65 }} />
+            <View style={{ height: 44 }} />
             <View style={styles.signatureLine}>
-              <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Auftraggeber</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 4 }}>Auftraggeber</Text>
               <Text>{data.facilityName}</Text>
             </View>
           </View>
