@@ -60,6 +60,19 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
   const surcharges = resolveSurcharges(contract.client);
   const nightWindow = resolveNightWindow(contract.client);
 
+  let stampDataUrl: string | undefined = undefined;
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const stampPath = path.join(process.cwd(), "public", "stamp_signed.png");
+    if (fs.existsSync(stampPath)) {
+      const stampBuffer = fs.readFileSync(stampPath);
+      stampDataUrl = `data:image/png;base64,${stampBuffer.toString("base64")}`;
+    }
+  } catch (e) {
+    console.warn("Could not load stamp_signed.png", e);
+  }
+
   const pdfData = {
     facilityName: contract.client.facilityName,
     facilityAddress: contract.client.address || "Adresse unbekannt",
@@ -68,6 +81,7 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
     signatureData: contract.signatureData,
     signedAt: contract.signedAt ? format(contract.signedAt, "dd.MM.yyyy HH:mm") : undefined,
     ipAddress: contract.ipAddress,
+    stampDataUrl,
     assignments: contract.assignments.map(a => {
       const baseRate = rateFor(a.order.requiredQualification, rates);
       const amount = requestNetTotal(
@@ -91,6 +105,8 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
         startTime: a.order.startTime,
         endTime: a.order.endTime,
         socialSecurity: a.worker.socialSecurityNumber || "",
+        birthDate: a.worker.birthDate ? format(a.worker.birthDate, "dd.MM.yyyy") : "",
+        nationality: a.worker.nationality || "",
         hourlyRate: baseRate,
         totalAmount: amount
       };
