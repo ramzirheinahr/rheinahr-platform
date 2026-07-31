@@ -28,7 +28,7 @@ type Row = {
   requiredQualification: Qualification;
   status: OrderStatus;
   createdAt: Date;
-  createdBy: { fullName: string | null } | null;
+  createdBy: { fullName: string | null; email: string; role: string } | null;
   assignments: {
     contractId: string | null;
     invoiceId: string | null;
@@ -62,7 +62,7 @@ async function getOrders(): Promise<Row[]> {
         status: true,
         createdAt: true,
         createdBy: {
-          select: { fullName: true }
+          select: { fullName: true, email: true, role: true }
         },
         assignments: {
           select: {
@@ -145,7 +145,9 @@ export default async function AdminOrdersPage() {
       isFullyCompleted,
       timestamp: first.shiftDate.getTime(),
       createdAt: first.createdAt.getTime(),
-      creatorName: first.createdBy?.fullName || undefined,
+      creatorName: first.createdBy
+        ? (first.createdBy.fullName || first.createdBy.email)
+        : undefined,
     };
   });
 
