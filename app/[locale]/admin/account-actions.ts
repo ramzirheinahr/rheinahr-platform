@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { generateLoginToken, generatePin, roleUsesAccessLink } from "@/lib/access";
+import { generateLoginToken, roleUsesAccessLink } from "@/lib/access";
 import { resetPasswordSchema, updateEmailSchema } from "@/lib/validations";
 
 // Account-level actions (login credentials, access link, active flag) shared by
@@ -175,14 +175,12 @@ export async function generateAccessLink(id: string): Promise<AccessLinkState> {
   if (!roleUsesAccessLink(target.role)) return { ok: false, error: "forbidden" };
 
   const token = generateLoginToken();
-  const pin = generatePin();
-  const loginPinHash = await bcrypt.hash(pin, 12);
 
   await prisma.user.update({
     where: { id },
     data: {
       loginToken: token,
-      loginPinHash,
+      loginPinHash: null,
       loginPinAttempts: 0,
       loginPinLockUntil: null,
     },
@@ -195,7 +193,7 @@ export async function generateAccessLink(id: string): Promise<AccessLinkState> {
     entityId: id,
   });
 
-  return { ok: true, token, pin };
+  return { ok: true, token };
 }
 
 // Revoke the access link + PIN entirely (e.g. lost device). Email login remains.

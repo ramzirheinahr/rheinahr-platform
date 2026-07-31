@@ -3,7 +3,7 @@ import { redirect } from "@/i18n/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, portalPath } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
-import { PinLoginForm } from "@/components/auth/pin-login-form";
+import { TokenLoginButton } from "@/components/auth/token-login-button";
 import { PwaInstallHint } from "@/components/pwa-install-hint";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Logo } from "@/components/logo";
@@ -36,10 +36,10 @@ export default async function AccessPage({
   const account = await prisma.user
     .findUnique({
       where: { loginToken: token },
-      select: { active: true, loginPinHash: true, fullName: true },
+      select: { active: true, fullName: true },
     })
     .catch(() => null);
-  const valid = !!account && account.active && !!account.loginPinHash;
+  const valid = !!account && account.active;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-muted/30 p-6">
@@ -61,7 +61,7 @@ export default async function AccessPage({
               <CardDescription>{t("clickToLogin") || "Click the button below to securely sign in."}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              <PinLoginForm token={token} />
+              <TokenLoginButton token={token} />
               <PwaInstallHint />
             </CardContent>
           </>

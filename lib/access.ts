@@ -6,19 +6,13 @@ import { randomInt, randomBytes } from "crypto";
 // the user signs in on a device once; the persistent session then skips the PIN.
 // The link token alone is NOT a credential — it must be paired with the PIN.
 
-// Brute-force policy for the 6-digit PIN.
-export const PIN_MAX_ATTEMPTS = 5;
-export const PIN_LOCK_MINUTES = 15;
+// and the user signs in on a device once; the persistent session skips logins.
+// The link token is sufficient to access the platform.
 
 // URL-safe, unguessable slug for the shared /access/<token> link (~192 bits).
 export function generateLoginToken(): string {
   // Use hex instead of base64url so double-clicking to copy selects the entire token
   return randomBytes(16).toString("hex");
-}
-
-// Cryptographically-uniform 6-digit PIN (leading zeros allowed).
-export function generatePin(): string {
-  return String(randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
 // Only client & worker accounts use the passwordless link; admins keep email login.

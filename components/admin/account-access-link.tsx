@@ -12,9 +12,8 @@ import {
   revokeAccessLink,
 } from "@/app/[locale]/admin/account-actions";
 
-// Super-admin control to create/rotate/revoke a client's or worker's passwordless
-// access link + PIN. The PIN is shown ONCE right after generation (never stored
-// readable), so the admin must copy it now and share it with the user.
+// Super-admin control to create/revoke a client's or worker's passwordless
+// access link. The admin must copy it and share it with the user.
 export function AccountAccessLink({
   accountId,
   hasLink,
@@ -28,7 +27,7 @@ export function AccountAccessLink({
   const [pending, start] = useTransition();
   const [linkActive, setLinkActive] = useState(hasLink);
   // Freshly generated secrets, shown once until the page reloads.
-  const [secret, setSecret] = useState<{ url: string; pin: string } | null>(null);
+  const [secret, setSecret] = useState<{ url: string } | null>(null);
 
   function buildUrl(token: string): string {
     const origin =
@@ -48,8 +47,8 @@ export function AccountAccessLink({
   function onGenerate() {
     start(async () => {
       const res = await generateAccessLink(accountId);
-      if (res.ok && res.token && res.pin) {
-        setSecret({ url: buildUrl(res.token), pin: res.pin });
+      if (res.ok && res.token) {
+        setSecret({ url: buildUrl(res.token) });
         setLinkActive(true);
         toast.success(t("generated"));
       } else {
@@ -94,25 +93,6 @@ export function AccountAccessLink({
                 size="icon"
                 aria-label={t("copyLink")}
                 onClick={() => copy(secret.url, t("linkCopied"))}
-              >
-                <Copy className="size-4" />
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>{t("pinLabel")}</Label>
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                value={secret.pin}
-                className="max-w-[10rem] font-mono text-lg tracking-[0.4em]"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="icon"
-                aria-label={t("copyPin")}
-                onClick={() => copy(secret.pin, t("pinCopied"))}
               >
                 <Copy className="size-4" />
               </Button>
