@@ -31,6 +31,7 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
           startTime: true,
           endTime: true,
           breakMinutes: true,
+          clientId: true,
           client: { select: { facilityName: true, userId: true } },
         },
       },
@@ -40,10 +41,17 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const allowed =
-    roleSatisfies(user.role, ["admin"]) ||
-    a.order.client.userId === user.id ||
-    a.worker.userId === user.id;
+  let allowed = false;
+  if (roleSatisfies(user.role, ["admin"])) {
+    allowed = true;
+  } else if (a.worker.userId === user.id) {
+    allowed = true;
+  } else if (user.role === "client") {
+    const { resolveClientId } = await import("@/lib/auth");
+    const clientId = await resolveClientId(user as any);
+    if (a.order.clientId === clientId) allowed = true;
+  }
+
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
   // Optional live hours from the confirmation form; else the scheduled net hours.

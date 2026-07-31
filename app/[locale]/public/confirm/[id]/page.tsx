@@ -18,6 +18,7 @@ export default async function PublicConfirmPage(props: {
   const searchParams = await props.searchParams;
   const fromStr = typeof searchParams.from === "string" ? searchParams.from : undefined;
   const toStr = typeof searchParams.to === "string" ? searchParams.to : undefined;
+  const signerName = typeof searchParams.signerName === "string" ? searchParams.signerName : undefined;
   
   const dateFilter: any = {};
   if (fromStr) {
@@ -154,6 +155,7 @@ export default async function PublicConfirmPage(props: {
                       requestGroupId={id}
                       assignmentId={shift.assignmentId}
                       scheduledHours={hours}
+                      defaultSignerName={signerName}
                     />
                   </div>
                 </div>

@@ -30,12 +30,14 @@ export function ConfirmServiceDialog({
   scheduledStart,
   scheduledEnd,
   isAdmin = false,
+  defaultSignerName,
 }: {
   assignmentId: string;
   scheduledHours: number;
   scheduledStart?: string;
   scheduledEnd?: string;
   isAdmin?: boolean;
+  defaultSignerName?: string;
 }) {
   const t = useTranslations("confirmations");
   const c = useTranslations("common");
@@ -45,7 +47,7 @@ export function ConfirmServiceDialog({
 
   const [hours, setHours] = useState(scheduledHours);
   const [previewHours, setPreviewHours] = useState(scheduledHours); // committed → iframe
-  const [signerName, setSignerName] = useState("");
+  const [signerName, setSignerName] = useState(defaultSignerName ?? "");
   const [consent, setConsent] = useState(false);
 
   // Optional shift-time correction (goes to the office inbox for approval).
@@ -98,7 +100,7 @@ export function ConfirmServiceDialog({
   function onOpenChange(next: boolean) {
     setOpen(next);
     if (!next) {
-      setSignerName("");
+      setSignerName(defaultSignerName ?? "");
       setConsent(false);
       setAdjustOpen(false);
       setAdjStart(scheduledStart ?? "");

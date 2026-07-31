@@ -107,6 +107,7 @@ export function MasterScheduleGrid({
   facilities,
   unassigned,
   now,
+  defaultSignerName,
 }: {
   year: number;
   month: number;
@@ -117,6 +118,7 @@ export function MasterScheduleGrid({
   // Server request time (ms) — reference for the accepted → done color flip;
   // passed in so render stays pure.
   now: number;
+  defaultSignerName?: string;
 }) {
   const t = useTranslations("masterSchedule");
   const oqShift = useTranslations("orderRequest");
@@ -471,6 +473,7 @@ export function MasterScheduleGrid({
               cell={targetRow.days[target.day - 1]}
               facilities={facilities}
               locale={locale}
+              defaultSignerName={defaultSignerName}
               addLocalOperation={addLocalOperation}
             />
           ) : null}
@@ -1081,6 +1084,7 @@ function CellEditor({
   cell,
   facilities,
   locale,
+  defaultSignerName,
   addLocalOperation,
 }: {
   row: GridWorkerRow;
@@ -1088,6 +1092,7 @@ function CellEditor({
   cell: GridWorkerRow["days"][number];
   facilities: GridFacility[];
   locale: string;
+  defaultSignerName?: string;
   addLocalOperation: (op: GridOperation, updater: (draft: { rows: GridWorkerRow[]; unassigned: UnassignedShift[] }) => void) => void;
 }) {
   const t = useTranslations("masterSchedule");
@@ -1416,6 +1421,7 @@ function CellEditor({
                       scheduledStart={j.startTime}
                       scheduledEnd={j.endTime}
                       isAdmin={true}
+                      defaultSignerName={defaultSignerName}
                     />
                   </div>
                 ) : null}

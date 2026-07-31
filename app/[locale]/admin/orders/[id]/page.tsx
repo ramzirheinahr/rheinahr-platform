@@ -41,6 +41,8 @@ export default async function AdminRequestDetail({
     include: {
       client: {
         select: {
+          id: true,
+          userId: true,
           facilityName: true,
           address: true,
           surchargeSat: true,
@@ -61,6 +63,22 @@ export default async function AdminRequestDetail({
     },
   });
   if (orders.length === 0) notFound();
+
+  const clientOwner = await prisma.user.findUnique({
+    where: { id: orders[0].client.userId },
+    select: { id: true, fullName: true, email: true }
+  });
+  
+  const clientUsers = await prisma.user.findMany({
+    where: { clientId: orders[0].client.id },
+    select: { id: true, fullName: true, email: true }
+  });
+
+  const employees: { id: string, name: string }[] = [];
+  if (clientOwner) employees.push({ id: clientOwner.id, name: clientOwner.fullName || clientOwner.email });
+  for (const u of clientUsers) {
+    employees.push({ id: u.id, name: u.fullName || u.email });
+  }
 
   const candidates: Awaited<ReturnType<typeof candidatesForShift>>[] = [];
   for (const o of orders) {
@@ -244,6 +262,7 @@ export default async function AdminRequestDetail({
             type="confirm" 
             defaultStartDate={initial.shifts.map(s => s.date).sort()[0]}
             defaultEndDate={initial.shifts.map(s => s.date).sort().pop()}
+            employees={employees}
           />
           {isRequestCancelable(orders) ? (
             <CancelRequestButton requestGroupId={id} admin />

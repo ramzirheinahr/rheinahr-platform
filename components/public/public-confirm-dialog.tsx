@@ -20,14 +20,16 @@ export function PublicConfirmDialog({
   requestGroupId,
   assignmentId,
   scheduledHours,
+  defaultSignerName,
 }: {
   requestGroupId: string;
   assignmentId: string;
   scheduledHours: number;
+  defaultSignerName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [signerName, setSignerName] = useState("");
+  const [signerName, setSignerName] = useState(defaultSignerName ?? "");
   const [consent, setConsent] = useState(false);
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
 
@@ -76,7 +78,11 @@ export function PublicConfirmDialog({
       setOpen(val);
       if (!val) {
         // Reset state when closing so if opened again it starts fresh (though already confirmed ones will be removed from list)
-        setTimeout(() => setSignedPdfUrl(null), 300);
+        setTimeout(() => {
+          setSignedPdfUrl(null);
+          setSignerName(defaultSignerName ?? "");
+          setConsent(false);
+        }, 300);
       }
     }}>
       <DialogTrigger render={<Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" />}>

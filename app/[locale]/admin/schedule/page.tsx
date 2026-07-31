@@ -39,6 +39,9 @@ export default async function AdminMasterSchedulePage({
     ? (sp.qualification as Qualification)
     : "pflegefachkraft";
 
+  const { getCurrentUser } = await import("@/lib/auth");
+  const user = await getCurrentUser();
+
   const { rows, facilities, unassigned } = await getMasterSchedule(
     qualification,
     year,
@@ -128,6 +131,7 @@ export default async function AdminMasterSchedulePage({
           facilities={facilities}
           unassigned={unassigned}
           now={now.getTime()}
+          defaultSignerName={user?.fullName || undefined}
         />
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>

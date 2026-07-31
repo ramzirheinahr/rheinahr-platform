@@ -12,12 +12,14 @@ export async function sendPublicLinkEmail({
   contractId,
   startDate,
   endDate,
+  signerName,
 }: {
   requestGroupId: string;
   type: "contract" | "confirm";
   contractId?: string;
   startDate?: string;
   endDate?: string;
+  signerName?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
@@ -78,6 +80,9 @@ export async function sendPublicLinkEmail({
     if (endDate) {
       dateFilter.lte = new Date(`${endDate}T23:59:59.999Z`);
       queryParams.set("to", endDate);
+    }
+    if (signerName) {
+      queryParams.set("signerName", signerName);
     }
 
     const qs = queryParams.toString();

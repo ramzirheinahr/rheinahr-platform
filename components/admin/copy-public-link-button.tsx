@@ -16,24 +16,34 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { sendPublicLinkEmail } from "@/app/[locale]/admin/orders/[id]/link-actions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function CopyPublicLinkButton({ 
   requestGroupId, 
   type = "confirm",
   contractId,
   defaultStartDate,
-  defaultEndDate
+  defaultEndDate,
+  employees
 }: { 
   requestGroupId: string,
   type?: "confirm" | "contract",
   contractId?: string,
   defaultStartDate?: string,
-  defaultEndDate?: string
+  defaultEndDate?: string,
+  employees?: { id: string, name: string }[]
 }) {
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState(defaultStartDate || "");
   const [endDate, setEndDate] = useState(defaultEndDate || "");
+  const [selectedEmployeeName, setSelectedEmployeeName] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const handleCopy = async (e?: React.MouseEvent) => {
@@ -46,8 +56,13 @@ export function CopyPublicLinkButton({
       if (type === "contract" && contractId) {
         params.set("contractId", contractId);
       } else if (type === "confirm") {
+        if (!selectedEmployeeName && employees && employees.length > 0) {
+          toast.error("Bitte wählen Sie einen Mitarbeiter aus.");
+          return;
+        }
         if (startDate) params.set("from", startDate);
         if (endDate) params.set("to", endDate);
+        if (selectedEmployeeName) params.set("signerName", selectedEmployeeName);
       }
 
       const queryString = params.toString();
@@ -67,6 +82,10 @@ export function CopyPublicLinkButton({
 
   const handleEmail = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
+    if (type === "confirm" && !selectedEmployeeName && employees && employees.length > 0) {
+      toast.error("Bitte wählen Sie einen Mitarbeiter aus.");
+      return;
+    }
     startTransition(async () => {
       const res = await sendPublicLinkEmail({
         requestGroupId,
@@ -74,6 +93,7 @@ export function CopyPublicLinkButton({
         contractId,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
+        signerName: selectedEmployeeName || undefined,
       });
       if (res.ok) {
         toast.success("E-Mail wurde erfolgreich gesendet!");
@@ -134,6 +154,27 @@ export function CopyPublicLinkButton({
                 className="col-span-3"
               />
             </div>
+            {employees && employees.length > 0 && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="employee" className="text-right">
+                  Mitarbeiter
+                </Label>
+                <div className="col-span-3">
+                  <Select value={selectedEmployeeName} onValueChange={(v) => setSelectedEmployeeName(v || "")}>
+                    <SelectTrigger id="employee">
+                      <SelectValue placeholder="Mitarbeiter auswählen..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map(emp => (
+                        <SelectItem key={emp.id} value={emp.name}>
+                          {emp.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2 mt-2">
             <Button variant="outline" onClick={handleCopy} className="gap-2">

@@ -159,6 +159,7 @@ export default async function ClientRequestDetail({
       endTime: o.endTime,
       breakMinutes: o.breakMinutes,
       isPast,
+      defaultSignerName: user.fullName || undefined,
       scheduledHours,
       assignments: o.assignments.map((a) => ({
         id: a.id,

@@ -519,6 +519,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   }
   const data = parsed.data;
 
+  const clientId = isStaff ? null : await resolveClientId(user as any);
+
   // The assignment must belong to one of this client's orders, be worker-confirmed,
   // and not already have a service confirmation.
   const assignment = await prisma.assignment.findUnique({
@@ -532,6 +534,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
           shiftDate: true,
           startTime: true,
           endTime: true,
+          clientId: true,
           client: { select: { userId: true, facilityName: true } },
         },
       },
@@ -540,7 +543,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   });
   if (
     !assignment ||
-    (!isStaff && assignment.order.client.userId !== user.id) ||
+    (!isStaff && assignment.order.clientId !== clientId) ||
     assignment.status !== "confirmed"
   ) {
     return { ok: false, error: "forbidden" };

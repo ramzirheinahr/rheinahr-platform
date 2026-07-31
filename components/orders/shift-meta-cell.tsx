@@ -44,6 +44,7 @@ export type ShiftMeta = {
   endTime: string;
   breakMinutes?: number;
   isPast?: boolean;
+  defaultSignerName?: string;
   // Admin bulk-assign: this shift can still take workers (not cancelled/full) →
   // a multi-select checkbox is shown next to its chip.
   selectable?: boolean;
@@ -154,6 +155,7 @@ export function ShiftMetaCell({
                     scheduledHours={meta.scheduledHours ?? 0}
                     scheduledStart={scheduledStart}
                     scheduledEnd={scheduledEnd}
+                    defaultSignerName={meta.defaultSignerName}
                   />
                 )}
                 {a.hasConfirmation && a.correctionHours != null ? (
@@ -313,6 +315,7 @@ export function ShiftMetaCell({
                           scheduledStart={scheduledStart}
                           scheduledEnd={scheduledEnd}
                           isAdmin={assignable}
+                          defaultSignerName={meta.defaultSignerName}
                         />
                       )}
                       {/* Signed shift → admin may propose an hours correction
