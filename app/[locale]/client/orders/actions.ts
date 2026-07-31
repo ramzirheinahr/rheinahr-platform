@@ -135,6 +135,7 @@ export async function updateOrderRequest(
               quantity: s.quantity,
               notes: s.notes,
               status: "pending" as const,
+              createdById: user.id,
             })),
           }),
         ]
@@ -365,6 +366,7 @@ export async function createOrderRequest(
       quantity: s.quantity,
       notes: s.bereich ?? notes ?? null, // per-shift Wohnbereich, else request note
       status: "pending" as const,
+      createdById: user.id,
     })),
   });
 

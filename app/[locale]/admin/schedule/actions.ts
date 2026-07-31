@@ -357,6 +357,7 @@ export async function createOpenOrderFromGrid(input: {
       quantity: quantity ?? 1,
       notes: ward || null,
       status: "pending",
+      createdById: admin.id,
     },
   });
 

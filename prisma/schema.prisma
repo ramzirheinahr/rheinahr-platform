@@ -153,16 +153,16 @@ model User {
   loginPinAttempts  Int       @default(0) @map("login_pin_attempts") // brute-force counter
   loginPinLockUntil DateTime? @map("login_pin_lock_until") // temporary lockout after failures
   createdById       String?   @map("created_by") // which admin provisioned this account
-  
-  permissions       String[]  @default([]) // RBAC for admins
-  jobTitle          String?   @map("job_title") // for client sub-users
-  clientId          String?   @map("client_id") // links sub-user to a client facility
 
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  permissions String[] @default([]) // RBAC for admins
+  jobTitle    String?  @map("job_title") // for client sub-users
+  clientId    String?  @map("client_id") // links sub-user to a client facility
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   worker               Worker?
-  client               Client? @relation("ClientPrimaryUser")
+  client               Client?                   @relation("ClientPrimaryUser")
   notifications        Notification[]
   serviceConfirmations ServiceConfirmation[]
   sentMessages         Message[]
@@ -173,8 +173,9 @@ model User {
 
   clientFacility Client? @relation("FacilityUsers", fields: [clientId], references: [id], onDelete: Cascade)
 
-  createdBy    User?  @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdUsers User[] @relation("UserCreatedBy")
+  createdBy     User?   @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers  User[]  @relation("UserCreatedBy")
+  createdOrders Order[] @relation("OrderCreatedBy")
 
   @@map("users")
 }
@@ -198,34 +199,34 @@ model PushSubscription {
 }
 
 model Worker {
-  id                   String        @id @default(uuid())
-  userId               String        @unique @map("user_id")
-  internalNumber       String?       @map("internal_number")
-  fullName             String        @map("full_name")
+  id                   String       @id @default(uuid())
+  userId               String       @unique @map("user_id")
+  internalNumber       String?      @map("internal_number")
+  fullName             String       @map("full_name")
   qualification        String
-  certifications       String[]      @default([])
-  contractType         ContractType  @map("contract_type")
-  requiredHours        Float         @default(151.67) @map("required_hours")
+  certifications       String[]     @default([])
+  contractType         ContractType @map("contract_type")
+  requiredHours        Float        @default(151.67) @map("required_hours")
   // Signed hours-account balance carried from earlier months/years (Arbeitszeit-
   // konto): positive = hours the worker still owes (deficit), negative = surplus
   // worked ahead (credit). Added to this month's required to get the total soll.
-  carryoverHours       Float         @default(0) @map("carryover_hours")
+  carryoverHours       Float        @default(0) @map("carryover_hours")
   phone                String?
   address              String?
   // Languages spoken by the worker as ISO 639-1 codes (any world language).
   // Decoupled from the UI-locale enum (User.preferredLanguage stays de/en/ar).
-  languages            String[]      @default([])
+  languages            String[]     @default([])
   // Personal / HR data (sensitive PII — admin-only, never exposed to clients).
-  birthDate            DateTime?     @map("birth_date") @db.Date
-  birthPlace           String?       @map("birth_place")
+  birthDate            DateTime?    @map("birth_date") @db.Date
+  birthPlace           String?      @map("birth_place")
   nationality          String? // ISO 3166-1 alpha-2 country code
-  socialSecurityNumber String?       @map("social_security_number") // Sozialversicherungsnummer
+  socialSecurityNumber String?      @map("social_security_number") // Sozialversicherungsnummer
   // Professional profile (may be shown to clients).
-  photoPath            String?       @map("photo_path") // Storage path in the worker-files bucket
+  photoPath            String?      @map("photo_path") // Storage path in the worker-files bucket
   bio                  String? // Kurzprofil shown to clients
-  skills               String[]      @default([]) // specializations (Demenz, Palliativ, …)
-  yearsExperience      Int?          @map("years_experience")
-  employedSince        DateTime?     @map("employed_since") @db.Date
+  skills               String[]     @default([]) // specializations (Demenz, Palliativ, …)
+  yearsExperience      Int?         @map("years_experience")
+  employedSince        DateTime?    @map("employed_since") @db.Date
 
   // Financial & Allowances
   travelAllowanceEnabled Boolean @default(false) @map("travel_allowance_enabled")
@@ -305,65 +306,67 @@ model WorkerAvailability {
 }
 
 model Client {
-  id                         String       @id @default(uuid())
-  userId                     String       @unique @map("user_id")
-  internalNumber             String?      @map("internal_number")
-  facilityName               String       @map("facility_name")
+  id                         String    @id @default(uuid())
+  userId                     String    @unique @map("user_id")
+  internalNumber             String?   @map("internal_number")
+  facilityName               String    @map("facility_name")
   // Dienstplan-Kürzel: the 2–3 letter facility code used on the master
   // schedule grid (e.g. "WB" = Limbachstift Wachtberg). Admin-assigned.
-  shortCode                  String?      @unique @map("short_code")
-  facilityType               String       @map("facility_type")
+  shortCode                  String?   @unique @map("short_code")
+  facilityType               String    @map("facility_type")
   address                    String?
-  frameworkAgreementUrl      String?      @map("framework_agreement_url")
-  frameworkAgreementSignedAt DateTime?    @map("framework_agreement_signed_at")
-  contactPerson              String?      @map("contact_person")
-  billingInfo                String?      @map("billing_info")
-  paymentTermsDays           Int          @default(14) @map("payment_terms_days")
+  frameworkAgreementUrl      String?   @map("framework_agreement_url")
+  frameworkAgreementSignedAt DateTime? @map("framework_agreement_signed_at")
+  contactPerson              String?   @map("contact_person")
+  billingInfo                String?   @map("billing_info")
+  paymentTermsDays           Int       @default(14) @map("payment_terms_days")
   // Per-client billing surcharges (fractions, e.g. 0.25 = +25 %). Null falls
   // back to the platform default in lib/pricing.ts.
-  surchargeSat               Float?       @map("surcharge_sat")
-  surchargeSun               Float?       @map("surcharge_sun")
-  surchargeHoliday           Float?       @map("surcharge_holiday")
+  surchargeSat               Float?    @map("surcharge_sat")
+  surchargeSun               Float?    @map("surcharge_sun")
+  surchargeHoliday           Float?    @map("surcharge_holiday")
   // Night surcharge (fraction, default +25 %) applied to hours inside the night
   // window below. Null falls back to the platform default in lib/pricing.ts.
-  surchargeNight             Float?       @map("surcharge_night")
+  surchargeNight             Float?    @map("surcharge_night")
   // Night window as HH:mm (overnight-aware, e.g. 20:00–06:00). Null = default.
-  nightStart                 String?      @map("night_start")
-  nightEnd                   String?      @map("night_end")
+  nightStart                 String?   @map("night_start")
+  nightEnd                   String?   @map("night_end")
   // Per-client hourly rates (EUR netto) keyed by qualification, e.g.
   // { "pflegefachkraft": 54.9 }. Only overridden qualifications are stored;
   // missing keys fall back to HOURLY_RATES in lib/pricing.ts.
-  hourlyRates                Json?        @map("hourly_rates")
-  createdAt                  DateTime     @default(now()) @map("created_at")
-  updatedAt                  DateTime     @updatedAt @map("updated_at")
+  hourlyRates                Json?     @map("hourly_rates")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
 
-  user      User             @relation("ClientPrimaryUser", fields: [userId], references: [id], onDelete: Cascade)
-  subUsers  User[]           @relation("FacilityUsers")
-  orders    Order[]
-  contracts ClientContract[]
-  invoices  Invoice[]
+  user         User             @relation("ClientPrimaryUser", fields: [userId], references: [id], onDelete: Cascade)
+  subUsers     User[]           @relation("FacilityUsers")
+  orders       Order[]
+  contracts    ClientContract[]
+  invoices     Invoice[]
   appointments Appointment[]
 
   @@map("clients")
 }
 
 model Order {
-  id                    String        @id @default(uuid())
-  clientId              String        @map("client_id")
-  requestGroupId        String?       @map("request_group_id") // groups shifts submitted together
-  requiredQualification String @map("required_qualification")
-  shiftDate             DateTime      @map("shift_date") @db.Date
-  startTime             String        @map("start_time") // "HH:mm"
-  endTime               String        @map("end_time") // "HH:mm"
-  breakMinutes          Int           @default(30) @map("break_minutes") // unpaid break, subtracted from billable hours
-  quantity              Int           @default(1)
-  status                OrderStatus   @default(pending)
+  id                    String      @id @default(uuid())
+  clientId              String      @map("client_id")
+  requestGroupId        String?     @map("request_group_id") // groups shifts submitted together
+  requiredQualification String      @map("required_qualification")
+  shiftDate             DateTime    @map("shift_date") @db.Date
+  startTime             String      @map("start_time") // "HH:mm"
+  endTime               String      @map("end_time") // "HH:mm"
+  breakMinutes          Int         @default(30) @map("break_minutes") // unpaid break, subtracted from billable hours
+  quantity              Int         @default(1)
+  status                OrderStatus @default(pending)
   notes                 String?
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+  createdById           String?     @map("created_by")
 
   client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   assignments Assignment[]
+  createdBy   User?        @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([shiftDate])
@@ -372,20 +375,20 @@ model Order {
 }
 
 model Assignment {
-  id                String           @id @default(uuid())
-  orderId           String           @map("order_id")
-  workerId          String           @map("worker_id")
-  contractId        String?          @map("contract_id")
-  invoiceId         String?          @map("invoice_id")
-  status            AssignmentStatus @default(pending)
-  assignedAt        DateTime         @default(now()) @map("assigned_at")
-  confirmedAt       DateTime?        @map("confirmed_at")
+  id                     String           @id @default(uuid())
+  orderId                String           @map("order_id")
+  workerId               String           @map("worker_id")
+  contractId             String?          @map("contract_id")
+  invoiceId              String?          @map("invoice_id")
+  status                 AssignmentStatus @default(pending)
+  assignedAt             DateTime         @default(now()) @map("assigned_at")
+  confirmedAt            DateTime?        @map("confirmed_at")
   // Worker-initiated cancellation request: the worker asks the office to be
   // taken off this shift (with a note). Admin approves (→ assignment released,
   // order back to pending/grey) or rejects (→ flags cleared).
-  cancelRequested   Boolean          @default(false) @map("cancel_requested")
-  cancelNote        String?          @map("cancel_note")
-  cancelRequestedAt DateTime?        @map("cancel_requested_at")
+  cancelRequested        Boolean          @default(false) @map("cancel_requested")
+  cancelNote             String?          @map("cancel_note")
+  cancelRequestedAt      DateTime?        @map("cancel_requested_at")
   // Exceptionally add meal allowance to this assignment even if the worker
   // does not globally receive meal allowances.
   addMealAllowance       Boolean          @default(false) @map("add_meal_allowance")

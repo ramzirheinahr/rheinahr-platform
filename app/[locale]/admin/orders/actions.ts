@@ -69,6 +69,7 @@ export async function createOrderRequestForClient(
       quantity: s.quantity,
       notes: s.bereich ?? notes ?? null,
       status: "pending" as const,
+      createdById: admin.id,
     })),
   });
 
@@ -215,6 +216,7 @@ export async function updateOrderRequestAsAdmin(
                 quantity: s.quantity,
                 notes: s.notes,
                 status: "pending" as const,
+                createdById: admin.id,
               })),
             }),
           ]

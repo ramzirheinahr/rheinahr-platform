@@ -20,6 +20,8 @@ export type OrderGroupSummary = {
   cancelled: boolean;
   isFullyCompleted?: boolean;
   timestamp?: number;
+  createdAt?: number;
+  creatorName?: string;
 };
 
 function normalize(s: string): string {
@@ -99,8 +101,8 @@ export function OrdersList({
     }
 
     return result.sort((a, b) => {
-      const ta = a.timestamp ?? 0;
-      const tb = b.timestamp ?? 0;
+      const ta = a.createdAt ?? a.timestamp ?? 0;
+      const tb = b.createdAt ?? b.timestamp ?? 0;
       switch (sortBy) {
         case "date_asc": return ta - tb;
         case "date_desc": return tb - ta;
@@ -262,6 +264,12 @@ export function OrdersList({
                 <div className="text-sm text-muted-foreground">
                   {g.range} · {g.shiftsCount} {t("shiftsCount")} · {g.netLabel} {t("net")}
                 </div>
+                {g.createdAt && (
+                  <div className="text-xs text-muted-foreground/80 mt-1">
+                    Eingegangen {new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.createdAt))} ({new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(g.createdAt))})
+                    {g.creatorName && ` · von ${g.creatorName}`}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <OrderStatusBadge status={g.status} />
