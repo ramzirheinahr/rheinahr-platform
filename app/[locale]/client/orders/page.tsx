@@ -31,8 +31,6 @@ type Row = {
   quantity: number;
   requiredQualification: Qualification;
   status: OrderStatus;
-  createdAt: Date;
-  createdBy: { fullName: string | null; email: string; role: string } | null;
 };
 
 async function getOrders(): Promise<{
@@ -82,10 +80,6 @@ async function getOrders(): Promise<{
         quantity: true,
         requiredQualification: true,
         status: true,
-        createdAt: true,
-        createdBy: {
-          select: { fullName: true, email: true, role: true }
-        },
       },
     });
     return {
@@ -141,10 +135,6 @@ export default async function ClientOrdersPage() {
       status: first.status,
       qualification: first.requiredQualification,
       cancelled: g.shifts.every((s) => s.status === "cancelled"),
-      createdAt: first.createdAt.getTime(),
-      creatorName: first.createdBy
-        ? (first.createdBy.fullName || first.createdBy.email)
-        : undefined,
     };
   });
 
