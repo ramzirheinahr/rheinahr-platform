@@ -27,6 +27,7 @@ function resolveRateOverrides(
 }
 
 import { SubUsersSection } from "@/app/[locale]/client/settings/sub-users-section";
+import { ActiveSessionsSection } from "@/components/admin/active-sessions-section";
 
 export default async function EditClientPage({
   params,
@@ -42,8 +43,8 @@ export default async function EditClientPage({
     .findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true, fullName: true, jobTitle: true } },
-        subUsers: { select: { id: true, email: true, fullName: true, jobTitle: true, active: true } }
+        user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true, fullName: true, jobTitle: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } },
+        subUsers: { select: { id: true, email: true, fullName: true, jobTitle: true, active: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } }
       },
     })
     .catch(() => null);
@@ -139,6 +140,28 @@ export default async function EditClientPage({
             ]}
             isMainUser={true}
             clientId={client.id}
+          />
+        </div>
+      )}
+
+      {/* Active Sessions Management */}
+      {actor?.role === "super_admin" && (
+        <div className="pt-4 border-t">
+          <ActiveSessionsSection
+            users={[
+              {
+                id: client.user.id,
+                email: client.user.email,
+                fullName: client.user.fullName,
+                sessions: client.user.sessions,
+              },
+              ...client.subUsers.map((u) => ({
+                id: u.id,
+                email: u.email,
+                fullName: u.fullName,
+                sessions: u.sessions,
+              })),
+            ]}
           />
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { logoutUser } from "@/app/[locale]/login/actions";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
@@ -11,8 +11,7 @@ export function LogoutButton() {
   const router = useRouter();
 
   async function logout() {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
+    await logoutUser();
     router.push("/login");
     router.refresh();
   }

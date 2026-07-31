@@ -13,7 +13,10 @@ async function getClients() {
     return await prisma.client.findMany({
       // Alphabetical by facility name so the list reads like a directory.
       orderBy: { facilityName: "asc" },
-      include: { user: { select: { email: true } } },
+      include: { 
+        user: { select: { email: true, _count: { select: { sessions: true } } } },
+        subUsers: { select: { _count: { select: { sessions: true } } } },
+      },
     });
   } catch {
     return [];
@@ -35,6 +38,7 @@ export default async function ClientsPage() {
     contactPerson: cl.contactPerson || c("none"),
     email: cl.user.email,
     shortCode: cl.shortCode ?? "",
+    activeSessionsCount: cl.user._count.sessions + cl.subUsers.reduce((sum, u) => sum + u._count.sessions, 0),
   }));
 
   return (

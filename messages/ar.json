@@ -27,7 +27,13 @@
     "expandMenu": "توسيع القائمة",
     "collapseMenu": "طي القائمة",
     "undo": "تراجع",
-    "redo": "إعادة"
+    "redo": "إعادة",
+    "activeSessionsTitle": "الجلسات النشطة",
+    "activeSessionsDesc": "الأجهزة والمتصفحات المسجلة في هذا الحساب.",
+    "confirmRevokeSession": "هل أنت متأكد من رغبتك في طرد هذه الجلسة؟",
+    "sessionRevoked": "تم طرد الجلسة بنجاح.",
+    "revokeSession": "طرد الجلسة",
+    "lastActive": "آخر نشاط"
   },
   "landing": {
     "nav": {
@@ -240,7 +246,13 @@
     "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = رصيد فائض يُخصم من مطلوب هذا الشهر، سالب = عجز يُضاف إليه.",
     "contractSection": "بيانات العقد",
     "searchPlaceholder": "ابحث عن كادر…",
-    "noSearchMatch": "لا توجد نتائج."
+    "noSearchMatch": "لا توجد نتائج.",
+    "activeSessionsTitle": "الجلسات النشطة",
+    "activeSessionsDesc": "الأجهزة والمتصفحات المسجلة في هذا الحساب.",
+    "confirmRevokeSession": "هل أنت متأكد من رغبتك في طرد هذه الجلسة؟",
+    "sessionRevoked": "تم طرد الجلسة بنجاح.",
+    "revokeSession": "طرد الجلسة",
+    "lastActive": "آخر نشاط"
   },
   "clients": {
     "title": "المنشآت",
@@ -276,7 +288,13 @@
     "nightEnd": "الليل إلى",
     "nightWindowHint": "الفترة الزمنية للبدل الليلي (افتراضياً 20:00–06:00). تُحتسب الساعات ضمن هذه الفترة بالبدل الليلي.",
     "searchPlaceholder": "ابحث عن مؤسسة…",
-    "noSearchMatch": "لا توجد نتائج."
+    "noSearchMatch": "لا توجد نتائج.",
+    "activeSessionsTitle": "الجلسات النشطة",
+    "activeSessionsDesc": "الأجهزة والمتصفحات المسجلة في هذا الحساب.",
+    "confirmRevokeSession": "هل أنت متأكد من رغبتك في طرد هذه الجلسة؟",
+    "sessionRevoked": "تم طرد الجلسة بنجاح.",
+    "revokeSession": "طرد الجلسة",
+    "lastActive": "آخر نشاط"
   },
   "orders": {
     "sortDateDesc": "التاريخ (الأحدث أولاً)",

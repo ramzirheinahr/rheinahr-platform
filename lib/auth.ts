@@ -3,6 +3,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import type { Locale } from "@/i18n/routing";
+import { cookies } from "next/headers";
+
 
 export type SessionUser = {
   id: string;
@@ -33,37 +35,45 @@ export function hasPermission(user: SessionUser, permission: string): boolean {
   return user.permissions?.includes(permission) ?? false;
 }
 
-// Resolves the authenticated user from the Supabase session, then loads the
+// Resolves the authenticated user from the custom session cookie, then loads the
 // app-level role from our own DB (source of truth for RBAC — never trust client).
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const supabase = await createSupabaseServerClient();
-  let user;
+  const cookieStore = await cookies();
+  const token = cookieStore.get("app_session")?.value;
+  if (!token) return null;
+
   try {
-    const res = await supabase.auth.getUser();
-    user = res.data.user;
-  } catch (err: any) {
-    if (err?.code === "refresh_token_not_found" || err?.__isAuthError) {
-      return null;
-    }
+    const session = await prisma.userSession.findUnique({
+      where: { token },
+      include: {
+        user: {
+          select: { id: true, email: true, role: true, fullName: true, active: true, permissions: true, clientId: true },
+        }
+      }
+    });
+
+    if (!session || !session.user.active) return null; // disabled accounts or invalid session
+
+    // Update lastActive timestamp without awaiting it to avoid blocking
+    prisma.userSession.update({
+      where: { id: session.id },
+      data: { lastActive: new Date() }
+    }).catch(console.error);
+
+    return {
+      id: session.user.id,
+      email: session.user.email,
+      role: session.user.role,
+      fullName: session.user.fullName,
+      permissions: session.user.permissions,
+      clientId: session.user.clientId,
+    };
+  } catch (err) {
     console.error("Auth error:", err);
     return null;
   }
-  if (!user?.email) return null;
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { id: true, email: true, role: true, fullName: true, active: true, permissions: true, clientId: true },
-  });
-  if (!dbUser || !dbUser.active) return null; // disabled accounts are denied
-  return {
-    id: dbUser.id,
-    email: dbUser.email,
-    role: dbUser.role,
-    fullName: dbUser.fullName,
-    permissions: dbUser.permissions,
-    clientId: dbUser.clientId,
-  };
 }
+
 
 // Guard for server components / route handlers in role-scoped route groups.
 // Redirects to login if unauthenticated, or to the user's own portal if the

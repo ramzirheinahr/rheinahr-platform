@@ -19,6 +19,7 @@ export type WorkerTableRow = {
   qualificationLabel: string;
   contractLabel: string;
   phone: string;
+  activeSessionsCount: number;
 };
 
 function normalize(s: string): string {
@@ -91,6 +92,14 @@ export function WorkersTable({
     { id: "internalNumber", header: "Int. Nummer", sortable: true, cell: (w) => w.internalNumber || "—" },
     { id: "fullName", header: t("fullName"), sortable: true, primary: true, cell: (w) => w.fullName },
     { header: t("email"), cell: (w) => w.email },
+    { 
+      header: t("activeSessionsTitle") || "Sessions", 
+      cell: (w) => (
+        <Badge variant={w.activeSessionsCount > 0 ? "default" : "outline"} className={w.activeSessionsCount > 0 ? "bg-green-600 hover:bg-green-700" : "text-muted-foreground"}>
+          {w.activeSessionsCount}
+        </Badge>
+      )
+    },
     ...(showQualColumn
       ? [
           {

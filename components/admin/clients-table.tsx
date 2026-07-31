@@ -17,6 +17,7 @@ export type ClientTableRow = {
   contactPerson: string;
   email: string;
   shortCode: string;
+  activeSessionsCount: number;
 };
 
 function normalize(s: string): string {
@@ -87,6 +88,14 @@ export function ClientsTable({ rows }: { rows: ClientTableRow[] }) {
     },
     { header: t("contactPerson"), cell: (cl) => cl.contactPerson },
     { header: t("email"), cell: (cl) => cl.email },
+    { 
+      header: t("activeSessionsTitle"), 
+      cell: (cl) => (
+        <Badge variant={cl.activeSessionsCount > 0 ? "default" : "outline"} className={cl.activeSessionsCount > 0 ? "bg-green-600 hover:bg-green-700" : "text-muted-foreground"}>
+          {cl.activeSessionsCount}
+        </Badge>
+      )
+    },
     {
       header: c("actions"),
       className: "text-end",

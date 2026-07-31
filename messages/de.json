@@ -27,7 +27,13 @@
     "expandMenu": "Menü einblenden",
     "collapseMenu": "Menü einklappen",
     "undo": "Rückgängig",
-    "redo": "Wiederholen"
+    "redo": "Wiederholen",
+    "activeSessionsTitle": "Aktive Sitzungen",
+    "activeSessionsDesc": "Angemeldete Geräte und Browser für dieses Konto.",
+    "confirmRevokeSession": "Möchten Sie diese Sitzung wirklich abmelden?",
+    "sessionRevoked": "Sitzung erfolgreich abgemeldet.",
+    "revokeSession": "Sitzung beenden",
+    "lastActive": "Zuletzt aktiv"
   },
   "landing": {
     "nav": {
@@ -240,7 +246,13 @@
     "carryoverHoursHint": "Stundensaldo aus Vormonaten: positiv = Guthaben (senkt das Monatssoll), negativ = Fehlstunden.",
     "contractSection": "Vertragsdaten",
     "searchPlaceholder": "Pflegekraft suchen…",
-    "noSearchMatch": "Keine Treffer."
+    "noSearchMatch": "Keine Treffer.",
+    "activeSessionsTitle": "Aktive Sitzungen",
+    "activeSessionsDesc": "Angemeldete Geräte und Browser für dieses Konto.",
+    "confirmRevokeSession": "Möchten Sie diese Sitzung wirklich abmelden?",
+    "sessionRevoked": "Sitzung erfolgreich abgemeldet.",
+    "revokeSession": "Sitzung beenden",
+    "lastActive": "Zuletzt aktiv"
   },
   "clients": {
     "title": "Einrichtungen",
@@ -276,7 +288,13 @@
     "nightEnd": "Nacht bis",
     "nightWindowHint": "Zeitfenster für den Nachtzuschlag (Standard 20:00–06:00). Stunden in diesem Fenster werden mit dem Nachtzuschlag berechnet.",
     "searchPlaceholder": "Einrichtung suchen…",
-    "noSearchMatch": "Keine Treffer."
+    "noSearchMatch": "Keine Treffer.",
+    "activeSessionsTitle": "Aktive Sitzungen",
+    "activeSessionsDesc": "Angemeldete Geräte und Browser für dieses Konto.",
+    "confirmRevokeSession": "Möchten Sie diese Sitzung wirklich abmelden?",
+    "sessionRevoked": "Sitzung erfolgreich abgemeldet.",
+    "revokeSession": "Sitzung beenden",
+    "lastActive": "Zuletzt aktiv"
   },
   "orders": {
     "sortDateDesc": "Datum (Neueste zuerst)",

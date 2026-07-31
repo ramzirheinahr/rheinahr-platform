@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { loginUser } from "@/app/[locale]/login/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,17 +22,16 @@ export function LoginForm() {
     const email = String(form.get("email"));
     const password = String(form.get("password"));
 
-    const supabase = createSupabaseBrowserClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const result = await loginUser(email, password);
     setLoading(false);
 
-    if (error) {
-      toast.error(t("invalidCredentials"));
+    if (!result.ok) {
+      toast.error(t(result.error || "invalidCredentials"));
       return;
     }
     // Route to the portal by role (server guards self-correct any mismatch).
     // Fall back to /dashboard, which resolves the role server-side.
-    const role = data.user?.user_metadata?.role as string | undefined;
+    const role = result.role as string | undefined;
     const dest =
       role === "client"
         ? "/client"

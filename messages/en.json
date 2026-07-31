@@ -27,7 +27,13 @@
     "expandMenu": "Expand menu",
     "collapseMenu": "Collapse menu",
     "undo": "Undo",
-    "redo": "Redo"
+    "redo": "Redo",
+    "activeSessionsTitle": "Active Sessions",
+    "activeSessionsDesc": "Logged-in devices and browsers for this account.",
+    "confirmRevokeSession": "Are you sure you want to revoke this session?",
+    "sessionRevoked": "Session successfully revoked.",
+    "revokeSession": "Revoke Session",
+    "lastActive": "Last Active"
   },
   "landing": {
     "nav": {
@@ -240,7 +246,13 @@
     "carryoverHoursHint": "Hours balance from previous months: positive = credit (reduces this month's target), negative = deficit.",
     "contractSection": "Contract data",
     "searchPlaceholder": "Search staff…",
-    "noSearchMatch": "No matches."
+    "noSearchMatch": "No matches.",
+    "activeSessionsTitle": "Active Sessions",
+    "activeSessionsDesc": "Logged-in devices and browsers for this account.",
+    "confirmRevokeSession": "Are you sure you want to revoke this session?",
+    "sessionRevoked": "Session successfully revoked.",
+    "revokeSession": "Revoke Session",
+    "lastActive": "Last Active"
   },
   "clients": {
     "title": "Facilities",
@@ -276,7 +288,13 @@
     "nightEnd": "Night to",
     "nightWindowHint": "Time window for the night surcharge (default 20:00–06:00). Hours within this window are billed with the night surcharge.",
     "searchPlaceholder": "Search facility…",
-    "noSearchMatch": "No matches."
+    "noSearchMatch": "No matches.",
+    "activeSessionsTitle": "Active Sessions",
+    "activeSessionsDesc": "Logged-in devices and browsers for this account.",
+    "confirmRevokeSession": "Are you sure you want to revoke this session?",
+    "sessionRevoked": "Session successfully revoked.",
+    "revokeSession": "Revoke Session",
+    "lastActive": "Last Active"
   },
   "orders": {
     "sortDateDesc": "Date (Newest first)",

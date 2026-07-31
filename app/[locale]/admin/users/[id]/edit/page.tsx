@@ -4,6 +4,7 @@ import { UserForm } from "../../user-form";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { prisma } from "@/lib/prisma";
+import { ActiveSessionsSection } from "@/components/admin/active-sessions-section";
 import { notFound } from "next/navigation";
 
 export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +16,7 @@ export default async function EditUserPage({ params }: { params: Promise<{ id: s
 
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, email: true, fullName: true, active: true, permissions: true, role: true },
+    select: { id: true, email: true, fullName: true, active: true, permissions: true, role: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } },
   });
 
   if (!user || user.role !== "admin") {
@@ -34,6 +35,19 @@ export default async function EditUserPage({ params }: { params: Promise<{ id: s
         <h1 className="text-2xl font-semibold">{t("edit")}</h1>
       </div>
       <UserForm user={{ ...user, fullName: user.fullName }} />
+
+      <div className="pt-6 mt-6 border-t border-border">
+        <ActiveSessionsSection
+          users={[
+            {
+              id: user.id,
+              email: user.email,
+              fullName: user.fullName,
+              sessions: user.sessions,
+            },
+          ]}
+        />
+      </div>
     </div>
   );
 }

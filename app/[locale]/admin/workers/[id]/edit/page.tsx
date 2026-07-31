@@ -9,6 +9,7 @@ import { WorkerPhoto } from "@/components/admin/worker-photo";
 import { WorkerDocuments } from "@/components/admin/worker-documents";
 import { ArbeitsvertragSection } from "@/components/admin/arbeitsvertrag-section";
 import { AccountSection } from "@/components/admin/account-section";
+import { ActiveSessionsSection } from "@/components/admin/active-sessions-section";
 import { DeleteWorkerButton } from "@/components/admin/delete-worker-button";
 import { ArrowLeft, Eye } from "lucide-react";
 import { qualifications } from "@/lib/validations";
@@ -32,7 +33,7 @@ export default async function EditWorkerPage({
     .findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true } },
+        user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true, fullName: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } },
         documents: { orderBy: { uploadedAt: "desc" } },
       },
     })
@@ -150,12 +151,24 @@ export default async function EditWorkerPage({
 
       {/* Login account management (password, access link, active) — super_admin only. */}
       {actor?.role === "super_admin" && (
-        <AccountSection
-          userId={worker.user.id}
-          email={worker.user.email}
-          active={worker.user.active}
-          hasLink={!!worker.user.loginToken}
-        />
+        <div className="space-y-8">
+          <AccountSection
+            userId={worker.user.id}
+            email={worker.user.email}
+            active={worker.user.active}
+            hasLink={!!worker.user.loginToken}
+          />
+          <ActiveSessionsSection
+            users={[
+              {
+                id: worker.user.id,
+                email: worker.user.email,
+                fullName: worker.user.fullName,
+                sessions: worker.user.sessions,
+              },
+            ]}
+          />
+        </div>
       )}
     </div>
   );

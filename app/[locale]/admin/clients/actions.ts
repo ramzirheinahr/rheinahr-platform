@@ -258,3 +258,18 @@ export async function deleteClient(id: string): Promise<ActionState> {
   revalidatePath("/admin/clients");
   return { ok: true };
 }
+
+export async function revokeSession(sessionId: string) {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== "super_admin") return { ok: false, error: "unauthorized" };
+
+  try {
+    await prisma.userSession.delete({
+      where: { id: sessionId },
+    });
+    return { ok: true };
+  } catch (error) {
+    console.error("Failed to revoke session:", error);
+    return { ok: false, error: "saveError" };
+  }
+}

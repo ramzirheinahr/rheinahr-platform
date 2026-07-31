@@ -27,6 +27,8 @@ type Row = {
   quantity: number;
   requiredQualification: Qualification;
   status: OrderStatus;
+  createdAt: Date;
+  createdBy: { fullName: string | null; email: string; role: string } | null;
   assignments: {
     contractId: string | null;
     invoiceId: string | null;
@@ -50,12 +52,17 @@ async function getOrders(year: number, month: number): Promise<Row[]> {
 
     return await prisma.order.findMany({
       where: {
-        shiftDate: {
-          gte: startDate,
-          lt: endDate,
-        },
+        OR: [
+          {
+            shiftDate: {
+              gte: startDate,
+              lt: endDate,
+            },
+          },
+          { status: "pending" },
+        ],
       },
-      orderBy: [{ createdAt: "desc" }, { shiftDate: "asc" }],
+      orderBy: [{ shiftDate: "asc" }],
       select: {
         id: true,
         requestGroupId: true,
@@ -66,6 +73,10 @@ async function getOrders(year: number, month: number): Promise<Row[]> {
         quantity: true,
         requiredQualification: true,
         status: true,
+        createdAt: true,
+        createdBy: {
+          select: { fullName: true, email: true, role: true },
+        },
         assignments: {
           select: {
             contractId: true,
@@ -163,6 +174,10 @@ export default async function AdminOrdersPage(props: {
       cancelled: g.shifts.every((s) => s.status === "cancelled"),
       isFullyCompleted,
       timestamp: first.shiftDate.getTime(),
+      createdAt: first.createdAt.getTime(),
+      creatorName: first.createdBy
+        ? first.createdBy.fullName || first.createdBy.email
+        : undefined,
     };
   });
 

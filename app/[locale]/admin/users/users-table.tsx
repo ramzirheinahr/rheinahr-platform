@@ -10,6 +10,7 @@ export type UserRow = {
   fullName: string | null;
   active: boolean;
   permissions: string[];
+  activeSessionsCount: number;
 };
 
 export function UsersTable({ rows }: { rows: UserRow[] }) {
@@ -32,6 +33,7 @@ export function UsersTable({ rows }: { rows: UserRow[] }) {
             <th className="px-4 py-3 font-medium">{t("name")}</th>
             <th className="px-4 py-3 font-medium">{t("email")}</th>
             <th className="px-4 py-3 font-medium">{t("active")}</th>
+            <th className="px-4 py-3 font-medium">Sessions</th>
             <th className="px-4 py-3 font-medium">{t("permissions")}</th>
             <th className="px-4 py-3 text-right font-medium">{c("actions")}</th>
           </tr>
@@ -44,6 +46,11 @@ export function UsersTable({ rows }: { rows: UserRow[] }) {
               <td className="px-4 py-3">
                 <Badge variant={row.active ? "default" : "secondary"}>
                   {row.active ? "Ja" : "Nein"}
+                </Badge>
+              </td>
+              <td className="px-4 py-3">
+                <Badge variant={row.activeSessionsCount > 0 ? "default" : "outline"} className={row.activeSessionsCount > 0 ? "bg-green-600 hover:bg-green-700" : "text-muted-foreground"}>
+                  {row.activeSessionsCount}
                 </Badge>
               </td>
               <td className="px-4 py-3">

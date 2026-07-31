@@ -101,15 +101,27 @@ export function OrdersList({
     }
 
     return result.sort((a, b) => {
-      const ta = a.createdAt ?? a.timestamp ?? 0;
-      const tb = b.createdAt ?? b.timestamp ?? 0;
-      switch (sortBy) {
-        case "date_asc": return ta - tb;
-        case "date_desc": return tb - ta;
-        case "facility_asc": return a.facilityName.localeCompare(b.facilityName);
-        case "facility_desc": return b.facilityName.localeCompare(a.facilityName);
-        default: return 0;
+      if (sortBy === "date_asc" || sortBy === "date_desc") {
+        const aIsNew = !!a.creatorName;
+        const bIsNew = !!b.creatorName;
+
+        if (aIsNew && bIsNew) {
+          // Both new: sort by createdAt newest first
+          return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+        }
+        if (aIsNew && !bIsNew) return -1;
+        if (!aIsNew && bIsNew) return 1;
+
+        // Both old: sort by shiftDate (timestamp)
+        const ta = a.timestamp ?? 0;
+        const tb = b.timestamp ?? 0;
+        return sortBy === "date_desc" ? tb - ta : ta - tb;
       }
+      
+      // For facility_asc/desc
+      if (sortBy === "facility_asc") return a.facilityName.localeCompare(b.facilityName);
+      if (sortBy === "facility_desc") return b.facilityName.localeCompare(a.facilityName);
+      return 0;
     });
   }, [groups, selected, query, showCompleted, showIncomplete, sortBy]);
 
@@ -264,10 +276,10 @@ export function OrdersList({
                 <div className="text-sm text-muted-foreground">
                   {g.range} · {g.shiftsCount} {t("shiftsCount")} · {g.netLabel} {t("net")}
                 </div>
-                {g.createdAt && (
+                {(g.createdAt && g.creatorName) && (
                   <div className="text-xs text-muted-foreground/80 mt-1">
                     Eingegangen {new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.createdAt))} ({new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(g.createdAt))})
-                    {g.creatorName && ` · von ${g.creatorName}`}
+                    {` · von ${g.creatorName}`}
                   </div>
                 )}
               </div>

@@ -25,8 +25,14 @@ export default async function UsersPage() {
       active: true,
       permissions: true,
       createdAt: true,
+      _count: { select: { sessions: true } },
     },
   });
+
+  const rows = admins.map(admin => ({
+    ...admin,
+    activeSessionsCount: admin._count.sessions,
+  }));
 
   return (
     <div className="space-y-6">
@@ -38,7 +44,7 @@ export default async function UsersPage() {
         </Button>
       </div>
 
-      <UsersTable rows={admins} />
+      <UsersTable rows={rows} />
     </div>
   );
 }

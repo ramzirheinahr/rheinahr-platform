@@ -157,6 +157,7 @@ model User {
   permissions String[] @default([]) // RBAC for admins
   jobTitle    String?  @map("job_title") // for client sub-users
   clientId    String?  @map("client_id") // links sub-user to a client facility
+  sessions    UserSession[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -178,6 +179,20 @@ model User {
   createdOrders Order[] @relation("OrderCreatedBy")
 
   @@map("users")
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  device    String?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+  lastActive DateTime @default(now()) @map("last_active")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
 }
 
 // A browser/device Web Push subscription for a user (one row per device). The
