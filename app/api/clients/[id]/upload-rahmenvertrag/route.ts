@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { writeFile } from "fs/promises";
+import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
 export const runtime = "nodejs";
@@ -27,8 +27,11 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     const buffer = Buffer.from(bytes);
 
     // Save to public/uploads/contracts directory
+    const dirPath = path.join(process.cwd(), "public/uploads/contracts");
+    await mkdir(dirPath, { recursive: true });
+
     const filename = `rahmenvertrag_${params.id}_${Date.now()}.pdf`;
-    const filepath = path.join(process.cwd(), "public/uploads/contracts", filename);
+    const filepath = path.join(dirPath, filename);
     await writeFile(filepath, buffer);
 
     const fileUrl = `/uploads/contracts/${filename}`;
