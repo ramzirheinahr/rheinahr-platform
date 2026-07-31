@@ -11,9 +11,9 @@ import {
 import React from "react";
 
 export type LeistungsnachweisData = {
-  facilityName: string;
-  workerName: string;
-  qualificationLabel: string;
+  facilityName: string | null;
+  workerName: string | null;
+  qualificationLabel: string | null;
   shiftDate: string; // YYYY-MM-DD
   startTime: string;
   endTime: string;
@@ -94,11 +94,11 @@ const styles = StyleSheet.create({
   },
 });
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string; value?: string | null | number }) {
   return (
     <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
+      <Text style={styles.label}>{label || ""}</Text>
+      <Text style={styles.value}>{value ?? "-"}</Text>
     </View>
   );
 }
@@ -151,14 +151,14 @@ function LeistungsnachweisPage({ d }: { d: LeistungsnachweisData }) {
           )}
           <Text style={styles.sigCaption}>
             {d.draft
-              ? `Elektronische Bestätigung (Textform) — ${d.facilityName}`
-              : `Elektronisch bestätigt in Textform (§ 126b BGB) durch ${d.signerName ?? d.confirmedByEmail} — ${d.facilityName}, ${d.confirmedAt}${d.ipAddress ? `, IP ${d.ipAddress}` : ""}`}
+              ? `Elektronische Bestätigung (Textform) — ${d.facilityName || ""}`
+              : `Elektronisch bestätigt in Textform (§ 126b BGB) durch ${d.signerName || d.confirmedByEmail || ""} — ${d.facilityName || ""}, ${d.confirmedAt || ""}${d.ipAddress ? `, IP ${d.ipAddress}` : ""}`}
           </Text>
         </View>
       ) : (
         <View style={styles.sigBox}>
            <View style={styles.sigLine} />
-           <Text style={styles.sigCaption}>Datum, Unterschrift {d.facilityName}</Text>
+           <Text style={styles.sigCaption}>Datum, Unterschrift {d.facilityName || ""}</Text>
         </View>
       )}
 

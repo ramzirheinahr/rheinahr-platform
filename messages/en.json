@@ -13,6 +13,7 @@
     "error": "Something went wrong.",
     "loading": "Loading…",
     "language": "Language",
+    "name": "Name",
     "edit": "Edit",
     "delete": "Delete",
     "create": "Create",
