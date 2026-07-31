@@ -37,9 +37,17 @@ export function hasPermission(user: SessionUser, permission: string): boolean {
 // app-level role from our own DB (source of truth for RBAC — never trust client).
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user;
+  try {
+    const res = await supabase.auth.getUser();
+    user = res.data.user;
+  } catch (err: any) {
+    if (err?.code === "refresh_token_not_found" || err?.__isAuthError) {
+      return null;
+    }
+    console.error("Auth error:", err);
+    return null;
+  }
   if (!user?.email) return null;
 
   const dbUser = await prisma.user.findUnique({
