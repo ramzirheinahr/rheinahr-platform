@@ -12,7 +12,8 @@ export const PIN_LOCK_MINUTES = 15;
 
 // URL-safe, unguessable slug for the shared /access/<token> link (~192 bits).
 export function generateLoginToken(): string {
-  return randomBytes(24).toString("base64url");
+  // Use hex instead of base64url so double-clicking to copy selects the entire token
+  return randomBytes(16).toString("hex");
 }
 
 // Cryptographically-uniform 6-digit PIN (leading zeros allowed).

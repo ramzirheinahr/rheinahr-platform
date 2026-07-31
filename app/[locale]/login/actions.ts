@@ -70,25 +70,76 @@ export async function logoutUser() {
 }
 
 import { portalPath } from "@/lib/auth";
+import { audit } from "@/lib/audit";
+import { PIN_MAX_ATTEMPTS, PIN_LOCK_MINUTES } from "@/lib/access";
 
-export async function loginWithToken(token: string) {
+export async function loginWithToken(token: string, pin: string) {
   try {
     const user = await prisma.user.findUnique({
       where: { loginToken: token },
-      select: { id: true, active: true, role: true },
+      select: { 
+        id: true, 
+        active: true, 
+        role: true, 
+        loginPinHash: true, 
+        loginPinAttempts: true, 
+        loginPinLockUntil: true 
+      },
     });
 
-    if (!user || !user.active) {
+    if (!user || !user.active || !user.loginPinHash) {
       return { ok: false, error: "invalid" };
     }
+
+    if (user.loginPinLockUntil && user.loginPinLockUntil > new Date()) {
+      return { ok: false, error: "locked" };
+    }
+
+    const match = await bcrypt.compare(pin, user.loginPinHash);
+    
+    const headerList = await headers();
+    const ipAddress = headerList.get("x-forwarded-for") || headerList.get("x-real-ip") || "Unknown IP";
+
+    if (!match) {
+      const attempts = user.loginPinAttempts + 1;
+      const locking = attempts >= PIN_MAX_ATTEMPTS;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: locking
+          ? {
+              loginPinAttempts: 0,
+              loginPinLockUntil: new Date(Date.now() + PIN_LOCK_MINUTES * 60_000),
+            }
+          : { loginPinAttempts: attempts },
+      });
+      await audit({
+        userId: user.id,
+        action: "access.pin.fail",
+        entity: "User",
+        entityId: user.id,
+        ipAddress: ipAddress.substring(0, 255),
+        metadata: { locked: locking },
+      });
+      return { ok: false, error: locking ? "locked" : "invalid" };
+    }
+
+    // Reset lock counters on success
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { loginPinAttempts: 0, loginPinLockUntil: null },
+    });
+    await audit({
+      userId: user.id,
+      action: "access.pin.success",
+      entity: "User",
+      entityId: user.id,
+      ipAddress: ipAddress.substring(0, 255),
+    });
 
     // Generate a secure session token
     const sessionToken = randomBytes(32).toString("hex");
 
-    const headerList = await headers();
     const userAgent = headerList.get("user-agent") || "Unknown Device";
-    const ipAddress =
-      headerList.get("x-forwarded-for") || headerList.get("x-real-ip") || "Unknown IP";
 
     // Create session in DB
     await prisma.userSession.create({
