@@ -24,6 +24,11 @@ export const facilityTypes = [
 export const contractTypes = [
   "unbefristet",
   "befristet",
+] as const;
+
+export const employmentTypes = [
+  "vollzeit",
+  "teilzeit",
   "minijob",
   "werkstudent",
 ] as const;
@@ -125,6 +130,7 @@ export const workerSchema = z.object({
   internalNumber: z.string().max(40).optional(),
   qualification: z.string().min(2).max(120),
   contractType: z.enum(contractTypes),
+  employmentType: z.enum(employmentTypes),
   certifications: z.array(z.string().max(120)).default([]),
   skills: z.array(z.string().max(80)).default([]),
   // Spoken languages as ISO 639-1 codes (any world language).
@@ -144,6 +150,7 @@ export const workerSchema = z.object({
   // Hours-account carryover (signed): positive = credit from last month that
   // REDUCES this month's soll; negative = deficit that adds to it.
   carryoverHours: z.coerce.number().min(-9999).max(9999).optional().default(0),
+  deploymentRadius: z.coerce.number().min(0).max(1000).default(100),
   weeklyHours: z.coerce.number().min(0).max(168).optional(),
   monthlySalary: z.coerce.number().min(0).max(100000).optional(),
   entgeltgruppe: z.string().max(20).optional(),

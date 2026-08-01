@@ -18,6 +18,7 @@ export type WorkerTableRow = {
   qualification: string;
   qualificationLabel: string;
   contractLabel: string;
+  employmentLabel: string;
   phone: string;
   activeSessionsCount: number;
 };
@@ -111,6 +112,7 @@ export function WorkersTable({
         ]
       : []),
     { header: t("contractType"), cell: (w) => w.contractLabel },
+    { header: t("employmentType") || "Art der Anstellung", cell: (w) => w.employmentLabel },
     { header: t("phone"), cell: (w) => w.phone },
     {
       header: c("actions"),

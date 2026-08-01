@@ -184,6 +184,7 @@
     "email": "Email",
     "qualification": "Qualification",
     "contractType": "Contract type",
+    "employmentType": "Employment type",
     "phone": "Phone",
     "address": "Address",
     "languages": "Languages",
@@ -244,6 +245,7 @@
     "scheduleEmpty": "No assignments in this month.",
     "carryoverHours": "Carryover (hours)",
     "carryoverHoursHint": "Hours balance from previous months: positive = credit (reduces this month's target), negative = deficit.",
+    "deploymentRadius": "Deployment radius (km)",
     "contractSection": "Contract data",
     "searchPlaceholder": "Search staff…",
     "noSearchMatch": "No matches.",
@@ -530,7 +532,11 @@
     },
     "contractType": {
       "unbefristet": "Permanent",
-      "befristet": "Fixed-term",
+      "befristet": "Fixed-term"
+    },
+    "employmentType": {
+      "vollzeit": "Full-time",
+      "teilzeit": "Part-time",
       "minijob": "Mini-job",
       "werkstudent": "Working student"
     },

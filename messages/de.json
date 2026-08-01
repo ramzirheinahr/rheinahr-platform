@@ -184,6 +184,7 @@
     "email": "E-Mail",
     "qualification": "Qualifikation",
     "contractType": "Vertragsart",
+    "employmentType": "Art der Anstellung",
     "phone": "Telefon",
     "address": "Adresse",
     "languages": "Sprachen",
@@ -242,8 +243,10 @@
     "hoursAction": "Stunden",
     "scheduleHint": "Dienstplan und vom Kunden bestätigte Stunden dieser Pflegekraft.",
     "scheduleEmpty": "Keine Einsätze in diesem Monat.",
-    "carryoverHours": "Übertrag (Stunden)",
-    "carryoverHoursHint": "Stundensaldo aus Vormonaten: positiv = Guthaben (senkt das Monatssoll), negativ = Fehlstunden.",
+    "carryoverHours": "Stundenübertrag (aus Vormonat)",
+    "carryoverHoursHint": "Positiver Wert = Minusstunden, negativer Wert = Plusstunden.",
+    "deploymentRadius": "Einsatzradius (km)",
+    "travelAllowanceEnabled": "Fahrtkosten erstatten",
     "contractSection": "Vertragsdaten",
     "searchPlaceholder": "Pflegekraft suchen…",
     "noSearchMatch": "Keine Treffer.",
@@ -530,7 +533,11 @@
     },
     "contractType": {
       "unbefristet": "Unbefristet",
-      "befristet": "Befristet",
+      "befristet": "Befristet"
+    },
+    "employmentType": {
+      "vollzeit": "Vollzeit",
+      "teilzeit": "Teilzeit",
       "minijob": "Minijob",
       "werkstudent": "Werkstudent/in"
     },

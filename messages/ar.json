@@ -184,6 +184,7 @@
     "email": "البريد الإلكتروني",
     "qualification": "المؤهل",
     "contractType": "نوع العقد",
+    "employmentType": "نوع التسجيل",
     "phone": "الهاتف",
     "address": "العنوان",
     "languages": "اللغات",
@@ -244,6 +245,7 @@
     "scheduleEmpty": "لا توجد ورديات في هذا الشهر.",
     "carryoverHours": "الرصيد المُرحَّل (ساعات)",
     "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = رصيد فائض يُخصم من مطلوب هذا الشهر، سالب = عجز يُضاف إليه.",
+    "deploymentRadius": "نطاق العمل (كم)",
     "contractSection": "بيانات العقد",
     "searchPlaceholder": "ابحث عن كادر…",
     "noSearchMatch": "لا توجد نتائج.",
@@ -529,10 +531,14 @@
       "pflegedienstleitung": "إدارة خدمة التمريض"
     },
     "contractType": {
-      "unbefristet": "دائم",
-      "befristet": "محدد المدة",
+      "unbefristet": "مفتوح (دائم)",
+      "befristet": "محدد المدة"
+    },
+    "employmentType": {
+      "vollzeit": "دوام كامل",
+      "teilzeit": "دوام جزئي",
       "minijob": "عمل صغير (Minijob)",
-      "werkstudent": "طالب عامل"
+      "werkstudent": "طالب (Werkstudent)"
     },
     "language": {
       "de": "الألمانية",

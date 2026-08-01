@@ -38,6 +38,11 @@ enum Language {
 enum ContractType {
   unbefristet // permanent
   befristet // fixed-term
+}
+
+enum EmploymentType {
+  vollzeit
+  teilzeit
   minijob
   werkstudent
 }
@@ -220,12 +225,14 @@ model Worker {
   fullName             String       @map("full_name")
   qualification        String
   certifications       String[]     @default([])
-  contractType         ContractType @map("contract_type")
+  contractType         ContractType   @map("contract_type")
+  employmentType       EmploymentType @default(vollzeit) @map("employment_type")
   requiredHours        Float        @default(151.67) @map("required_hours")
   // Signed hours-account balance carried from earlier months/years (Arbeitszeit-
   // konto): positive = hours the worker still owes (deficit), negative = surplus
   // worked ahead (credit). Added to this month's required to get the total soll.
   carryoverHours       Float        @default(0) @map("carryover_hours")
+  deploymentRadius     Int          @default(100) @map("deployment_radius")
   phone                String?
   address              String?
   // Languages spoken by the worker as ISO 639-1 codes (any world language).

@@ -29,6 +29,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     fullName: worker.fullName,
     address: worker.address || "Adresse unbekannt",
     contractType: worker.contractType,
+    employmentType: worker.employmentType,
     startDate: worker.employmentStartDate,
     endDate: worker.employmentEndDate,
     qualification: worker.qualification,
@@ -36,6 +37,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     weeklyHours: worker.weeklyHours,
     monthlySalary: worker.monthlySalary,
     entgeltgruppe: worker.entgeltgruppe,
+    deploymentRadius: worker.deploymentRadius,
     hourlyRate,
     createdAt: new Date(),
   };

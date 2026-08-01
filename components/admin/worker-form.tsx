@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { qualifications, contractTypes } from "@/lib/validations";
+import { qualifications, contractTypes, employmentTypes } from "@/lib/validations";
 import { LanguageSelect } from "@/components/admin/language-select";
 import { NationalitySelect } from "@/components/admin/nationality-select";
 import { updateWorker } from "@/app/[locale]/admin/workers/actions";
@@ -27,6 +27,7 @@ export type WorkerData = {
   internalNumber?: string | null;
   qualification: string;
   contractType: string;
+  employmentType: string;
   phone: string | null;
   address: string | null;
   certifications: string[];
@@ -41,6 +42,7 @@ export type WorkerData = {
   employedSince: string | null; // yyyy-mm-dd
   requiredHours: number;
   carryoverHours: number;
+  deploymentRadius: number;
   travelAllowanceEnabled?: boolean;
   travelAllowancePerKm?: number | null;
   mealAllowanceEnabled?: boolean;
@@ -70,6 +72,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
   const c = useTranslations("common");
   const eq = useTranslations("enums.qualification");
   const ec = useTranslations("enums.contractType");
+  const ee = useTranslations("enums.employmentType");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -138,6 +141,21 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   {contractTypes.map((ct) => (
                     <SelectItem key={ct} value={ct}>
                       {ec(ct)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("employmentType")}</Label>
+              <Select name="employmentType" defaultValue={worker.employmentType}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {employmentTypes.map((et) => (
+                    <SelectItem key={et} value={et}>
+                      {ee(et)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -314,6 +332,17 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 defaultValue={worker.carryoverHours ?? 0}
               />
               <p className="text-xs text-muted-foreground">{t("carryoverHoursHint")}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deploymentRadius">{t("deploymentRadius")}</Label>
+              <Input
+                id="deploymentRadius"
+                name="deploymentRadius"
+                type="number"
+                step="1"
+                min={0}
+                defaultValue={worker.deploymentRadius ?? 100}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="employmentStartDate">Gültig ab (Startdatum)</Label>

@@ -44,6 +44,7 @@ export default async function WorkersPage({
   const c = await getTranslations("common");
   const eq = await getTranslations("enums.qualification");
   const ec = await getTranslations("enums.contractType");
+  const ee = await getTranslations("enums.employmentType");
   const actor = await getCurrentUser();
   const workers = await getWorkers(qualification);
   // When a type is selected the page shows only that type; drop the redundant
@@ -62,6 +63,7 @@ export default async function WorkersPage({
     qualification: w.qualification,
     qualificationLabel: eq(w.qualification),
     contractLabel: ec(w.contractType),
+    employmentLabel: ee(w.employmentType),
     phone: w.phone || c("none"),
     activeSessionsCount: w.user._count.sessions,
   }));

@@ -6,7 +6,8 @@ import { format } from "date-fns";
 export type ArbeitsvertragData = {
   fullName: string;
   address: string;
-  contractType: "unbefristet" | "befristet" | "minijob" | string;
+  contractType: "unbefristet" | "befristet" | string;
+  employmentType: "vollzeit" | "teilzeit" | "minijob" | "werkstudent" | string;
   startDate: Date | null;
   endDate: Date | null;
   qualification: string;
@@ -14,6 +15,7 @@ export type ArbeitsvertragData = {
   weeklyHours: number | null;
   monthlySalary: number | null;
   entgeltgruppe: string | null;
+  deploymentRadius: number;
   hourlyRate: number;
   createdAt: Date;
 };
@@ -52,6 +54,9 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
   const isUnbefristet = data.contractType === "unbefristet";
   const isBefristet = data.contractType === "befristet";
   const qualText = getQualificationText(data.qualification);
+  const isVollzeit = data.employmentType === "vollzeit";
+  const isTeilzeit = data.employmentType === "teilzeit" || data.employmentType === "minijob" || data.employmentType === "werkstudent";
+
   const monthlySalaryStr = data.monthlySalary ? data.monthlySalary.toFixed(2).replace(".", ",") : "________";
   const weeklyHoursStr = data.weeklyHours ? data.weeklyHours.toFixed(2).replace(".", ",") : "________";
   const monthlyHoursStr = data.requiredHours ? data.requiredHours.toFixed(2).replace(".", ",") : "________";
@@ -156,7 +161,7 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
           Aus der Einsatzanweisung vor Beginn des Einsatzes in einem Kundenbetrieb können sich abweichende oder ergänzende Tätigkeiten ergeben.
         </Text>
         <Text style={styles.paragraph}>
-          (2) Der Mitarbeiter wird an verschiedenen Einsatzorten im Gebiet <Text style={styles.highlight}>Bonn und im Umkreis bis zu 100 km</Text> bei Kundenbetrieben beschäftigt. Er ist bei Bedarf auch zur Arbeitsleistung an Einsatzorten außerhalb des Kundenbetriebes verpflichtet. Der Arbeitgeber ist berechtigt, den Mitarbeiter jederzeit vom Kundeneinsatz abzuberufen und anderweitig einzusetzen.
+          (2) Der Mitarbeiter wird an verschiedenen Einsatzorten im Gebiet <Text style={styles.highlight}>Bonn und im Umkreis bis zu {data.deploymentRadius} km</Text> bei Kundenbetrieben beschäftigt. Er ist bei Bedarf auch zur Arbeitsleistung an Einsatzorten außerhalb des Kundenbetriebes verpflichtet. Der Arbeitgeber ist berechtigt, den Mitarbeiter jederzeit vom Kundeneinsatz abzuberufen und anderweitig einzusetzen.
         </Text>
         <Text style={styles.paragraph}>
           (3) Dem Mitarbeiter können auch interne Tätigkeiten im Betrieb des Arbeitgebers zugewiesen werden (kein Drittpersonaleinsatz). Eine Verringerung des Vergütungsanspruchs tritt dadurch nicht ein. Die Zuweisung von internen Tätigkeiten darf einen ununterbrochenen Zeitraum von vier Wochen nicht überschreiten.
@@ -172,7 +177,7 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
         
         <View style={styles.list}>
           <View style={styles.checkboxRow}>
-            <View style={[styles.checkbox, styles.checkboxChecked]} />
+            <View style={[styles.checkbox, isVollzeit ? styles.checkboxChecked : {}]} />
             <Text style={{ flex: 1 }}>Der Mitarbeiter arbeitet in Vollzeit. Die Vertragsparteien vereinbaren eine individuelle regelmäßige monatliche Arbeitszeit gemäß § 3.1.1. Manteltarifvertrag iGZ, die <Text style={styles.highlight}>_{monthlyHoursStr}_</Text> Stunden beträgt. Dies entspricht einer durchschnittlichen wöchentlichen Arbeitszeit von <Text style={styles.highlight}>_{weeklyHoursStr}_</Text> Stunden.</Text>
           </View>
           <View style={styles.checkboxRow}>
@@ -180,8 +185,8 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
             <Text style={{ flex: 1 }}>Der Mitarbeiter arbeitet in Vollzeit. Die Vertragsparteien vereinbaren eine individuelle regelmäßige Arbeitszeit pro Monat gemäß § 3.1.2. Manteltarifvertrag iGZ, die sich nach der Anzahl der Arbeitstage richtet.</Text>
           </View>
           <View style={styles.checkboxRow}>
-            <View style={styles.checkbox} />
-            <Text style={{ flex: 1 }}>Der Mitarbeiter arbeitet in Teilzeit. Die Vertragsparteien vereinbaren eine individuelle regelmäßige monatliche Arbeitszeit gemäß § 3.1.1. Manteltarifvertrag iGZ von ______ Stunden.</Text>
+            <View style={[styles.checkbox, isTeilzeit ? styles.checkboxChecked : {}]} />
+            <Text style={{ flex: 1 }}>Der Mitarbeiter arbeitet in Teilzeit. Die Vertragsparteien vereinbaren eine individuelle regelmäßige monatliche Arbeitszeit gemäß § 3.1.1. Manteltarifvertrag iGZ von <Text style={styles.highlight}>_{monthlyHoursStr}_</Text> Stunden.</Text>
           </View>
         </View>
 
