@@ -56,6 +56,9 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
   const qualText = getQualificationText(data.qualification);
   const isVollzeit = data.employmentType === "vollzeit";
   const isTeilzeit = data.employmentType === "teilzeit" || data.employmentType === "minijob" || data.employmentType === "werkstudent";
+  const isMinijob = data.employmentType === "minijob";
+  const isWerkstudent = data.employmentType === "werkstudent";
+  const partTimeLabel = isMinijob ? "Minijob" : isWerkstudent ? "Werkstudent" : "Teilzeit";
 
   const monthlySalaryStr = data.monthlySalary ? data.monthlySalary.toFixed(2).replace(".", ",") : "________";
   const weeklyHoursStr = data.weeklyHours ? data.weeklyHours.toFixed(2).replace(".", ",") : "________";
@@ -186,7 +189,7 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
           </View>
           <View style={styles.checkboxRow}>
             <View style={[styles.checkbox, isTeilzeit ? styles.checkboxChecked : {}]} />
-            <Text style={{ flex: 1 }}>Der Mitarbeiter arbeitet in Teilzeit. Die Vertragsparteien vereinbaren eine individuelle regelmäßige monatliche Arbeitszeit gemäß § 3.1.1. Manteltarifvertrag iGZ von <Text style={styles.highlight}>_{monthlyHoursStr}_</Text> Stunden.</Text>
+            <Text style={{ flex: 1 }}>Der Mitarbeiter arbeitet in {partTimeLabel}. Die Vertragsparteien vereinbaren eine individuelle regelmäßige monatliche Arbeitszeit gemäß § 3.1.1. Manteltarifvertrag iGZ von <Text style={styles.highlight}>_{monthlyHoursStr}_</Text> Stunden.</Text>
           </View>
         </View>
 
