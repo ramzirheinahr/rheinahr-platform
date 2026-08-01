@@ -52,7 +52,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   return new NextResponse(new Uint8Array(pdfBuffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="Arbeitsvertrag-${worker.fullName.replace(/\s+/g, "_")}.pdf"`,
+      "Content-Disposition": `attachment; filename="Arbeitsvertrag-${worker.fullName.replace(/[^a-zA-Z0-9.-]/g, "_")}.pdf"`,
       "Cache-Control": "no-store",
     },
   });
