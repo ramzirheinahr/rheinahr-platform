@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -26,20 +25,24 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Save to public/uploads/contracts directory
-    const dirPath = path.join(process.cwd(), "public/uploads/contracts");
-    await mkdir(dirPath, { recursive: true });
-
     const filename = `rahmenvertrag_${params.id}_${Date.now()}.pdf`;
-    const filepath = path.join(dirPath, filename);
-    await writeFile(filepath, buffer);
 
-    const fileUrl = `/uploads/contracts/${filename}`;
+    const supabase = createSupabaseAdminClient();
+    const { error: uploadError } = await supabase.storage
+      .from("confirmations")
+      .upload(filename, buffer, {
+        contentType: file.type || "application/pdf",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
 
     const client = await prisma.client.update({
       where: { id: params.id },
       data: {
-        frameworkAgreementUrl: fileUrl,
+        frameworkAgreementUrl: filename,
         frameworkAgreementSignedAt: new Date()
       }
     });
@@ -49,10 +52,10 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       action: "client.rahmenvertrag.upload",
       entity: "Client",
       entityId: client.id,
-      metadata: { fileUrl }
+      metadata: { fileUrl: filename }
     });
 
-    return NextResponse.json({ success: true, url: fileUrl });
+    return NextResponse.json({ success: true, url: filename });
   } catch (error) {
     console.error("Upload error:", error);
     return new NextResponse("Internal Server Error", { status: 500 });

@@ -102,7 +102,7 @@ export default async function EditClientPage({
       {/* Rahmenvertrag Management */}
       <RahmenvertragSection 
         clientId={client.id}
-        url={client.frameworkAgreementUrl}
+        url={client.frameworkAgreementUrl ? `/api/clients/${client.id}/signed-rahmenvertrag` : null}
         signedAt={client.frameworkAgreementSignedAt}
       />
 

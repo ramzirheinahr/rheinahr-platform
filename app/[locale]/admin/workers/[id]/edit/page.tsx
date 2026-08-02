@@ -145,7 +145,7 @@ export default async function EditWorkerPage({
         <section className="max-w-2xl">
           <ArbeitsvertragSection 
             workerId={worker.id}
-            url={worker.arbeitsvertragUrl}
+            url={worker.arbeitsvertragUrl ? `/api/workers/${worker.id}/signed-arbeitsvertrag` : null}
             signedAt={worker.arbeitsvertragSignedAt}
           />
         </section>
