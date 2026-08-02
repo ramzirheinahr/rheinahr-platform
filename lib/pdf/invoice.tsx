@@ -33,7 +33,7 @@ export type InvoicePdfData = {
 };
 
 const styles = StyleSheet.create({
-  page: { padding: 40, paddingBottom: 80, fontSize: 10, color: "#000000", fontFamily: "Helvetica", lineHeight: 1.3 },
+  page: { padding: 40, paddingBottom: 120, fontSize: 10, color: "#000000", fontFamily: "Helvetica", lineHeight: 1.3 },
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 30 },
   logoContainer: { flexDirection: "row", alignItems: "flex-end" },
   brandTextContainer: { marginLeft: 10 },
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
 
   paymentText: { marginTop: 15, fontSize: 10, fontFamily: "Helvetica" },
   
-  footer: { position: "absolute", bottom: 20, left: 40, right: 40, flexDirection: "row", justifyContent: "space-between", fontSize: 9, color: "#6b7280" },
+  footer: { position: "absolute", bottom: 30, left: 40, right: 40, flexDirection: "row", justifyContent: "space-between", fontSize: 9, color: "#6b7280" },
   footerCol: { width: "30%" },
   footerBoldPrimary: { color: "#1d4ed8", fontFamily: "Helvetica-Bold", marginBottom: 2 },
   footerBoldGray: { color: "#4b5563", fontFamily: "Helvetica-Bold", marginBottom: 2 },
@@ -169,7 +169,7 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
           <Text style={styles.colAmount}>Betrag €</Text>
         </View>
         {data.items.map((item, i) => (
-          <View style={styles.tableRow} key={i}>
+          <View style={styles.tableRow} key={i} wrap={false}>
             <Text style={styles.colPos}>{item.pos}</Text>
             <Text style={styles.colDesc}>{item.description}</Text>
             <Text style={styles.colHours}>{item.hours}</Text>
@@ -185,7 +185,7 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
       </View>
 
       {/* Tax Table */}
-      <View style={styles.taxTable}>
+      <View style={styles.taxTable} wrap={false}>
         <View style={[styles.taxRow, styles.taxHeader]}>
           <Text style={styles.tCol1}>Netto €</Text>
           <Text style={styles.tCol2}>MWS-1   %</Text>
