@@ -76,11 +76,9 @@ export function DirectContractUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className={buttonClassName}>
-          <Upload className="size-4 mr-2" />
-          Signierten Vertrag hochladen
-        </Button>
+      <DialogTrigger render={<Button size="sm" variant="outline" className={buttonClassName} />}>
+        <Upload className="size-4 mr-2" />
+        Signierten Vertrag hochladen
       </DialogTrigger>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
