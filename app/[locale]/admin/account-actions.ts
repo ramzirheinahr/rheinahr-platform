@@ -224,3 +224,35 @@ export async function revokeAccessLink(id: string): Promise<ActionState> {
 
   return { ok: true };
 }
+
+export async function setAccountReceiveEmails(
+  id: string,
+  receiveEmails: boolean,
+): Promise<ActionState> {
+  let actor;
+  try {
+    actor = await assertSuperAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true },
+  });
+  if (!target) return { ok: false, error: "saveError" };
+
+  await prisma.user.update({ where: { id }, data: { receiveEmails } });
+
+  await audit({
+    userId: actor.id,
+    action: "account.update",
+    entity: "User",
+    entityId: id,
+    metadata: { receiveEmails },
+  });
+
+  revalidatePath("/admin/workers");
+  revalidatePath("/admin/clients");
+  return { ok: true };
+}

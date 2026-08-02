@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Pencil, Clock, Search } from "lucide-react";
+import { ReceiveEmailsToggle } from "./receive-emails-toggle";
 
 export type ClientTableRow = {
   id: string;
@@ -16,6 +17,8 @@ export type ClientTableRow = {
   facilityTypeLabel: string;
   contactPerson: string;
   email: string;
+  userId: string;
+  receiveEmails: boolean;
   shortCode: string;
   activeSessionsCount: number;
 };
@@ -88,6 +91,10 @@ export function ClientsTable({ rows }: { rows: ClientTableRow[] }) {
     },
     { header: t("contactPerson"), cell: (cl) => cl.contactPerson },
     { header: t("email"), cell: (cl) => cl.email },
+    {
+      header: "E-Mails",
+      cell: (cl) => <ReceiveEmailsToggle userId={cl.userId} initialValue={cl.receiveEmails} />,
+    },
     { 
       header: t("activeSessionsTitle"), 
       cell: (cl) => (

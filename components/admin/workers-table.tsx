@@ -8,12 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Pencil, Clock, Search, Eye, EyeOff } from "lucide-react";
+import { ReceiveEmailsToggle } from "./receive-emails-toggle";
 
 export type WorkerTableRow = {
   id: string;
   fullName: string;
   internalNumber: string;
   email: string;
+  userId: string;
+  receiveEmails: boolean;
   active: boolean;
   qualification: string;
   qualificationLabel: string;
@@ -93,6 +96,10 @@ export function WorkersTable({
     { id: "internalNumber", header: "Int. Nummer", sortable: true, cell: (w) => w.internalNumber || "—" },
     { id: "fullName", header: t("fullName"), sortable: true, primary: true, cell: (w) => w.fullName },
     { header: t("email"), cell: (w) => w.email },
+    {
+      header: "E-Mails",
+      cell: (w) => <ReceiveEmailsToggle userId={w.userId} initialValue={w.receiveEmails} />,
+    },
     { 
       header: t("activeSessionsTitle") || "Sessions", 
       cell: (w) => (

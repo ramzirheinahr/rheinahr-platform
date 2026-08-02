@@ -14,7 +14,7 @@ async function getClients() {
       // Alphabetical by facility name so the list reads like a directory.
       orderBy: { facilityName: "asc" },
       include: { 
-        user: { select: { email: true, _count: { select: { sessions: true } } } },
+        user: { select: { id: true, email: true, receiveEmails: true, _count: { select: { sessions: true } } } },
         subUsers: { select: { _count: { select: { sessions: true } } } },
       },
     });
@@ -37,6 +37,8 @@ export default async function ClientsPage() {
     facilityTypeLabel: ef(cl.facilityType),
     contactPerson: cl.contactPerson || c("none"),
     email: cl.user.email,
+    userId: cl.user.id,
+    receiveEmails: cl.user.receiveEmails,
     shortCode: cl.shortCode ?? "",
     activeSessionsCount: cl.user._count.sessions + cl.subUsers.reduce((sum, u) => sum + u._count.sessions, 0),
   }));

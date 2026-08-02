@@ -215,3 +215,121 @@ export async function uploadSignedContract(formData: FormData) {
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+export async function uploadDirectSignedContract(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || !roleSatisfies(user.role, ["admin"])) return { ok: false, error: "forbidden" };
+
+  const assignmentIdsStr = formData.get("assignmentIds") as string;
+  const file = formData.get("document") as File | null;
+
+  if (!assignmentIdsStr || !file || file.size === 0) {
+    return { ok: false, error: "invalid_input" };
+  }
+
+  let assignmentIds: string[];
+  try {
+    assignmentIds = JSON.parse(assignmentIdsStr);
+  } catch {
+    return { ok: false, error: "invalid_input" };
+  }
+
+  if (assignmentIds.length === 0) {
+    return { ok: false, error: "invalid_input" };
+  }
+
+  // Verify assignments
+  const assignments = await prisma.assignment.findMany({
+    where: {
+      id: { in: assignmentIds },
+      contractId: null,
+      status: "confirmed"
+    },
+    select: { 
+      id: true,
+      order: { 
+        select: { 
+          shiftDate: true,
+          clientId: true,
+        } 
+      }
+    },
+    orderBy: { order: { shiftDate: "asc" } }
+  });
+
+  if (!assignments.length) {
+    return { ok: false, error: "invalid_assignments" };
+  }
+
+  const clientId = assignments[0].order.clientId;
+  if (assignments.some(a => a.order.clientId !== clientId)) {
+    return { ok: false, error: "mixed_clients" };
+  }
+
+  const firstDate = assignments[0].order.shiftDate;
+  const lastDate = assignments[assignments.length - 1].order.shiftDate;
+  
+  const formatDate = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC" }).format(d);
+  
+  let periodLabel = formatDate(firstDate);
+  if (firstDate.getTime() !== lastDate.getTime()) {
+    periodLabel = `${formatDate(firstDate)} – ${formatDate(lastDate)}`;
+  }
+
+  // Create a contract with status signed
+  const contract = await prisma.clientContract.create({
+    data: {
+      clientId,
+      period: periodLabel,
+      status: "signed",
+      splitByShift: false, // Since it's manually signed, it's one document
+      assignments: {
+        connect: assignments.map(a => ({ id: a.id }))
+      }
+    }
+  });
+
+  // Upload file
+  const path = `contracts/${contract.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createSupabaseAdminClient();
+  const { error: uploadError } = await supabase.storage
+    .from("confirmations")
+    .upload(path, await file.arrayBuffer(), {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    console.error("Supabase upload error:", uploadError);
+    // Cleanup contract if upload failed
+    await prisma.clientContract.delete({ where: { id: contract.id } });
+    return { ok: false, error: "saveError" };
+  }
+
+  const { headers } = await import("next/headers");
+  const headersList = await headers();
+  const ip = headersList.get("x-forwarded-for") || "unknown";
+
+  // Update contract with document URL
+  await prisma.clientContract.update({
+    where: { id: contract.id },
+    data: {
+      documentUrl: path,
+      signedAt: new Date(),
+      ipAddress: ip,
+    }
+  });
+
+  await audit({
+    userId: user.id,
+    action: "contract.direct_signed_upload",
+    entity: "ClientContract",
+    entityId: contract.id,
+    metadata: { assignmentCount: assignments.length, period: periodLabel }
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true, contractId: contract.id };
+}
+

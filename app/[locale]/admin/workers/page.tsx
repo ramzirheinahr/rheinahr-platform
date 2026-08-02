@@ -18,7 +18,7 @@ async function getWorkers(qualification?: Qualification) {
       where,
       // Alphabetical by name (case-insensitive) so the roster reads like a phone book.
       orderBy: { fullName: "asc" },
-      include: { user: { select: { email: true, active: true, _count: { select: { sessions: true } } } } },
+      include: { user: { select: { id: true, email: true, active: true, receiveEmails: true, _count: { select: { sessions: true } } } } },
     });
   } catch {
     return [];
@@ -59,6 +59,8 @@ export default async function WorkersPage({
     fullName: w.fullName,
     internalNumber: w.internalNumber ?? "",
     email: w.user.email,
+    userId: w.user.id,
+    receiveEmails: w.user.receiveEmails,
     active: w.user.active,
     qualification: w.qualification,
     qualificationLabel: eq(w.qualification),

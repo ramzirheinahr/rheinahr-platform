@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { FileSignature, Plus, FileClock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { generateOrderContracts } from "@/app/[locale]/admin/orders/[id]/contract-actions";
+import { generateOrderContracts, uploadDirectSignedContract } from "@/app/[locale]/admin/orders/[id]/contract-actions";
 import { ContractAdminDialog } from "./contract-admin-dialog";
 import { CopyPublicLinkButton } from "./copy-public-link-button";
 
 import { SelectAssignmentsDialog, type SelectableAssignment } from "./select-assignments-dialog";
+import { DirectContractUploadDialog } from "./direct-contract-upload-dialog";
 
 export function OrderContractsBanner({ 
   requestGroupId,
@@ -30,6 +31,20 @@ export function OrderContractsBanner({
       router.refresh();
     } catch (e: unknown) {
       toast.error((e as Error).message || "Fehler beim Generieren der Verträge");
+    }
+  };
+
+  const handleDirectUpload = async (formData: FormData) => {
+    try {
+      const res = await uploadDirectSignedContract(formData);
+      if (res.ok) {
+        toast.success("Vertrag erfolgreich hochgeladen und signiert!");
+        router.refresh();
+      } else {
+        toast.error(res.error || "Fehler beim Hochladen des Vertrags.");
+      }
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Hochladen des Vertrags");
     }
   };
 
@@ -66,16 +81,22 @@ export function OrderContractsBanner({
         ))}
 
         {uncontractedAssignments.length > 0 && (
-          <SelectAssignmentsDialog
-            assignments={uncontractedAssignments}
-            title="Vertrag erstellen"
-            description="Wählen Sie die Schichten aus, für die ein neuer AÜV generiert werden soll."
-            submitLabel="Generieren"
-            buttonLabel="Vertrag für fehlende Schichten erstellen"
-            buttonClassName="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-            showSplitOption={true}
-            onSubmit={handleGenerate}
-          />
+          <div className="flex items-center gap-2">
+            <DirectContractUploadDialog
+              assignments={uncontractedAssignments}
+              onSubmit={handleDirectUpload}
+            />
+            <SelectAssignmentsDialog
+              assignments={uncontractedAssignments}
+              title="Vertrag erstellen"
+              description="Wählen Sie die Schichten aus, für die ein neuer AÜV generiert werden soll."
+              submitLabel="Generieren"
+              buttonLabel="Vertrag für fehlende Schichten erstellen"
+              buttonClassName="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+              showSplitOption={true}
+              onSubmit={handleGenerate}
+            />
+          </div>
         )}
       </div>
     </div>
