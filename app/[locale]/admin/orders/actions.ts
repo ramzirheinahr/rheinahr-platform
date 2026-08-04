@@ -729,7 +729,11 @@ export async function approveTimeChange(input: {
   const assignment = await prisma.assignment.findUnique({
     where: { id: input.assignmentId },
     include: {
-      serviceConfirmation: true,
+      serviceConfirmation: {
+        include: {
+          confirmedBy: { select: { fullName: true, email: true } },
+        },
+      },
       order: {
         select: {
           id: true,
@@ -808,9 +812,6 @@ export async function approveTimeChange(input: {
       data: {
         hoursWorked: newHours,
         documentUrl: path,
-        confirmedById: admin.id,
-        confirmedAt: new Date(),
-        ipAddress: ip,
         requestedStart: null,
         requestedEnd: null,
       },
@@ -859,7 +860,7 @@ export async function approveTimeChange(input: {
     action: "service.timeChangeApprove",
     entity: "Assignment",
     entityId: assignment.id,
-    ipAddress: ip,
+    ipAddress: adminIp,
     metadata: { from: oldWindow, to: `${newStart}-${newEnd}`, hours: newHours },
   });
 
