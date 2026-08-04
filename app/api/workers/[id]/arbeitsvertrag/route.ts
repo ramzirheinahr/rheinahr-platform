@@ -39,6 +39,13 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     entgeltgruppe: worker.entgeltgruppe,
     deploymentRadius: worker.deploymentRadius,
     hourlyRate,
+    travelAllowanceEnabled: worker.travelAllowanceEnabled,
+    mealAllowanceEnabled: worker.mealAllowanceEnabled,
+    mealAllowance: worker.mealAllowance,
+    surchargeSat: worker.surchargeSat,
+    surchargeSun: worker.surchargeSun,
+    surchargeHoliday: worker.surchargeHoliday,
+    surchargeNight: worker.surchargeNight,
     createdAt: new Date(),
   };
 
