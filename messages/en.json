@@ -569,6 +569,7 @@
       "in_progress": "In progress",
       "completed": "Completed",
       "confirmed": "Service confirmed (client)",
+      "partially_confirmed": "Partially confirmed",
       "cancelled": "Cancelled"
     },
     "assignmentStatus": {

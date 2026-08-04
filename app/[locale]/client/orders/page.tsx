@@ -132,6 +132,10 @@ export default async function ClientOrdersPage() {
         ? formatDateDE(first.shiftDate)
         : `${formatDateDE(first.shiftDate)} – ${formatDateDE(last.shiftDate)}`;
     const total = requestNetTotal(g.shifts, surcharges, rates, night);
+    const hasConfirmed = g.shifts.some(s => s.status === "confirmed");
+    const hasUnconfirmed = g.shifts.some(s => s.status !== "confirmed" && s.status !== "cancelled");
+    const isPartiallyConfirmed = hasConfirmed && hasUnconfirmed;
+
     return {
       key: g.key,
       facilityName: facilityName ?? "Client",
@@ -141,6 +145,7 @@ export default async function ClientOrdersPage() {
       status: first.status,
       qualification: first.requiredQualification,
       cancelled: g.shifts.every((s) => s.status === "cancelled"),
+      isPartiallyConfirmed,
       createdAt: first.createdAt.getTime(),
       creatorName: first.createdBy
         ? first.createdBy.fullName || first.createdBy.email

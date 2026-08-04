@@ -569,6 +569,7 @@
       "in_progress": "قيد التنفيذ",
       "completed": "مكتمل",
       "confirmed": "تم تأكيد الخدمة (الزبون)",
+      "partially_confirmed": "مؤكدة بشكل جزئي",
       "cancelled": "ملغى"
     },
     "assignmentStatus": {

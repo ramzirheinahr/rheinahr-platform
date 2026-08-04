@@ -15,11 +15,17 @@ const statusStyles: Record<OrderStatus, string> = {
   cancelled: "bg-red-100 text-red-700 hover:bg-red-200 border-transparent",
 };
 
-export function OrderStatusBadge({ status }: { status: OrderStatus }) {
+export function OrderStatusBadge({ status, isPartiallyConfirmed }: { status: OrderStatus, isPartiallyConfirmed?: boolean }) {
   const t = useTranslations("enums.orderStatus");
+  const actualStatus = isPartiallyConfirmed ? "partially_confirmed" : status;
+  // Fallback to confirmed styling if it's partially confirmed, or use a custom style.
+  // Actually, we can use a slightly different color or the same emerald one.
+  const style = isPartiallyConfirmed ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-200" : statusStyles[status];
+  
   return (
-    <Badge variant="outline" className={cn(statusStyles[status], "shadow-none font-medium")}>
-      {t(status)}
+    <Badge variant="outline" className={cn(style, "shadow-none font-medium")}>
+      {/* We need to ensure we can cast actualStatus to any because partially_confirmed is not in OrderStatus type but it exists in translations */}
+      {t(actualStatus as any)}
     </Badge>
   );
 }

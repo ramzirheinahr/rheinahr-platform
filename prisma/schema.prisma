@@ -553,6 +553,7 @@ model ServiceConfirmation {
   clientNotes           String?            @map("client_notes")
   confirmedAt           DateTime           @default(now()) @map("confirmed_at")
   ipAddress             String?            @map("ip_address")
+  signerName            String?            @map("signer_name")
   // Admin-proposed hours correction on an ALREADY-signed record. While
   // `correctionHours` is set, the client is asked to re-confirm; on approval
   // `hoursWorked` is updated and these fields clear. The audit log keeps the

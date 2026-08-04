@@ -570,6 +570,7 @@
       "in_progress": "In Durchführung",
       "completed": "Abgeschlossen",
       "confirmed": "Leistung bestätigt (Kunde)",
+      "partially_confirmed": "Leistung teilweise bestätigt",
       "cancelled": "Storniert"
     },
     "assignmentStatus": {

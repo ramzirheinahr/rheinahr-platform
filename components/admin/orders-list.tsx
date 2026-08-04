@@ -19,6 +19,7 @@ export type OrderGroupSummary = {
   qualification: string;
   cancelled: boolean;
   isFullyCompleted?: boolean;
+  isPartiallyConfirmed?: boolean;
   timestamp?: number;
   createdAt?: number;
   creatorName?: string;
@@ -284,7 +285,7 @@ export function OrdersList({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <OrderStatusBadge status={g.status} />
+                <OrderStatusBadge status={g.status} isPartiallyConfirmed={g.isPartiallyConfirmed} />
                 <ChevronRight className="size-4 text-muted-foreground rtl:rotate-180" />
               </div>
             </Link>

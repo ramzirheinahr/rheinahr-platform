@@ -81,11 +81,9 @@ export function TimeChangeReviewDialog({ items }: { items: PendingTimeChange[] }
           <DialogDescription>{t("timeChangeDesc")}</DialogDescription>
         </DialogHeader>
 
-        {/* Textform: the acting admin's name goes onto the regenerated PDF, so
-            it is required before any approval. */}
         <div className="space-y-1.5">
           <Label htmlFor="tc-signer" className="text-xs text-muted-foreground">
-            {t("timeChangeSignerHint")}
+            {t("timeChangeSignerHint")} (Optional: Leer lassen, um den Namen des ursprünglichen Bestätigers beizubehalten)
           </Label>
           <Input
             id="tc-signer"
@@ -125,7 +123,7 @@ export function TimeChangeReviewDialog({ items }: { items: PendingTimeChange[] }
                 <Button
                   size="sm"
                   className="h-8 flex-1 gap-1.5 bg-emerald-600 hover:bg-emerald-700"
-                  disabled={pending || signerName.trim().length < 2}
+                  disabled={pending}
                   onClick={() => decide(item.assignmentId, true)}
                 >
                   <CheckCircle className="size-4" />

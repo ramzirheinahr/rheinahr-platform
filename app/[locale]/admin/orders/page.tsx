@@ -163,6 +163,10 @@ export default async function AdminOrdersPage(props: {
       s.assignments.every(a => a.contractId !== null && a.invoiceId !== null)
     );
 
+    const hasConfirmed = g.shifts.some(s => s.status === "confirmed");
+    const hasUnconfirmed = g.shifts.some(s => s.status !== "confirmed" && s.status !== "cancelled");
+    const isPartiallyConfirmed = hasConfirmed && hasUnconfirmed;
+
     return {
       key: g.key,
       facilityName: first.client.facilityName,
@@ -173,6 +177,7 @@ export default async function AdminOrdersPage(props: {
       qualification: first.requiredQualification,
       cancelled: g.shifts.every((s) => s.status === "cancelled"),
       isFullyCompleted,
+      isPartiallyConfirmed,
       timestamp: first.shiftDate.getTime(),
       createdAt: first.createdAt.getTime(),
       creatorName: first.createdBy

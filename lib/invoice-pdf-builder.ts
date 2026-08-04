@@ -12,7 +12,7 @@ import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client"
 
 export function buildInvoicePdfData(
   invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount">,
-  client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
+  client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "billingInfo" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
   assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[]
 ): InvoicePdfData {
   const rates = resolveRates(client);
@@ -100,7 +100,7 @@ export function buildInvoicePdfData(
     date: format(invoice.date || new Date(), "dd.MM.yyyy"),
     clientId: client.internalNumber || client.shortCode || client.id.substring(0, 8),
     clientName: client.facilityName,
-    clientAddress: client.address || "Adresse unbekannt",
+    clientAddress: client.billingInfo || client.address || "Adresse unbekannt",
     periodStart,
     periodEnd,
     items,

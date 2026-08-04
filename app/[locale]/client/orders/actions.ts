@@ -653,6 +653,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
         hoursWorked: data.hoursWorked,
         clientNotes: data.clientNotes,
         ipAddress: ip,
+        signerName: data.signerName,
         requestedStart: timeChangeRequested ? data.adjustStart : null,
         requestedEnd: timeChangeRequested ? data.adjustEnd : null,
       },

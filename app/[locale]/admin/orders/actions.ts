@@ -756,7 +756,14 @@ export async function approveTimeChange(input: {
 
   const { headers } = await import("next/headers");
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  const adminIp = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+
+  // Prefer original client signature/name and IP if available. Fallback to admin info.
+  const originalSignerName = sc.signerName || sc.confirmedBy?.fullName || "Unbekannt";
+  const originalIp = sc.ipAddress || adminIp;
+  const originalEmail = sc.confirmedBy?.email || admin.email;
+  // If the admin provided a signerName (e.g., they called the office), use that. Otherwise use the original signer.
+  const finalSignerName = input.signerName.trim() || originalSignerName;
 
   // Regenerate the signed Leistungsnachweis with the corrected window + hours.
   const [{ renderLeistungsnachweisPdf }, { qualLabel, methodLabel }] = await Promise.all([
@@ -773,10 +780,11 @@ export async function approveTimeChange(input: {
     hours: newHours,
     methodLabel: methodLabel.electronic,
     isElectronic: true,
-    signerName: input.signerName.trim(),
-    confirmedByEmail: admin.email,
-    confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
-    ipAddress: ip,
+    signatureData: sc.signatureData,
+    signerName: finalSignerName,
+    confirmedByEmail: originalEmail,
+    confirmedAt: sc.confirmedAt.toISOString().slice(0, 16).replace("T", " "),
+    ipAddress: originalIp,
     orderId: assignment.order.id,
     assignmentId: assignment.id,
     draft: false,
