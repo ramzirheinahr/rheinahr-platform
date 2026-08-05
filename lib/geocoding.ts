@@ -25,32 +25,51 @@ async function geocode(address: string): Promise<{ lat: number; lon: number } | 
         return;
       }
       
-      const now = Date.now();
-      const elapsed = now - lastGeocodeTime;
-      if (elapsed < 1100) {
-        await new Promise(r => setTimeout(r, 1100 - elapsed));
-      }
-      lastGeocodeTime = Date.now();
+      let retryCount = 0;
+      let success = false;
+      while (retryCount < 3 && !success) {
+        try {
+          const now = Date.now();
+          const elapsed = now - lastGeocodeTime;
+          if (elapsed < 1100) {
+            await new Promise(r => setTimeout(r, 1100 - elapsed));
+          }
+          lastGeocodeTime = Date.now();
 
-      try {
-        const params = new URLSearchParams({ q: address, format: "json", limit: "1" });
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-          headers: { "User-Agent": "RheinAhr-App/1.0" },
-        });
-        if (!res.ok) throw new Error("Nominatim error");
-        
-        const data = await res.json();
-        if (data && data.length > 0) {
-          const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-          geocodeCache.set(normalized, result);
-          resolve(result);
-          return;
+          const params = new URLSearchParams({ q: address, format: "json", limit: "1" });
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+            headers: { "User-Agent": "RheinAhr-App/1.0" },
+          });
+          
+          if (res.status === 429 || res.status === 403) {
+            // Rate limited, backoff and retry
+            retryCount++;
+            await new Promise(r => setTimeout(r, 1000 * retryCount));
+            continue;
+          }
+          if (!res.ok) throw new Error(`Nominatim HTTP error: ${res.status}`);
+          
+          const data = await res.json();
+          if (data && data.length > 0) {
+            const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+            geocodeCache.set(normalized, result);
+            resolve(result);
+            success = true;
+            return;
+          }
+          geocodeCache.set(normalized, null);
+          resolve(null);
+          success = true;
+        } catch (error) {
+          if (retryCount >= 2) {
+            console.error("Geocoding failed for", address, error);
+            resolve(null);
+            success = true;
+          } else {
+            retryCount++;
+            await new Promise(r => setTimeout(r, 1000 * retryCount));
+          }
         }
-        geocodeCache.set(normalized, null);
-        resolve(null);
-      } catch (error) {
-        console.error("Geocoding failed for", address, error);
-        resolve(null);
       }
     });
   });

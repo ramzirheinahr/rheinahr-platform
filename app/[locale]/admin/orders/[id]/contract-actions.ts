@@ -17,7 +17,7 @@ export async function deleteContract(contractId: string) {
   });
 
   if (!contract) {
-    throw new Error("Vertrag nicht gefunden.");
+    return; // Contract already deleted or not found, silently succeed
   }
 
   // Release the assignments (the contractId will become null)
