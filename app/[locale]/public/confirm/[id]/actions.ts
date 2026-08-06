@@ -6,8 +6,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { workerShiftLink, orderLink, buildShiftHtmlTable } from "@/lib/notify";
+import { formatDateTimeDE, formatDateDE } from "@/lib/utils";
 import { pushToUsers } from "@/lib/push";
-import { formatDateDE } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type ActionState = { ok: boolean; error?: string; documentUrl?: string };
@@ -74,7 +74,7 @@ export async function confirmServicePublic(
     signatureData: data.signatureData,
     signerName: data.signerName,
     confirmedByEmail: "Öffentlicher Link (Kunde)",
-    confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+    confirmedAt: formatDateTimeDE(new Date()),
     ipAddress: ip,
     orderId: assignment.order.id,
     assignmentId: data.assignmentId,

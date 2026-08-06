@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { formatDateTimeDE } from "@/lib/utils";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { qualLabel, methodLabel } from "@/lib/invoicing";
@@ -93,7 +94,7 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
     isElectronic: sc.method === "electronic",
     signatureData: sc.signatureData,
     confirmedByEmail: sc.confirmedBy?.email ?? "—",
-    confirmedAt: sc.confirmedAt.toISOString().slice(0, 16).replace("T", " "),
+    confirmedAt: formatDateTimeDE(sc.confirmedAt),
     ipAddress: sc.ipAddress,
     orderId: a.order.id,
     assignmentId: a.id,

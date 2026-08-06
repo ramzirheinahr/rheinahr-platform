@@ -14,8 +14,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, FileSignature } from "lucide-react";
 import { confirmServiceByWorkerOnDevice } from "@/app/[locale]/worker/confirm-actions";
+import { SignaturePadField } from "@/components/client/signature-pad-field";
 
 export function WorkerShiftConfirmDialog({
   assignmentId,
@@ -29,26 +30,16 @@ export function WorkerShiftConfirmDialog({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [signerName, setSignerName] = useState("");
-  const [consent, setConsent] = useState(false);
+  const [signatureData, setSignatureData] = useState("");
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
   
   const av = useTranslations("availability");
   const c = useTranslations("common");
 
-  // Generate signature data string on the fly for the PDF
-  const [signatureData, setSignatureData] = useState("");
-  useEffect(() => {
-    if (signerName && consent) {
-      setSignatureData(`Gezeichnet: ${signerName}\nEinwilligung erteilt\nIP protokolliert`);
-    } else {
-      setSignatureData("");
-    }
-  }, [signerName, consent]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!consent) {
-      toast.error("Bitte stimmen Sie der elektronischen Unterschrift zu.");
+    if (!signatureData) {
+      toast.error("Bitte unterschreiben Sie in das Feld.");
       return;
     }
     if (!signerName.trim()) {
@@ -80,7 +71,7 @@ export function WorkerShiftConfirmDialog({
         setTimeout(() => {
           setSignedPdfUrl(null);
           setSignerName("");
-          setConsent(false);
+          setSignatureData("");
         }, 300);
       }
     }}>
@@ -129,20 +120,9 @@ export function WorkerShiftConfirmDialog({
                   />
                 </div>
 
-                <div className="flex items-start space-x-2 pt-2">
-                  <input
-                    type="checkbox"
-                    id="consent"
-                    className="size-4 mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
-                    checked={consent}
-                    onChange={(e) => setConsent(e.target.checked)}
-                  />
-                  <Label
-                    htmlFor="consent"
-                    className="text-sm font-normal leading-snug cursor-pointer"
-                  >
-                    {av("consentText")}
-                  </Label>
+                <div className="space-y-2">
+                  <Label>Unterschrift der Einrichtung</Label>
+                  <SignaturePadField name="signature" onChange={setSignatureData} />
                 </div>
               </form>
             )}
@@ -150,8 +130,8 @@ export function WorkerShiftConfirmDialog({
 
           <div className="p-4 border-t bg-slate-50 flex items-center justify-between">
             <div className="text-sm text-slate-500 flex items-center gap-1">
-              <ShieldCheck className="size-4" />
-              Sichere Signatur
+              <FileSignature className="size-4" />
+              Sichere Signatur (Handschriftlich)
             </div>
             <div className="flex gap-2">
               {signedPdfUrl ? (
@@ -175,7 +155,7 @@ export function WorkerShiftConfirmDialog({
                   <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>
                     {c("cancel")}
                   </Button>
-                  <Button type="submit" form="worker-confirm-form" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white" disabled={pending || !consent || !signerName.trim()}>
+                  <Button type="submit" form="worker-confirm-form" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white" disabled={pending || !signatureData || !signerName.trim()}>
                     {pending ? av("signing") : av("signShift")}
                   </Button>
                 </>

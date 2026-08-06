@@ -17,7 +17,7 @@ import {
   type BulkShift,
 } from "@/lib/orders";
 import { offerAssignmentsBulk } from "@/lib/assignments";
-import { formatDateDE } from "@/lib/utils";
+import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import type { OrderStatus } from "@prisma/client";
@@ -787,7 +787,7 @@ export async function approveTimeChange(input: {
     signatureData: sc.signatureData,
     signerName: finalSignerName,
     confirmedByEmail: originalEmail,
-    confirmedAt: sc.confirmedAt.toISOString().slice(0, 16).replace("T", " "),
+    confirmedAt: formatDateTimeDE(sc.confirmedAt),
     ipAddress: originalIp,
     orderId: assignment.order.id,
     assignmentId: assignment.id,

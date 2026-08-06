@@ -23,9 +23,9 @@ function getTransporter() {
         user: SMTP_USER,
         pass: SMTP_PASSWORD,
       },
-      connectionTimeout: 10000, // 10 seconds timeout
-      greetingTimeout: 5000,
-      socketTimeout: 15000,
+      connectionTimeout: 3000, // 3 seconds timeout
+      greetingTimeout: 3000,
+      socketTimeout: 3000,
     });
   }
   return transporter;
@@ -87,20 +87,22 @@ export async function sendEmailToUsers(
   `;
 
   try {
-    for (const email of emails) {
-      try {
-        await mailer.sendMail({
-          from: EMAIL_FROM,
-          to: email,
-          subject: payload.subject,
-          text: textBody,
-          html: finalHtml,
-          attachments: payload.attachments,
-        });
-      } catch (err) {
-        console.error(`Failed to send email to ${email}:`, err);
-      }
-    }
+    await Promise.allSettled(
+      emails.map(async (email) => {
+        try {
+          await mailer.sendMail({
+            from: EMAIL_FROM,
+            to: email,
+            subject: payload.subject,
+            text: textBody,
+            html: finalHtml,
+            attachments: payload.attachments,
+          });
+        } catch (err) {
+          console.error(`Failed to send email to ${email}:`, err);
+        }
+      })
+    );
   } catch (error) {
     console.error("Error sending emails sequentially:", error);
   }

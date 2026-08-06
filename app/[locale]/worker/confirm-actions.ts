@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { workerShiftLink, orderLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
-import { formatDateDE } from "@/lib/utils";
+import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type ActionState = { ok: boolean; error?: string; documentUrl?: string };
@@ -81,9 +81,9 @@ export async function confirmServiceByWorkerOnDevice(
     isElectronic: true,
     signatureData: data.signatureData,
     signerName: data.signerName,
-    confirmedByEmail: "Über Mitarbeiter-Gerät (Vor Ort)",
-    confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
-    ipAddress: ip,
+    confirmedByEmail: data.signerName, // Put the facility signer's name in 'Bestätigt durch'
+    confirmedAt: formatDateTimeDE(new Date()),
+    ipAddress: null, // Hide IP from the document per user request
     orderId: assignment.order.id,
     assignmentId: data.assignmentId,
     draft: false,

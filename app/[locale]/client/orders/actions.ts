@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, resolveClientId } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { diffRequestShifts, isRequestEditable, isRequestCancelable } from "@/lib/orders";
-import { formatDateDE } from "@/lib/utils";
+import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { orderRequestSchema, type OrderRequestInput } from "@/lib/validations";
 import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
@@ -613,7 +613,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
       signatureData: data.signatureData,
       signerName: data.signerName,
       confirmedByEmail: user.email,
-      confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+      confirmedAt: formatDateTimeDE(new Date()),
       ipAddress: ip,
       orderId: assignment.order.id,
       assignmentId: data.assignmentId,
@@ -995,7 +995,7 @@ export async function confirmHoursCorrection(input: {
     signatureData: input.signatureData,
     signerName: input.signerName.trim(),
     confirmedByEmail: user.email,
-    confirmedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+    confirmedAt: formatDateTimeDE(new Date()),
     ipAddress: ip,
     orderId: assignment.order.id,
     assignmentId: assignment.id,

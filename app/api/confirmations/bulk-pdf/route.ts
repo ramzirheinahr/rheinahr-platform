@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { formatDateTimeDE } from "@/lib/utils";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { qualLabel } from "@/lib/invoicing";
 import { netShiftHours } from "@/lib/pricing";
@@ -81,7 +82,7 @@ export async function GET(req: Request) {
       
     const isElectronic = a.serviceConfirmation ? a.serviceConfirmation.method === "electronic" : false;
     const confirmedByEmail = a.serviceConfirmation ? (a.serviceConfirmation.confirmedBy?.email || "—") : "";
-    const confirmedAt = a.serviceConfirmation ? a.serviceConfirmation.confirmedAt.toISOString().slice(0, 16).replace("T", " ") : "";
+    const confirmedAt = a.serviceConfirmation ? formatDateTimeDE(a.serviceConfirmation.confirmedAt) : "";
 
     return {
       facilityName: a.order.client.facilityName,

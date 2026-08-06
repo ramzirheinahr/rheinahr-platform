@@ -22,10 +22,16 @@ export default async function PublicConfirmPage(props: {
   
   const dateFilter: any = {};
   if (fromStr) {
-    dateFilter.gte = new Date(`${fromStr}T00:00:00.000Z`);
+    const fromDate = new Date(`${fromStr}T00:00:00.000Z`);
+    if (!isNaN(fromDate.getTime())) {
+      dateFilter.gte = fromDate;
+    }
   }
   if (toStr) {
-    dateFilter.lte = new Date(`${toStr}T23:59:59.999Z`);
+    const toDate = new Date(`${toStr}T23:59:59.999Z`);
+    if (!isNaN(toDate.getTime())) {
+      dateFilter.lte = toDate;
+    }
   }
   
   // Find all assignments for this requestGroupId that are confirmed and need service confirmation

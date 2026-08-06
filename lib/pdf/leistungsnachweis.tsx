@@ -151,8 +151,8 @@ function LeistungsnachweisPage({ d }: { d: LeistungsnachweisData }) {
           )}
           <Text style={styles.sigCaption}>
             {d.draft
-              ? `Elektronische Bestätigung (Textform) — ${d.facilityName || ""}`
-              : `Elektronisch bestätigt in Textform (§ 126b BGB) durch ${d.signerName || d.confirmedByEmail || ""} — ${d.facilityName || ""}, ${d.confirmedAt || ""}${d.ipAddress ? `, IP ${d.ipAddress}` : ""}`}
+              ? `Elektronische Bestätigung — ${d.facilityName || ""}`
+              : `Elektronisch bestätigt durch ${d.signerName || d.confirmedByEmail || ""} — ${d.facilityName || ""}, ${d.confirmedAt || ""}${d.ipAddress ? `, IP ${d.ipAddress}` : ""}`}
           </Text>
         </View>
       ) : (

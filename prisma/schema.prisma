@@ -393,6 +393,7 @@ model Order {
   @@index([status])
   @@index([shiftDate])
   @@index([clientId, requestGroupId])
+  @@index([requestGroupId])
   @@map("orders")
 }
 
