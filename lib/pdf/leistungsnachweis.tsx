@@ -133,8 +133,8 @@ function LeistungsnachweisPage({ d }: { d: LeistungsnachweisData }) {
       {d.draft ? null : (
         <>
           <Field label="Bestätigungsart" value={d.methodLabel} />
-          <Field label="Bestätigt durch" value={d.confirmedByEmail} />
-          <Field label="Bestätigt am" value={d.confirmedAt} />
+          {d.confirmedByEmail ? <Field label="Bestätigt durch" value={d.confirmedByEmail} /> : null}
+          {d.confirmedAt ? <Field label="Bestätigt am" value={d.confirmedAt} /> : null}
           {d.ipAddress ? <Field label="IP-Adresse" value={d.ipAddress} /> : null}
         </>
       )}

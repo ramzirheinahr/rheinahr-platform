@@ -31,6 +31,7 @@ export function WorkerShiftConfirmDialog({
   const [pending, startTransition] = useTransition();
   const [signerName, setSignerName] = useState("");
   const [signatureData, setSignatureData] = useState("");
+  const [consent, setConsent] = useState(false);
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
   
   const av = useTranslations("availability");
@@ -38,6 +39,10 @@ export function WorkerShiftConfirmDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!consent) {
+      toast.error("Bitte bestätigen Sie die rechtliche Erklärung.");
+      return;
+    }
     if (!signatureData) {
       toast.error("Bitte unterschreiben Sie in das Feld.");
       return;
@@ -72,6 +77,7 @@ export function WorkerShiftConfirmDialog({
           setSignedPdfUrl(null);
           setSignerName("");
           setSignatureData("");
+          setConsent(false);
         }, 300);
       }
     }}>
@@ -124,6 +130,22 @@ export function WorkerShiftConfirmDialog({
                   <Label>Unterschrift der Einrichtung</Label>
                   <SignaturePadField name="signature" onChange={setSignatureData} />
                 </div>
+
+                <div className="flex items-start space-x-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="consent"
+                    className="size-4 mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                  />
+                  <Label
+                    htmlFor="consent"
+                    className="text-sm font-normal leading-snug cursor-pointer"
+                  >
+                    Ich bestätige hiermit rechtsverbindlich, dass die oben genannte Dienstleistung erbracht wurde.
+                  </Label>
+                </div>
               </form>
             )}
           </div>
@@ -155,7 +177,7 @@ export function WorkerShiftConfirmDialog({
                   <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>
                     {c("cancel")}
                   </Button>
-                  <Button type="submit" form="worker-confirm-form" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white" disabled={pending || !signatureData || !signerName.trim()}>
+                  <Button type="submit" form="worker-confirm-form" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white" disabled={pending || !signatureData || !consent || !signerName.trim()}>
                     {pending ? av("signing") : av("signShift")}
                   </Button>
                 </>
