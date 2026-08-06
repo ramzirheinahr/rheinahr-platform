@@ -118,7 +118,7 @@ export async function generateOrderInvoices(assignmentIds: string[], customInvoi
   const firstDate = assignments[0].order.shiftDate;
   const lastDate = assignments[assignments.length - 1].order.shiftDate;
   
-  const formatDate = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC" }).format(d);
+  const formatDate = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin" }).format(d);
   
   let periodLabel = formatDate(firstDate);
   if (firstDate.getTime() !== lastDate.getTime()) {

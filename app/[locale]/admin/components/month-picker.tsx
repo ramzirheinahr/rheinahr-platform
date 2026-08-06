@@ -13,7 +13,7 @@ export function MonthPicker({ currentMonth }: { currentMonth: string }) {
   for (let i = -3; i <= 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" }).format(d);
+    const label = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", month: "long", year: "numeric" }).format(d);
     months.push({ value, label });
   }
 

@@ -39,7 +39,7 @@ export async function MonthScheduleTable({
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
-    timeZone: "UTC",
+    timeZone: "Europe/Berlin",
   });
   const hoursFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
 

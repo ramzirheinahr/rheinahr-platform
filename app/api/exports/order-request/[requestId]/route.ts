@@ -119,7 +119,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ requestI
   
   const createdDate = orders[0].createdAt ? new Intl.DateTimeFormat("de-DE", {
     dateStyle: "medium",
-    timeZone: "UTC",
+    timeZone: "Europe/Berlin",
   }).format(orders[0].createdAt) : "unbekannt";
   
   const pdf = await renderOrderRequestPdf({

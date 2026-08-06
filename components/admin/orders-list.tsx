@@ -279,7 +279,7 @@ export function OrdersList({
                 </div>
                 {(g.createdAt && g.creatorName) && (
                   <div className="text-xs text-muted-foreground/80 mt-1">
-                    Eingegangen {new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.createdAt))} ({new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(g.createdAt))})
+                    Eingegangen {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.createdAt))} ({new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(new Date(g.createdAt))})
                     {` · von ${g.creatorName}`}
                   </div>
                 )}

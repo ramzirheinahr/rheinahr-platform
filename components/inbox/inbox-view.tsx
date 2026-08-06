@@ -31,7 +31,7 @@ export async function InboxView({
     agency ? listRecipients() : Promise.resolve(null),
   ]);
 
-  const timeFmt = new Intl.DateTimeFormat(locale, {
+  const timeFmt = new Intl.DateTimeFormat(locale, { timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",

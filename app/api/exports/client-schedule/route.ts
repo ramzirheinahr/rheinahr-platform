@@ -52,7 +52,7 @@ export async function GET(req: Request) {
     const monthLabel = new Intl.DateTimeFormat("de-DE", {
       month: "long",
       year: "numeric",
-      timeZone: "UTC",
+      timeZone: "Europe/Berlin",
     }).format(new Date(Date.UTC(year, month - 1, 1)));
     const pdf = await renderMonatsuebersichtPdf({
       facilityName: client.facilityName,

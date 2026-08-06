@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-utils";
 import { CheckCircle2, FileSignature, X, Download, UploadCloud, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";

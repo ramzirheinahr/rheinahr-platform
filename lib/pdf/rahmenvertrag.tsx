@@ -1,7 +1,7 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-utils";
 
 export type RahmenvertragData = {
   facilityName: string;

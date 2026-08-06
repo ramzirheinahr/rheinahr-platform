@@ -705,7 +705,14 @@
     "cancelSigned": "Not possible after client signature.",
     "leaveSection": "Leave",
     "cancelLeaveEntirely": "Cancel leave",
-    "leaveCancelled": "Leave cancelled."
+    "leaveCancelled": "Leave cancelled.",
+    "confirmShift": "Get shift confirmed",
+    "confirmShiftTitle": "Confirm shift",
+    "confirmShiftDesc": "Please hand over the device to the facility staff to legally confirm the shift.",
+    "signerName": "Signer name (Facility)",
+    "consentText": "I confirm as a representative of the facility that the service was provided. IP and timestamp will be saved as proof.",
+    "signShift": "Confirm & Sign",
+    "signing": "Signing..."
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",

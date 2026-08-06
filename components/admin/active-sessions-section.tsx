@@ -69,7 +69,7 @@ export function ActiveSessionsSection({ users }: { users: SessionUser[] }) {
                     {session.device || "Unknown Device"} · {session.ipAddress}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {t("lastActive")}: {new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(new Date(session.lastActive))}
+                    {t("lastActive")}: {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" }).format(new Date(session.lastActive))}
                   </div>
                 </div>
               </div>

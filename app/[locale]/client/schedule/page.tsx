@@ -49,7 +49,7 @@ export default async function ClientSchedulePage({
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: "Europe/Berlin",
   }).format(new Date(Date.UTC(year, month - 1, 1)));
   
   const startDate = new Date(Date.UTC(year, month - 1, 1));

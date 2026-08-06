@@ -134,7 +134,7 @@ export function MasterScheduleGrid({
   const holidays = useMemo(() => germanHolidays(year), [year]);
 
   const days = useMemo(() => {
-    const wdFmt = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
+    const wdFmt = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "Europe/Berlin" });
     return Array.from({ length: daysInMonth }, (_, i) => {
       const date = `${year}-${pad(month)}-${pad(i + 1)}`;
       const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -587,7 +587,7 @@ function WorkerInfo({
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: "Europe/Berlin",
   }).format(new Date(Date.UTC(year, month - 1, 1)));
 
   // Positive remaining = credit for next month (worker provided more than needed).
@@ -937,7 +937,7 @@ function NewOrderEditor({
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: "Europe/Berlin",
   }).format(new Date(`${date}T00:00:00Z`));
 
   const shiftLabel: Record<ShiftKey, string> = {
@@ -1107,7 +1107,7 @@ function CellEditor({
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: "Europe/Berlin",
   }).format(new Date(`${date}T00:00:00Z`));
 
   // ── Availability (top line) ──

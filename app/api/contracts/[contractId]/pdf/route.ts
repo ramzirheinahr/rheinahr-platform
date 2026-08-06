@@ -5,7 +5,7 @@ import { audit } from "@/lib/audit";
 import { qualLabel } from "@/lib/invoicing";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal, rateFor } from "@/lib/pricing";
 import { renderContractPdf } from "@/lib/pdf/contract";
-import { format } from "date-fns";
+import { format } from "@/lib/date-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

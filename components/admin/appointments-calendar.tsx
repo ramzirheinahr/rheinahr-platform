@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
+import { startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
+import { format } from "@/lib/date-utils";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";

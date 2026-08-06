@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format } from "@/lib/date-utils";
 import { resolveRates, resolveSurcharges, resolveNightWindow, rateFor, shiftSurchargeHours } from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
 import { qualLabel } from "@/lib/invoicing";

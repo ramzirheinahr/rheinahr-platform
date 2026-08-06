@@ -44,7 +44,7 @@ export async function generateMonthContracts(clientId: string, year: number, mon
     throw new Error("Keine offenen Schichten für diesen Monat gefunden.");
   }
 
-  const periodLabel = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" }).format(startDate);
+  const periodLabel = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "Europe/Berlin" }).format(startDate);
 
   // Create contract
   const contract = await prisma.clientContract.create({

@@ -706,7 +706,14 @@
     "cancelSigned": "Nach Kundensignatur nicht möglich.",
     "leaveSection": "Urlaub",
     "cancelLeaveEntirely": "Urlaub stornieren",
-    "leaveCancelled": "Urlaub wurde storniert."
+    "leaveCancelled": "Urlaub wurde storniert.",
+    "confirmShift": "Schicht bestätigen lassen",
+    "confirmShiftTitle": "Leistungsnachweis bestätigen",
+    "confirmShiftDesc": "Bitte übergeben Sie das Gerät an das zuständige Personal der Einrichtung, um die Schicht rechtsverbindlich bestätigen zu lassen.",
+    "signerName": "Name des Unterzeichners (Einrichtung)",
+    "consentText": "Ich bestätige als Vertreter der Einrichtung die Erbringung der Dienstleistung. IP und Zeitstempel werden als Nachweis gespeichert.",
+    "signShift": "Bestätigen & Signieren",
+    "signing": "Wird signiert..."
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",

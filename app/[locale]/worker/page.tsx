@@ -52,7 +52,7 @@ export default async function WorkerSchedulePage({
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: "Europe/Berlin",
   }).format(new Date(Date.UTC(year, month - 1, 1)));
   const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };

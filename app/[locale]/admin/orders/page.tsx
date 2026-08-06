@@ -141,7 +141,7 @@ export default async function AdminOrdersPage(props: {
   const fmtEur = (n: number) =>
     n.toLocaleString(locale, { style: "currency", currency: "EUR" });
 
-  const monthName = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(targetYear, targetMonth - 1, 1)));
+  const monthName = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "Europe/Berlin" }).format(new Date(Date.UTC(targetYear, targetMonth - 1, 1)));
 
   const summaries: OrderGroupSummary[] = groups.map((g) => {
     const first = g.shifts[0];

@@ -218,7 +218,7 @@ export function OrderRequestBuilder({
   const monthNames = useMemo(
     () =>
       Array.from({ length: 12 }, (_, i) =>
-        new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(
+        new Intl.DateTimeFormat(locale, { month: "long", timeZone: "Europe/Berlin" }).format(
           new Date(Date.UTC(2020, i, 1)),
         ),
       ),
@@ -227,7 +227,7 @@ export function OrderRequestBuilder({
 
   const days = useMemo(() => {
     const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    const wd = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
+    const wd = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "Europe/Berlin" });
     return Array.from({ length: count }, (_, i) => {
       const d = i + 1;
       const date = `${year}-${pad(month)}-${pad(d)}`;

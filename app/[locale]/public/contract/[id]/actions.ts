@@ -8,7 +8,7 @@ import { pushToUsers } from "@/lib/push";
 import { renderContractPdf } from "@/lib/pdf/contract";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal, rateFor } from "@/lib/pricing";
 import { qualLabel } from "@/lib/invoicing";
-import { format } from "date-fns";
+import { format } from "@/lib/date-utils";
 
 export async function signContractPublic({
   requestGroupId,

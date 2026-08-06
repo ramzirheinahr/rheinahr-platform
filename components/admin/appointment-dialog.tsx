@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { createAppointment, updateAppointment } from "@/app/[locale]/admin/appointments/actions";
-import { format } from "date-fns";
+import { format } from "@/lib/date-utils";
 
 export function AppointmentDialog({
   open,

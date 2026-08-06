@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { FileSignature, Upload, Download, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

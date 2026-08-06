@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { submitLeaveRequest } from "@/app/[locale]/worker/leave/actions";
 import { requestLeaveEdit } from "@/app/[locale]/worker/leave/actions";
+import { WorkerShiftConfirmDialog } from "@/components/worker/worker-shift-confirm-dialog";
 
 type BType = "none" | "full" | "early" | "late" | "night" | "custom";
 type Block = { type: BType; start: string; end: string };
@@ -265,7 +266,7 @@ export function AvailabilityBuilder({
 
   const days = useMemo(() => {
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    const fmt = new Intl.DateTimeFormat(locale, { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" });
+    const fmt = new Intl.DateTimeFormat(locale, { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" });
     return Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
       const date = `${year}-${pad(month)}-${pad(day)}`;
@@ -448,10 +449,23 @@ export function AvailabilityBuilder({
             </a>
           </div>
         ) : a.status === "confirmed" ? (
-          <Badge className="gap-1 border-transparent bg-amber-500 text-white">
-            <CheckCircle2 className="size-3" />
-            {t("confirmedByWorker")}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge className="gap-1 border-transparent bg-amber-500 text-white">
+              <CheckCircle2 className="size-3" />
+              {t("confirmedByWorker")}
+            </Badge>
+            {(past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !workerId ? (
+              <WorkerShiftConfirmDialog 
+                assignmentId={a.id} 
+                scheduledHours={a.scheduledHours ?? 0}
+                triggerBtn={
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-xs border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100">
+                    {t("confirmShift")}
+                  </Button>
+                }
+              />
+            ) : null}
+          </div>
         ) : (
           <Badge variant={a.status === "declined" ? "outline" : "secondary"}>
             {eas(a.status)}
@@ -740,10 +754,23 @@ export function AvailabilityBuilder({
                             ) : a.status === "confirmed" ? (
                               // Worker accepted — hours count as "confirmed" (yellow)
                               // until the client signs the Leistungsnachweis (→ green).
-                              <Badge className="gap-1 border-transparent bg-amber-500 text-white">
-                                <CheckCircle2 className="size-3" />
-                                {t("confirmedByWorker")}
-                              </Badge>
+                              <div className="flex items-center gap-1.5">
+                                <Badge className="gap-1 border-transparent bg-amber-500 text-white">
+                                  <CheckCircle2 className="size-3" />
+                                  {t("confirmedByWorker")}
+                                </Badge>
+                                {(d.past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !workerId ? (
+                                  <WorkerShiftConfirmDialog 
+                                    assignmentId={a.id} 
+                                    scheduledHours={a.scheduledHours ?? 0}
+                                    triggerBtn={
+                                      <Button size="sm" variant="outline" className="h-6 px-2 text-xs border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100">
+                                        {t("confirmShift")}
+                                      </Button>
+                                    }
+                                  />
+                                ) : null}
+                              </div>
                             ) : (
                               <Badge variant={a.status === "declined" ? "outline" : "secondary"}>
                                 {eas(a.status)}
