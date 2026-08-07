@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -30,11 +31,7 @@ export type WorkerData = {
   employmentType: string;
   phone: string | null;
   address: string | null;
-  addressStreet: string | null;
-  addressHouseNumber: string | null;
-  addressZip: string | null;
-  addressCity: string | null;
-  addressExtra: string | null;
+
   certifications: string[];
   skills: string[];
   languages: string[];
@@ -173,34 +170,9 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
           </div>
 
           <fieldset className="space-y-3 rounded-lg border p-4 mt-5">
-            <legend className="px-1 text-sm font-medium">Adresse</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="addressStreet">{t("addressStreet")}</Label>
-                <Input id="addressStreet" name="addressStreet" defaultValue={worker.addressStreet ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="addressHouseNumber">{t("addressHouseNumber")}</Label>
-                <Input id="addressHouseNumber" name="addressHouseNumber" defaultValue={worker.addressHouseNumber ?? ""} />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="addressZip">{t("addressZip")}</Label>
-                <Input id="addressZip" name="addressZip" defaultValue={worker.addressZip ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="addressCity">{t("addressCity")}</Label>
-                <Input id="addressCity" name="addressCity" defaultValue={worker.addressCity ?? ""} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="addressExtra">{t("addressExtra")}</Label>
-              <Input id="addressExtra" name="addressExtra" defaultValue={worker.addressExtra ?? ""} />
-            </div>
-            <div className="space-y-2 mt-4 pt-4 border-t">
-              <Label htmlFor="address" className="text-muted-foreground">{t("address")}</Label>
-              <Input id="address" name="address" defaultValue={worker.address ?? ""} className="text-muted-foreground" />
+            <legend className="px-1 text-sm font-medium">{t("address")}</legend>
+            <div className="space-y-2 mt-2">
+              <Textarea id="address" name="address" defaultValue={worker.address ?? ""} rows={3} />
             </div>
           </fieldset>
           <div className="space-y-2">

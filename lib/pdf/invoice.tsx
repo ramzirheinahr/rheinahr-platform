@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   
   clientAddress: { marginTop: 0 },
   
-  titleBlock: { marginTop: -40, textAlign: "left", width: "40%", paddingLeft: 20 },
+  titleBlock: { marginTop: 0, textAlign: "left", width: "40%", paddingLeft: 20 },
   titleText: { fontSize: 28, fontFamily: "Helvetica-Bold", marginBottom: 30 },
   
   metaTable: { width: "100%" },
@@ -128,7 +128,7 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
           <Text style={styles.returnAddress}>RheinAhr Dienstleistungen GmbH , Theaterplatz 1 , 53177 Bonn</Text>
           <View style={styles.clientAddress}>
             <Text>{data.clientName}</Text>
-            {data.clientAddress.split(/[\n,]+/).map((line, i) => (
+            {(data.clientAddress || "").split("\n").map((line, i) => (
               <Text key={i}>{line.trim()}</Text>
             ))}
           </View>

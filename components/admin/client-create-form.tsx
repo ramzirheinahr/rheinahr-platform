@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { facilityTypes } from "@/lib/validations";
 import { PasswordField } from "@/components/admin/password-field";
@@ -82,34 +83,9 @@ export function ClientCreateForm({ customFacilityTypes = [] }: { customFacilityT
       </div>
 
       <fieldset className="space-y-3 rounded-lg border p-4">
-        <legend className="px-1 text-sm font-medium">Adresse</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="addressStreet">{t("addressStreet")}</Label>
-            <Input id="addressStreet" name="addressStreet" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="addressHouseNumber">{t("addressHouseNumber")}</Label>
-            <Input id="addressHouseNumber" name="addressHouseNumber" />
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="addressZip">{t("addressZip")}</Label>
-            <Input id="addressZip" name="addressZip" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="addressCity">{t("addressCity")}</Label>
-            <Input id="addressCity" name="addressCity" />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="addressExtra">{t("addressExtra")}</Label>
-          <Input id="addressExtra" name="addressExtra" />
-        </div>
-        <div className="space-y-2 mt-4 pt-4 border-t">
-          <Label htmlFor="address" className="text-muted-foreground">{t("address")}</Label>
-          <Input id="address" name="address" className="text-muted-foreground" />
+        <legend className="px-1 text-sm font-medium">{t("address")}</legend>
+        <div className="space-y-2 mt-2">
+          <Textarea id="address" name="address" rows={3} />
         </div>
       </fieldset>
 

@@ -235,11 +235,7 @@ model Worker {
   deploymentRadius     Int          @default(100) @map("deployment_radius")
   phone                String?
   address              String?
-  addressStreet        String?      @map("address_street")
-  addressHouseNumber   String?      @map("address_house_number")
-  addressZip           String?      @map("address_zip")
-  addressCity          String?      @map("address_city")
-  addressExtra         String?      @map("address_extra")
+
   // Languages spoken by the worker as ISO 639-1 codes (any world language).
   // Decoupled from the UI-locale enum (User.preferredLanguage stays de/en/ar).
   languages            String[]     @default([])
@@ -342,11 +338,7 @@ model Client {
   shortCode                  String?   @unique @map("short_code")
   facilityType               String    @map("facility_type")
   address                    String?
-  addressStreet              String?   @map("address_street")
-  addressHouseNumber         String?   @map("address_house_number")
-  addressZip                 String?   @map("address_zip")
-  addressCity                String?   @map("address_city")
-  addressExtra               String?   @map("address_extra")
+
   frameworkAgreementUrl      String?   @map("framework_agreement_url")
   frameworkAgreementSignedAt DateTime? @map("framework_agreement_signed_at")
   contactPerson              String?   @map("contact_person")

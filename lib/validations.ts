@@ -137,11 +137,7 @@ export const workerSchema = z.object({
   languages: z.array(z.string().min(2).max(10)).default([]),
   phone: z.string().max(40).optional(),
   address: z.string().max(240).optional(),
-  addressStreet: z.string().max(120).optional(),
-  addressHouseNumber: z.string().max(40).optional(),
-  addressZip: z.string().max(20).optional(),
-  addressCity: z.string().max(120).optional(),
-  addressExtra: z.string().max(120).optional(),
+
   // Personal / HR (sensitive — admin only).
   birthDate: optionalDate,
   birthPlace: z.string().max(120).optional(),
@@ -201,11 +197,7 @@ export const clientSchema = z.object({
   ),
   facilityType: z.string().min(2).max(120),
   address: z.string().max(240).optional(),
-  addressStreet: z.string().max(120).optional(),
-  addressHouseNumber: z.string().max(40).optional(),
-  addressZip: z.string().max(20).optional(),
-  addressCity: z.string().max(120).optional(),
-  addressExtra: z.string().max(120).optional(),
+
   contactPerson: z.string().max(120).optional(),
   billingInfo: z.string().max(500).optional(),
   paymentTermsDays: z.coerce.number().int().min(0).max(365).optional().default(14),

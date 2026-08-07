@@ -28,7 +28,9 @@ export const RahmenvertragTemplate = ({ data }: { data: RahmenvertragData }) => 
       <View style={{ marginBottom: 24 }}>
         <Text style={styles.paragraph}>Zwischen</Text>
         <Text style={[styles.paragraph, styles.bold]}>{data.facilityName}</Text>
-        <Text style={styles.paragraph}>{data.facilityAddress}</Text>
+        {(data.facilityAddress || "").split("\n").map((line, i) => (
+          <Text key={i} style={styles.paragraph}>{line}</Text>
+        ))}
         <Text style={styles.paragraph}>(nachfolgend „Auftraggeber“ genannt)</Text>
         
         <Text style={styles.paragraph}>und</Text>

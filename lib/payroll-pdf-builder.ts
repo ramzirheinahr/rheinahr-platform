@@ -14,7 +14,7 @@ import { buildAddressString } from "@/lib/utils";
 import type { Worker } from "@prisma/client";
 
 export function buildPayrollPdfData(
-  worker: Pick<Worker, "id" | "fullName" | "address" | "addressStreet" | "addressHouseNumber" | "addressZip" | "addressCity" | "addressExtra" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "qualification">,
+  worker: Pick<Worker, "id" | "fullName" | "address" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "qualification">,
   assignments: WorkerScheduleRow[],
   year: number,
   month: number
@@ -174,7 +174,7 @@ export function buildPayrollPdfData(
     date: format(new Date(), "dd.MM.yyyy"),
     workerId: worker.id,
     workerName: worker.fullName,
-    workerAddress: buildAddressString(worker, true),
+    workerAddress: buildAddressString(worker),
     period: monthName,
     items,
     total: formatAmount(totalPayout),

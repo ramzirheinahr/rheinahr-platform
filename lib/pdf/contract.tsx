@@ -57,7 +57,9 @@ const ContractPage = ({ data }: { data: ContractPdfData }) => (
     <View style={{ marginBottom: 16 }}>
       <Text style={styles.paragraph}>Zwischen</Text>
       <Text style={[styles.paragraph, styles.bold]}>{data.facilityName}</Text>
-      <Text style={styles.paragraph}>{data.facilityAddress}</Text>
+      {(data.facilityAddress || "").split("\n").map((line, i) => (
+        <Text key={i} style={styles.paragraph}>{line}</Text>
+      ))}
       <Text style={styles.paragraph}>(Auftraggeber)</Text>
       <Text style={styles.paragraph}>und</Text>
       <Text style={[styles.paragraph, styles.bold]}>RheinAhr Dienstleistungen GmbH</Text>

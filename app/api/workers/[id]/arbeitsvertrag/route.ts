@@ -28,11 +28,6 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const pdfData: ArbeitsvertragData = {
     fullName: worker.fullName,
     address: worker.address,
-    addressStreet: worker.addressStreet,
-    addressHouseNumber: worker.addressHouseNumber,
-    addressZip: worker.addressZip,
-    addressCity: worker.addressCity,
-    addressExtra: worker.addressExtra,
     contractType: worker.contractType,
     employmentType: worker.employmentType,
     startDate: worker.employmentStartDate,

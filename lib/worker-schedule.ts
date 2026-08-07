@@ -49,7 +49,7 @@ export type WorkerScheduleTotals = {
 };
 
 import { getDrivingDistanceKm } from "@/lib/geocoding";
-import { buildAddressString, type AddressEntity } from "@/lib/utils";
+import { buildAddressString } from "@/lib/utils";
 export async function getWorkerMonthSchedule(
   workerId: string,
   year: number,
@@ -60,12 +60,7 @@ export async function getWorkerMonthSchedule(
     select: { 
       requiredHours: true, 
       carryoverHours: true, 
-      address: true, 
-      addressStreet: true,
-      addressHouseNumber: true,
-      addressZip: true,
-      addressCity: true,
-      addressExtra: true,
+      address: true,
       travelAllowanceEnabled: true, 
       travelAllowancePerKm: true, 
       mealAllowanceEnabled: true, 
@@ -95,12 +90,7 @@ export async function getWorkerMonthSchedule(
             notes: true,
             client: { select: { 
               facilityName: true, 
-              address: true,
-              addressStreet: true,
-              addressHouseNumber: true,
-              addressZip: true,
-              addressCity: true,
-              addressExtra: true 
+              address: true
             } },
           },
         },
@@ -141,8 +131,8 @@ export async function getWorkerMonthSchedule(
       let mealAllowance: number | null = null;
       
       if (worker && a.order.client) {
-        const workerAddr = buildAddressString(worker, false);
-        const clientAddr = buildAddressString(a.order.client as AddressEntity, false);
+        const workerAddr = buildAddressString(worker);
+        const clientAddr = buildAddressString(a.order.client);
         
         if (workerAddr && clientAddr) {
           distanceKm = await getDrivingDistanceKm(workerAddr, clientAddr);

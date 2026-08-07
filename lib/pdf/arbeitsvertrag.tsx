@@ -7,11 +7,7 @@ import { buildAddressString } from "@/lib/utils";
 export type ArbeitsvertragData = {
   fullName: string;
   address?: string | null;
-  addressStreet?: string | null;
-  addressHouseNumber?: string | null;
-  addressZip?: string | null;
-  addressCity?: string | null;
-  addressExtra?: string | null;
+
   contractType: "unbefristet" | "befristet" | string;
   employmentType: "vollzeit" | "teilzeit" | "minijob" | "werkstudent" | string;
   startDate: Date | null;
@@ -79,7 +75,7 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
   const entgeltgruppeStr = data.entgeltgruppe || "________";
   
   // Format address nicely
-  const addressLines = buildAddressString(data, true).split("\n");
+  const addressLines = buildAddressString(data).split("\n");
 
   return (
     <Document>
