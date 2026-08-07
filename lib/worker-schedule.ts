@@ -49,7 +49,7 @@ export type WorkerScheduleTotals = {
 };
 
 import { getDrivingDistanceKm } from "@/lib/geocoding";
-
+import { buildAddressString, type AddressEntity } from "@/lib/utils";
 export async function getWorkerMonthSchedule(
   workerId: string,
   year: number,
@@ -57,7 +57,20 @@ export async function getWorkerMonthSchedule(
 ): Promise<{ rows: WorkerScheduleRow[]; leaveDays: WorkerLeaveDay[]; totals: WorkerScheduleTotals }> {
   const worker = await prisma.worker.findUnique({
     where: { id: workerId },
-    select: { requiredHours: true, carryoverHours: true, address: true, travelAllowanceEnabled: true, travelAllowancePerKm: true, mealAllowanceEnabled: true, mealAllowance: true },
+    select: { 
+      requiredHours: true, 
+      carryoverHours: true, 
+      address: true, 
+      addressStreet: true,
+      addressHouseNumber: true,
+      addressZip: true,
+      addressCity: true,
+      addressExtra: true,
+      travelAllowanceEnabled: true, 
+      travelAllowancePerKm: true, 
+      mealAllowanceEnabled: true, 
+      mealAllowance: true 
+    },
   });
   
   const assignments = await prisma.assignment
@@ -80,7 +93,15 @@ export async function getWorkerMonthSchedule(
             endTime: true,
             breakMinutes: true,
             notes: true,
-            client: { select: { facilityName: true, address: true } },
+            client: { select: { 
+              facilityName: true, 
+              address: true,
+              addressStreet: true,
+              addressHouseNumber: true,
+              addressZip: true,
+              addressCity: true,
+              addressExtra: true 
+            } },
           },
         },
         serviceConfirmation: { select: { hoursWorked: true } },
@@ -119,12 +140,17 @@ export async function getWorkerMonthSchedule(
       let travelCost: number | null = null;
       let mealAllowance: number | null = null;
       
-      if (worker?.address && a.order.client.address) {
-        distanceKm = await getDrivingDistanceKm(worker.address, a.order.client.address);
-        if (distanceKm != null && worker?.travelAllowanceEnabled && !a.excludeTravelAllowance) {
-          // Client request: one-way distance * rate
-          const rate = worker.travelAllowancePerKm ?? 0.30;
-          travelCost = distanceKm * rate;
+      if (worker && a.order.client) {
+        const workerAddr = buildAddressString(worker, false);
+        const clientAddr = buildAddressString(a.order.client as AddressEntity, false);
+        
+        if (workerAddr && clientAddr) {
+          distanceKm = await getDrivingDistanceKm(workerAddr, clientAddr);
+          if (distanceKm != null && worker.travelAllowanceEnabled && !a.excludeTravelAllowance) {
+            // Client request: one-way distance * rate
+            const rate = worker.travelAllowancePerKm ?? 0.30;
+            travelCost = distanceKm * rate;
+          }
         }
       }
 

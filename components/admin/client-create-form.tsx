@@ -76,16 +76,42 @@ export function ClientCreateForm({ customFacilityTypes = [] }: { customFacilityT
         <PasswordField placeholder={ta("passwordHint")} />
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="contactPerson">{t("contactPerson")}</Label>
-          <Input id="contactPerson" name="contactPerson" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="address">{t("address")}</Label>
-          <Input id="address" name="address" />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="contactPerson">{t("contactPerson")}</Label>
+        <Input id="contactPerson" name="contactPerson" className="sm:max-w-sm" />
       </div>
+
+      <fieldset className="space-y-3 rounded-lg border p-4">
+        <legend className="px-1 text-sm font-medium">Adresse</legend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="addressStreet">{t("addressStreet")}</Label>
+            <Input id="addressStreet" name="addressStreet" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="addressHouseNumber">{t("addressHouseNumber")}</Label>
+            <Input id="addressHouseNumber" name="addressHouseNumber" />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="addressZip">{t("addressZip")}</Label>
+            <Input id="addressZip" name="addressZip" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="addressCity">{t("addressCity")}</Label>
+            <Input id="addressCity" name="addressCity" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="addressExtra">{t("addressExtra")}</Label>
+          <Input id="addressExtra" name="addressExtra" />
+        </div>
+        <div className="space-y-2 mt-4 pt-4 border-t">
+          <Label htmlFor="address" className="text-muted-foreground">{t("address")}</Label>
+          <Input id="address" name="address" className="text-muted-foreground" />
+        </div>
+      </fieldset>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">

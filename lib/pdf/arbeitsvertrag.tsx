@@ -2,10 +2,16 @@ import "server-only";
 import { Document, Page, View, Text, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { format } from "@/lib/date-utils";
+import { buildAddressString } from "@/lib/utils";
 
 export type ArbeitsvertragData = {
   fullName: string;
-  address: string;
+  address?: string | null;
+  addressStreet?: string | null;
+  addressHouseNumber?: string | null;
+  addressZip?: string | null;
+  addressCity?: string | null;
+  addressExtra?: string | null;
   contractType: "unbefristet" | "befristet" | string;
   employmentType: "vollzeit" | "teilzeit" | "minijob" | "werkstudent" | string;
   startDate: Date | null;
@@ -72,10 +78,8 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
   const monthlyHoursStr = data.requiredHours ? data.requiredHours.toFixed(2).replace(".", ",") : "________";
   const entgeltgruppeStr = data.entgeltgruppe || "________";
   
-  // Basic address splitting
-  const addressParts = data.address ? data.address.split(",") : ["Adresse unbekannt"];
-  const street = addressParts[0]?.trim();
-  const plzOrt = addressParts[1]?.trim() || "";
+  // Format address nicely
+  const addressLines = buildAddressString(data, true).split("\n");
 
   return (
     <Document>
@@ -92,8 +96,9 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
           <Text style={styles.paragraph}>und</Text>
           
           <Text style={[styles.paragraph, styles.highlight]}>{data.fullName}</Text>
-          <Text style={[styles.paragraph, styles.highlight]}>{street}</Text>
-          <Text style={[styles.paragraph, styles.highlight]}>{plzOrt}</Text>
+          {addressLines.map((line, i) => (
+             <Text key={i} style={[styles.paragraph, styles.highlight]}>{line}</Text>
+          ))}
           <Text style={styles.paragraph}>- nachstehend Mitarbeiter genannt -</Text>
           
           <Text style={styles.paragraph}>wird folgender Arbeitsvertrag geschlossen.</Text>
