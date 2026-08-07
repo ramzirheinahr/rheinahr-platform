@@ -11,6 +11,7 @@ import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { orderRequestSchema, type OrderRequestInput } from "@/lib/validations";
 import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
+import { sendEmailToUsers } from "@/lib/email";
 import type { Qualification } from "@/lib/validations";
 
 export type ActionState = { ok: boolean; error?: string };
@@ -403,6 +404,43 @@ export async function createOrderRequest(
     orderLink("admin", requestGroupId),
     shiftsHtml
   );
+
+  const clientHtml = `
+    <p>Vielen Dank für Ihre Anfrage. Wir haben die folgenden Schichten erfolgreich entgegengenommen und werden diese so schnell wie möglich bearbeiten:</p>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; font-family: sans-serif; font-size: 14px;">
+      <thead>
+        <tr style="background-color: #f3f4f6; text-align: left;">
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Datum</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Zeit</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Qualifikation</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Bereich/Notizen</th>
+          <th style="padding: 10px; border: 1px solid #e5e7eb;">Anzahl</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${shifts.map(s => `
+          <tr>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${formatDateDE(new Date(s.date))}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.startTime} - ${s.endTime}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.requiredQualification}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.bereich ?? notes ?? '-'}</td>
+            <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.quantity}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  await sendEmailToUsers(
+    [user.id],
+    {
+      subject: `Eingangsbestätigung: Ihre Anfrage (${shifts.length} Schicht(en))`,
+      body: `Wir haben Ihre neue Anfrage über ${shifts.length} Schicht(en) erhalten.`,
+      html: clientHtml,
+      url: orderLink("client", requestGroupId),
+    },
+    { force: true }
+  ).catch(console.error);
 
   await audit({
     userId: user.id,

@@ -56,6 +56,12 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
 
   const shiftDateIso = a.order.shiftDate.toISOString().slice(0, 10);
 
+  // If the user uploaded a physical confirmation document, serve that original
+  // file instead of rendering a new Leistungsnachweis PDF.
+  if (sc.method === "upload" && sc.documentUrl) {
+    return NextResponse.redirect(new URL(`/api/confirmations/${assignmentId}/document`, _req.url));
+  }
+
   // Electronic confirmations archive an immutable signed PDF at confirm time —
   // serve that authoritative artifact instead of re-rendering.
   if (sc.method === "electronic" && sc.documentUrl?.includes("/signed/")) {

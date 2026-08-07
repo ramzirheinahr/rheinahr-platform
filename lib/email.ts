@@ -43,13 +43,17 @@ export type EmailPayload = {
 export async function sendEmailToUsers(
   userIds: string[],
   payload: EmailPayload,
+  options?: { force?: boolean }
 ): Promise<void> {
   const mailer = getTransporter();
   if (!mailer || userIds.length === 0) return;
 
   const uniqueIds = [...new Set(userIds)];
   const users = await prisma.user.findMany({
-    where: { id: { in: uniqueIds }, receiveEmails: true },
+    where: { 
+      id: { in: uniqueIds }, 
+      ...(options?.force ? {} : { receiveEmails: true }) 
+    },
     select: { email: true },
   });
 
