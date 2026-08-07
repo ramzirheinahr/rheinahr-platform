@@ -20,6 +20,8 @@
     "back": "Zurück",
     "actions": "Aktionen",
     "confirm": "Bestätigen",
+    "add": "Hinzufügen",
+    "confirmDelete": "Sind Sie sicher, dass Sie dies löschen möchten?",
     "search": "Suchen",
     "none": "—",
     "exportData": "Meine Daten exportieren",
@@ -129,7 +131,15 @@
     "scheduleSubtitle": "Einsätze annehmen und bestätigen, Verfügbarkeit pflegen.",
     "clientSchedule": "Monatsübersicht",
     "masterSchedule": "Dienstpläne",
-    "appointments": "Termine"
+    "appointments": "Termine",
+    "month": "Monat",
+    "type": "Art",
+    "hoursUnit": "Std.",
+    "notes": "Notizen",
+    "manualAdjustments": "Manuelle Anpassungen",
+    "manualAdjustmentsDesc": "Fügen Sie Sonstige oder K.Ausgleich Stunden für diesen Monat hinzu.",
+    "kAusgleich": "K.Ausgleich",
+    "sonstige": "Sonstige"
   },
   "auth": {
     "signInTitle": "Bei Ihrem Konto anmelden",
@@ -661,6 +671,7 @@
   },
   "availability": {
     "title": "Verfügbarkeit",
+    "downloadPdf": "Arbeitszeitkonto PDF",
     "subtitle": "Markieren Sie, wann Sie verfügbar sind – pro Schicht oder ganztägig. Nicht markierte Tage gelten als nicht verfügbar.",
     "available": "Verfügbar",
     "unavailable": "Nicht verfügbar",
@@ -841,6 +852,7 @@
     "leavePending": "Urlaubsantrag ausstehend",
     "leaveApproved": "Urlaub (Bitte nicht stören)",
     "addRow": "Zeile hinzufügen",
+    "createClientTitle": "Neuen Kunden anlegen",
     "newOrderTitle": "Neuen Dienst anlegen",
     "newOrderAria": "Offenen Dienst anlegen",
     "quantity": "Anzahl",
@@ -881,6 +893,7 @@
     "new": "Neuer Termin",
     "edit": "Termin bearbeiten",
     "deleteConfirmTitle": "Termin löschen?",
+    "confirmDelete": "Sind Sie sicher, dass Sie dies löschen möchten?",
     "deleteConfirmDesc": "Sind Sie sicher, dass Sie diesen Termin endgültig löschen möchten?",
     "empty": "Keine Termine vorhanden.",
     "form": {

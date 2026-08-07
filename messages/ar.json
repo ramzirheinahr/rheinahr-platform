@@ -20,6 +20,8 @@
     "back": "رجوع",
     "actions": "إجراءات",
     "confirm": "تأكيد",
+    "add": "إضافة",
+    "confirmDelete": "هل أنت متأكد أنك تريد الحذف؟",
     "search": "بحث",
     "none": "—",
     "exportData": "تصدير بياناتي",
@@ -129,7 +131,15 @@
     "scheduleSubtitle": "وافق على وردياتك وصادِق عليها، وحدّث توفّرك.",
     "clientSchedule": "الجدول الشهري",
     "masterSchedule": "جداول الورديات",
-    "appointments": "المواعيد"
+    "appointments": "المواعيد",
+    "month": "الشهر",
+    "type": "النوع",
+    "hoursUnit": "ساعة",
+    "notes": "ملاحظات",
+    "manualAdjustments": "التعديلات اليدوية",
+    "manualAdjustmentsDesc": "إضافة ساعات تسوية أو ساعات أخرى لهذا الشهر.",
+    "kAusgleich": "تسوية حساب",
+    "sonstige": "أخرى"
   },
   "auth": {
     "signInTitle": "تسجيل الدخول إلى حسابك",
@@ -635,6 +645,7 @@
     "subtitleAdmin": "أرسل واستقبل الرسائل مع المنشآت وكوادر الرعاية.",
     "agencyTeam": "فريق RheinAhr",
     "compose": "رسالة جديدة",
+    "createClientTitle": "إضافة منشأة جديدة",
     "composeTitle": "رسالة جديدة",
     "composeHint": "ستصل رسالتك إلى فريق RheinAhr.",
     "composeHintAdmin": "عند اختيار عدة مستلمين تُنشأ محادثة خاصة منفصلة لكل مستلم.",
@@ -660,6 +671,7 @@
   },
   "availability": {
     "title": "التوفر",
+    "downloadPdf": "كشف حساب الساعات",
     "subtitle": "حدّد متى تكون متاحاً – لكل فترة أو طوال اليوم. الأيام غير المحدّدة تُعتبر غير متاحة.",
     "available": "متاح",
     "unavailable": "غير متاح",
@@ -826,7 +838,7 @@
     "unavailableWarning": "الموظف مسجّل كغير متاح لهذه الوردية.",
     "forceAssign": "تعيين رغم ذلك",
     "confirmedShort": "مؤكد",
-    "confirmedLocked": "الورديات المؤكدة من الزبون (إثبات الخدمة) لا يمكن إزالتها من هنا.",
+    "confirmedLocked": "الورديات المؤكدة من الزبون (إثبات الخدمة) لا يمكن إزالحا من هنا.",
     "openShifts": "ورديات مفتوحة",
     "openShiftsRow": "بلا موظف",
     "candAvailable": "متاح",
@@ -880,6 +892,7 @@
     "new": "موعد جديد",
     "edit": "تعديل الموعد",
     "deleteConfirmTitle": "حذف الموعد؟",
+    "confirmDelete": "هل أنت متأكد أنك تريد حذف هذا؟",
     "deleteConfirmDesc": "هل أنت متأكد من حذف هذا الموعد نهائيًا؟",
     "empty": "لا توجد مواعيد.",
     "form": {

@@ -20,6 +20,8 @@
     "back": "Back",
     "actions": "Actions",
     "confirm": "Confirm",
+    "add": "Add",
+    "confirmDelete": "Are you sure you want to delete this?",
     "search": "Search",
     "none": "—",
     "exportData": "Export my data",
@@ -129,7 +131,15 @@
     "scheduleSubtitle": "Accept and confirm your shifts, and keep your availability up to date.",
     "clientSchedule": "Monthly overview",
     "masterSchedule": "Duty rosters",
-    "appointments": "Appointments"
+    "appointments": "Appointments",
+    "month": "Month",
+    "type": "Type",
+    "hoursUnit": "h",
+    "notes": "Notes",
+    "manualAdjustments": "Manual Adjustments",
+    "manualAdjustmentsDesc": "Add Sonstige or K.Ausgleich hours for this month.",
+    "kAusgleich": "K.Ausgleich",
+    "sonstige": "Sonstige"
   },
   "auth": {
     "signInTitle": "Sign in to your account",
@@ -660,6 +670,7 @@
   },
   "availability": {
     "title": "Availability",
+    "downloadPdf": "Hours Account PDF",
     "subtitle": "Mark when you are available – per shift or all day. Days left blank count as unavailable.",
     "available": "Available",
     "unavailable": "Unavailable",
@@ -845,6 +856,7 @@
     "quantity": "Count",
     "timeFrom": "From",
     "timeTo": "To",
+    "createClientTitle": "Create New Client",
     "createOrder": "Create shift",
     "orderCreated": "Shift request created.",
     "searchFacility": "Search facility…",

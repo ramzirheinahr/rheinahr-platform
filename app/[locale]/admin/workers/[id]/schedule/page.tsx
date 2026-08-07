@@ -6,6 +6,7 @@ import {
   getWorkerMonthAvailability,
 } from "@/lib/worker-schedule";
 import { AvailabilityBuilder } from "@/components/worker/availability-builder";
+import { WorkerAdjustments } from "@/components/admin/worker-adjustments";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ChevronLeft, ChevronRight, Download } from "lucide-react";
@@ -42,10 +43,22 @@ export default async function AdminWorkerSchedulePage({
   if (month < 1 || month > 12) month = now.getUTCMonth() + 1;
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
-  const [{ rows: assignments, leaveDays, totals }, initialBlocks] = await Promise.all([
+  const [{ rows: assignments, leaveDays, totals }, initialBlocks, adjustmentsData] = await Promise.all([
     getWorkerMonthSchedule(worker.id, year, month),
     getWorkerMonthAvailability(worker.id, year, month),
+    prisma.workerHoursAdjustment.findMany({
+      where: { workerId: worker.id, month: `${year}-${String(month).padStart(2, "0")}` },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
+
+  const adjustments = adjustmentsData.map(a => ({
+    id: a.id,
+    month: a.month,
+    type: a.type,
+    hours: a.hours,
+    notes: a.notes,
+  }));
 
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
@@ -141,11 +154,15 @@ export default async function AdminWorkerSchedulePage({
             bonusHours: a.bonusHours,
           }))}
           requiredHours={totals.requiredHours}
-          carryoverHours={worker.carryoverHours}
+          carryoverHours={totals.carryoverHours}
           leaveDays={leaveDays}
           mealAllowanceEnabled={worker.mealAllowanceEnabled}
           travelAllowanceEnabled={worker.travelAllowanceEnabled}
         />
+      </section>
+
+      <section>
+        <WorkerAdjustments workerId={worker.id} adjustments={adjustments} />
       </section>
     </div>
   );

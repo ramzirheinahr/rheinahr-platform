@@ -93,6 +93,17 @@ enum LeaveStatus {
   rejected
 }
 
+enum LeaveType {
+  vacation
+  sick
+  other
+}
+
+enum AdjustmentType {
+  k_ausgleich
+  sonstige
+}
+
 enum ConfirmationMethod {
   electronic // signature pad / click-to-confirm
   upload // signed scanned document
@@ -286,6 +297,7 @@ model Worker {
   documents     WorkerDocument[]
   leaveRequests LeaveRequest[]
   appointments  Appointment[]
+  adjustments   WorkerHoursAdjustment[]
 
   @@index([qualification])
   @@map("workers")
@@ -463,6 +475,7 @@ model Conversation {
 model LeaveRequest {
   id        String      @id @default(uuid())
   workerId  String      @map("worker_id")
+  type      LeaveType   @default(vacation)
   status    LeaveStatus @default(pending)
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
@@ -473,6 +486,22 @@ model LeaveRequest {
 
   @@index([workerId, status])
   @@map("leave_requests")
+}
+
+model WorkerHoursAdjustment {
+  id        String         @id @default(uuid())
+  workerId  String         @map("worker_id")
+  month     String         // Format: YYYY-MM
+  type      AdjustmentType
+  hours     Float
+  notes     String?
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  worker    Worker         @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([workerId, month])
+  @@map("worker_hours_adjustments")
 }
 
 model LeaveDay {

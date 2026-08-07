@@ -50,6 +50,7 @@ export type WorkerScheduleTotals = {
 
 import { getDrivingDistanceKm } from "@/lib/geocoding";
 import { buildAddressString } from "@/lib/utils";
+import { getWorkerHoursAccount } from "@/lib/hours-account";
 export async function getWorkerMonthSchedule(
   workerId: string,
   year: number,
@@ -183,12 +184,17 @@ export async function getWorkerMonthSchedule(
   const confirmed = rows.filter((r) => r.confirmedHours != null);
   const approvedLeaves = leaveDays.filter((l) => l.status === "approved");
   
+  // Dynamic Carryover calculation
+  const targetMonthStr = `${year}-${String(month).padStart(2, "0")}`;
+  const hoursAcc = await getWorkerHoursAccount(workerId, targetMonthStr, targetMonthStr);
+  const carryoverHours = hoursAcc.initialCarryover;
+
   return {
     rows,
     leaveDays,
     totals: {
       requiredHours: worker?.requiredHours ?? 151.67,
-      carryoverHours: worker?.carryoverHours ?? 0,
+      carryoverHours: carryoverHours,
       confirmedHours:
         confirmed.reduce((sum, r) => sum + (r.confirmedHours ?? 0), 0) +
         approvedLeaves.reduce((sum, l) => sum + l.hours, 0),

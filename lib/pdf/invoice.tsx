@@ -16,6 +16,7 @@ export type InvoicePdfData = {
   date: string;
   clientId: string; // or shortCode
   clientName: string;
+  billingInfo: string | null;
   clientAddress: string;
   periodStart: string;
   periodEnd: string;
@@ -127,9 +128,13 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
         <View style={styles.senderBlock}>
           <Text style={styles.returnAddress}>RheinAhr Dienstleistungen GmbH , Theaterplatz 1 , 53177 Bonn</Text>
           <View style={styles.clientAddress}>
-            <Text>{data.clientName}</Text>
+            {data.billingInfo ? (
+              data.billingInfo.split("\n").map((line, i) => (
+                <Text key={`bi-${i}`}>{line.trim()}</Text>
+              ))
+            ) : null}
             {(data.clientAddress || "").split("\n").map((line, i) => (
-              <Text key={i}>{line.trim()}</Text>
+              <Text key={`addr-${i}`}>{line.trim()}</Text>
             ))}
           </View>
         </View>

@@ -920,6 +920,16 @@ export function AvailabilityBuilder({
                   <div className="flex items-center gap-2 font-semibold">
                     <Clock className="size-4 text-emerald-600" />
                     {t("monthTotal")}
+                    {workerId && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-7 text-xs bg-white dark:bg-zinc-900 ltr:ml-2 rtl:mr-2"
+                        onClick={() => window.open(`/api/workers/${workerId}/arbeitszeitkonto?start=${year}-${String(month).padStart(2, '0')}&end=${year}-${String(month).padStart(2, '0')}`, "_blank")}
+                      >
+                        {t("downloadPdf")}
+                      </Button>
+                    )}
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {t("monthTotalHint", { count: totals.shifts })}
@@ -1150,9 +1160,21 @@ export function AvailabilityBuilder({
         {/* Month totals card — mirrors the table footer. */}
         {totals.shifts > 0 || totals.acceptedHours > 0 || requiredHours !== undefined ? (
           <div className="rounded-lg border-2 border-emerald-500/40 bg-emerald-500/10 p-3">
-            <div className="mb-2 flex items-center gap-2 font-semibold">
-              <Clock className="size-4 text-emerald-600" />
-              {t("monthTotal")}
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold">
+                <Clock className="size-4 text-emerald-600" />
+                {t("monthTotal")}
+              </div>
+              {workerId && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-7 text-xs bg-white dark:bg-zinc-900"
+                  onClick={() => window.open(`/api/workers/${workerId}/arbeitszeitkonto?start=${year}-${String(month).padStart(2, '0')}&end=${year}-${String(month).padStart(2, '0')}`, "_blank")}
+                >
+                  {t("downloadPdf")}
+                </Button>
+              )}
             </div>
             {(() => {
               // Same ledger as the table footer: soll − carryover − worked.

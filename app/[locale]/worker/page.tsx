@@ -96,6 +96,7 @@ export default async function WorkerSchedulePage({
         <AvailabilityBuilder
           year={year}
           month={month}
+          workerId={worker?.id}
           initialBlocks={initialBlocks}
           assignments={assignments.map((a) => ({
             id: a.id,
@@ -120,7 +121,7 @@ export default async function WorkerSchedulePage({
             bonusHours: a.bonusHours,
           }))}
           requiredHours={totals.requiredHours}
-          carryoverHours={worker?.carryoverHours}
+          carryoverHours={totals.carryoverHours}
           leaveDays={leaveDays}
           mealAllowanceEnabled={worker?.mealAllowanceEnabled}
           travelAllowanceEnabled={worker?.travelAllowanceEnabled}
