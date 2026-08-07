@@ -38,6 +38,7 @@ export type Assignment = {
   date: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
   notes: string | null;
   facilityName: string;
   address: string | null;
@@ -457,7 +458,9 @@ export function AvailabilityBuilder({
             {(past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !workerId ? (
               <WorkerShiftConfirmDialog 
                 assignmentId={a.id} 
-                scheduledHours={a.scheduledHours ?? 0}
+                initialStartTime={a.startTime}
+                initialEndTime={a.endTime}
+                initialBreakMinutes={a.breakMinutes}
                 triggerBtn={
                   <Button size="sm" variant="outline" className="h-6 px-2 text-xs border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100">
                     {t("confirmShift")}
@@ -762,7 +765,9 @@ export function AvailabilityBuilder({
                                 {(d.past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !workerId ? (
                                   <WorkerShiftConfirmDialog 
                                     assignmentId={a.id} 
-                                    scheduledHours={a.scheduledHours ?? 0}
+                                    initialStartTime={a.startTime}
+                                    initialEndTime={a.endTime}
+                                    initialBreakMinutes={a.breakMinutes}
                                     triggerBtn={
                                       <Button size="sm" variant="outline" className="h-6 px-2 text-xs border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100">
                                         {t("confirmShift")}

@@ -51,12 +51,12 @@ const styles = StyleSheet.create({
   
   clientAddress: { marginTop: 0 },
   
-  titleBlock: { marginTop: -20, textAlign: "right", width: "40%" },
-  titleText: { fontSize: 28, fontFamily: "Helvetica-Bold", marginBottom: 15 },
+  titleBlock: { marginTop: -40, textAlign: "left", width: "40%", paddingLeft: 20 },
+  titleText: { fontSize: 28, fontFamily: "Helvetica-Bold", marginBottom: 30 },
   
-  metaTable: { alignSelf: "flex-end", width: "100%" },
-  metaRow: { flexDirection: "row", justifyContent: "space-between" },
-  metaLabel: { fontFamily: "Helvetica", marginRight: 10 },
+  metaTable: { width: "100%" },
+  metaRow: { flexDirection: "row", justifyContent: "flex-start", marginBottom: 2 },
+  metaLabel: { fontFamily: "Helvetica", width: 60 },
   metaValue: { fontFamily: "Helvetica" },
 
   greeting: { fontFamily: "Helvetica-Bold", marginTop: 20, marginBottom: 5 },

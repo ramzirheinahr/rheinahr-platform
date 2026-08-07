@@ -103,6 +103,7 @@ export default async function WorkerSchedulePage({
             date: a.date,
             startTime: a.startTime,
             endTime: a.endTime,
+            breakMinutes: a.breakMinutes,
             notes: a.notes,
             facilityName: a.facilityName,
             address: a.address,

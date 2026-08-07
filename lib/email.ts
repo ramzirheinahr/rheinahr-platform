@@ -39,6 +39,23 @@ export type EmailPayload = {
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
 };
 
+export async function sendEmail(payload: { to: string; subject: string; html: string; text?: string; attachments?: any[] }) {
+  const mailer = getTransporter();
+  if (!mailer) return;
+  try {
+    await mailer.sendMail({
+      from: EMAIL_FROM,
+      to: payload.to,
+      subject: payload.subject,
+      text: payload.text || payload.html.replace(/<[^>]+>/g, ""),
+      html: payload.html,
+      attachments: payload.attachments,
+    });
+  } catch (err) {
+    console.error(`Failed to send email to ${payload.to}:`, err);
+  }
+}
+
 // Send an email to the specified users by their userIds.
 export async function sendEmailToUsers(
   userIds: string[],

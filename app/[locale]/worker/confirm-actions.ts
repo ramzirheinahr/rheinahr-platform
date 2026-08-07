@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { workerShiftLink, orderLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
+import { sendEmail } from "@/lib/email";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -19,7 +20,9 @@ const workerConfirmationSchema = z.object({
   assignmentId: z.string().uuid(),
   signerName: z.string().trim().min(1),
   signatureData: z.string().min(1),
-  hoursWorked: z.coerce.number().min(0).max(24),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+  breakMinutes: z.coerce.number().min(0).max(600),
   clientNotes: z.string().optional(),
 });
 
@@ -47,6 +50,7 @@ export async function confirmServiceByWorkerOnDevice(
           shiftDate: true,
           startTime: true,
           endTime: true,
+          breakMinutes: true,
           client: { select: { id: true, facilityName: true, userId: true } },
         },
       },
@@ -69,25 +73,52 @@ export async function confirmServiceByWorkerOnDevice(
     import("@/lib/invoicing"),
   ]);
 
-  const pdf = await renderLeistungsnachweisPdf({
+  const timeModified =
+    data.startTime !== assignment.order.startTime ||
+    data.endTime !== assignment.order.endTime ||
+    data.breakMinutes !== (assignment.order.breakMinutes ?? 30);
+
+  // If time was modified by agreement, update the Order in DB
+  if (timeModified) {
+    await prisma.order.update({
+      where: { id: assignment.order.id },
+      data: {
+        startTime: data.startTime,
+        endTime: data.endTime,
+        breakMinutes: data.breakMinutes,
+      },
+    });
+  }
+
+  // Calculate the hours based on the finalized times
+  const { netShiftHours } = await import("@/lib/pricing");
+  const finalizedHours = netShiftHours(
+    timeModified ? data.startTime : assignment.order.startTime,
+    timeModified ? data.endTime : assignment.order.endTime,
+    timeModified ? data.breakMinutes : assignment.order.breakMinutes
+  );
+
+  const documentData = {
     facilityName: assignment.order.client.facilityName,
     workerName: assignment.worker.fullName,
-    qualificationLabel: qualLabel[assignment.worker.qualification] || assignment.worker.qualification,
+    qualificationLabel: qualLabel[assignment.worker.qualification as keyof typeof qualLabel] || assignment.worker.qualification,
     shiftDate: assignment.order.shiftDate.toISOString().slice(0, 10),
-    startTime: assignment.order.startTime,
-    endTime: assignment.order.endTime,
-    hours: data.hoursWorked,
+    startTime: timeModified ? data.startTime : assignment.order.startTime,
+    endTime: timeModified ? data.endTime : assignment.order.endTime,
+    hours: finalizedHours,
     methodLabel: methodLabel.electronic,
     isElectronic: true,
     signatureData: data.signatureData,
     signerName: data.signerName,
-    confirmedByEmail: data.signerName, // Put the facility signer's name in 'Bestätigt durch'
+    confirmedByEmail: data.signerName,
     confirmedAt: formatDateTimeDE(new Date()),
-    ipAddress: null, // Hide IP from the document per user request
+    ipAddress: null,
     orderId: assignment.order.id,
     assignmentId: data.assignmentId,
     draft: false,
-  });
+  };
+
+  const pdf = await renderLeistungsnachweisPdf(documentData);
 
   const path = `${data.assignmentId}/signed/leistungsnachweis-${Date.now()}.pdf`;
   const supabase = createSupabaseAdminClient();
@@ -108,15 +139,22 @@ export async function confirmServiceByWorkerOnDevice(
 
   if (urlError) return { ok: false, error: "saveError" };
 
+  const emails: any[] = [];
+  const htmlBody = `
+    <p><strong>Datum:</strong> ${formatDateDE(assignment.order.shiftDate)}</p>
+    <p><strong>Zeit:</strong> ${timeModified ? data.startTime : assignment.order.startTime} - ${timeModified ? data.endTime : assignment.order.endTime} Uhr (${finalizedHours} Std.)</p>
+    <p><strong>Unterzeichner:</strong> ${data.signerName}</p>
+  `;
+
   await prisma.$transaction(async (tx) => {
     await tx.serviceConfirmation.create({
       data: {
         assignmentId: data.assignmentId,
-        confirmedById: null, // Since the client staff is confirming on the worker's device, we don't have their user ID
+        confirmedById: null, 
         method: "electronic",
         signatureData: data.signatureData,
         documentUrl: path,
-        hoursWorked: data.hoursWorked,
+        hoursWorked: finalizedHours,
         clientNotes: data.clientNotes || "Bestätigt durch Einrichtungspersonal auf Mitarbeiter-Gerät",
         ipAddress: ip,
         signerName: data.signerName,
@@ -139,39 +177,75 @@ export async function confirmServiceByWorkerOnDevice(
       });
     }
 
-    const recipients = await tx.user.findMany({
+    const admins = await tx.user.findMany({
       where: { role: { in: ["admin", "super_admin"] }, active: true },
-      select: { id: true, role: true },
+      select: { id: true, role: true, email: true },
     });
-    const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
-    if (recipients.length) {
-      await tx.notification.createMany({
-        data: recipients.map((r) => ({
-          userId: r.id,
-          type: "service_confirmed" as const,
-          channel: "in_app" as const,
-          content: `${assignment.order.client.facilityName} · ${formatDateDE(assignment.order.shiftDate)} · ${data.hoursWorked} Std. (Vor Ort)`,
-          link: orderLink(r.role, reqGroup),
-        })),
+    
+    for (const a of admins) {
+      emails.push({
+        to: a.email,
+        subject: `Schicht bestätigt: ${assignment.worker.fullName} am ${assignment.order.shiftDate.toISOString().slice(0, 10)}`,
+        html: `
+          <p>Hallo Admin,</p>
+          <p>Ein Leistungsnachweis wurde direkt über das Gerät des Mitarbeiters elektronisch signiert.</p>
+          <p><strong>Mitarbeiter:</strong> ${assignment.worker.fullName}</p>
+          <p><strong>Einrichtung:</strong> ${assignment.order.client.facilityName}</p>
+          ${htmlBody}
+          <p><a href="${orderLink(a.role, assignment.order.id)}">Zur Schicht im Admin-Portal</a></p>
+        `,
+      });
+    }
+    const clientUser = assignment.order.client.userId ? await tx.user.findUnique({ where: { id: assignment.order.client.userId } }) : null;
+    if (clientUser?.email) {
+      emails.push({
+        to: clientUser.email,
+        subject: `Schicht bestätigt: ${assignment.worker.fullName} am ${assignment.order.shiftDate.toISOString().slice(0, 10)}`,
+        html: `
+          <p>Guten Tag,</p>
+          <p>Eine Schicht in Ihrer Einrichtung wurde soeben vor Ort elektronisch von ${data.signerName} abgezeichnet.</p>
+          <p><strong>Mitarbeiter:</strong> ${assignment.worker.fullName}</p>
+          ${htmlBody}
+          <p>Sie finden den Beleg im Kundenportal unter Ihren bestätigten Schichten.</p>
+        `,
+      });
+    }
+
+    // Email to Worker
+    const workerUser = await tx.user.findUnique({ where: { id: assignment.worker.userId } });
+    if (workerUser?.email) {
+      emails.push({
+        to: workerUser.email,
+        subject: `Deine Schicht wurde bestätigt (${assignment.order.shiftDate.toISOString().slice(0, 10)})`,
+        html: `
+          <p>Hallo ${assignment.worker.fullName},</p>
+          <p>Deine Schicht wurde erfolgreich von der Einrichtung abgezeichnet.</p>
+          ${htmlBody}
+          <p><a href="${workerShiftLink()}">Zur Schicht im Portal</a></p>
+        `,
       });
     }
   });
 
+  if (emails.length > 0) {
+    await Promise.all(emails.map((e) => sendEmail(e)));
+  }
+
   await audit({
-    userId: user.id, // The worker who requested the signature
+    userId: user.id, 
     action: "service.confirm_worker_device",
     entity: "Assignment",
     entityId: data.assignmentId,
     ipAddress: ip,
     metadata: {
       method: "electronic",
-      hours: data.hoursWorked,
+      hours: finalizedHours,
       actorRole: "worker_device_client_signature",
       signerName: data.signerName,
     },
   });
 
-  const confirmBody = `${assignment.order.client.facilityName} · ${formatDateDE(assignment.order.shiftDate)} · ${data.hoursWorked} Std.`;
+  const confirmBody = `${assignment.order.client.facilityName} · ${formatDateDE(assignment.order.shiftDate)} · ${finalizedHours} Std.`;
   const confirmGroup = assignment.order.requestGroupId ?? assignment.order.id;
   const pushAdmins = await prisma.user.findMany({
     where: { role: { in: ["admin", "super_admin"] }, active: true },
@@ -188,7 +262,7 @@ export async function confirmServiceByWorkerOnDevice(
       facilityName: assignment.order.client.facilityName,
       workerName: assignment.worker.fullName,
     }])}
-    <p><strong>Bestätigte Stunden:</strong> ${data.hoursWorked} Std.</p>
+    <p><strong>Bestätigte Stunden:</strong> ${finalizedHours} Std.</p>
     <p><strong>Unterzeichner:</strong> ${data.signerName}</p>
   `;
 

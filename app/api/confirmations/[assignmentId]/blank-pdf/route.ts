@@ -65,13 +65,16 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
       ? parsedHours
       : netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes);
 
+  const overrideStartTime = new URL(req.url).searchParams.get("startTime") || a.order.startTime;
+  const overrideEndTime = new URL(req.url).searchParams.get("endTime") || a.order.endTime;
+
   const pdf = await renderLeistungsnachweisPdf({
     facilityName: a.order.client.facilityName,
     workerName: a.worker.fullName,
-    qualificationLabel: qualLabel[a.worker.qualification],
+    qualificationLabel: qualLabel[a.worker.qualification as keyof typeof qualLabel] || a.worker.qualification,
     shiftDate: a.order.shiftDate.toISOString().slice(0, 10),
-    startTime: a.order.startTime,
-    endTime: a.order.endTime,
+    startTime: overrideStartTime,
+    endTime: overrideEndTime,
     hours,
     methodLabel: "Unterschrift (Handschriftlich)",
     isElectronic: false,

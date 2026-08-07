@@ -124,6 +124,7 @@ export default async function AdminWorkerSchedulePage({
             date: a.date,
             startTime: a.startTime,
             endTime: a.endTime,
+            breakMinutes: a.breakMinutes,
             notes: a.notes,
             facilityName: a.facilityName,
             address: a.address,
