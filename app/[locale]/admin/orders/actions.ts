@@ -22,6 +22,7 @@ import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import type { OrderStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
+import { sendEmailToUsers } from "@/lib/email";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -47,7 +48,7 @@ export async function createOrderRequestForClient(
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    select: { id: true, userId: true, facilityName: true },
+    select: { id: true, userId: true, facilityName: true, subUsers: { select: { id: true } } },
   });
   if (!client) return { ok: false, error: "saveError" };
 
@@ -117,6 +118,18 @@ export async function createOrderRequestForClient(
       url: orderLink("client", requestGroupId),
       htmlBody: shiftsHtml
     });
+    
+    const allClientUserIds = [client.userId, ...client.subUsers.map(u => u.id)];
+    await sendEmailToUsers(
+      allClientUserIds,
+      {
+        subject: `Eingangsbestätigung: Ihre Anfrage (${shifts.length} Schicht(en))`,
+        body: `Wir haben Ihre neue Anfrage über ${shifts.length} Schicht(en) erhalten.`,
+        html: shiftsHtml,
+        url: orderLink("client", requestGroupId),
+      },
+      { force: true }
+    ).catch(console.error);
   }
 
   await audit({

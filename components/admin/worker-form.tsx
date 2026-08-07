@@ -30,6 +30,11 @@ export type WorkerData = {
   employmentType: string;
   phone: string | null;
   address: string | null;
+  addressStreet: string | null;
+  addressHouseNumber: string | null;
+  addressZip: string | null;
+  addressCity: string | null;
+  addressExtra: string | null;
   certifications: string[];
   skills: string[];
   languages: string[];

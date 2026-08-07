@@ -20,6 +20,11 @@ type ClientData = {
   shortCode: string | null;
   facilityType: string;
   address: string | null;
+  addressStreet: string | null;
+  addressHouseNumber: string | null;
+  addressZip: string | null;
+  addressCity: string | null;
+  addressExtra: string | null;
   contactPerson: string | null;
   billingInfo: string | null;
   paymentTermsDays: number;

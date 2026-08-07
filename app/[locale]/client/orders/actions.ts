@@ -345,7 +345,7 @@ export async function createOrderRequest(
   if (!clientId) return { ok: false, error: "saveError" };
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    select: { id: true, facilityName: true },
+    select: { id: true, facilityName: true, userId: true, subUsers: { select: { id: true } } },
   });
   if (!client) return { ok: false, error: "saveError" };
 
@@ -431,8 +431,10 @@ export async function createOrderRequest(
     </table>
   `;
 
+  const allClientUserIds = [client.userId, ...client.subUsers.map(u => u.id)];
+  
   await sendEmailToUsers(
-    [user.id],
+    allClientUserIds,
     {
       subject: `Eingangsbestätigung: Ihre Anfrage (${shifts.length} Schicht(en))`,
       body: `Wir haben Ihre neue Anfrage über ${shifts.length} Schicht(en) erhalten.`,
