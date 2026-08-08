@@ -180,6 +180,19 @@ export function AvailabilityBuilder({
     };
   }, [assignments, leaveDays]);
 
+  // Helper: allows signing if date is in the past, or if today and current time >= startTime - 30 mins
+  const canSignShift = (date: string, startTime: string) => {
+    if (date < todayStr) return true;
+    if (date > todayStr) return false;
+    
+    const [h, m] = startTime.split(':').map(Number);
+    const startMins = h * 60 + m;
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    
+    return nowMins >= (startMins - 30);
+  };
+
   const { state: undoState, set: setUndoState, undo, redo, canUndo, canRedo, clearHistory, replace } = useUndoStack<{
     cells: Record<string, Block>;
     counts: Record<string, number>;
@@ -444,7 +457,7 @@ export function AvailabilityBuilder({
               <CheckCircle2 className="size-3" />
               {t("confirmedByWorker")}
             </Badge>
-            {(past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !isAdmin ? (
+            {canSignShift(a.date, a.startTime) && !isAdmin ? (
               <WorkerShiftConfirmDialog 
                 assignmentId={a.id} 
                 initialStartTime={a.startTime}
@@ -749,7 +762,7 @@ export function AvailabilityBuilder({
                                   <CheckCircle2 className="size-3" />
                                   {t("confirmedByWorker")}
                                 </Badge>
-                                {(d.past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !isAdmin ? (
+                                {canSignShift(a.date, a.startTime) && !isAdmin ? (
                                   <WorkerShiftConfirmDialog 
                                     assignmentId={a.id} 
                                     initialStartTime={a.startTime}
