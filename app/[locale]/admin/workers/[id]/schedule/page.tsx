@@ -130,6 +130,7 @@ export default async function AdminWorkerSchedulePage({
           year={year}
           month={month}
           workerId={worker.id}
+          isAdmin={true}
           initialBlocks={initialBlocks}
           assignments={assignments.map((a) => ({
             id: a.id,

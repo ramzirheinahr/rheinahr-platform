@@ -105,6 +105,7 @@ export function AvailabilityBuilder({
   initialBlocks,
   assignments = [],
   workerId,
+  isAdmin = false,
   leaveDays = [],
   requiredHours,
   carryoverHours = 0,
@@ -115,9 +116,8 @@ export function AvailabilityBuilder({
   month: number;
   initialBlocks: InitialBlock[];
   assignments?: Assignment[];
-  // Set when an admin edits on the worker's behalf (phone-in changes); the
-  // worker's own page omits it and the action resolves the worker from the session.
   workerId?: string;
+  isAdmin?: boolean;
   requiredHours?: number;
   carryoverHours?: number;
   leaveDays?: { id: string; leaveRequestId: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
@@ -192,13 +192,6 @@ export function AvailabilityBuilder({
   
   useWarnUnsaved(canUndo);
 
-  // Re-seed the grid whenever the server sends a different month or refreshed
-  // availability — after an access-link login resolves the session, a
-  // router.refresh(), or month navigation. The useState initializers above run
-  // only on mount, so without this the saved hours wouldn't appear until a hard
-  // reload remounted the component (assignments render straight from props, so
-  // they were never affected). Deterministic signature → no spurious resets that
-  // would drop in-progress edits.
   const serverSig = useMemo(
     () =>
       `${year}-${month}:` +
@@ -382,8 +375,6 @@ export function AvailabilityBuilder({
     );
   }
 
-  // Availability controls laid out for the mobile cards (no <td> wrappers) —
-  // same state & handlers as TypeCells, so edits on either layout stay in sync.
   function TypeControls(date: string, slot: number) {
     const b = get(date, slot);
     const timed = b.type !== "none" && b.type !== "full";
@@ -430,8 +421,6 @@ export function AvailabilityBuilder({
     );
   }
 
-  // Assignment status badge + accept/decline/cancel controls — shared verbatim
-  // between the wide table and the mobile card.
   function assignmentStatus(a: Assignment, past: boolean) {
     return (
       <div className="flex flex-wrap items-center gap-2">
@@ -455,7 +444,7 @@ export function AvailabilityBuilder({
               <CheckCircle2 className="size-3" />
               {t("confirmedByWorker")}
             </Badge>
-            {(past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !workerId ? (
+            {(past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !isAdmin ? (
               <WorkerShiftConfirmDialog 
                 assignmentId={a.id} 
                 initialStartTime={a.startTime}
@@ -492,7 +481,7 @@ export function AvailabilityBuilder({
         {a.status !== "pending" ? (
           <ShiftCancelControls
             assignmentId={a.id}
-            admin={Boolean(workerId)}
+            admin={Boolean(isAdmin)}
             status={a.status}
             signed={a.confirmedHours != null}
             isPast={past}
@@ -755,14 +744,12 @@ export function AvailabilityBuilder({
                                 </a>
                               </div>
                             ) : a.status === "confirmed" ? (
-                              // Worker accepted — hours count as "confirmed" (yellow)
-                              // until the client signs the Leistungsnachweis (→ green).
                               <div className="flex items-center gap-1.5">
                                 <Badge className="gap-1 border-transparent bg-amber-500 text-white">
                                   <CheckCircle2 className="size-3" />
                                   {t("confirmedByWorker")}
                                 </Badge>
-                                {(d.past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !workerId ? (
+                                {(d.past || (a.date === todayStr && a.endTime <= new Date().toTimeString().slice(0, 5))) && !isAdmin ? (
                                   <WorkerShiftConfirmDialog 
                                     assignmentId={a.id} 
                                     initialStartTime={a.startTime}
@@ -789,7 +776,6 @@ export function AvailabilityBuilder({
                               />
                             ) : null}
                             {a.status === "declined" && !d.past ? (
-                              // Mistaken decline → let the worker take the shift back.
                               <AssignmentActions 
                                 assignmentId={a.id} 
                                 declined 
@@ -800,7 +786,7 @@ export function AvailabilityBuilder({
                             {a.status !== "pending" ? (
                               <ShiftCancelControls
                                 assignmentId={a.id}
-                                admin={Boolean(workerId)}
+                                admin={Boolean(isAdmin)}
                                 status={a.status}
                                 signed={a.confirmedHours != null}
                                 isPast={d.past}
@@ -817,7 +803,7 @@ export function AvailabilityBuilder({
                           {a.endTime}
                         </td>
                         <td className="p-2 text-muted-foreground">
-                          {workerId ? (
+                          {isAdmin ? (
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1.5 justify-between">
                                 <span>{a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}</span>
@@ -833,7 +819,7 @@ export function AvailabilityBuilder({
                           )}
                         </td>
                         <td className="p-2 text-muted-foreground">
-                          {workerId ? (
+                          {isAdmin ? (
                             <div className="flex items-center gap-1.5 justify-between">
                               <span>{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
                               <ToggleMealAllowanceButton 
@@ -848,7 +834,7 @@ export function AvailabilityBuilder({
                           )}
                         </td>
                         <td className="p-2 text-muted-foreground">
-                          {workerId ? (
+                          {isAdmin ? (
                             <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
                           ) : (
                             a.bonusHours ? `+${a.bonusHours} Std.` : "—"
@@ -1061,23 +1047,23 @@ export function AvailabilityBuilder({
                         {a.notes ? (
                           <div className="mt-0.5 text-xs font-medium">{a.notes}</div>
                         ) : null}
-                        {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null || a.bonusHours || workerId) ? (
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                            {a.distanceKm != null || a.travelCost != null || (workerId && travelAllowanceEnabled) ? (
+                        {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null || a.bonusHours || isAdmin) ? (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            {a.distanceKm != null || a.travelCost != null || (isAdmin && travelAllowanceEnabled) ? (
                               <span className="flex items-center gap-1">
                                 {a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : ""}
                                 {a.distanceKm != null && a.travelCost != null ? " • " : ""}
                                 {a.travelCost != null ? `${a.travelCost.toFixed(2)} € Fahrtkosten` : ""}
-                                {workerId && travelAllowanceEnabled && (
+                                {isAdmin && travelAllowanceEnabled && (
                                   <ToggleTravelAllowanceButton assignmentId={a.id} excludeTravelAllowance={a.excludeTravelAllowance} />
                                 )}
                               </span>
                             ) : null}
-                            {a.mealAllowance != null || workerId ? (
+                            {a.mealAllowance != null || isAdmin ? (
                               <span className="flex items-center gap-1">
-                                {(a.distanceKm != null || a.travelCost != null) && !workerId ? " • " : ""}
+                                {(a.distanceKm != null || a.travelCost != null) && !isAdmin ? " • " : ""}
                                 {a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} € Verpflegung` : "Keine Verpflegung"}
-                                {workerId && (
+                                {isAdmin && (
                                   <ToggleMealAllowanceButton 
                                     assignmentId={a.id} 
                                     globalEnabled={mealAllowanceEnabled ?? false}
@@ -1087,10 +1073,10 @@ export function AvailabilityBuilder({
                                 )}
                               </span>
                             ) : null}
-                            {a.bonusHours || workerId ? (
+                            {a.bonusHours || isAdmin ? (
                               <span className="flex items-center gap-1">
-                                {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null) && !workerId ? " • " : ""}
-                                {workerId ? (
+                                {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null) && !isAdmin ? " • " : ""}
+                                {isAdmin ? (
                                   <>
                                     <span>Bonus Std:</span>
                                     <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
