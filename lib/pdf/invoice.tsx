@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   sloganBlue: { color: "#1d4ed8", fontSize: 10, fontFamily: "Helvetica-Bold" },
   
   senderBlock: { width: "60%", marginTop: 20 },
-  companyContactBlock: { width: "40%", textAlign: "right" },
+  companyContactBlock: { width: "40%", textAlign: "left", paddingLeft: 20 },
   companyNameBold: { fontFamily: "Helvetica-Bold", marginBottom: 4 },
   
   returnAddress: { fontSize: 8, textDecoration: "underline", marginBottom: 4 },
