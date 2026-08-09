@@ -132,10 +132,11 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
               data.billingInfo.split("\n").map((line, i) => (
                 <Text key={`bi-${i}`}>{line.trim()}</Text>
               ))
-            ) : null}
-            {(data.clientAddress || "").split("\n").map((line, i) => (
-              <Text key={`addr-${i}`}>{line.trim()}</Text>
-            ))}
+            ) : (
+              (data.clientAddress || "").split("\n").map((line, i) => (
+                <Text key={`addr-${i}`}>{line.trim()}</Text>
+              ))
+            )}
           </View>
         </View>
 

@@ -115,15 +115,19 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
         </div>
       </fieldset>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="billingInfo">{t("billingInfo")}</Label>
-          <Input
+      <fieldset className="space-y-3 rounded-lg border p-4">
+        <legend className="px-1 text-sm font-medium">{t("billingInfo")}</legend>
+        <div className="space-y-2 mt-2">
+          <Textarea
             id="billingInfo"
             name="billingInfo"
             defaultValue={client.billingInfo ?? ""}
+            rows={3}
           />
         </div>
+      </fieldset>
+
+      <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="paymentTermsDays">Zahlungsziel (Tage)</Label>
           <Input

@@ -13,7 +13,7 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 export default async function InvoicingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; q?: string }>;
 }) {
   const sp = await searchParams;
   const t = await getTranslations("invoicing");
@@ -29,10 +29,24 @@ export default async function InvoicingPage({
   const from = new Date(`${fromStr}T00:00:00.000Z`);
   const to = new Date(`${toStr}T23:59:59.999Z`);
 
+  const q = sp.q?.trim() || "";
+  const words = q.split(/\s+/).filter(Boolean);
+
+  const where: any = {
+    date: { gte: from, lte: to }
+  };
+
+  if (words.length > 0) {
+    where.AND = words.map((w) => ({
+      OR: [
+        { invoiceNumber: { contains: w, mode: "insensitive" } },
+        { client: { facilityName: { contains: w, mode: "insensitive" } } }
+      ]
+    }));
+  }
+
   const invoices = await prisma.invoice.findMany({
-    where: {
-      date: { gte: from, lte: to }
-    },
+    where,
     include: {
       client: true
     },
@@ -47,6 +61,10 @@ export default async function InvoicingPage({
       </div>
 
       <form method="get" className="flex flex-wrap items-end gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="q">Suche</Label>
+          <Input id="q" name="q" type="search" defaultValue={q} placeholder="Rechnung Nr. / Einrichtung..." className="w-full sm:w-64" />
+        </div>
         <div className="space-y-2">
           <Label htmlFor="from">{t("from")}</Label>
           <Input id="from" name="from" type="date" defaultValue={fromStr} />
