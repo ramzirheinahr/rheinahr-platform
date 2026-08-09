@@ -13,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -84,7 +85,10 @@ export function WorkersTable({
     const saved = localStorage.getItem("workersTableVisibleColumns");
     if (saved) {
       try {
-        setVisibleColumns(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setVisibleColumns(parsed);
+        }
       } catch (e) {}
     }
   }, []);
@@ -245,28 +249,32 @@ export function WorkersTable({
         <div className="flex items-center gap-2">
           {isMounted && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <Settings2 className="size-4" />
-                  Spalten
-                </Button>
-              </DropdownMenuTrigger>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="outline" className="gap-2">
+                    <Settings2 className="size-4" />
+                    Spalten
+                  </Button>
+                }
+              />
               <DropdownMenuContent align="end" className="w-[200px]">
-                <DropdownMenuLabel>Spalten anzeigen</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {columnsList.map((col) => {
-                  // If qualification is hidden by page filter, don't show it in dropdown
-                  if (col.id === "qualification" && !showQualColumn) return null;
-                  return (
-                    <DropdownMenuCheckboxItem
-                      key={col.id}
-                      checked={visibleColumns.includes(col.id)}
-                      onCheckedChange={() => toggleColumn(col.id)}
-                    >
-                      {col.label}
-                    </DropdownMenuCheckboxItem>
-                  );
-                })}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Spalten anzeigen</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {columnsList.map((col) => {
+                    // If qualification is hidden by page filter, don't show it in dropdown
+                    if (col.id === "qualification" && !showQualColumn) return null;
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={col.id}
+                        checked={visibleColumns.includes(col.id)}
+                        onCheckedChange={() => toggleColumn(col.id)}
+                      >
+                        {col.label}
+                      </DropdownMenuCheckboxItem>
+                    );
+                  })}
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
