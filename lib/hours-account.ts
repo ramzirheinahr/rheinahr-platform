@@ -35,7 +35,12 @@ export async function getWorkerHoursAccount(
   const startYearMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`;
   
   // We need to calculate all months from startYearMonth up to endMonth
-  const actualStartMonth = startYearMonth < startMonth ? startYearMonth : startMonth;
+  let actualStartMonth = startYearMonth < startMonth ? startYearMonth : startMonth;
+  
+  // Enforce global app start date of 2026-07
+  if (actualStartMonth < "2026-07") {
+    actualStartMonth = "2026-07";
+  }
   
   const startD = new Date(`${actualStartMonth}-01T00:00:00Z`);
   const endD = new Date(`${endMonth}-01T00:00:00Z`);
@@ -52,8 +57,7 @@ export async function getWorkerHoursAccount(
   const assignments = await prisma.assignment.findMany({
     where: {
       workerId,
-      status: { notIn: ["declined"] },
-      serviceConfirmation: { isNot: null },
+      status: "confirmed",
       order: {
         shiftDate: {
           gte: startD,
@@ -63,7 +67,7 @@ export async function getWorkerHoursAccount(
     },
     select: {
       bonusHours: true,
-      order: { select: { shiftDate: true } },
+      order: { select: { shiftDate: true, startTime: true, endTime: true, breakMinutes: true } },
       serviceConfirmation: { select: { hoursWorked: true } },
     },
   });
@@ -105,7 +109,18 @@ export async function getWorkerHoursAccount(
       return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
     });
     const workedHours = monthAssignments.reduce((sum, a) => {
-      return sum + (Number(a.serviceConfirmation?.hoursWorked || 0) + (a.bonusHours || 0));
+      let hours = 0;
+      if (a.serviceConfirmation?.hoursWorked != null) {
+        hours = Number(a.serviceConfirmation.hoursWorked);
+      } else {
+        const st = new Date(`1970-01-01T${a.order.startTime}Z`).getTime();
+        const et = new Date(`1970-01-01T${a.order.endTime}Z`).getTime();
+        let diffMins = (et - st) / 60000;
+        if (diffMins < 0) diffMins += 24 * 60;
+        const netMins = diffMins - (a.order.breakMinutes || 0);
+        hours = netMins / 60;
+      }
+      return sum + hours + (a.bonusHours || 0);
     }, 0);
 
     // leave hours

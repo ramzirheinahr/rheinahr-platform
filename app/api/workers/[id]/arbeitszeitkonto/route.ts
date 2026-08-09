@@ -35,16 +35,19 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const hoursAcc = await getWorkerHoursAccount(id, startMonth, endMonth);
+  // The user wants to see all historical data up to the requested endMonth
+  const hoursAcc = await getWorkerHoursAccount(id, "2026-07", endMonth);
+  const actualStartMonthForPdf = hoursAcc.months.length > 0 ? hoursAcc.months[0].month : startMonth;
 
   const pdfStream = await renderToStream(
     React.createElement(ArbeitszeitkontoTemplate, {
       data: {
         workerName: worker.fullName,
         workerId: worker.id,
-        startMonth,
+        startMonth: actualStartMonthForPdf,
         endMonth,
         months: hoursAcc.months,
+        initialCarryover: hoursAcc.initialCarryover,
       },
     }) as any
   );

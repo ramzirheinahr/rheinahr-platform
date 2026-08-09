@@ -39,6 +39,7 @@ export type ArbeitszeitkontoPdfData = {
   startMonth: string;
   endMonth: string;
   months: MonthlyHoursAccount[];
+  initialCarryover: number;
 };
 
 export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfData }) => {
@@ -98,6 +99,19 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
             <View style={[styles.tableCol, styles.colCumSum]}><Text>Cumulative Sum</Text></View>
           </View>
           
+          {/* Übertrag Row */}
+          <View style={styles.tableRow}>
+            <View style={[styles.tableCol, styles.colMonth]}><Text>Übertrag</Text></View>
+            <View style={[styles.tableCol, styles.colSoll]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colIst]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colAusgleich]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colUrlaub]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colKrank]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colSonstige]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colSumme]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colCumSum]}><Text>{formatSum(data.initialCarryover)}</Text></View>
+          </View>
+
           {/* Body */}
           {data.months.map((m, i) => (
             <View key={i} style={styles.tableRow}>
