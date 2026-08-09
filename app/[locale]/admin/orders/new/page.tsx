@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 async function getClients() {
   try {
     return await prisma.client.findMany({
-      orderBy: { facilityName: "asc" },
+      orderBy: { internalNumber: "asc" },
       select: {
         id: true,
         facilityName: true,

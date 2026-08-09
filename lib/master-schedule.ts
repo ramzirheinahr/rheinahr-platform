@@ -41,7 +41,7 @@ export async function getMasterSchedule(
             : qualification,
         user: { active: true },
       },
-      orderBy: { fullName: "asc" },
+      orderBy: { internalNumber: "asc" },
       select: {
         id: true,
         fullName: true,
@@ -95,7 +95,7 @@ export async function getMasterSchedule(
       },
     }),
     prisma.client.findMany({
-      orderBy: { facilityName: "asc" },
+      orderBy: { internalNumber: "asc" },
       select: { id: true, shortCode: true, facilityName: true, address: true },
     }),
     // Requested shifts of this qualification that still have open headcount —

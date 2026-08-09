@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
 async function getClients() {
   try {
     return await prisma.client.findMany({
-      // Alphabetical by facility name so the list reads like a directory.
-      orderBy: { facilityName: "asc" },
+      // Sort by internal number by default.
+      orderBy: { internalNumber: "asc" },
       include: { 
         user: { select: { id: true, email: true, receiveEmails: true, _count: { select: { sessions: true } } } },
         subUsers: { select: { _count: { select: { sessions: true } } } },

@@ -16,8 +16,8 @@ async function getWorkers(qualification?: Qualification) {
     const where: Prisma.WorkerWhereInput = qualification ? { qualification } : {};
     return await prisma.worker.findMany({
       where,
-      // Alphabetical by name (case-insensitive) so the roster reads like a phone book.
-      orderBy: { fullName: "asc" },
+      // Sort by internal number by default.
+      orderBy: { internalNumber: "asc" },
       include: { user: { select: { id: true, email: true, active: true, receiveEmails: true, _count: { select: { sessions: true } } } } },
     });
   } catch {
