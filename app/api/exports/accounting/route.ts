@@ -75,14 +75,35 @@ export async function GET(req: Request) {
       const date = assignment.order.shiftDate;
       const dateStr = `${pad(date.getUTCDate())}.${pad(date.getUTCMonth() + 1)}.${date.getUTCFullYear()}`;
 
-      // Prefer ServiceConfirmation times if there is a correction, but ServiceConfirmation 
-      // doesn't typically store startTime/endTime unless requestedStart/requestedEnd is present.
-      // After approval, requestedStart/End are applied to the order itself.
-      // So order.startTime and order.endTime are the actual times.
-      const startTime = assignment.order.startTime;
-      const endTime = assignment.order.endTime;
+      let startTime = assignment.order.startTime;
+      let endTime = assignment.order.endTime;
+      let breakMins = assignment.order.breakMinutes || 0;
 
-      const breakMins = assignment.order.breakMinutes || 0;
+      if (assignment.serviceConfirmation?.hoursWorked) {
+        const workedMins = Math.round(Number(assignment.serviceConfirmation.hoursWorked) * 60);
+        
+        const parseTime = (t: string) => {
+          const [h, m] = t.split(":").map(Number);
+          return h * 60 + m;
+        };
+        
+        const startMins = parseTime(startTime);
+        const endMins = parseTime(endTime);
+        
+        let windowMins = endMins - startMins;
+        if (windowMins < 0) windowMins += 24 * 60; // crossed midnight
+
+        if (workedMins <= windowMins) {
+          // If worked less than or equal to window, the difference is the unpaid break
+          breakMins = windowMins - workedMins;
+        } else {
+          // If worked MORE than window, we extend endTime so the math (End - Start - Break = Worked) holds
+          const neededWindow = workedMins + breakMins;
+          const newEndMins = (startMins + neededWindow) % (24 * 60);
+          endTime = `${pad(Math.floor(newEndMins / 60))}:${pad(newEndMins % 60)}`;
+        }
+      }
+
       const breakHours = Math.floor(breakMins / 60);
       const breakRemainder = breakMins % 60;
       const breakStr = `${pad(breakHours)}:${pad(breakRemainder)}`;
