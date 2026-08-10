@@ -119,6 +119,8 @@
     "clientTitle": "بوابة الزبائن",
     "workerTitle": "بوابة العمال",
     "dashboard": "لوحة المعلومات",
+    "accountingExport": "تصدير للمحاسبة",
+    "accountingExportError": "حدث خطأ أثناء تصدير الملف.",
     "inbox": "الرسائل",
     "orders": "الطلبات",
     "workers": "كوادر الرعاية",

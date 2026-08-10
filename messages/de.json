@@ -119,6 +119,8 @@
     "clientTitle": "Kundenportal",
     "workerTitle": "Mitarbeiterportal",
     "dashboard": "Übersicht",
+    "accountingExport": "Buchhaltung Export",
+    "accountingExportError": "Fehler beim Exportieren der Datei.",
     "inbox": "Postfach",
     "orders": "Aufträge",
     "workers": "Pflegekräfte",

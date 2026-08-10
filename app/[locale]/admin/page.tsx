@@ -7,6 +7,7 @@ import { ActionItems } from "./components/action-items";
 import { DashboardCharts } from "./components/dashboard-charts";
 import { TopLists } from "./components/top-lists";
 import { MonthPicker } from "./components/month-picker";
+import { AccountingExportButton } from "./components/accounting-export-button";
 
 export const dynamic = "force-dynamic";
 
@@ -218,7 +219,10 @@ export default async function AdminDashboard({
     <div className="space-y-6 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">{t("dashboard")} (Übersicht)</h1>
-        <MonthPicker currentMonth={currentMonthValue} />
+        <div className="flex items-center gap-2">
+          <AccountingExportButton month={currentMonthValue} />
+          <MonthPicker currentMonth={currentMonthValue} />
+        </div>
       </div>
 
       {/* KPI Widgets */}

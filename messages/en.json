@@ -119,6 +119,8 @@
     "clientTitle": "Client Portal",
     "workerTitle": "Worker Portal",
     "dashboard": "Dashboard",
+    "accountingExport": "Accounting Export",
+    "accountingExportError": "Error exporting file.",
     "inbox": "Inbox",
     "orders": "Orders",
     "workers": "Care staff",

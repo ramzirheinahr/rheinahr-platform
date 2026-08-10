@@ -11,9 +11,9 @@ export function MonthPicker({ currentMonth }: { currentMonth: string }) {
   const months = [];
   const now = new Date();
   for (let i = -3; i <= 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", month: "long", year: "numeric" }).format(d);
+    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() - i, 1));
+    const value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const label = new Intl.DateTimeFormat("de-DE", { timeZone: "UTC", month: "long", year: "numeric" }).format(d);
     months.push({ value, label });
   }
 
