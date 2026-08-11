@@ -191,11 +191,11 @@ export default async function AdminOrdersPage(props: {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <div className="flex items-center gap-2 border rounded-md p-1">
-          <Link href={`?month=${prevMonthStr}`} className={buttonVariants({ variant: "ghost", size: "icon", className: "h-8 w-8" })}>
+          <Link prefetch={true} href={`?month=${prevMonthStr}`} className={buttonVariants({ variant: "ghost", size: "icon", className: "h-8 w-8" })}>
             <ChevronRight className="size-4 rtl:rotate-180" />
           </Link>
           <span className="text-sm font-medium px-4 min-w-32 text-center">{monthName}</span>
-          <Link href={`?month=${nextMonthStr}`} className={buttonVariants({ variant: "ghost", size: "icon", className: "h-8 w-8" })}>
+          <Link prefetch={true} href={`?month=${nextMonthStr}`} className={buttonVariants({ variant: "ghost", size: "icon", className: "h-8 w-8" })}>
             <ChevronLeft className="size-4 rtl:rotate-180" />
           </Link>
         </div>

@@ -7,11 +7,11 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
+  Download,
   FileDown,
   Sheet,
 } from "lucide-react";
+import { ScheduleMonthPicker } from "@/app/[locale]/admin/components/schedule-month-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -44,14 +44,6 @@ export default async function AdminClientSchedulePage({
 
   const { rows, totals } = await getClientMonthSchedule(client.id, year, month);
 
-  const monthLabel = new Intl.DateTimeFormat(locale, {
-    month: "long",
-    year: "numeric",
-    timeZone: "Europe/Berlin",
-  }).format(new Date(Date.UTC(year, month - 1, 1)));
-  
-  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
-  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
   const base = `/admin/clients/${client.id}/schedule`;
   const exportBase = `/api/exports/client-schedule?year=${year}&month=${month}&clientId=${client.id}`;
 
@@ -96,25 +88,16 @@ export default async function AdminClientSchedulePage({
       </div>
 
       <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-2 py-1.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1"
-          render={<Link href={`${base}?year=${prev.y}&month=${prev.m}`} />}
+        <ScheduleMonthPicker currentYear={year} currentMonth={month} baseRoute={base} />
+        <a
+          href={`${base}/export?year=${year}&month=${month}`}
+          className="text-xs font-medium text-primary hover:underline flex items-center gap-1 pr-4"
+          target="_blank"
+          rel="noopener noreferrer"
         >
-          <ChevronLeft className="size-4 rtl:rotate-180" />
-          {av("prevMonth")}
-        </Button>
-        <span className="font-semibold">{monthLabel}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1"
-          render={<Link href={`${base}?year=${next.y}&month=${next.m}`} />}
-        >
-          {av("nextMonth")}
-          <ChevronRight className="size-4 rtl:rotate-180" />
-        </Button>
+          <Download className="size-3" />
+          Abrechnung exportieren
+        </a>
       </div>
 
       <MonthScheduleTable

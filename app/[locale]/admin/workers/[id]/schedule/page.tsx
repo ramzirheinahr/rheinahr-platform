@@ -9,7 +9,8 @@ import { AvailabilityBuilder } from "@/components/worker/availability-builder";
 import { WorkerAdjustments } from "@/components/admin/worker-adjustments";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
+import { ScheduleMonthPicker } from "@/app/[locale]/admin/components/schedule-month-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -65,8 +66,6 @@ export default async function AdminWorkerSchedulePage({
     year: "numeric",
     timeZone: "Europe/Berlin",
   }).format(new Date(Date.UTC(year, month - 1, 1)));
-  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
-  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
   const base = `/admin/workers/${worker.id}/schedule`;
 
   return (
@@ -89,36 +88,16 @@ export default async function AdminWorkerSchedulePage({
 
       {/* Same month navigator as the worker page — drives table + availability. */}
       <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-2 py-1.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1"
-          render={<Link href={`${base}?year=${prev.y}&month=${prev.m}`} />}
+        <ScheduleMonthPicker currentYear={year} currentMonth={month} baseRoute={base} />
+        <a
+          href={`${base}/export?year=${year}&month=${month}`}
+          className="text-xs font-medium text-primary hover:underline flex items-center gap-1 pr-4"
+          target="_blank"
+          rel="noopener noreferrer"
         >
-          <ChevronLeft className="size-4 rtl:rotate-180" />
-          {av("prevMonth")}
-        </Button>
-        <div className="flex items-center gap-4">
-          <span className="font-semibold">{monthLabel}</span>
-          <a
-            href={`${base}/export?year=${year}&month=${month}`}
-            className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Download className="size-3" />
-            Abrechnung exportieren
-          </a>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1"
-          render={<Link href={`${base}?year=${next.y}&month=${next.m}`} />}
-        >
-          {av("nextMonth")}
-          <ChevronRight className="size-4 rtl:rotate-180" />
-        </Button>
+          <Download className="size-3" />
+          Abrechnung exportieren
+        </a>
       </div>
 
       <section className="space-y-3">

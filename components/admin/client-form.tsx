@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
@@ -51,42 +51,51 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
   const ef = useTranslations("enums.facilityType");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [initialClient] = useState(client);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    startTransition(async () => {
-      const res = await updateClient(client.id, formData);
+    
+    const promise = updateClient(client.id, formData).then((res) => {
       if (res.ok) {
-        toast.success(t("updated"));
-        router.push("/admin/clients");
-        router.refresh();
-      } else {
-        toast.error(t(res.error === "codeInUse" ? "codeInUse" : "saveError"));
+        startTransition(() => {
+          router.refresh();
+        });
+        return res;
       }
+      throw new Error(res.error === "codeInUse" ? "codeInUse" : "saveError");
     });
+
+    toast.promise(promise, {
+      loading: c("loading") || "Speichern...",
+      success: t("updated"),
+      error: (err) => t(err.message === "codeInUse" ? "codeInUse" : "saveError"),
+    });
+
+    router.back();
   }
 
   return (
     <form onSubmit={onSubmit} className="max-w-2xl space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
         <FacilityNameCodeFields
-          defaultName={client.facilityName}
-          defaultCode={client.shortCode ?? ""}
+          defaultName={initialClient.facilityName}
+          defaultCode={initialClient.shortCode ?? ""}
         />
         <div className="space-y-2">
           <Label htmlFor="internalNumber">Interne Nummer</Label>
           <Input
             id="internalNumber"
             name="internalNumber"
-            defaultValue={client.internalNumber || ""}
+            defaultValue={initialClient.internalNumber || ""}
           />
         </div>
         <div className="space-y-2">
           <Label>{t("facilityType")}</Label>
           <Combobox
             name="facilityType"
-            defaultValue={[client.facilityType]}
+            defaultValue={[initialClient.facilityType]}
             options={[
               ...facilityTypes.map((f) => ({ value: f, label: ef(f) })),
               ...customFacilityTypes.map((f) => ({ value: f, label: f })),
@@ -103,7 +112,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
           <Input
             id="contactPerson"
             name="contactPerson"
-            defaultValue={client.contactPerson ?? ""}
+            defaultValue={initialClient.contactPerson ?? ""}
           />
         </div>
       </div>
@@ -111,7 +120,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
       <fieldset className="space-y-3 rounded-lg border p-4">
         <legend className="px-1 text-sm font-medium">{t("address")}</legend>
         <div className="space-y-2 mt-2">
-          <Textarea id="address" name="address" defaultValue={client.address ?? ""} rows={3} />
+          <Textarea id="address" name="address" defaultValue={initialClient.address ?? ""} rows={3} />
         </div>
       </fieldset>
 
@@ -121,7 +130,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
           <Textarea
             id="billingInfo"
             name="billingInfo"
-            defaultValue={client.billingInfo ?? ""}
+            defaultValue={initialClient.billingInfo ?? ""}
             rows={3}
           />
         </div>
@@ -136,7 +145,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
             type="number"
             min={0}
             step={1}
-            defaultValue={client.paymentTermsDays ?? 14}
+            defaultValue={initialClient.paymentTermsDays ?? 14}
           />
         </div>
       </div>
@@ -156,7 +165,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
               step={1}
               inputMode="decimal"
               placeholder="25"
-              defaultValue={toPct(client.surchargeSat)}
+              defaultValue={toPct(initialClient.surchargeSat)}
             />
           </div>
           <div className="space-y-2">
@@ -170,7 +179,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
               step={1}
               inputMode="decimal"
               placeholder="50"
-              defaultValue={toPct(client.surchargeSun)}
+              defaultValue={toPct(initialClient.surchargeSun)}
             />
           </div>
           <div className="space-y-2">
@@ -184,7 +193,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
               step={1}
               inputMode="decimal"
               placeholder="100"
-              defaultValue={toPct(client.surchargeHoliday)}
+              defaultValue={toPct(initialClient.surchargeHoliday)}
             />
           </div>
           <div className="space-y-2">
@@ -198,7 +207,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
               step={1}
               inputMode="decimal"
               placeholder="25"
-              defaultValue={toPct(client.surchargeNight)}
+              defaultValue={toPct(initialClient.surchargeNight)}
             />
           </div>
         </div>
@@ -209,7 +218,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
               id="nightStart"
               name="nightStart"
               type="time"
-              defaultValue={client.nightStart ?? "20:00"}
+              defaultValue={initialClient.nightStart ?? "20:00"}
             />
           </div>
           <div className="space-y-2">
@@ -218,7 +227,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
               id="nightEnd"
               name="nightEnd"
               type="time"
-              defaultValue={client.nightEnd ?? "06:00"}
+              defaultValue={initialClient.nightEnd ?? "06:00"}
             />
           </div>
         </div>
@@ -230,13 +239,13 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
           type="checkbox"
           id="receiveEmails"
           name="receiveEmails"
-          defaultChecked={client.user?.receiveEmails ?? true}
+          defaultChecked={initialClient.user?.receiveEmails ?? true}
           className="size-4"
         />
         <Label htmlFor="receiveEmails">E-Mail Benachrichtigungen senden</Label>
       </div>
 
-      <HourlyRatesFieldset values={client.hourlyRates} />
+      <HourlyRatesFieldset values={initialClient.hourlyRates} />
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>
@@ -245,7 +254,7 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/admin/clients")}
+          onClick={() => router.back()}
         >
           {c("cancel")}
         </Button>

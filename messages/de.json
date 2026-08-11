@@ -188,6 +188,7 @@
   },
   "workers": {
     "title": "Pflegekräfte",
+    "save": "Speichern",
     "new": "Neue Pflegekraft",
     "allTypes": "Alle Typen",
     "editTitle": "Pflegekraft bearbeiten",

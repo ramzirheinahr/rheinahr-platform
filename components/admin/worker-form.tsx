@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
@@ -79,20 +79,29 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
   const ee = useTranslations("enums.employmentType");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [initialWorker] = useState(worker);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    startTransition(async () => {
-      const res = await updateWorker(worker.id, formData);
+    
+    const promise = updateWorker(worker.id, formData).then((res) => {
       if (res.ok) {
-        toast.success(t("updated"));
-        router.push("/admin/workers");
-        router.refresh();
-      } else {
-        toast.error(t("saveError"));
+        startTransition(() => {
+          router.refresh();
+        });
+        return res;
       }
+      throw new Error("Save error");
     });
+
+    toast.promise(promise, {
+      loading: c("loading") || "Speichern...",
+      success: t("updated"),
+      error: t("saveError"),
+    });
+
+    router.back();
   }
 
   return (
@@ -106,11 +115,11 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="fullName">{t("fullName")}</Label>
-              <Input id="fullName" name="fullName" required defaultValue={worker.fullName} />
+              <Input id="fullName" name="fullName" required defaultValue={initialWorker.fullName} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="internalNumber">Interne Nummer</Label>
-              <Input id="internalNumber" name="internalNumber" defaultValue={worker.internalNumber || ""} />
+              <Input id="internalNumber" name="internalNumber" defaultValue={initialWorker.internalNumber || ""} />
             </div>
           </div>
         </CardContent>
@@ -126,7 +135,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
               <Label>{t("qualification")}</Label>
               <Combobox
                 name="qualification"
-                defaultValue={[worker.qualification]}
+                defaultValue={[initialWorker.qualification]}
                 options={[
                   ...qualifications.map((q) => ({ value: q, label: eq(q) })),
                   ...customQualifications.map((q) => ({ value: q, label: q })),
@@ -137,7 +146,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
             </div>
             <div className="space-y-2">
               <Label>{t("contractType")}</Label>
-              <Select name="contractType" defaultValue={worker.contractType}>
+              <Select name="contractType" defaultValue={initialWorker.contractType}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -152,7 +161,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
             </div>
             <div className="space-y-2">
               <Label>{t("employmentType")}</Label>
-              <Select name="employmentType" defaultValue={worker.employmentType}>
+              <Select name="employmentType" defaultValue={initialWorker.employmentType}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -168,18 +177,18 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
           </div>
           <div className="space-y-2">
             <Label htmlFor="phone">{t("phone")}</Label>
-            <Input id="phone" name="phone" defaultValue={worker.phone ?? ""} className="sm:max-w-sm" />
+            <Input id="phone" name="phone" defaultValue={initialWorker.phone ?? ""} className="sm:max-w-sm" />
           </div>
 
           <fieldset className="space-y-3 rounded-lg border p-4 mt-5">
             <legend className="px-1 text-sm font-medium">{t("address")}</legend>
             <div className="space-y-2 mt-2">
-              <Textarea id="address" name="address" defaultValue={worker.address ?? ""} rows={3} />
+              <Textarea id="address" name="address" defaultValue={initialWorker.address ?? ""} rows={3} />
             </div>
           </fieldset>
           <div className="space-y-2">
             <Label>{t("languages")}</Label>
-            <LanguageSelect defaultValue={worker.languages} />
+            <LanguageSelect defaultValue={initialWorker.languages} />
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
@@ -188,7 +197,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 id="skills"
                 name="skills"
                 placeholder={t("skillsHint")}
-                defaultValue={worker.skills.join(", ")}
+                defaultValue={initialWorker.skills.join(", ")}
               />
             </div>
             <div className="space-y-2">
@@ -197,7 +206,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 id="certifications"
                 name="certifications"
                 placeholder={t("certificationsHint")}
-                defaultValue={worker.certifications.join(", ")}
+                defaultValue={initialWorker.certifications.join(", ")}
               />
             </div>
           </div>
@@ -209,7 +218,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
               name="bio"
               className={textareaClass}
               placeholder={t("bioHint")}
-              defaultValue={worker.bio ?? ""}
+              defaultValue={initialWorker.bio ?? ""}
             />
           </div>
         </CardContent>
@@ -227,7 +236,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 id="birthDate"
                 name="birthDate"
                 type="date"
-                defaultValue={worker.birthDate ?? ""}
+                defaultValue={initialWorker.birthDate ?? ""}
               />
             </div>
             <div className="space-y-2">
@@ -235,19 +244,19 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
               <Input
                 id="birthPlace"
                 name="birthPlace"
-                defaultValue={worker.birthPlace ?? ""}
+                defaultValue={initialWorker.birthPlace ?? ""}
               />
             </div>
             <div className="space-y-2">
               <Label>{t("nationality")}</Label>
-              <NationalitySelect defaultValue={worker.nationality} />
+              <NationalitySelect defaultValue={initialWorker.nationality} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="socialSecurityNumber">{t("socialSecurityNumber")}</Label>
               <Input
                 id="socialSecurityNumber"
                 name="socialSecurityNumber"
-                defaultValue={worker.socialSecurityNumber ?? ""}
+                defaultValue={initialWorker.socialSecurityNumber ?? ""}
               />
             </div>
           </div>
@@ -268,7 +277,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 type="number"
                 min={0}
                 max={80}
-                defaultValue={worker.yearsExperience ?? ""}
+                defaultValue={initialWorker.yearsExperience ?? ""}
               />
             </div>
             <div className="space-y-2">
@@ -277,7 +286,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 id="employedSince"
                 name="employedSince"
                 type="date"
-                defaultValue={worker.employedSince ?? ""}
+                defaultValue={initialWorker.employedSince ?? ""}
               />
             </div>
           </div>
@@ -295,7 +304,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 step="0.01"
                 min={0}
                 max={744}
-                defaultValue={worker.requiredHours ?? 151.67}
+                defaultValue={initialWorker.requiredHours ?? 151.67}
               />
             </div>
             <div className="space-y-2">
@@ -307,7 +316,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 step="0.01"
                 min={0}
                 max={168}
-                defaultValue={worker.weeklyHours ?? 35}
+                defaultValue={initialWorker.weeklyHours ?? 35}
               />
             </div>
             <div className="space-y-2">
@@ -318,7 +327,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 type="number"
                 step="0.01"
                 min={0}
-                defaultValue={worker.monthlySalary ?? ""}
+                defaultValue={initialWorker.monthlySalary ?? ""}
               />
             </div>
             <div className="space-y-2">
@@ -326,7 +335,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
               <Input
                 id="entgeltgruppe"
                 name="entgeltgruppe"
-                defaultValue={worker.entgeltgruppe ?? ""}
+                defaultValue={initialWorker.entgeltgruppe ?? ""}
                 placeholder="z.B. 2a"
               />
             </div>
@@ -337,7 +346,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 name="carryoverHours"
                 type="number"
                 step="0.01"
-                defaultValue={worker.carryoverHours ?? 0}
+                defaultValue={initialWorker.carryoverHours ?? 0}
               />
               <p className="text-xs text-muted-foreground">{t("carryoverHoursHint")}</p>
             </div>
@@ -349,7 +358,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 type="number"
                 step="1"
                 min={0}
-                defaultValue={worker.deploymentRadius ?? 100}
+                defaultValue={initialWorker.deploymentRadius ?? 100}
               />
             </div>
             <div className="space-y-2">
@@ -358,7 +367,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 id="employmentStartDate"
                 name="employmentStartDate"
                 type="date"
-                defaultValue={worker.employmentStartDate || undefined}
+                defaultValue={initialWorker.employmentStartDate || undefined}
               />
             </div>
             <div className="space-y-2">
@@ -367,7 +376,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 id="employmentEndDate"
                 name="employmentEndDate"
                 type="date"
-                defaultValue={worker.employmentEndDate || undefined}
+                defaultValue={initialWorker.employmentEndDate || undefined}
               />
               <p className="text-xs text-muted-foreground">Nur bei befristeten Verträgen erforderlich.</p>
             </div>
@@ -380,7 +389,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   type="checkbox"
                   id="travelAllowanceEnabled"
                   name="travelAllowanceEnabled"
-                  defaultChecked={worker.travelAllowanceEnabled}
+                  defaultChecked={initialWorker.travelAllowanceEnabled}
                   className="size-4"
                 />
                 <Label htmlFor="travelAllowanceEnabled">Fahrtkosten erstatten</Label>
@@ -392,7 +401,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   name="travelAllowancePerKm"
                   type="number"
                   step="0.01"
-                  defaultValue={worker.travelAllowancePerKm ?? 0.30}
+                  defaultValue={initialWorker.travelAllowancePerKm ?? 0.30}
                 />
               </div>
             </div>
@@ -402,7 +411,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                 <select
                   id="mealAllowanceType"
                   name="mealAllowanceType"
-                  defaultValue={worker.mealAllowanceType ?? "multiple_shifts_only"}
+                  defaultValue={initialWorker.mealAllowanceType ?? "multiple_shifts_only"}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="per_shift">{t("mealAllowance_per_shift")}</option>
@@ -417,7 +426,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   name="mealAllowance"
                   type="number"
                   step="0.01"
-                  defaultValue={worker.mealAllowance ?? 14.0}
+                  defaultValue={initialWorker.mealAllowance ?? 14.0}
                 />
               </div>
             </div>
@@ -433,7 +442,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   name="surchargeSat"
                   type="number"
                   step="1"
-                  defaultValue={worker.surchargeSat != null ? worker.surchargeSat * 100 : 0}
+                  defaultValue={initialWorker.surchargeSat != null ? initialWorker.surchargeSat * 100 : 0}
                 />
               </div>
               <div className="space-y-2">
@@ -443,7 +452,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   name="surchargeSun"
                   type="number"
                   step="1"
-                  defaultValue={worker.surchargeSun != null ? worker.surchargeSun * 100 : 50}
+                  defaultValue={initialWorker.surchargeSun != null ? initialWorker.surchargeSun * 100 : 50}
                 />
               </div>
               <div className="space-y-2">
@@ -453,7 +462,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   name="surchargeHoliday"
                   type="number"
                   step="1"
-                  defaultValue={worker.surchargeHoliday != null ? worker.surchargeHoliday * 100 : 100}
+                  defaultValue={initialWorker.surchargeHoliday != null ? initialWorker.surchargeHoliday * 100 : 100}
                 />
               </div>
               <div className="space-y-2">
@@ -463,7 +472,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   name="surchargeNight"
                   type="number"
                   step="1"
-                  defaultValue={worker.surchargeNight != null ? worker.surchargeNight * 100 : 25}
+                  defaultValue={initialWorker.surchargeNight != null ? initialWorker.surchargeNight * 100 : 25}
                 />
               </div>
             </div>
@@ -474,7 +483,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   id="nightStart"
                   name="nightStart"
                   type="time"
-                  defaultValue={worker.nightStart ?? "23:00"}
+                  defaultValue={initialWorker.nightStart ?? "23:00"}
                 />
               </div>
               <div className="space-y-2">
@@ -483,7 +492,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   id="nightEnd"
                   name="nightEnd"
                   type="time"
-                  defaultValue={worker.nightEnd ?? "06:00"}
+                  defaultValue={initialWorker.nightEnd ?? "06:00"}
                 />
               </div>
             </div>
@@ -500,7 +509,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   type="number"
                   step="0.01"
                   placeholder="28.00"
-                  defaultValue={worker.hourlyRates?.pflegefachkraft}
+                  defaultValue={initialWorker.hourlyRates?.pflegefachkraft}
                 />
               </div>
               <div className="space-y-2">
@@ -511,7 +520,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   type="number"
                   step="0.01"
                   placeholder="17.00"
-                  defaultValue={worker.hourlyRates?.pflegehelfer}
+                  defaultValue={initialWorker.hourlyRates?.pflegehelfer}
                 />
               </div>
               <div className="space-y-2">
@@ -522,7 +531,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   type="number"
                   step="0.01"
                   placeholder="19.00"
-                  defaultValue={worker.hourlyRates?.betreuungskraft}
+                  defaultValue={initialWorker.hourlyRates?.betreuungskraft}
                 />
               </div>
               <div className="space-y-2">
@@ -533,7 +542,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   type="number"
                   step="0.01"
                   placeholder="32.00"
-                  defaultValue={worker.hourlyRates?.pflegedienstleitung}
+                  defaultValue={initialWorker.hourlyRates?.pflegedienstleitung}
                 />
               </div>
             </div>
@@ -547,7 +556,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
             type="checkbox"
             id="receiveEmails"
             name="receiveEmails"
-            defaultChecked={worker.user?.receiveEmails ?? true}
+            defaultChecked={initialWorker.user?.receiveEmails ?? true}
             className="size-4"
           />
           <Label htmlFor="receiveEmails">E-Mail Benachrichtigungen senden</Label>
@@ -560,7 +569,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push("/admin/workers")}
+            onClick={() => router.back()}
           >
             {c("cancel")}
           </Button>

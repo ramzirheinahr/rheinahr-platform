@@ -768,7 +768,7 @@ export function AvailabilityBuilder({
                             </div>
                           ) : null}
                         </td>
-                        <td className="p-2" colSpan={9}>
+                        <td className="p-2" colSpan={8}>
                           <div className="flex items-center gap-2">
                             {isPending ? (
                               <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-transparent">
@@ -982,6 +982,9 @@ export function AvailabilityBuilder({
                     <td className="p-1"></td>
                     {TypeCells(d.date, 0)}
                     <td className="p-1"></td>
+                    <td className="p-1"></td>
+                    <td className="p-1"></td>
+                    <td className="p-1"></td>
                   </tr>
                   {extra.map((slot) => (
                     <tr key={slot} className={cn("border-b", rowCls)}>
@@ -1003,6 +1006,9 @@ export function AvailabilityBuilder({
                       <td className="p-1"></td>
                       {TypeCells(d.date, slot)}
                       <td className="p-1"></td>
+                      <td className="p-1"></td>
+                      <td className="p-1"></td>
+                      <td className="p-1"></td>
                     </tr>
                   ))}
                 </Fragment>
@@ -1012,7 +1018,7 @@ export function AvailabilityBuilder({
           {totals.shifts > 0 || totals.acceptedHours > 0 || requiredHours !== undefined ? (
             <tfoot>
               <tr className="border-t-2 bg-emerald-500/10">
-                <td colSpan={mealAllowanceType !== "none" ? 9 : 10} className="p-3">
+                <td colSpan={9} className="p-3">
                   <div className="flex items-center gap-2 font-semibold">
                     <Clock className="size-4 text-emerald-600" />
                     {t("monthTotal")}

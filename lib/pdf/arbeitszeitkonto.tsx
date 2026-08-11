@@ -1,5 +1,5 @@
 import "server-only";
-import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/renderer";
 import React from "react";
 import { MonthlyHoursAccount } from "@/lib/hours-account";
 
@@ -52,15 +52,14 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
     return h.toFixed(2).replace(".", ",");
   };
 
-  const totalSumme = data.months.reduce((acc, m) => acc + m.monthBalance, 0);
+  const finalBalance = data.months.length > 0 ? data.months[data.months.length - 1].cumulativeBalance : data.initialCarryover;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Text style={{ fontSize: 24, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>RheinAhr</Text>
-            <Text style={{ fontSize: 14, color: "#1e3a8a", marginTop: 4 }}>Dienstleistungen GmbH</Text>
+            <Image src={process.cwd() + "/public/logo.png"} style={{ height: 40 }} />
           </View>
           <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
             <Text style={{ color: "#d32f2f", fontFamily: "Helvetica-Bold" }}>INTEGRITÄT</Text>
@@ -135,9 +134,9 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
             <View style={[styles.tableCol, styles.colAusgleich]}><Text></Text></View>
             <View style={[styles.tableCol, styles.colUrlaub]}><Text></Text></View>
             <View style={[styles.tableCol, styles.colKrank]}><Text></Text></View>
-            <View style={[styles.tableCol, styles.colSonstige]}><Text style={[styles.bold, { color: "#1e3a8a" }]}>Total:</Text></View>
-            <View style={[styles.tableCol, styles.colSumme]}><Text style={[styles.bold, { color: "#1e3a8a" }]}>{formatSum(totalSumme)}</Text></View>
-            <View style={[styles.tableCol, styles.colCumSum]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colSonstige]}><Text></Text></View>
+            <View style={[styles.tableCol, styles.colSumme]}><Text style={[styles.bold, { color: "#1e3a8a" }]}>Total:</Text></View>
+            <View style={[styles.tableCol, styles.colCumSum]}><Text style={[styles.bold, { color: "#1e3a8a" }]}>{formatSum(finalBalance)}</Text></View>
           </View>
         </View>
 

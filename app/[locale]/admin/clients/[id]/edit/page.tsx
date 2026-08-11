@@ -71,7 +71,9 @@ export default async function EditClientPage({
           </Button>
           <h1 className="text-2xl font-semibold">{t("editTitle")}</h1>
         </div>
-        <DeleteClientButton id={client.id} />
+        <div className="pr-10">
+          <DeleteClientButton id={client.id} />
+        </div>
       </div>
 
       <ClientForm

@@ -188,6 +188,7 @@
   },
   "workers": {
     "title": "Care staff",
+    "save": "Save",
     "new": "New care worker",
     "allTypes": "All types",
     "editTitle": "Edit care worker",

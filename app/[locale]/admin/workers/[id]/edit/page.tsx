@@ -64,7 +64,7 @@ export default async function EditWorkerPage({
           </Button>
           <h1 className="text-2xl font-semibold">{t("editTitle")}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pr-10">
           <Button
             variant="outline"
             size="sm"

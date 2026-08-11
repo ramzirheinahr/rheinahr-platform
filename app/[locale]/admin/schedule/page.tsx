@@ -103,7 +103,7 @@ export default async function AdminMasterSchedulePage({
           variant="ghost"
           size="sm"
           className="gap-1"
-          render={<Link href={qs(prev.y, prev.m, qualification)} />}
+          render={<Link prefetch={true} href={qs(prev.y, prev.m, qualification)} />}
         >
           <ChevronLeft className="size-4 rtl:rotate-180" />
           {av("prevMonth")}
@@ -113,7 +113,7 @@ export default async function AdminMasterSchedulePage({
           variant="ghost"
           size="sm"
           className="gap-1"
-          render={<Link href={qs(next.y, next.m, qualification)} />}
+          render={<Link prefetch={true} href={qs(next.y, next.m, qualification)} />}
         >
           {av("nextMonth")}
           <ChevronRight className="size-4 rtl:rotate-180" />
