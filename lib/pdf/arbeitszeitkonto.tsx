@@ -88,15 +88,15 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
         <View style={styles.table}>
           {/* Header */}
           <View style={[styles.tableRow, styles.tableHeader]}>
-            <View style={[styles.tableCol, styles.colMonth]}><Text>Month</Text></View>
+            <View style={[styles.tableCol, styles.colMonth]}><Text>Monat</Text></View>
             <View style={[styles.tableCol, styles.colSoll]}><Text>Soll</Text></View>
             <View style={[styles.tableCol, styles.colIst]}><Text>Ist</Text></View>
             <View style={[styles.tableCol, styles.colAusgleich]}><Text>K.Ausgleich</Text></View>
             <View style={[styles.tableCol, styles.colUrlaub]}><Text>Urlaub</Text></View>
             <View style={[styles.tableCol, styles.colKrank]}><Text>Krank</Text></View>
             <View style={[styles.tableCol, styles.colSonstige]}><Text>Sonstige</Text></View>
-            <View style={[styles.tableCol, styles.colSumme]}><Text>Summe</Text></View>
-            <View style={[styles.tableCol, styles.colCumSum]}><Text>Cumulative Sum</Text></View>
+            <View style={[styles.tableCol, styles.colSumme]}><Text>Monatsaldo</Text></View>
+            <View style={[styles.tableCol, styles.colCumSum]}><Text>Gesamtsaldo</Text></View>
           </View>
           
           {/* Übertrag Row */}
@@ -127,16 +127,16 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
             </View>
           ))}
 
-          {/* Footer (Total Summe) */}
-          <View style={styles.tableRow}>
+          {/* Footer (Total) */}
+          <View style={[styles.tableRow, { backgroundColor: "#e5e7eb" }]}>
             <View style={[styles.tableCol, styles.colMonth]}><Text></Text></View>
             <View style={[styles.tableCol, styles.colSoll]}><Text></Text></View>
             <View style={[styles.tableCol, styles.colIst]}><Text></Text></View>
             <View style={[styles.tableCol, styles.colAusgleich]}><Text></Text></View>
             <View style={[styles.tableCol, styles.colUrlaub]}><Text></Text></View>
             <View style={[styles.tableCol, styles.colKrank]}><Text></Text></View>
-            <View style={[styles.tableCol, styles.colSonstige]}><Text style={styles.bold}>Summe</Text></View>
-            <View style={[styles.tableCol, styles.colSumme]}><Text style={styles.bold}>{formatSum(totalSumme)}</Text></View>
+            <View style={[styles.tableCol, styles.colSonstige]}><Text style={[styles.bold, { color: "#1e3a8a" }]}>Total:</Text></View>
+            <View style={[styles.tableCol, styles.colSumme]}><Text style={[styles.bold, { color: "#1e3a8a" }]}>{formatSum(totalSumme)}</Text></View>
             <View style={[styles.tableCol, styles.colCumSum]}><Text></Text></View>
           </View>
         </View>
