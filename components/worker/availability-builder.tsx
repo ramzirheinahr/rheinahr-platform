@@ -689,7 +689,7 @@ export function AvailabilityBuilder({
                   <label className="text-sm font-medium">{t("hoursPerDay") || "Stunden pro Tag"}</label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="0.01"
                     min="0"
                     className={field}
                     value={adminLeaveHours}
