@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { submitLeaveRequest } from "@/app/[locale]/worker/leave/actions";
 import { requestLeaveEdit } from "@/app/[locale]/worker/leave/actions";
+import { addLeaveByAdmin } from "@/app/[locale]/admin/leave/actions";
 import { WorkerShiftConfirmDialog } from "@/components/worker/worker-shift-confirm-dialog";
 
 type BType = "none" | "full" | "early" | "late" | "night" | "custom";
@@ -120,7 +121,7 @@ export function AvailabilityBuilder({
   isAdmin?: boolean;
   requiredHours?: number;
   carryoverHours?: number;
-  leaveDays?: { id: string; leaveRequestId: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
+  leaveDays?: { id: string; leaveRequestId: string; date: string; status: "pending" | "approved" | "rejected"; type: "vacation" | "sick" | "other"; hours: number }[];
   mealAllowanceType?: string;
   travelAllowanceEnabled?: boolean;
 }) {
@@ -141,6 +142,13 @@ export function AvailabilityBuilder({
   const [editRequestText, setEditRequestText] = useState("");
   const [selectedLeaveRequestId, setSelectedLeaveRequestId] = useState("");
   const [editPending, startEditTransition] = useTransition();
+
+  // Admin Absence State
+  const [isAdminLeaveOpen, setIsAdminLeaveOpen] = useState(false);
+  const [adminLeaveDates, setAdminLeaveDates] = useState<string[]>([]);
+  const [adminLeaveType, setAdminLeaveType] = useState<"vacation" | "sick">("vacation");
+  const [adminLeaveHours, setAdminLeaveHours] = useState(7.0);
+  const [adminLeavePending, startAdminLeaveTransition] = useTransition();
 
   function handleRequestEdit() {
     startEditTransition(async () => {
@@ -315,6 +323,12 @@ export function AvailabilityBuilder({
     );
   }
 
+  function toggleAdminLeaveDate(d: string) {
+    setAdminLeaveDates((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
+    );
+  }
+
   function submitLeave() {
     if (leaveDates.length === 0) return;
     startLeaveTransition(async () => {
@@ -326,6 +340,21 @@ export function AvailabilityBuilder({
         router.refresh();
       } else {
         toast.error(res.error || "Fehler");
+      }
+    });
+  }
+
+  function submitAdminLeave() {
+    if (adminLeaveDates.length === 0 || !workerId) return;
+    startAdminLeaveTransition(async () => {
+      const res = await addLeaveByAdmin(workerId, adminLeaveType, adminLeaveDates, adminLeaveHours);
+      if (res.ok) {
+        toast.success(c("saved") || "Gespeichert");
+        setIsAdminLeaveOpen(false);
+        setAdminLeaveDates([]);
+        router.refresh();
+      } else {
+        toast.error(c("saveError") || "Fehler");
       }
     });
   }
@@ -628,6 +657,74 @@ export function AvailabilityBuilder({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {isAdmin ? (
+          <Dialog open={isAdminLeaveOpen} onOpenChange={setIsAdminLeaveOpen}>
+            <DialogTrigger
+              render={
+                <Button variant="outline" className="gap-2 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800">
+                  <Calendar className="size-4" />
+                  {t("addAbsence") || "Abwesenheit hinzufügen"}
+                </Button>
+              }
+            />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t("addAbsence") || "Abwesenheit hinzufügen"}</DialogTitle>
+              </DialogHeader>
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{t("absenceType") || "Art der Abwesenheit"}</label>
+                  <select
+                    className={field}
+                    value={adminLeaveType}
+                    onChange={(e) => setAdminLeaveType(e.target.value as "vacation" | "sick")}
+                  >
+                    <option value="vacation">{t("vacation") || "Urlaub"}</option>
+                    <option value="sick">{t("sick") || "Krankheit"}</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{t("hoursPerDay") || "Stunden pro Tag"}</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    className={field}
+                    value={adminLeaveHours}
+                    onChange={(e) => setAdminLeaveHours(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{t("selectLeaveDates") || "Bitte wählen Sie die Tage aus:"}</label>
+                  <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2">
+                    {days.map((d) => (
+                      <label key={d.date} className="flex items-center gap-2 text-sm p-1 hover:bg-muted/50 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={adminLeaveDates.includes(d.date)}
+                          onChange={() => toggleAdminLeaveDate(d.date)}
+                          className="rounded border-input"
+                        />
+                        <span>{d.date} ({d.label})</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAdminLeaveOpen(false)} disabled={adminLeavePending}>
+                  {c("cancel")}
+                </Button>
+                <Button onClick={submitAdminLeave} disabled={adminLeavePending || adminLeaveDates.length === 0}>
+                  {adminLeavePending ? c("loading") : c("save")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : null}
       </div>
 
       <div className="hidden overflow-x-auto rounded-lg border sm:block">
@@ -678,8 +775,8 @@ export function AvailabilityBuilder({
                                 {t("leavePending") || "Urlaubsantrag ausstehend"}
                               </Badge>
                             ) : (
-                              <Badge className="bg-rose-600 text-white hover:bg-rose-700 border-transparent">
-                                {t("leaveApproved") || "Urlaub (Bitte nicht stören)"}
+                              <Badge className={cn("text-white border-transparent", l.type === "sick" ? "bg-orange-600 hover:bg-orange-700" : "bg-rose-600 hover:bg-rose-700")}>
+                                {l.type === "sick" ? (t("sickApproved") || "Krank (Bitte nicht stören)") : (t("leaveApproved") || "Urlaub (Bitte nicht stören)")}
                               </Badge>
                             )}
                             <Button 
@@ -1029,8 +1126,8 @@ export function AvailabilityBuilder({
                         {t("leavePending") || "Urlaubsantrag ausstehend"}
                       </Badge>
                     ) : (
-                      <Badge className="border-transparent bg-rose-600 text-white hover:bg-rose-700">
-                        {t("leaveApproved") || "Urlaub (Bitte nicht stören)"}
+                      <Badge className={cn("text-white border-transparent", l.type === "sick" ? "bg-orange-600 hover:bg-orange-700" : "bg-rose-600 hover:bg-rose-700")}>
+                        {l.type === "sick" ? (t("sickApproved") || "Krank (Bitte nicht stören)") : (t("leaveApproved") || "Urlaub (Bitte nicht stören)")}
                       </Badge>
                     )}
                     {l.status === "approved" ? (

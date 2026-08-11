@@ -224,3 +224,66 @@ export async function cancelLeaveEntirely(
     return { ok: false, error: "Failed to cancel leave" };
   }
 }
+
+export async function addLeaveByAdmin(
+  workerId: string,
+  type: "vacation" | "sick" | "other",
+  dates: string[],
+  hoursPerDay: number
+) {
+  const user = await getCurrentUser();
+  if (!user || !roleSatisfies(user.role, ["admin", "super_admin"])) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  try {
+    const worker = await prisma.worker.findUnique({
+      where: { id: workerId },
+      select: { userId: true },
+    });
+    if (!worker) return { ok: false, error: "not_found" };
+
+    const result = await prisma.$transaction(async (tx) => {
+      const request = await tx.leaveRequest.create({
+        data: {
+          workerId: workerId,
+          type: type,
+          status: "approved",
+          days: {
+            create: dates.map((date) => ({
+              date: new Date(date + "T00:00:00Z"),
+              status: "approved",
+              hours: hoursPerDay,
+            })),
+          },
+        },
+      });
+
+      // No conversation needed for admin-added leave, but we can notify the worker
+      await tx.notification.create({
+        data: {
+          userId: worker.userId,
+          type: "order_status_changed", // Reusing this type
+          channel: "in_app",
+          content: type === "sick" ? "Krankheitstag(e) wurden eingetragen." : "Urlaub wurde eingetragen.",
+          link: workerShiftLink(),
+        },
+      });
+      
+      return request;
+    });
+
+    await audit({
+      userId: user.id,
+      action: "leave.addByAdmin",
+      entity: "LeaveRequest",
+      entityId: result.id,
+      metadata: { workerId, type, dates: dates.join(","), hoursPerDay },
+    });
+
+    return { ok: true };
+  } catch (error) {
+    console.error("Failed to add leave:", error);
+    return { ok: false, error: "Failed to add leave" };
+  }
+}

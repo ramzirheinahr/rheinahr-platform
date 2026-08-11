@@ -35,6 +35,7 @@ export type WorkerLeaveDay = {
   leaveRequestId: string;
   date: string;
   status: "pending" | "approved" | "rejected";
+  type: "vacation" | "sick" | "other";
   hours: number;
 };
 
@@ -114,6 +115,11 @@ export async function getWorkerMonthSchedule(
       date: true,
       status: true,
       hours: true,
+      leaveRequest: {
+        select: {
+          type: true,
+        }
+      }
     },
   }).catch(() => []);
 
@@ -122,6 +128,7 @@ export async function getWorkerMonthSchedule(
     leaveRequestId: ld.leaveRequestId,
     date: ld.date.toISOString().slice(0, 10),
     status: ld.status,
+    type: ld.leaveRequest.type,
     hours: ld.hours,
   }));
 
@@ -147,8 +154,19 @@ export async function getWorkerMonthSchedule(
 
       if (a.addMealAllowance) {
         mealAllowance = worker?.mealAllowance ?? 14.0;
-      } else if (!a.excludeMealAllowance && worker?.mealAllowanceType !== "none") {
-        mealAllowance = worker?.mealAllowance ?? 14.0;
+      } else if (!a.excludeMealAllowance) {
+        if (worker?.mealAllowanceType === "per_shift") {
+          mealAllowance = worker?.mealAllowance ?? 14.0;
+        } else if (worker?.mealAllowanceType === "multiple_shifts_only") {
+          const dateStr = a.order.shiftDate.toISOString().slice(0, 10);
+          const shiftsThatDay = assignments.filter(x => x.order.shiftDate.toISOString().slice(0, 10) === dateStr && x.status !== "declined");
+          if (shiftsThatDay.length >= 2) {
+            // Only attach meal allowance to the first shift visually
+            if (shiftsThatDay[0].id === a.id) {
+              mealAllowance = worker?.mealAllowance ?? 14.0;
+            }
+          }
+        }
       }
 
       return {
