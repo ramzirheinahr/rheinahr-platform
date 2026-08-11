@@ -106,7 +106,7 @@ export default async function EditWorkerPage({
           deploymentRadius: worker.deploymentRadius,
           travelAllowanceEnabled: worker.travelAllowanceEnabled,
           travelAllowancePerKm: worker.travelAllowancePerKm,
-          mealAllowanceEnabled: worker.mealAllowanceEnabled,
+          mealAllowanceType: worker.mealAllowanceType,
           mealAllowance: worker.mealAllowance,
           surchargeSat: worker.surchargeSat,
           surchargeSun: worker.surchargeSun,

@@ -64,7 +64,7 @@ export async function getWorkerMonthSchedule(
       address: true,
       travelAllowanceEnabled: true, 
       travelAllowancePerKm: true, 
-      mealAllowanceEnabled: true, 
+      mealAllowanceType: true, 
       mealAllowance: true 
     },
   });
@@ -145,7 +145,9 @@ export async function getWorkerMonthSchedule(
         }
       }
 
-      if (!a.excludeMealAllowance && (worker?.mealAllowanceEnabled || a.addMealAllowance)) {
+      if (a.addMealAllowance) {
+        mealAllowance = worker?.mealAllowance ?? 14.0;
+      } else if (!a.excludeMealAllowance && worker?.mealAllowanceType !== "none") {
         mealAllowance = worker?.mealAllowance ?? 14.0;
       }
 

@@ -109,7 +109,7 @@ export function AvailabilityBuilder({
   leaveDays = [],
   requiredHours,
   carryoverHours = 0,
-  mealAllowanceEnabled,
+  mealAllowanceType,
   travelAllowanceEnabled,
 }: {
   year: number;
@@ -121,7 +121,7 @@ export function AvailabilityBuilder({
   requiredHours?: number;
   carryoverHours?: number;
   leaveDays?: { id: string; leaveRequestId: string; date: string; status: "pending" | "approved" | "rejected"; hours: number }[];
-  mealAllowanceEnabled?: boolean;
+  mealAllowanceType?: string;
   travelAllowanceEnabled?: boolean;
 }) {
   const t = useTranslations("availability");
@@ -837,7 +837,7 @@ export function AvailabilityBuilder({
                               <span>{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
                               <ToggleMealAllowanceButton 
                                 assignmentId={a.id} 
-                                globalEnabled={mealAllowanceEnabled ?? false}
+                                globalEnabled={mealAllowanceType !== "none"}
                                 addMealAllowance={a.addMealAllowance} 
                                 excludeMealAllowance={a.excludeMealAllowance} 
                               />
@@ -915,7 +915,7 @@ export function AvailabilityBuilder({
           {totals.shifts > 0 || totals.acceptedHours > 0 || requiredHours !== undefined ? (
             <tfoot>
               <tr className="border-t-2 bg-emerald-500/10">
-                <td colSpan={mealAllowanceEnabled ? 9 : 10} className="p-3">
+                <td colSpan={mealAllowanceType !== "none" ? 9 : 10} className="p-3">
                   <div className="flex items-center gap-2 font-semibold">
                     <Clock className="size-4 text-emerald-600" />
                     {t("monthTotal")}
@@ -1079,7 +1079,7 @@ export function AvailabilityBuilder({
                                 {isAdmin && (
                                   <ToggleMealAllowanceButton 
                                     assignmentId={a.id} 
-                                    globalEnabled={mealAllowanceEnabled ?? false}
+                                    globalEnabled={mealAllowanceType !== "none"}
                                     addMealAllowance={a.addMealAllowance} 
                                     excludeMealAllowance={a.excludeMealAllowance} 
                                   />

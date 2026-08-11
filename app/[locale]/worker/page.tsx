@@ -18,7 +18,7 @@ async function getWorker() {
   return prisma.worker
     .findUnique({
       where: { userId: user.id },
-      select: { id: true, carryoverHours: true, mealAllowanceEnabled: true, travelAllowanceEnabled: true },
+      select: { id: true, carryoverHours: true, mealAllowanceType: true, travelAllowanceEnabled: true },
     })
     .catch(() => null);
 }
@@ -123,7 +123,7 @@ export default async function WorkerSchedulePage({
           requiredHours={totals.requiredHours}
           carryoverHours={totals.carryoverHours}
           leaveDays={leaveDays}
-          mealAllowanceEnabled={worker?.mealAllowanceEnabled}
+          mealAllowanceType={worker?.mealAllowanceType}
           travelAllowanceEnabled={worker?.travelAllowanceEnabled}
         />
       </section>

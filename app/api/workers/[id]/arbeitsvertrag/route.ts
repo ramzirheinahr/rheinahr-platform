@@ -40,7 +40,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     deploymentRadius: worker.deploymentRadius,
     hourlyRate,
     travelAllowanceEnabled: worker.travelAllowanceEnabled,
-    mealAllowanceEnabled: worker.mealAllowanceEnabled,
+    mealAllowanceType: worker.mealAllowanceType,
     mealAllowance: worker.mealAllowance,
     surchargeSat: worker.surchargeSat,
     surchargeSun: worker.surchargeSun,

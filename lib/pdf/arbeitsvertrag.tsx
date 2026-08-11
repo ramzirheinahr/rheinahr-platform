@@ -20,7 +20,7 @@ export type ArbeitsvertragData = {
   deploymentRadius: number;
   hourlyRate: number;
   travelAllowanceEnabled: boolean;
-  mealAllowanceEnabled: boolean;
+  mealAllowanceType: string;
   mealAllowance: number | null;
   surchargeSat: number | null;
   surchargeSun: number | null;
@@ -246,14 +246,14 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
             (9) Dem Mitarbeiter wird ein pauschaler Fahrtkostenzuschuss in Höhe von 0,30 € je Entfernungskilometer für die einfache Fahrtstrecke zwischen Wohnung und der jeweiligen Einsatzstätte gezahlt, sofern die gesetzlichen Voraussetzungen für die Steuer- und Beitragsfreiheit erfüllt sind.
           </Text>
         )}
-        {data.mealAllowanceEnabled && (
+        {data.mealAllowanceType !== "none" && (
           <Text style={styles.paragraph}>
-            ({data.travelAllowanceEnabled ? '10' : '9'}) Dem Mitarbeiter wird arbeitstäglich ein steuerfreier Verpflegungsmehraufwand in Höhe von {data.mealAllowance ? data.mealAllowance.toFixed(2).replace('.', ',') : "14,00"} € gewährt, sofern die gesetzlichen Voraussetzungen für die Auswärtstätigkeit erfüllt sind.
+            ({data.travelAllowanceEnabled ? '10' : '9'}) Dem Mitarbeiter wird {data.mealAllowanceType === "multiple_shifts_only" ? 'arbeitstäglich einmalig (bei mehreren Schichten)' : 'pro Schicht'} ein steuerfreier Verpflegungsmehraufwand in Höhe von {data.mealAllowance ? data.mealAllowance.toFixed(2).replace('.', ',') : "14,00"} € gewährt, sofern die gesetzlichen Voraussetzungen für die Auswärtstätigkeit erfüllt sind.
           </Text>
         )}
         {(data.surchargeNight || data.surchargeSat || data.surchargeSun || data.surchargeHoliday) ? (
           <Text style={styles.paragraph}>
-            ({(data.travelAllowanceEnabled && data.mealAllowanceEnabled) ? '11' : (data.travelAllowanceEnabled || data.mealAllowanceEnabled) ? '10' : '9'}) Neben dem tariflichen Entgelt erhält der Mitarbeiter tarifliche oder übertarifliche Zuschläge gemäß den vertraglichen oder tariflichen Bestimmungen. Soweit vereinbart betragen diese für Nachtarbeit {data.surchargeNight ? (data.surchargeNight * 100).toFixed(0) : 0}%, für Samstagsarbeit {data.surchargeSat ? (data.surchargeSat * 100).toFixed(0) : 0}%, für Sonntagsarbeit {data.surchargeSun ? (data.surchargeSun * 100).toFixed(0) : 0}%, und für Feiertagsarbeit {data.surchargeHoliday ? (data.surchargeHoliday * 100).toFixed(0) : 0}%.
+            ({(data.travelAllowanceEnabled && data.mealAllowanceType !== "none") ? '11' : (data.travelAllowanceEnabled || data.mealAllowanceType !== "none") ? '10' : '9'}) Neben dem tariflichen Entgelt erhält der Mitarbeiter tarifliche oder übertarifliche Zuschläge gemäß den vertraglichen oder tariflichen Bestimmungen. Soweit vereinbart betragen diese für Nachtarbeit {data.surchargeNight ? (data.surchargeNight * 100).toFixed(0) : 0}%, für Samstagsarbeit {data.surchargeSat ? (data.surchargeSat * 100).toFixed(0) : 0}%, für Sonntagsarbeit {data.surchargeSun ? (data.surchargeSun * 100).toFixed(0) : 0}%, und für Feiertagsarbeit {data.surchargeHoliday ? (data.surchargeHoliday * 100).toFixed(0) : 0}%.
           </Text>
         ) : null}
 

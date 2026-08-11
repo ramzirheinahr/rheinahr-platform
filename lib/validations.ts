@@ -45,6 +45,8 @@ export const documentCategories = [
 
 export const locales = ["de", "en", "ar"] as const;
 
+export const mealAllowanceTypes = ["none", "per_shift", "multiple_shifts_only"] as const;
+
 // Roles a super_admin may assign. (super_admin itself is provisioned via seed.)
 export const assignableRoles = ["admin", "client", "worker"] as const;
 export const allRoles = ["super_admin", ...assignableRoles] as const;
@@ -159,7 +161,7 @@ export const workerSchema = z.object({
   // Financial & Allowances
   travelAllowanceEnabled: z.boolean().optional().default(false),
   travelAllowancePerKm: optionalRate,
-  mealAllowanceEnabled: z.boolean().optional().default(false),
+  mealAllowanceType: z.enum(mealAllowanceTypes).optional().default("multiple_shifts_only"),
   mealAllowance: z.coerce.number().min(0).max(100).optional().default(14.0),
 
   // Surcharges entered as percentages (e.g. 25 = +25 %); stored as fractions.

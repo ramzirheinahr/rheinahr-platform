@@ -14,7 +14,7 @@ import { buildAddressString } from "@/lib/utils";
 import type { Worker } from "@prisma/client";
 
 export function buildPayrollPdfData(
-  worker: Pick<Worker, "id" | "fullName" | "address" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "qualification">,
+  worker: Pick<Worker, "id" | "fullName" | "address" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "qualification" | "mealAllowanceType">,
   assignments: WorkerScheduleRow[],
   year: number,
   month: number
@@ -40,6 +40,14 @@ export function buildPayrollPdfData(
   let totalMealAllowance = 0;
   const uniqueDatesWithMeal = new Set<string>();
 
+  // Count confirmed shifts per day to know if it's a multiple-shift day
+  const shiftsPerDay = new Map<string, number>();
+  for (const a of assignments) {
+    if (a.confirmedHours != null) {
+      shiftsPerDay.set(a.date, (shiftsPerDay.get(a.date) || 0) + 1);
+    }
+  }
+
   for (const a of assignments) {
     const effectiveHours = a.confirmedHours != null ? a.confirmedHours : (a.scheduledHours ?? 0);
     if (effectiveHours === 0) continue;
@@ -53,9 +61,19 @@ export function buildPayrollPdfData(
     if (a.travelCost) {
       totalTravelCost += a.travelCost;
     }
-    if (a.mealAllowance && !uniqueDatesWithMeal.has(a.date)) {
-      uniqueDatesWithMeal.add(a.date);
-      totalMealAllowance += a.mealAllowance;
+    if (a.mealAllowance) {
+      if (a.addMealAllowance) {
+        totalMealAllowance += a.mealAllowance;
+      } else if (worker.mealAllowanceType === "per_shift") {
+        totalMealAllowance += a.mealAllowance;
+      } else if (worker.mealAllowanceType === "multiple_shifts_only") {
+        if (shiftsPerDay.get(a.date)! >= 2) {
+          if (!uniqueDatesWithMeal.has(a.date)) {
+            uniqueDatesWithMeal.add(a.date);
+            totalMealAllowance += a.mealAllowance;
+          }
+        }
+      }
     }
 
     // But wait, do we have breakMinutes in the query?

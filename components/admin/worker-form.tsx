@@ -47,7 +47,7 @@ export type WorkerData = {
   deploymentRadius: number;
   travelAllowanceEnabled?: boolean;
   travelAllowancePerKm?: number | null;
-  mealAllowanceEnabled?: boolean;
+  mealAllowanceType?: string;
   mealAllowance?: number | null;
   surchargeSat?: number | null;
   surchargeSun?: number | null;
@@ -392,17 +392,20 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
               </div>
             </div>
             <div className="space-y-2">
-              <div className="flex items-center gap-2 h-9">
-                <input
-                  type="checkbox"
-                  id="mealAllowanceEnabled"
-                  name="mealAllowanceEnabled"
-                  defaultChecked={worker.mealAllowanceEnabled}
-                  className="size-4"
-                />
-                <Label htmlFor="mealAllowanceEnabled">Verpflegungsmehraufwand erstatten</Label>
-              </div>
               <div className="space-y-2">
+                <Label htmlFor="mealAllowanceType">{t("mealAllowanceType")}</Label>
+                <select
+                  id="mealAllowanceType"
+                  name="mealAllowanceType"
+                  defaultValue={worker.mealAllowanceType ?? "multiple_shifts_only"}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="per_shift">{t("mealAllowance_per_shift")}</option>
+                  <option value="multiple_shifts_only">{t("mealAllowance_multiple_shifts_only")}</option>
+                  <option value="none">{t("mealAllowance_none")}</option>
+                </select>
+              </div>
+              <div className="space-y-2 mt-4">
                 <Label htmlFor="mealAllowance">Spesen pro Schicht (€)</Label>
                 <Input
                   id="mealAllowance"

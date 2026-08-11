@@ -43,7 +43,7 @@ export default async function AdminEditRequestPage({
       },
       assignments: {
         include: {
-          worker: { select: { id: true, fullName: true, phone: true, photoPath: true, mealAllowanceEnabled: true, travelAllowanceEnabled: true } },
+          worker: { select: { id: true, fullName: true, phone: true, photoPath: true, mealAllowanceType: true, travelAllowanceEnabled: true } },
           serviceConfirmation: { select: { hoursWorked: true, correctionHours: true } },
         },
       },
@@ -122,7 +122,7 @@ export default async function AdminEditRequestPage({
           fullName: a.worker.fullName,
           phone: a.worker.phone,
           hasPhoto: !!a.worker.photoPath,
-          mealAllowanceEnabled: a.worker.mealAllowanceEnabled,
+          mealAllowanceType: a.worker.mealAllowanceType,
           travelAllowanceEnabled: a.worker.travelAllowanceEnabled,
         },
       })),

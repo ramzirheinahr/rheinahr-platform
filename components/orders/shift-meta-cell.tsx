@@ -67,7 +67,7 @@ export type ShiftMeta = {
       fullName: string;
       phone: string | null;
       hasPhoto: boolean;
-      mealAllowanceEnabled?: boolean;
+      mealAllowanceType?: string;
       travelAllowanceEnabled?: boolean;
     };
   }[];
@@ -333,7 +333,7 @@ export function ShiftMetaCell({
                         ))}
                       <ToggleMealAllowanceButton 
                         assignmentId={a.id} 
-                        globalEnabled={a.worker?.mealAllowanceEnabled ?? false}
+                        globalEnabled={a.worker?.mealAllowanceType !== "none"}
                         addMealAllowance={a.addMealAllowance} 
                         excludeMealAllowance={a.excludeMealAllowance}
                       />

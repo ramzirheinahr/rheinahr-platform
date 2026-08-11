@@ -265,8 +265,10 @@ model Worker {
   // Financial & Allowances
   travelAllowanceEnabled Boolean @default(false) @map("travel_allowance_enabled")
   travelAllowancePerKm   Float?  @map("travel_allowance_per_km")
-  mealAllowanceEnabled   Boolean @default(false) @map("meal_allowance_enabled")
+  
+  mealAllowanceType      String  @default("multiple_shifts_only") @map("meal_allowance_type")
   mealAllowance          Float?  @default(14.0) @map("meal_allowance")
+  
 
   // Custom Surcharges (Fractions, e.g. 0.25 = 25%)
   surchargeSat     Float?  @map("surcharge_sat")
