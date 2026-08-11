@@ -279,7 +279,16 @@
     "confirmRevokeSession": "هل أنت متأكد من رغبتك في طرد هذه الجلسة؟",
     "sessionRevoked": "تم طرد الجلسة بنجاح.",
     "revokeSession": "طرد الجلسة",
-    "lastActive": "آخر نشاط"
+    "lastActive": "آخر نشاط",
+    "sollHoursHistory": "سجل الساعات المطلوبة",
+    "sollHoursDescription": "حدد الساعات الأسبوعية والشهرية المطلوبة لكل فترة زمنية بدءاً من شهر معين.",
+    "sollHoursBegin": "البداية (شهر/سنة)",
+    "weeklyHours": "الساعات الأسبوعية",
+    "actions": "الإجراءات",
+    "invalidDateFormat": "تنسيق التاريخ غير صالح (يُتوقع YYYY-MM)",
+    "duplicatePeriod": "يوجد إدخال مسبق لهذا الشهر.",
+    "noData": "لا توجد أي سجلات بعد.",
+    "confirmDelete": "هل أنت متأكد من حذف هذا السجل؟"
   },
   "clients": {
     "title": "المنشآت",

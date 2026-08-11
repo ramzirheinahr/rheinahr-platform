@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Qualification } from "@/lib/validations";
 import { netShiftHours } from "@/lib/pricing";
+import { getMultipleWorkersHoursAccount } from "@/lib/hours-account";
 import {
   availabilityLetters,
   facilityCode,
@@ -28,6 +29,7 @@ export async function getMasterSchedule(
   year: number,
   month: number,
 ): Promise<MasterSchedule> {
+  const targetMonthStr = `${year}-${String(month).padStart(2, "0")}`;
   const monthStart = new Date(Date.UTC(year, month - 1, 1));
   const monthEnd = new Date(Date.UTC(year, month, 1));
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -48,6 +50,7 @@ export async function getMasterSchedule(
         phone: true,
         requiredHours: true,
         carryoverHours: true,
+        sollHoursHistory: true,
         availability: {
           where: { date: { gte: monthStart, lt: monthEnd } },
           select: { date: true, startTime: true, endTime: true, status: true },
@@ -123,6 +126,13 @@ export async function getMasterSchedule(
       },
     }),
   ]);
+
+  const hoursAccountsBulk = await getMultipleWorkersHoursAccount(
+    workers.map(w => w.id),
+    targetMonthStr,
+    targetMonthStr
+  );
+  const { getEffectiveSollHours } = await import("@/lib/worker-soll-hours");
 
   const rows: GridWorkerRow[] = workers.map((w) => {
     // Availability is opt-in: undeclared days stay empty ("") until the worker
@@ -203,12 +213,14 @@ export async function getMasterSchedule(
       }
     }
 
+    const hoursAcc = hoursAccountsBulk[w.id];
+
     return {
       workerId: w.id,
       name: w.fullName,
       phone: w.phone,
-      requiredHours: w.requiredHours,
-      carryoverHours: w.carryoverHours,
+      requiredHours: getEffectiveSollHours(targetMonthStr, w.requiredHours, w.sollHoursHistory),
+      carryoverHours: hoursAcc?.initialCarryover ?? w.carryoverHours,
       confirmedHours,
       acceptedHours,
       days

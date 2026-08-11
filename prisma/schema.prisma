@@ -250,6 +250,7 @@ model Worker {
   // Languages spoken by the worker as ISO 639-1 codes (any world language).
   // Decoupled from the UI-locale enum (User.preferredLanguage stays de/en/ar).
   languages            String[]     @default([])
+  sollHoursHistory     WorkerSollHours[]
   // Personal / HR data (sensitive PII — admin-only, never exposed to clients).
   birthDate            DateTime?    @map("birth_date") @db.Date
   birthPlace           String?      @map("birth_place")
@@ -696,4 +697,18 @@ model Appointment {
 
   @@index([managerId, date])
   @@map("appointments")
+}
+
+model WorkerSollHours {
+  id           String   @id @default(uuid())
+  workerId     String   @map("worker_id")
+  worker       Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  validFrom    String   @map("valid_from") // Format: "YYYY-MM"
+  weeklyHours  Float    @map("weekly_hours")
+  monthlyHours Float    @map("monthly_hours")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([workerId, validFrom])
+  @@map("worker_soll_hours")
 }

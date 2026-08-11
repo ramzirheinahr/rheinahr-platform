@@ -279,7 +279,16 @@
     "confirmRevokeSession": "Möchten Sie diese Sitzung wirklich abmelden?",
     "sessionRevoked": "Sitzung erfolgreich abgemeldet.",
     "revokeSession": "Sitzung beenden",
-    "lastActive": "Zuletzt aktiv"
+    "lastActive": "Zuletzt aktiv",
+    "sollHoursHistory": "Soll-Stunden Historie",
+    "sollHoursDescription": "Legen Sie fest, ab welchem Monat welche monatlichen und wöchentlichen Arbeitsstunden gelten.",
+    "sollHoursBegin": "Beginn (Monat/Jahr)",
+    "weeklyHours": "Wöchentliche Stunden",
+    "actions": "Aktionen",
+    "invalidDateFormat": "Ungültiges Datumsformat (YYYY-MM erwartet)",
+    "duplicatePeriod": "Für diesen Monat existiert bereits ein Eintrag.",
+    "noData": "Keine Einträge vorhanden.",
+    "confirmDelete": "Diesen Eintrag wirklich löschen?"
   },
   "clients": {
     "title": "Einrichtungen",

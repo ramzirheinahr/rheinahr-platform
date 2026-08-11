@@ -35,6 +35,7 @@ export default async function EditWorkerPage({
       include: {
         user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true, fullName: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } },
         documents: { orderBy: { uploadedAt: "desc" } },
+        sollHoursHistory: true,
       },
     })
     .catch(() => null);
@@ -102,6 +103,7 @@ export default async function EditWorkerPage({
           yearsExperience: worker.yearsExperience,
           employedSince: toDateInput(worker.employedSince),
           requiredHours: worker.requiredHours,
+          sollHoursHistory: worker.sollHoursHistory,
           carryoverHours: worker.carryoverHours,
           deploymentRadius: worker.deploymentRadius,
           travelAllowanceEnabled: worker.travelAllowanceEnabled,

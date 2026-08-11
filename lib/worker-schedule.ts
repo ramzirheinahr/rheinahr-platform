@@ -59,16 +59,11 @@ export async function getWorkerMonthSchedule(
 ): Promise<{ rows: WorkerScheduleRow[]; leaveDays: WorkerLeaveDay[]; totals: WorkerScheduleTotals }> {
   const worker = await prisma.worker.findUnique({
     where: { id: workerId },
-    select: { 
-      requiredHours: true, 
-      carryoverHours: true, 
-      address: true,
-      travelAllowanceEnabled: true, 
-      travelAllowancePerKm: true, 
-      mealAllowanceType: true, 
-      mealAllowance: true 
-    },
+    include: {
+      sollHoursHistory: true,
+    }
   });
+
   
   const assignments = await prisma.assignment
     .findMany({
@@ -209,11 +204,18 @@ export async function getWorkerMonthSchedule(
   const hoursAcc = await getWorkerHoursAccount(workerId, targetMonthStr, targetMonthStr);
   const carryoverHours = hoursAcc.initialCarryover;
 
+  const { getEffectiveSollHours } = await import("@/lib/worker-soll-hours");
+  const effectiveRequiredHours = getEffectiveSollHours(
+    targetMonthStr,
+    worker?.requiredHours ?? 151.67,
+    worker?.sollHoursHistory
+  );
+
   return {
     rows,
     leaveDays,
     totals: {
-      requiredHours: worker?.requiredHours ?? 151.67,
+      requiredHours: effectiveRequiredHours,
       carryoverHours: carryoverHours,
       confirmedHours:
         confirmed.reduce((sum, r) => sum + (r.confirmedHours ?? 0), 0) +

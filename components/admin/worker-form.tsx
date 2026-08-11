@@ -21,6 +21,7 @@ import { qualifications, contractTypes, employmentTypes } from "@/lib/validation
 import { LanguageSelect } from "@/components/admin/language-select";
 import { NationalitySelect } from "@/components/admin/nationality-select";
 import { updateWorker } from "@/app/[locale]/admin/workers/actions";
+import { SollHoursManager } from "@/components/admin/soll-hours-manager";
 
 export type WorkerData = {
   id: string;
@@ -43,6 +44,7 @@ export type WorkerData = {
   yearsExperience: number | null;
   employedSince: string | null; // yyyy-mm-dd
   requiredHours: number;
+  sollHoursHistory?: { id: string; validFrom: string; weeklyHours: number; monthlyHours: number; }[];
   carryoverHours: number;
   deploymentRadius: number;
   travelAllowanceEnabled?: boolean;
@@ -282,7 +284,10 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
           
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="requiredHours">{t("requiredHours")}</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="requiredHours">{t("requiredHours")}</Label>
+                <SollHoursManager workerId={worker.id} history={worker.sollHoursHistory ?? []} />
+              </div>
               <Input
                 id="requiredHours"
                 name="requiredHours"

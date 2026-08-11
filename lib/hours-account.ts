@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-
+import { getEffectiveSollHours } from "./worker-soll-hours";
 export type MonthlyHoursAccount = {
   month: string; // YYYY-MM
   requiredHours: number; // Soll
@@ -19,11 +19,8 @@ export async function getWorkerHoursAccount(
 ): Promise<{ months: MonthlyHoursAccount[], initialCarryover: number }> {
   const worker = await prisma.worker.findUnique({
     where: { id: workerId },
-    select: { 
-      requiredHours: true, 
-      carryoverHours: true,
-      employmentStartDate: true,
-      createdAt: true
+    include: {
+      sollHoursHistory: true,
     },
   });
 
@@ -137,8 +134,8 @@ export async function getWorkerHoursAccount(
     const kAusgleichHours = monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0);
     const sonstigeHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0) + otherLeaveHours; // Add other leaves to sonstige
 
-    // Required hours could be adjusted in future, but currently we use base
-    const requiredHours = baseRequiredHours;
+    // Required hours dynamic based on history
+    const requiredHours = getEffectiveSollHours(monthStr, baseRequiredHours, worker.sollHoursHistory);
 
     const monthBalance = (workedHours + vacationHours + sickHours + kAusgleichHours + sonstigeHours) - requiredHours;
     cumulativeBalance += monthBalance;
@@ -177,12 +174,8 @@ export async function getMultipleWorkersHoursAccount(
 
   const workers = await prisma.worker.findMany({
     where: { id: { in: workerIds } },
-    select: { 
-      id: true,
-      requiredHours: true, 
-      carryoverHours: true,
-      employmentStartDate: true,
-      createdAt: true
+    include: {
+      sollHoursHistory: true,
     },
   });
 
@@ -304,7 +297,7 @@ export async function getMultipleWorkersHoursAccount(
       if (monthStr >= startMonth) {
         workerMonths.push({
           month: monthStr,
-          requiredHours: baseRequiredHours,
+          requiredHours: getEffectiveSollHours(monthStr, baseRequiredHours, worker.sollHoursHistory),
           workedHours,
           vacationHours,
           sickHours,
