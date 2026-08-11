@@ -156,6 +156,13 @@ export async function createWorker(formData: FormData): Promise<ActionState> {
   });
   if (existing) return { ok: false, error: "emailInUse" };
 
+  if (data.internalNumber) {
+    const duplicate = await prisma.worker.findFirst({
+      where: { internalNumber: data.internalNumber },
+    });
+    if (duplicate) return { ok: false, error: "numberInUse" };
+  }
+
   // 1) Provision the Supabase Auth login (email confirmed so they can sign in now).
   const supabase = createSupabaseAdminClient();
   const { data: created, error: authError } = await supabase.auth.admin.createUser({
@@ -217,6 +224,13 @@ export async function updateWorker(
   const parsed = parseProfile(formData);
   if (!parsed.success) return { ok: false, error: "saveError" };
   const data = parsed.data;
+
+  if (data.internalNumber) {
+    const duplicate = await prisma.worker.findFirst({
+      where: { internalNumber: data.internalNumber, id: { not: id } },
+    });
+    if (duplicate) return { ok: false, error: "numberInUse" };
+  }
 
   await prisma.worker.update({
     where: { id },

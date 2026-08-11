@@ -938,7 +938,7 @@
     "updated": "User updated.",
     "deleted": "User deleted.",
     "saveError": "Error saving.",
-    "emailInUse": "Email is already in use.",
+    "emailInUse": "Email is already in use.", "numberInUse": "This internal number is already in use.",
     "empty": "No users found.",
     "permissionsList": {
       "manage_workers": "Manage workers",
