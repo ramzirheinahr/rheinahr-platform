@@ -142,7 +142,7 @@ export async function getWorkerMonthSchedule(
           if (distanceKm != null && worker.travelAllowanceEnabled && !a.excludeTravelAllowance) {
             // Client request: one-way distance * rate
             const rate = worker.travelAllowancePerKm ?? 0.30;
-            travelCost = distanceKm * rate;
+            travelCost = Number((distanceKm * rate).toFixed(2));
           }
         }
       }
