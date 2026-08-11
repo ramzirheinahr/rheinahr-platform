@@ -137,7 +137,7 @@ export async function getWorkerHoursAccount(
     // Required hours dynamic based on history
     const requiredHours = getEffectiveSollHours(monthStr, baseRequiredHours, worker.sollHoursHistory);
 
-    const monthBalance = (workedHours + vacationHours + sickHours + kAusgleichHours + sonstigeHours) - requiredHours;
+    const monthBalance = (workedHours + vacationHours + sickHours + sonstigeHours) - (requiredHours + kAusgleichHours);
     cumulativeBalance += monthBalance;
 
     if (monthStr >= startMonth) {
@@ -291,13 +291,14 @@ export async function getMultipleWorkersHoursAccount(
       const kAusgleichHours = monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0);
       const sonstigeHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0) + otherLeaveHours;
 
-      const monthBalance = (workedHours + vacationHours + sickHours + kAusgleichHours + sonstigeHours) - baseRequiredHours;
+      const requiredHours = getEffectiveSollHours(monthStr, baseRequiredHours, worker.sollHoursHistory);
+      const monthBalance = (workedHours + vacationHours + sickHours + sonstigeHours) - (requiredHours + kAusgleichHours);
       cumulativeBalance += monthBalance;
 
       if (monthStr >= startMonth) {
         workerMonths.push({
           month: monthStr,
-          requiredHours: getEffectiveSollHours(monthStr, baseRequiredHours, worker.sollHoursHistory),
+          requiredHours,
           workedHours,
           vacationHours,
           sickHours,
