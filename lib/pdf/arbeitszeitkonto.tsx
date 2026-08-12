@@ -57,7 +57,7 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View fixed style={{ position: "absolute", top: 20, left: 48, right: 48, flexDirection: "row", justifyItems: "center", justifyContent: "space-between", fontSize: 8, color: "#6b7280", borderBottomWidth: 1, borderBottomColor: "#e5e7eb", paddingBottom: 4 }}>
+        <View fixed style={{ position: "absolute", top: 20, left: 48, right: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", fontSize: 8, color: "#6b7280", borderBottomWidth: 1, borderBottomColor: "#e5e7eb", paddingBottom: 4 }}>
           <Text>Arbeitszeitkonto - Mitarbeiter: {data.workerName}</Text>
           <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
         </View>
