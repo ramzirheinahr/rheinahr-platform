@@ -7,8 +7,9 @@ import { qualifications } from "@/lib/validations";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { WorkersTable, type WorkerTableRow } from "@/components/admin/workers-table";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, FileSpreadsheet } from "lucide-react";
 import { getMultipleWorkersHoursAccount } from "@/lib/hours-account";
+import { MonthPicker } from "../components/month-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,9 @@ function parseQualification(value?: string): Qualification | undefined {
 export default async function WorkersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ qualification?: string }>;
+  searchParams: Promise<{ qualification?: string; month?: string }>;
 }) {
-  const { qualification: qParam } = await searchParams;
+  const { qualification: qParam, month: mParam } = await searchParams;
   const qualification = parseQualification(qParam);
 
   const t = await getTranslations("workers");
@@ -56,7 +57,8 @@ export default async function WorkersPage({
     : "/admin/workers/new";
 
   const now = new Date();
-  const currentMonthStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const defaultMonthStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const currentMonthStr = mParam && /^\d{4}-\d{2}$/.test(mParam) ? mParam : defaultMonthStr;
 
   const rows: WorkerTableRow[] = [];
   
@@ -112,11 +114,18 @@ export default async function WorkersPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{heading}</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-semibold">{heading}</h1>
+          <MonthPicker currentMonth={currentMonthStr} />
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="gap-2" render={<a href={`/api/workers/personalliste?month=${currentMonthStr}`} target="_blank" rel="noopener noreferrer" />}>
             <Download className="size-4" />
             Personalliste (PDF)
+          </Button>
+          <Button variant="outline" className="gap-2" render={<a href={`/api/workers/personalliste-excel?month=${currentMonthStr}`} target="_blank" rel="noopener noreferrer" />}>
+            <FileSpreadsheet className="size-4 text-emerald-600" />
+            Personalliste (Excel)
           </Button>
           {/* Creating a worker provisions their login account — super_admin only. */}
           {actor?.role === "super_admin" && (

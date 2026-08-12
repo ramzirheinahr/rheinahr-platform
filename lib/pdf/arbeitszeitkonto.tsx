@@ -11,7 +11,7 @@ const styles = StyleSheet.create({
   bold: { fontFamily: "Helvetica-Bold" },
   table: { display: "flex", flexDirection: "column", width: "100%", borderStyle: "solid", borderWidth: 1, borderColor: "#000" },
   tableRow: { flexDirection: "row" },
-  tableHeader: { backgroundColor: "#f3f4f6", fontFamily: "Helvetica-Bold", fontWeight: "bold" },
+  tableHeader: { backgroundColor: "#f3f4f6", fontFamily: "Helvetica-Bold", fontWeight: "bold", fontSize: 9 },
   tableCol: { 
     borderStyle: "solid", 
     borderWidth: 1, 
@@ -22,15 +22,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center"
   },
-  colMonth: { width: "12%" },
-  colSoll: { width: "10%" },
-  colIst: { width: "10%" },
-  colAusgleich: { width: "12%" },
-  colUrlaub: { width: "10%" },
-  colKrank: { width: "10%" },
+  colMonth: { width: "11%" },
+  colSoll: { width: "9%" },
+  colIst: { width: "9%" },
+  colAusgleich: { width: "14%" },
+  colUrlaub: { width: "9%" },
+  colKrank: { width: "9%" },
   colSonstige: { width: "10%" },
-  colSumme: { width: "11%" },
-  colCumSum: { width: "15%", borderRightWidth: 0 },
+  colSumme: { width: "13%" },
+  colCumSum: { width: "16%", borderRightWidth: 0 },
 });
 
 export type ArbeitszeitkontoPdfData = {
@@ -57,6 +57,11 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <View fixed style={{ position: "absolute", top: 20, left: 48, right: 48, flexDirection: "row", justifyItems: "center", justifyContent: "space-between", fontSize: 8, color: "#6b7280", borderBottomWidth: 1, borderBottomColor: "#e5e7eb", paddingBottom: 4 }}>
+          <Text>Arbeitszeitkonto - Mitarbeiter: {data.workerName}</Text>
+          <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        </View>
+
         <View style={styles.header}>
           <View>
             <Image src={process.cwd() + "/public/logo.png"} style={{ height: 40 }} />
@@ -86,7 +91,7 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
 
         <View style={styles.table}>
           {/* Header */}
-          <View style={[styles.tableRow, styles.tableHeader]}>
+          <View fixed style={[styles.tableRow, styles.tableHeader]}>
             <View style={[styles.tableCol, styles.colMonth]}><Text>Monat</Text></View>
             <View style={[styles.tableCol, styles.colSoll]}><Text>Soll</Text></View>
             <View style={[styles.tableCol, styles.colIst]}><Text>Ist</Text></View>
@@ -113,7 +118,7 @@ export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfDa
 
           {/* Body */}
           {data.months.map((m, i) => (
-            <View key={i} style={styles.tableRow}>
+            <View key={i} style={styles.tableRow} wrap={false}>
               <View style={[styles.tableCol, styles.colMonth]}><Text>{m.month}</Text></View>
               <View style={[styles.tableCol, styles.colSoll]}><Text>{formatSum(m.requiredHours)}</Text></View>
               <View style={[styles.tableCol, styles.colIst]}><Text>{formatHour(m.workedHours)}</Text></View>

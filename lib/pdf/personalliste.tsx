@@ -1,5 +1,5 @@
 import "server-only";
-import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/renderer";
 import React from "react";
 
 const styles = StyleSheet.create({
@@ -43,10 +43,14 @@ export const PersonallisteTemplate = ({ data }: { data: PersonallistePdfData }) 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <View fixed style={{ position: "absolute", top: 20, left: 48, right: 48, flexDirection: "row", justifyItems: "center", justifyContent: "space-between", fontSize: 8, color: "#6b7280", borderBottomWidth: 1, borderBottomColor: "#e5e7eb", paddingBottom: 4 }}>
+          <Text>Personalliste / Arbeitszeitkonto - Monat: {data.month}</Text>
+          <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        </View>
+
         <View style={styles.header}>
           <View>
-            <Text style={{ fontSize: 24, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>RheinAhr</Text>
-            <Text style={{ fontSize: 14, color: "#1e3a8a", marginTop: 4 }}>Dienstleistungen GmbH</Text>
+            <Image src={process.cwd() + "/public/logo.png"} style={{ height: 40 }} />
           </View>
           <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
             <Text style={{ color: "#d32f2f", fontFamily: "Helvetica-Bold" }}>INTEGRITÄT</Text>
@@ -66,7 +70,7 @@ export const PersonallisteTemplate = ({ data }: { data: PersonallistePdfData }) 
 
         <View style={styles.table}>
           {/* Header */}
-          <View style={[styles.tableRow, styles.tableHeader]}>
+          <View fixed style={[styles.tableRow, styles.tableHeader]}>
             <View style={[styles.tableCol, styles.colName]}><Text>Name, Vorname</Text></View>
             <View style={[styles.tableCol, styles.colNumber]}><Text>Stand alt</Text></View>
             <View style={[styles.tableCol, styles.colNumber]}><Text>Zu-/Abgang</Text></View>
@@ -75,7 +79,7 @@ export const PersonallisteTemplate = ({ data }: { data: PersonallistePdfData }) 
           
           {/* Body */}
           {data.workers.map((w, i) => (
-            <View key={i} style={styles.tableRow}>
+            <View key={i} style={styles.tableRow} wrap={false}>
               <View style={[styles.tableCol, styles.colName]}><Text>{w.fullName}</Text></View>
               <View style={[styles.tableCol, styles.colNumber]}><Text>{formatSum(w.standAlt)}</Text></View>
               <View style={[styles.tableCol, styles.colNumber]}><Text>{formatSum(w.zuAbgang)}</Text></View>

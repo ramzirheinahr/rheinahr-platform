@@ -11,6 +11,7 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download } from "lucide-react";
 import { ScheduleMonthPicker } from "@/app/[locale]/admin/components/schedule-month-picker";
+import { WorkerSearchDropdown } from "@/app/[locale]/admin/components/worker-search-dropdown";
 
 export const dynamic = "force-dynamic";
 
@@ -44,12 +45,22 @@ export default async function AdminWorkerSchedulePage({
   if (month < 1 || month > 12) month = now.getUTCMonth() + 1;
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
-  const [{ rows: assignments, leaveDays, totals }, initialBlocks, adjustmentsData] = await Promise.all([
+  const [{ rows: assignments, leaveDays, totals }, initialBlocks, adjustmentsData, allWorkers] = await Promise.all([
     getWorkerMonthSchedule(worker.id, year, month),
     getWorkerMonthAvailability(worker.id, year, month),
     prisma.workerHoursAdjustment.findMany({
       where: { workerId: worker.id, month: `${year}-${String(month).padStart(2, "0")}` },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.worker.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        internalNumber: true,
+        phone: true,
+        user: { select: { email: true } },
+      },
+      orderBy: { fullName: "asc" },
     }),
   ]);
 
@@ -80,7 +91,7 @@ export default async function AdminWorkerSchedulePage({
           <ArrowLeft className="size-4 rtl:rotate-180" />
           {c("back")}
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-semibold">{worker.fullName}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{t("scheduleHint")}</p>
         </div>
@@ -88,7 +99,19 @@ export default async function AdminWorkerSchedulePage({
 
       {/* Same month navigator as the worker page — drives table + availability. */}
       <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-2 py-1.5">
-        <ScheduleMonthPicker currentYear={year} currentMonth={month} baseRoute={base} />
+        <div className="flex items-center gap-4">
+          <ScheduleMonthPicker currentYear={year} currentMonth={month} baseRoute={base} />
+          <WorkerSearchDropdown 
+            currentWorkerId={worker.id}
+            workers={allWorkers.map((w) => ({
+              id: w.id,
+              fullName: w.fullName,
+              internalNumber: w.internalNumber,
+              phone: w.phone,
+              email: w.user.email,
+            }))}
+          />
+        </div>
         <a
           href={`${base}/export?year=${year}&month=${month}`}
           className="text-xs font-medium text-primary hover:underline flex items-center gap-1 pr-4"
