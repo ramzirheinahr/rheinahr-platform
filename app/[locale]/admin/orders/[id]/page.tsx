@@ -1,30 +1,18 @@
+import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { candidatesForShift, isRequestCancelable } from "@/lib/orders";
-import {
-  resolveSurcharges,
-  resolveRates,
-  resolveNightWindow,
-  netShiftHours,
-} from "@/lib/pricing";
+import { isRequestCancelable } from "@/lib/orders";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { CancelRequestButton } from "@/components/orders/cancel-request-button";
-import { AssignSelectionProvider } from "@/components/orders/assign-selection";
-import { PendingResponsesProvider } from "@/components/orders/pending-responses-provider";
-import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft, Pencil, Download } from "lucide-react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
-import { OrderContractsBanner } from "@/components/admin/order-contracts-banner";
-import { OrderInvoicesBanner } from "@/components/admin/order-invoices-banner";
-import { OrderConfirmationsBanner } from "@/components/admin/order-confirmations-banner";
+import { ScheduleSkeleton } from "@/components/admin/skeletons/schedule-skeleton";
+import { OrderDetailContent } from "./components/order-detail-content";
 
 export const dynamic = "force-dynamic";
-
-const d = (date: Date) => date.toISOString().slice(0, 10);
 
 export default async function AdminRequestDetail({
   params,
@@ -35,42 +23,39 @@ export default async function AdminRequestDetail({
   const t = await getTranslations("orders");
   const c = await getTranslations("common");
 
-  const orders = await prisma.order.findMany({
+  // Fast fetch just for the header info
+  const firstOrder = await prisma.order.findFirst({
     where: { requestGroupId: id },
-    orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
-    include: {
+    orderBy: { shiftDate: "asc" },
+    select: {
+      id: true,
+      shiftDate: true,
+      status: true,
       client: {
         select: {
           id: true,
           userId: true,
           facilityName: true,
-          address: true,
-          surchargeSat: true,
-          surchargeSun: true,
-          surchargeHoliday: true,
-        surchargeNight: true,
-        nightStart: true,
-        nightEnd: true,
-        hourlyRates: true,
         },
       },
-      assignments: {
-        include: {
-          worker: { select: { id: true, fullName: true, phone: true, photoPath: true, mealAllowanceType: true, travelAllowanceEnabled: true } },
-          serviceConfirmation: { select: { hoursWorked: true, correctionHours: true, method: true } },
-        },
-      },
-    },
+    }
   });
-  if (orders.length === 0) notFound();
+
+  if (!firstOrder) notFound();
+
+  const allOrdersInGroup = await prisma.order.findMany({
+    where: { requestGroupId: id },
+    orderBy: { shiftDate: "asc" },
+    select: { shiftDate: true, status: true }
+  });
 
   const clientOwner = await prisma.user.findUnique({
-    where: { id: orders[0].client.userId },
+    where: { id: firstOrder.client.userId },
     select: { id: true, fullName: true, email: true }
   });
   
   const clientUsers = await prisma.user.findMany({
-    where: { clientId: orders[0].client.id },
+    where: { clientId: firstOrder.client.id },
     select: { id: true, fullName: true, email: true }
   });
 
@@ -80,158 +65,10 @@ export default async function AdminRequestDetail({
     employees.push({ id: u.id, name: u.fullName || u.email });
   }
 
-  const candidates: Awaited<ReturnType<typeof candidatesForShift>>[] = [];
-  for (const o of orders) {
-    candidates.push(
-      await candidatesForShift({
-        id: o.id,
-        shiftDate: o.shiftDate,
-        startTime: o.startTime,
-        endTime: o.endTime,
-        requiredQualification: o.requiredQualification,
-      })
-    );
-  }
-
-  const facility = orders[0].client.facilityName;
-  const firstDate = formatDateDE(orders[0].shiftDate);
-  const lastDate = formatDateDE(orders[orders.length - 1].shiftDate);
+  const facility = firstOrder.client.facilityName;
+  const firstDate = formatDateDE(allOrdersInGroup[0].shiftDate);
+  const lastDate = formatDateDE(allOrdersInGroup[allOrdersInGroup.length - 1].shiftDate);
   const range = firstDate === lastDate ? firstDate : `${firstDate} – ${lastDate}`;
-
-  const contracts = await prisma.clientContract.findMany({
-    where: {
-      assignments: {
-        some: {
-          order: { requestGroupId: id }
-        }
-      }
-    },
-    include: {
-      client: true,
-      assignments: {
-        include: { order: true, worker: true }
-      }
-    }
-  });
-
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      assignments: {
-        some: {
-          order: { requestGroupId: id }
-        }
-      }
-    }
-  });
-
-  const uncontractedAssignments = orders.flatMap(o => 
-    o.assignments
-      .filter(a => a.status === "confirmed" && !a.contractId)
-      .map(a => ({
-        id: a.id,
-        workerName: a.worker.fullName,
-        shiftDate: formatDateDE(o.shiftDate),
-        startTime: o.startTime,
-        endTime: o.endTime
-      }))
-  );
-
-  const uninvoicedAssignments = orders.flatMap(o =>
-    o.assignments
-      .filter(a => a.status === "confirmed" && !a.invoiceId)
-      .map(a => ({
-        id: a.id,
-        workerName: a.worker.fullName,
-        shiftDate: formatDateDE(o.shiftDate),
-        startTime: o.startTime,
-        endTime: o.endTime
-      }))
-  );
-
-  const confirmedAssignments = orders.flatMap(o =>
-    o.assignments
-      .filter(a => a.status === "confirmed")
-      .map(a => ({
-        id: a.id,
-        workerName: a.worker.fullName,
-        shiftDate: formatDateDE(o.shiftDate),
-        startTime: o.startTime,
-        endTime: o.endTime
-      }))
-  );
-
-  const initial = {
-    requestGroupId: id,
-    qual: orders[0].requiredQualification,
-    shifts: orders.map((o) => ({
-      date: d(o.shiftDate),
-      start: o.startTime,
-      end: o.endTime,
-      pause: o.breakMinutes,
-      quantity: o.quantity,
-      bereich: o.notes ?? "",
-    })),
-  };
-
-  // Per-shift pipeline data for the table's status column, keyed like the
-  // builder's cells (`${date}:${slot}` — same order as `initial.shifts`).
-  const shiftMeta: Record<string, ShiftMeta> = {};
-  const slotByDate: Record<string, number> = {};
-  const selectableOrderIds: string[] = [];
-  orders.forEach((o, i) => {
-    const date = d(o.shiftDate);
-    const slot = slotByDate[date] ?? 0;
-    slotByDate[date] = slot + 1;
-    // A shift can still take workers (→ multi-select checkbox) unless it's
-    // cancelled/completed/service-confirmed or already fully worker-confirmed.
-    const confirmedCount = o.assignments.filter((a) => a.status === "confirmed").length;
-    const selectable =
-      !["cancelled", "completed", "confirmed"].includes(o.status) &&
-      confirmedCount < o.quantity;
-    if (selectable) selectableOrderIds.push(o.id);
-    shiftMeta[`${date}:${slot}`] = {
-      orderId: o.id,
-      status: o.status,
-      quantity: o.quantity,
-      label: `${formatDateDE(o.shiftDate)} · ${o.startTime}–${o.endTime}`,
-      facilityName: o.client.facilityName,
-      facilityAddress: o.client.address,
-      ward: o.notes,
-      shiftDate: formatDateDE(o.shiftDate),
-      startTime: o.startTime,
-      endTime: o.endTime,
-      breakMinutes: o.breakMinutes,
-      selectable,
-      scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes),
-      assignments: o.assignments.map((a) => ({
-        id: a.id,
-        workerName: a.worker.fullName,
-        status: a.status,
-        hours: a.serviceConfirmation
-          ? Number(a.serviceConfirmation.hoursWorked)
-          : null,
-        hasConfirmation: !!a.serviceConfirmation,
-        confirmationMethod: a.serviceConfirmation?.method,
-        addMealAllowance: a.addMealAllowance,
-        excludeMealAllowance: a.excludeMealAllowance,
-        excludeTravelAllowance: a.excludeTravelAllowance,
-        bonusHours: a.bonusHours,
-        correctionHours:
-          a.serviceConfirmation?.correctionHours != null
-            ? Number(a.serviceConfirmation.correctionHours)
-            : null,
-        worker: {
-          id: a.worker.id,
-          fullName: a.worker.fullName,
-          phone: a.worker.phone,
-          hasPhoto: !!a.worker.photoPath,
-          mealAllowanceType: a.worker.mealAllowanceType,
-          travelAllowanceEnabled: a.worker.travelAllowanceEnabled,
-        },
-      })),
-      candidates: candidates[i],
-    };
-  });
 
   return (
     <div className="space-y-6">
@@ -244,7 +81,7 @@ export default async function AdminRequestDetail({
           <div>
             <h1 className="text-2xl font-semibold">{facility}</h1>
             <p className="text-sm text-muted-foreground">
-              {range} · {orders.length} {t("shiftsCount")}
+              {range} · {allOrdersInGroup.length} {t("shiftsCount")}
             </p>
           </div>
         </div>
@@ -260,11 +97,11 @@ export default async function AdminRequestDetail({
           <CopyPublicLinkButton 
             requestGroupId={id} 
             type="confirm" 
-            defaultStartDate={initial.shifts.map(s => s.date).sort()[0]}
-            defaultEndDate={initial.shifts.map(s => s.date).sort().pop()}
+            defaultStartDate={d(allOrdersInGroup[0].shiftDate)}
+            defaultEndDate={d(allOrdersInGroup[allOrdersInGroup.length - 1].shiftDate)}
             employees={employees}
           />
-          {isRequestCancelable(orders) ? (
+          {isRequestCancelable(allOrdersInGroup) ? (
             <CancelRequestButton requestGroupId={id} admin />
           ) : null}
           <Button className="gap-2" render={<Link href={`/admin/orders/${id}/edit`} />}>
@@ -274,39 +111,11 @@ export default async function AdminRequestDetail({
         </div>
       </div>
 
-      <OrderContractsBanner 
-        requestGroupId={id} 
-        contracts={contracts} 
-        uncontractedAssignments={uncontractedAssignments} 
-      />
-
-      <OrderConfirmationsBanner 
-        assignments={confirmedAssignments}
-      />
-
-      <OrderInvoicesBanner 
-        requestGroupId={id} 
-        invoices={invoices} 
-        uninvoicedAssignments={uninvoicedAssignments} 
-      />
-
-      {/* The request in the same shape as when it was created; each shift row
-          carries its status chip, which opens the assignment dialog. Ticking
-          several shifts reveals a bulk-assign bar (AssignSelectionProvider). */}
-      <PendingResponsesProvider>
-        <AssignSelectionProvider selectableOrderIds={selectableOrderIds}>
-          <OrderRequestBuilder
-            initial={initial}
-            surcharges={resolveSurcharges(orders[0].client)}
-            rates={resolveRates(orders[0].client)}
-            nightWindow={resolveNightWindow(orders[0].client)}
-            readOnly
-            backHref={`/admin/orders/${id}`}
-            shiftMeta={shiftMeta}
-            assignable
-          />
-        </AssignSelectionProvider>
-      </PendingResponsesProvider>
+      <Suspense fallback={<ScheduleSkeleton />}>
+        <OrderDetailContent requestGroupId={id} />
+      </Suspense>
     </div>
   );
 }
+
+const d = (date: Date) => date.toISOString().slice(0, 10);

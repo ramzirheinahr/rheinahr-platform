@@ -1,8 +1,7 @@
+import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getClientMonthSchedule } from "@/lib/client-schedule";
-import { MonthScheduleTable } from "@/components/client/month-schedule-table";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,11 +11,11 @@ import {
   Sheet,
 } from "lucide-react";
 import { ScheduleMonthPicker } from "@/app/[locale]/admin/components/schedule-month-picker";
+import { ScheduleSkeleton } from "@/components/admin/skeletons/schedule-skeleton";
+import { ClientScheduleContent } from "./components/client-schedule-content";
 
 export const dynamic = "force-dynamic";
 
-// Admin mirror of the client's month overview — everything RheinAhr worked at
-// one facility, identical table + the same PDF / Excel download.
 export default async function AdminClientSchedulePage({
   params,
   searchParams,
@@ -24,11 +23,10 @@ export default async function AdminClientSchedulePage({
   params: Promise<{ locale: string; id: string }>;
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const { locale, id } = await params;
+  const { id } = await params;
   const sp = await searchParams;
   const t = await getTranslations("clients");
   const cs = await getTranslations("clientSchedule");
-  const av = await getTranslations("availability");
   const c = await getTranslations("common");
 
   const client = await prisma.client
@@ -41,8 +39,6 @@ export default async function AdminClientSchedulePage({
   let month = Number(sp.month) || now.getUTCMonth() + 1;
   if (month < 1 || month > 12) month = now.getUTCMonth() + 1;
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
-
-  const { rows, totals } = await getClientMonthSchedule(client.id, year, month);
 
   const base = `/admin/clients/${client.id}/schedule`;
   const exportBase = `/api/exports/client-schedule?year=${year}&month=${month}&clientId=${client.id}`;
@@ -100,14 +96,9 @@ export default async function AdminClientSchedulePage({
         </a>
       </div>
 
-      <MonthScheduleTable
-        rows={rows}
-        totals={totals}
-        locale={locale}
-        year={year}
-        month={month}
-        showPrices={true}
-      />
+      <Suspense fallback={<ScheduleSkeleton />}>
+        <ClientScheduleContent clientId={client.id} year={year} month={month} />
+      </Suspense>
     </div>
   );
 }

@@ -1,23 +1,17 @@
+import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import {
-  getWorkerMonthSchedule,
-  getWorkerMonthAvailability,
-} from "@/lib/worker-schedule";
-import { AvailabilityBuilder } from "@/components/worker/availability-builder";
-import { WorkerAdjustments } from "@/components/admin/worker-adjustments";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download } from "lucide-react";
 import { ScheduleMonthPicker } from "@/app/[locale]/admin/components/schedule-month-picker";
 import { WorkerSearchDropdown } from "@/app/[locale]/admin/components/worker-search-dropdown";
+import { ScheduleSkeleton } from "@/components/admin/skeletons/schedule-skeleton";
+import { ScheduleContent } from "./components/schedule-content";
 
 export const dynamic = "force-dynamic";
 
-// Admin mirror of the worker's own schedule page — the identical editable
-// table (accept/decline assignments, edit availability, confirmed hours +
-// month total), so the office can act on changes a worker phones in.
 export default async function AdminWorkerSchedulePage({
   params,
   searchParams,
@@ -28,7 +22,6 @@ export default async function AdminWorkerSchedulePage({
   const { locale, id } = await params;
   const sp = await searchParams;
   const t = await getTranslations("workers");
-  const av = await getTranslations("availability");
   const c = await getTranslations("common");
 
   const worker = await prisma.worker
@@ -45,38 +38,17 @@ export default async function AdminWorkerSchedulePage({
   if (month < 1 || month > 12) month = now.getUTCMonth() + 1;
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
-  const [{ rows: assignments, leaveDays, totals }, initialBlocks, adjustmentsData, allWorkers] = await Promise.all([
-    getWorkerMonthSchedule(worker.id, year, month),
-    getWorkerMonthAvailability(worker.id, year, month),
-    prisma.workerHoursAdjustment.findMany({
-      where: { workerId: worker.id, month: `${year}-${String(month).padStart(2, "0")}` },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.worker.findMany({
-      select: {
-        id: true,
-        fullName: true,
-        internalNumber: true,
-        phone: true,
-        user: { select: { email: true } },
-      },
-      orderBy: { fullName: "asc" },
-    }),
-  ]);
+  const allWorkers = await prisma.worker.findMany({
+    select: {
+      id: true,
+      fullName: true,
+      internalNumber: true,
+      phone: true,
+      user: { select: { email: true } },
+    },
+    orderBy: { fullName: "asc" },
+  });
 
-  const adjustments = adjustmentsData.map(a => ({
-    id: a.id,
-    month: a.month,
-    type: a.type,
-    hours: a.hours,
-    notes: a.notes,
-  }));
-
-  const monthLabel = new Intl.DateTimeFormat(locale, {
-    month: "long",
-    year: "numeric",
-    timeZone: "Europe/Berlin",
-  }).format(new Date(Date.UTC(year, month - 1, 1)));
   const base = `/admin/workers/${worker.id}/schedule`;
 
   return (
@@ -97,7 +69,6 @@ export default async function AdminWorkerSchedulePage({
         </div>
       </div>
 
-      {/* Same month navigator as the worker page — drives table + availability. */}
       <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-2 py-1.5">
         <div className="flex items-center gap-4">
           <ScheduleMonthPicker currentYear={year} currentMonth={month} baseRoute={base} />
@@ -123,50 +94,15 @@ export default async function AdminWorkerSchedulePage({
         </a>
       </div>
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold">{av("title")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{av("subtitle")}</p>
-        </div>
-        <AvailabilityBuilder
-          year={year}
-          month={month}
-          workerId={worker.id}
-          isAdmin={true}
-          initialBlocks={initialBlocks}
-          assignments={assignments.map((a) => ({
-            id: a.id,
-            status: a.status,
-            date: a.date,
-            startTime: a.startTime,
-            endTime: a.endTime,
-            breakMinutes: a.breakMinutes,
-            notes: a.notes,
-            facilityName: a.facilityName,
-            address: a.address,
-            scheduledHours: a.scheduledHours,
-            confirmedHours: a.confirmedHours,
-            cancelRequested: a.cancelRequested,
-            cancelNote: a.cancelNote,
-            distanceKm: a.distanceKm,
-            travelCost: a.travelCost,
-            mealAllowance: a.mealAllowance,
-            addMealAllowance: a.addMealAllowance,
-            excludeMealAllowance: a.excludeMealAllowance,
-            excludeTravelAllowance: a.excludeTravelAllowance,
-            bonusHours: a.bonusHours,
-          }))}
-          requiredHours={totals.requiredHours}
-          carryoverHours={totals.carryoverHours}
-          leaveDays={leaveDays}
+      <Suspense fallback={<ScheduleSkeleton />}>
+        <ScheduleContent 
+          workerId={worker.id} 
+          year={year} 
+          month={month} 
           mealAllowanceType={worker.mealAllowanceType}
           travelAllowanceEnabled={worker.travelAllowanceEnabled}
         />
-      </section>
-
-      <section>
-        <WorkerAdjustments workerId={worker.id} adjustments={adjustments} />
-      </section>
+      </Suspense>
     </div>
   );
 }
