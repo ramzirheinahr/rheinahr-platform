@@ -16,9 +16,14 @@ export function buildInvoicePdfData(
   client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "billingInfo" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
   assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[]
 ): InvoicePdfData {
-  const rates = resolveRates(client);
-  const surcharges = resolveSurcharges(client);
-  const nightWindow = resolveNightWindow(client);
+  // If the invoice has a snapshot of the client data (prices, address, etc.), use it. 
+  // Otherwise fallback to current live client data.
+  const snapshot = (invoice as any).snapshotData || {};
+  const effectiveClient = { ...client, ...snapshot } as typeof client;
+
+  const rates = resolveRates(effectiveClient);
+  const surcharges = resolveSurcharges(effectiveClient);
+  const nightWindow = resolveNightWindow(effectiveClient);
 
   const getHolidays = (year: number) => Array.from(germanHolidays(year).keys());
   const isHoliday = (dateStr: string) => getHolidays(parseInt(dateStr.slice(0, 4), 10)).includes(dateStr);
@@ -99,16 +104,16 @@ export function buildInvoicePdfData(
   return {
     invoiceNumber: invoice.invoiceNumber,
     date: format(invoice.date || new Date(), "dd.MM.yyyy"),
-    clientId: client.internalNumber || client.shortCode || client.id.substring(0, 8),
-    clientName: client.facilityName,
-    billingInfo: client.billingInfo || null,
-    clientAddress: buildAddressString(client) || "Adresse unbekannt",
+    clientId: effectiveClient.internalNumber || effectiveClient.shortCode || effectiveClient.id.substring(0, 8),
+    clientName: effectiveClient.facilityName,
+    billingInfo: effectiveClient.billingInfo || null,
+    clientAddress: buildAddressString(effectiveClient) || "Adresse unbekannt",
     periodStart,
     periodEnd,
     items,
     subtotal: formatAmount(invoice.netAmount),
     taxAmount: formatAmount(invoice.vatAmount),
     total: formatAmount(invoice.grossAmount),
-    paymentTermsDays: client.paymentTermsDays,
+    paymentTermsDays: effectiveClient.paymentTermsDays,
   };
 }

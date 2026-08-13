@@ -47,6 +47,7 @@ export async function GET(req: Request) {
     }
 
     return {
+      "Interne Nr.": w.internalNumber || "-",
       "Vollständiger Name": w.fullName,
       "Stand alt": Number(standAlt.toFixed(2)),
       "Zu-/Abgang": Number(zuAbgang.toFixed(2)),

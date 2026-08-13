@@ -34,6 +34,13 @@ function parseList(value: FormDataEntryValue | null): string[] {
     .filter(Boolean);
 }
 
+function parseGermanNumber(value: FormDataEntryValue | null) {
+  if (typeof value === "string" && value.trim() !== "") {
+    return value.replace(",", ".");
+  }
+  return value;
+}
+
 function parseProfile(formData: FormData) {
   return workerSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -53,27 +60,27 @@ function parseProfile(formData: FormData) {
     bio: formData.get("bio") || undefined,
     yearsExperience: formData.get("yearsExperience") || undefined,
     employedSince: formData.get("employedSince") || undefined,
-    requiredHours: formData.get("requiredHours") || undefined,
-    carryoverHours: formData.get("carryoverHours") || undefined,
+    requiredHours: parseGermanNumber(formData.get("requiredHours")) || undefined,
+    carryoverHours: parseGermanNumber(formData.get("carryoverHours")) || undefined,
     deploymentRadius: formData.get("deploymentRadius") || undefined,
     travelAllowanceEnabled: formData.get("travelAllowanceEnabled") === "on",
-    travelAllowancePerKm: formData.get("travelAllowancePerKm") || undefined,
+    travelAllowancePerKm: parseGermanNumber(formData.get("travelAllowancePerKm")) || undefined,
     mealAllowanceType: formData.get("mealAllowanceType") || undefined,
-    mealAllowance: formData.get("mealAllowance") || undefined,
+    mealAllowance: parseGermanNumber(formData.get("mealAllowance")) || undefined,
     surchargeSat: formData.get("surchargeSat") || undefined,
     surchargeSun: formData.get("surchargeSun") || undefined,
     surchargeHoliday: formData.get("surchargeHoliday") || undefined,
     surchargeNight: formData.get("surchargeNight") || undefined,
     nightStart: formData.get("nightStart") || undefined,
     nightEnd: formData.get("nightEnd") || undefined,
-    ratePflegefachkraft: formData.get("ratePflegefachkraft") || undefined,
-    ratePflegehelfer: formData.get("ratePflegehelfer") || undefined,
-    rateBetreuungskraft: formData.get("rateBetreuungskraft") || undefined,
-    ratePflegedienstleitung: formData.get("ratePflegedienstleitung") || undefined,
+    ratePflegefachkraft: parseGermanNumber(formData.get("ratePflegefachkraft")) || undefined,
+    ratePflegehelfer: parseGermanNumber(formData.get("ratePflegehelfer")) || undefined,
+    rateBetreuungskraft: parseGermanNumber(formData.get("rateBetreuungskraft")) || undefined,
+    ratePflegedienstleitung: parseGermanNumber(formData.get("ratePflegedienstleitung")) || undefined,
     employmentStartDate: formData.get("employmentStartDate") || undefined,
     employmentEndDate: formData.get("employmentEndDate") || undefined,
-    weeklyHours: formData.get("weeklyHours") || undefined,
-    monthlySalary: formData.get("monthlySalary") || undefined,
+    weeklyHours: parseGermanNumber(formData.get("weeklyHours")) || undefined,
+    monthlySalary: parseGermanNumber(formData.get("monthlySalary")) || undefined,
     entgeltgruppe: formData.get("entgeltgruppe") || undefined,
   });
 }

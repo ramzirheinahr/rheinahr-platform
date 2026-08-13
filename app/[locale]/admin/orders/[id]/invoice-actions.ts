@@ -161,7 +161,22 @@ export async function generateOrderInvoices(assignmentIds: string[], customInvoi
       vatAmount,
       grossAmount,
       status: "unpaid",
-      date: new Date()
+      date: new Date(),
+      snapshotData: {
+        shortCode: client.shortCode,
+        internalNumber: client.internalNumber,
+        facilityName: client.facilityName,
+        address: client.address,
+        billingInfo: client.billingInfo,
+        hourlyRates: client.hourlyRates,
+        surchargeSat: client.surchargeSat,
+        surchargeSun: client.surchargeSun,
+        surchargeHoliday: client.surchargeHoliday,
+        surchargeNight: client.surchargeNight,
+        nightStart: client.nightStart,
+        nightEnd: client.nightEnd,
+        paymentTermsDays: client.paymentTermsDays,
+      } as any
     }
   });
 
