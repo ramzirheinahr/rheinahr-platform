@@ -20,9 +20,15 @@ export async function GET(req: Request) {
   }
 
   // Fetch all workers
-  const workers = await prisma.worker.findMany({
-    select: { id: true, fullName: true, internalNumber: true },
+  const allWorkers = await prisma.worker.findMany({
+    select: { id: true, fullName: true, internalNumber: true, employedSince: true },
     orderBy: { fullName: "asc" },
+  });
+
+  const workers = allWorkers.filter((w) => {
+    if (!w.employedSince) return true;
+    const employedMonth = w.employedSince.toISOString().slice(0, 7);
+    return employedMonth <= month;
   });
 
   if (workers.length === 0) {

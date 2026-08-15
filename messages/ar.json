@@ -424,7 +424,8 @@
     "cancelInvitationConfirm": "هل تريد فعلاً إلغاء دعوة الوردية لـ {name}؟ ستُعاد الوردية إلى المتاح.",
     "invitationCancelled": "تم إلغاء الدعوة.",
     "cannotRemoveSigned": "لا يمكن إزالة الورديات الموقّعة.",
-    "searchPlaceholder": "البحث عن الطلبات…"
+    "searchPlaceholder": "البحث عن الطلبات…",
+    "whatsappConfirmNotice": "يمكنك تأكيد الوردية عن طريق النظام."
   },
   "orderRequest": {
     "importedToast": "تم الاستيراد بنجاح.",
@@ -949,7 +950,8 @@
     "updated": "تم تحديث المستخدم.",
     "deleted": "تم حذف المستخدم.",
     "saveError": "خطأ أثناء الحفظ.",
-    "emailInUse": "البريد الإلكتروني مستخدم بالفعل.", "numberInUse": "رقم الموظف مستخدم بالفعل.",
+    "emailInUse": "البريد الإلكتروني مستخدم بالفعل.",
+    "numberInUse": "رقم الموظف مستخدم بالفعل.",
     "empty": "لم يتم العثور على مستخدمين.",
     "permissionsList": {
       "manage_workers": "إدارة كوادر الرعاية",

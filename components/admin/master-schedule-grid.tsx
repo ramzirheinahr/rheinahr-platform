@@ -1099,6 +1099,7 @@ function CellEditor({
   const oq = useTranslations("orderRequest");
   const c = useTranslations("common");
   const av = useTranslations("availability");
+  const tOrders = useTranslations("orders");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -1364,7 +1365,8 @@ function CellEditor({
                           (j.facilityAddress ? `Adresse: ${j.facilityAddress}\nKarte: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(j.facilityAddress)}\n` : "") +
                           (j.ward ? `Wohnbereich: ${j.ward}\n` : "") +
                           `Uhrzeit: ${j.startTime} - ${j.endTime}` +
-                          (j.breakMinutes ? `\nPause: ${j.breakMinutes} Min.` : "")
+                          (j.breakMinutes ? `\nPause: ${j.breakMinutes} Min.` : "") +
+                          `\n\n${tOrders("whatsappConfirmNotice")}`
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"

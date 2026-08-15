@@ -251,7 +251,8 @@ export function ShiftMetaCell({
                             (meta.facilityAddress ? `Adresse: ${meta.facilityAddress}\nKarte: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(meta.facilityAddress)}\n` : "") +
                             (meta.ward ? `Wohnbereich: ${meta.ward}\n` : "") +
                             `Uhrzeit: ${meta.startTime} - ${meta.endTime}` +
-                            (meta.breakMinutes ? `\nPause: ${meta.breakMinutes} Min.` : "")
+                            (meta.breakMinutes ? `\nPause: ${meta.breakMinutes} Min.` : "") +
+                            `\n\n${t("whatsappConfirmNotice")}`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
