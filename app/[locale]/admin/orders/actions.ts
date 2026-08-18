@@ -16,7 +16,7 @@ import {
   type BulkCandidate,
   type BulkShift,
 } from "@/lib/orders";
-import { offerAssignmentsBulk } from "@/lib/assignments";
+import { offerAssignmentsBulk, offerAssignment } from "@/lib/assignments";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
@@ -1137,5 +1137,269 @@ export async function rejectTimeChange(assignmentId: string): Promise<ActionStat
 
   revalidatePath(`/admin/orders/${reqGroup}`);
   revalidatePath("/client/orders");
+  return { ok: true };
+
+}
+
+// Atomic swap of a worker for a shift. Removes the old assignment and creates a new one
+// for the new worker. Sends emails to the old worker, the new worker, and the client.
+// Attaches the new worker's certificate (if verified) to the client's email.
+export async function swapWorker(
+  assignmentId: string,
+  newWorkerId: string,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  // 1. Fetch old assignment and verify state
+  const oldAssignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      worker: { select: { id: true, userId: true, fullName: true, qualification: true } },
+      order: {
+        select: {
+          id: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          requiredQualification: true,
+          notes: true,
+          quantity: true,
+          status: true,
+          requestGroupId: true,
+          client: { select: { id: true, userId: true, facilityName: true, subUsers: { select: { id: true } } } },
+          assignments: { where: { status: { not: "declined" } }, select: { id: true } }
+        },
+      },
+      serviceConfirmation: { select: { id: true } }
+    },
+  });
+
+  if (!oldAssignment) return { ok: false, error: "saveError" };
+  if (oldAssignment.serviceConfirmation) return { ok: false, error: "confirmed" }; // Cannot swap a signed shift
+
+  const oldWorker = oldAssignment.worker;
+  const order = oldAssignment.order;
+
+  // 2. Fetch new worker and verify they can take the shift
+  const newWorker = await prisma.worker.findUnique({
+    where: { id: newWorkerId },
+    select: {
+      id: true,
+      userId: true,
+      fullName: true,
+      qualification: true,
+      assignments: {
+        where: { orderId: order.id, status: { not: "declined" } },
+        select: { id: true }
+      }
+    },
+  });
+
+  if (!newWorker) return { ok: false, error: "saveError" };
+  if (newWorker.qualification !== order.requiredQualification) return { ok: false, error: "saveError" };
+  if (newWorker.assignments.length > 0) return { ok: false, error: "saveError" }; // New worker is already assigned to this exact shift
+
+  // 3. Database Transaction: Remove old assignment, create new one
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Remove old assignment
+      await tx.assignment.delete({ where: { id: assignmentId } });
+      
+      // Assign new worker (using offerAssignment helper to handle declined resurrection)
+      await offerAssignment(tx, order.id, newWorkerId);
+      
+      // We don't change the order status (it remains "assigned" or "accepted" depending on others,
+      // but it definitely has at least one pending worker now).
+      if (["pending", "review", "availability_check"].includes(order.status)) {
+        await tx.order.update({ where: { id: order.id }, data: { status: "assigned" } });
+      }
+
+      // Notifications in-app
+      const dateStr = formatDateDE(order.shiftDate);
+      const timeStr = `${order.startTime}–${order.endTime}`;
+      
+      // Old worker
+      await tx.notification.create({
+        data: {
+          userId: oldWorker.userId,
+          type: "order_status_changed",
+          channel: "in_app",
+          content: `Einsatz storniert – ${dateStr} ${timeStr} · ${order.client.facilityName}`,
+          link: workerShiftLink(),
+        },
+      });
+
+      // New worker
+      await tx.notification.create({
+        data: {
+          userId: newWorker.userId,
+          type: "worker_assigned",
+          channel: "in_app",
+          content: `${dateStr} ${timeStr} · ${order.client.facilityName}`,
+          link: workerShiftLink(),
+        },
+      });
+      
+      // Client
+      if (order.client.userId) {
+        await tx.notification.create({
+          data: {
+            userId: order.client.userId,
+            type: "order_status_changed",
+            channel: "in_app",
+            content: `Mitarbeiterwechsel – ${dateStr} ${timeStr}`,
+            link: orderLink("client", order.requestGroupId || order.id),
+          },
+        });
+      }
+    });
+  } catch (err) {
+    console.error("Swap transaction failed:", err);
+    return { ok: false, error: "saveError" };
+  }
+
+  // 4. Gather attachments (Certificate of new worker)
+  const certDoc = await prisma.workerDocument.findFirst({
+    where: { workerId: newWorkerId, category: "certification", verified: true },
+    orderBy: { uploadedAt: "desc" }
+  });
+
+  let attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
+  if (certDoc) {
+    try {
+      const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+      const { WORKER_FILES_BUCKET } = await import("@/lib/worker-files");
+      const supabase = createSupabaseAdminClient();
+      const { data, error } = await supabase.storage
+        .from(WORKER_FILES_BUCKET)
+        .download(certDoc.filePath);
+      
+      if (data && !error) {
+        const buffer = Buffer.from(await data.arrayBuffer());
+        // Use a generic name if missing extension
+        const ext = certDoc.fileName.split('.').pop() || 'pdf';
+        attachments.push({
+          filename: `Zertifikat_${newWorker.fullName.replace(/\s+/g, '_')}.${ext}`,
+          content: buffer,
+          contentType: data.type
+        });
+      }
+    } catch (e) {
+      console.error("Failed to attach worker certificate:", e);
+    }
+  }
+
+  // 5. Send Emails & Web Push
+  const dateStr = formatDateDE(order.shiftDate);
+  const timeStr = `${order.startTime}–${order.endTime}`;
+
+  // Email to old worker
+  const oldWorkerHtml = `
+    <p>Hallo ${oldWorker.fullName},</p>
+    <p>Ihr Einsatz wurde storniert und einem anderen Mitarbeiter zugewiesen.</p>
+    ${buildShiftHtmlTable([{
+      date: order.shiftDate,
+      startTime: order.startTime,
+      endTime: order.endTime,
+      qualification: order.requiredQualification,
+      notes: order.notes || undefined,
+      facilityName: order.client.facilityName,
+    }])}
+  `;
+  await sendEmailToUsers([oldWorker.userId], {
+    subject: `Schicht storniert: ${dateStr} ${timeStr}`,
+    body: `Ihr Einsatz bei ${order.client.facilityName} wurde storniert.`,
+    html: oldWorkerHtml,
+    url: workerShiftLink(),
+  });
+  await pushToUsers([oldWorker.userId], {
+    title: "Einsatz storniert",
+    body: `${dateStr} ${timeStr} · ${order.client.facilityName}`,
+    url: workerShiftLink(),
+    htmlBody: oldWorkerHtml
+  });
+
+  // Email to new worker
+  const newWorkerHtml = `
+    <p>Hallo ${newWorker.fullName},</p>
+    <p>Sie wurden für folgenden Einsatz eingeteilt:</p>
+    ${buildShiftHtmlTable([{
+      date: order.shiftDate,
+      startTime: order.startTime,
+      endTime: order.endTime,
+      qualification: order.requiredQualification,
+      notes: order.notes || undefined,
+      facilityName: order.client.facilityName,
+      workerName: newWorker.fullName,
+    }])}
+  `;
+  await sendEmailToUsers([newWorker.userId], {
+    subject: `Neuer Einsatz: ${dateStr} ${timeStr}`,
+    body: `Neuer Einsatz bei ${order.client.facilityName}`,
+    html: newWorkerHtml,
+    url: workerShiftLink(),
+    attachments
+  });
+  await pushToUsers([newWorker.userId], {
+    title: "Neuer Einsatz",
+    body: `${dateStr} ${timeStr} · ${order.client.facilityName}`,
+    url: workerShiftLink(),
+    htmlBody: newWorkerHtml
+  });
+
+  // Email to client
+  if (order.client.userId) {
+    const clientUserIds = [order.client.userId, ...order.client.subUsers.map(u => u.id)];
+    const clientHtml = `
+      <p>Sehr geehrte Damen und Herren,</p>
+      <p>für die folgende Schicht wurde ein Mitarbeiterwechsel vorgenommen:</p>
+      ${buildShiftHtmlTable([{
+        date: order.shiftDate,
+        startTime: order.startTime,
+        endTime: order.endTime,
+        qualification: order.requiredQualification,
+        notes: order.notes || undefined,
+        facilityName: order.client.facilityName,
+      }])}
+      <p><strong>Bisheriger Mitarbeiter:</strong> ${oldWorker.fullName}</p>
+      <p><strong>Neuer Mitarbeiter:</strong> ${newWorker.fullName}</p>
+      <p>Weitere Details entnehmen Sie bitte dem Portal.</p>
+    `;
+    await sendEmailToUsers(clientUserIds, {
+      subject: `Mitarbeiterwechsel für Ihre Schicht am ${dateStr}`,
+      body: `Mitarbeiterwechsel: ${newWorker.fullName} übernimmt die Schicht von ${oldWorker.fullName}.`,
+      html: clientHtml,
+      url: orderLink("client", order.requestGroupId || order.id),
+      attachments // Attach certificate here
+    }, { force: true });
+    
+    await pushToUsers([order.client.userId], {
+      title: "Mitarbeiterwechsel",
+      body: `${dateStr} ${timeStr} · ${newWorker.fullName} (neu)`,
+      url: orderLink("client", order.requestGroupId || order.id),
+      htmlBody: clientHtml
+    });
+  }
+
+  await audit({
+    userId: admin.id,
+    action: "assignment.swap",
+    entity: "Order",
+    entityId: order.id,
+    metadata: {
+      oldWorkerId: oldWorker.id,
+      newWorkerId: newWorker.id,
+      oldAssignmentId: assignmentId,
+    },
+  });
+
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${order.id}`);
+  revalidatePath("/admin/schedule");
   return { ok: true };
 }

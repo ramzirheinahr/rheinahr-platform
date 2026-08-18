@@ -427,7 +427,18 @@
     "invitationCancelled": "Einladung zurückgezogen.",
     "cannotRemoveSigned": "Bereits unterschriebene Einsätze können nicht entfernt werden.",
     "searchPlaceholder": "Anfragen durchsuchen…",
-    "whatsappConfirmNotice": "Du kannst die Schicht über das System bestätigen."
+    "whatsappConfirmNotice": "Du kannst die Schicht über das System bestätigen.",
+    "swapWorker": "Mitarbeiter wechseln",
+    "swapWorkerTitle": "Mitarbeiter wechseln",
+    "swapWorkerConfirm": "Möchten Sie {oldWorker} durch einen anderen Mitarbeiter ersetzen?",
+    "selectReplacement": "Ersatz wählen",
+    "swapSuccess": "Mitarbeiter erfolgreich gewechselt",
+    "shiftCancelledSubject": "Schicht storniert",
+    "shiftAssignedSubject": "Neuer Einsatz",
+    "workerSwappedSubject": "Mitarbeiterwechsel für Ihre Schicht",
+    "workerSwappedBody": "Ein Mitarbeiter wurde für Ihre Schicht gewechselt. Hier sind die Details des neuen Mitarbeiters.",
+    "newWorkerDetails": "Details zum neuen Mitarbeiter",
+    "swappedWorkerRemoved": "Der vorherige Mitarbeiter wurde abgemeldet."
   },
   "orderRequest": {
     "importedToast": "Erfolgreich importiert.",

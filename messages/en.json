@@ -425,7 +425,18 @@
     "invitationCancelled": "Invitation withdrawn.",
     "cannotRemoveSigned": "Signed shifts cannot be removed.",
     "searchPlaceholder": "Search orders…",
-    "whatsappConfirmNotice": "You can confirm the shift via the system."
+    "whatsappConfirmNotice": "You can confirm the shift via the system.",
+    "swapWorker": "Swap worker",
+    "swapWorkerTitle": "Swap worker",
+    "swapWorkerConfirm": "Do you want to replace {oldWorker} with another worker?",
+    "selectReplacement": "Select replacement",
+    "swapSuccess": "Worker swapped successfully",
+    "shiftCancelledSubject": "Shift cancelled",
+    "shiftAssignedSubject": "New assignment",
+    "workerSwappedSubject": "Worker swapped for your shift",
+    "workerSwappedBody": "A worker has been swapped for your shift. Here are the details of the new worker.",
+    "newWorkerDetails": "New worker details",
+    "swappedWorkerRemoved": "The previous worker was unassigned."
   },
   "orderRequest": {
     "importedToast": "Imported successfully.",

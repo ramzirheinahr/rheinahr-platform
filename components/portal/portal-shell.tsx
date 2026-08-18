@@ -66,10 +66,27 @@ export async function PortalShell({
 
   // Unread-conversations badge on the inbox nav entry.
   const unread = await countUnreadConversations({ id: userId, role }).catch(() => 0);
+  
+  // Pending orders badge (only for admins).
+  let pendingOrdersCount = 0;
+  if (role === "admin" || role === "super_admin") {
+    pendingOrdersCount = await prisma.order.count({
+      where: { status: "pending" },
+    }).catch(() => 0);
+  }
+
   const inboxHref = nav.find((i) => i.href.endsWith("/inbox"))?.href ?? null;
-  const navWithBadge = nav.map((item) =>
-    item.href === inboxHref && unread > 0 ? { ...item, badge: unread } : item,
-  );
+  const ordersHref = nav.find((i) => i.href.endsWith("/orders"))?.href ?? null;
+
+  const navWithBadge = nav.map((item) => {
+    if (item.href === inboxHref && unread > 0) {
+      return { ...item, badge: unread };
+    }
+    if (item.href === ordersHref && pendingOrdersCount > 0 && (role === "admin" || role === "super_admin")) {
+      return { ...item, badge: pendingOrdersCount };
+    }
+    return item;
+  });
 
   return (
     <div className="flex min-h-screen flex-col">

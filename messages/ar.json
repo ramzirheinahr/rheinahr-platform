@@ -425,7 +425,18 @@
     "invitationCancelled": "تم إلغاء الدعوة.",
     "cannotRemoveSigned": "لا يمكن إزالة الورديات الموقّعة.",
     "searchPlaceholder": "البحث عن الطلبات…",
-    "whatsappConfirmNotice": "يمكنك تأكيد الوردية عن طريق النظام."
+    "whatsappConfirmNotice": "يمكنك تأكيد الوردية عن طريق النظام.",
+    "swapWorker": "تبديل موظف",
+    "swapWorkerTitle": "تبديل موظف",
+    "swapWorkerConfirm": "هل تريد استبدال {oldWorker} بموظف آخر؟",
+    "selectReplacement": "اختيار بديل",
+    "swapSuccess": "تم تبديل الموظف بنجاح",
+    "shiftCancelledSubject": "تم إلغاء الوردية",
+    "shiftAssignedSubject": "تعيين وردية جديدة",
+    "workerSwappedSubject": "تبديل موظف لورديتك",
+    "workerSwappedBody": "تم تبديل موظف لورديتك. إليك تفاصيل الموظف الجديد.",
+    "newWorkerDetails": "تفاصيل الموظف الجديد",
+    "swappedWorkerRemoved": "تم إلغاء تعيين الموظف السابق."
   },
   "orderRequest": {
     "importedToast": "تم الاستيراد بنجاح.",

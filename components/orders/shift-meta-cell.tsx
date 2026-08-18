@@ -19,6 +19,7 @@ import { ReconfirmHoursDialog } from "@/components/client/reconfirm-hours-dialog
 import { RequestHoursCorrectionDialog } from "@/components/admin/request-hours-correction-dialog";
 import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { RemoveAssignmentButton } from "@/components/admin/remove-assignment-button";
+import { SwapWorkerDialog } from "@/components/admin/swap-worker-dialog";
 import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
 import { useAssignSelection } from "@/components/orders/assign-selection";
 import { usePendingResponses } from "@/components/orders/pending-responses-provider";
@@ -353,10 +354,17 @@ export function ShiftMetaCell({
                       {/* Withdraw the invitation / remove the worker (not for
                           already-signed shifts — a legal record). */}
                       {!a.hasConfirmation && (
-                        <RemoveAssignmentButton
-                          assignmentId={a.id}
-                          workerName={a.workerName}
-                        />
+                        <>
+                          <SwapWorkerDialog
+                            assignmentId={a.id}
+                            oldWorkerName={a.workerName}
+                            candidates={candidates}
+                          />
+                          <RemoveAssignmentButton
+                            assignmentId={a.id}
+                            workerName={a.workerName}
+                          />
+                        </>
                       )}
                     </div>
                   </li>
