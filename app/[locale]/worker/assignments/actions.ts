@@ -9,6 +9,30 @@ import { audit } from "@/lib/audit";
 import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { formatDateDE } from "@/lib/utils";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
+
+async function getCertificatesForWorkers(workerIds: string[]) {
+  if (workerIds.length === 0) return undefined;
+  const uniqueWorkerIds = [...new Set(workerIds)];
+  const docs = await prisma.workerDocument.findMany({
+    where: { workerId: { in: uniqueWorkerIds }, category: "certification", verified: true },
+  });
+  if (docs.length === 0) return undefined;
+  
+  const supabase = createSupabaseAdminClient();
+  const loaded = await Promise.all(
+    docs.map(async (doc) => {
+      const { data, error } = await supabase.storage.from(WORKER_FILES_BUCKET).download(doc.filePath);
+      if (data && !error) {
+        const buffer = Buffer.from(await data.arrayBuffer());
+        return { filename: doc.fileName, content: buffer };
+      }
+      return null;
+    })
+  );
+  return loaded.filter(Boolean) as { filename: string; content: Buffer }[];
+}
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -39,7 +63,7 @@ export async function respondAssignmentsBulk(
     const assignment = await prisma.assignment.findUnique({
       where: { id },
       include: {
-        worker: { select: { userId: true, fullName: true, bio: true, qualification: true, skills: true, yearsExperience: true } },
+        worker: { select: { id: true, userId: true, fullName: true, bio: true, qualification: true, skills: true, yearsExperience: true } },
         order: {
           select: {
             id: true,
@@ -175,6 +199,7 @@ export async function respondAssignmentsBulk(
         notes: assignment.order.notes || undefined,
         facilityName: assignment.order.client.facilityName,
         workerName: assignment.worker.fullName,
+        workerId: assignment.worker.id,
       };
 
       if (accept) {
@@ -260,12 +285,16 @@ export async function respondAssignmentsBulk(
         ${buildShiftHtmlTable(clientGroup.shifts)}
         <p>Unser Mitarbeiter wird pünktlich zum Dienstbeginn bei Ihnen vor Ort sein.</p>
       `;
+      const workerIds = clientGroup.shifts.map((s: any) => s.workerId).filter(Boolean);
+      const attachments = await getCertificatesForWorkers(workerIds);
+      
       pushPromises.push(
         pushToUsers([clientGroup.userId], {
           title: "Einsätze bestätigt",
           body: `${workerName} hat ${clientGroup.shifts.length} Einsätze bestätigt.`,
           url: "/client/orders",
           htmlBody: clientHtml,
+          attachments,
         })
       );
     }
@@ -320,7 +349,7 @@ export async function respondAssignment(
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
     include: {
-      worker: { select: { userId: true, fullName: true, bio: true, qualification: true, skills: true, yearsExperience: true } },
+      worker: { select: { id: true, userId: true, fullName: true, bio: true, qualification: true, skills: true, yearsExperience: true } },
       order: {
         select: {
           id: true,
@@ -525,6 +554,8 @@ export async function respondAssignment(
       <p>Unser Mitarbeiter wird pünktlich zum Dienstbeginn bei Ihnen vor Ort sein.</p>
     `;
 
+    const attachments = await getCertificatesForWorkers([assignment.worker.id]);
+    
     await Promise.all([
       clientUserId
         ? pushToUsers([clientUserId], {
@@ -532,6 +563,7 @@ export async function respondAssignment(
             body,
             url: orderLink("client", reqGroup),
             htmlBody: clientHtml,
+            attachments,
           })
         : Promise.resolve(),
       pushToUsers(

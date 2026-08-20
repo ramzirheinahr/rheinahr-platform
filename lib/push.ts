@@ -23,6 +23,7 @@ export type PushPayload = {
   tag?: string; // coalesce repeats (e.g. one per conversation)
   htmlBody?: string;
   skipEmail?: boolean;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
 };
 
 import { sendEmailToUsers } from "@/lib/email";
@@ -41,6 +42,7 @@ export async function pushToUsers(
       body: payload.body,
       html: payload.htmlBody,
       url: payload.url,
+      attachments: payload.attachments,
     }).catch((err) => console.error("Failed to send email notification", err));
   }
 

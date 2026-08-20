@@ -134,7 +134,8 @@ export function AvailabilityBuilder({
   const [pending, startTransition] = useTransition();
   const [leavePending, startLeaveTransition] = useTransition();
   const [bulkPending, startBulkTransition] = useTransition();
-  const [leaveDates, setLeaveDates] = useState<string[]>([]);
+  const [leaveStartDate, setLeaveStartDate] = useState<string>("");
+  const [leaveEndDate, setLeaveEndDate] = useState<string>("");
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [pendingResponses, setPendingResponses] = useState<Record<string, boolean>>({});
 
@@ -318,9 +319,7 @@ export function AvailabilityBuilder({
   }
 
   function toggleLeaveDate(d: string) {
-    setLeaveDates((prev) =>
-      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
-    );
+    // Deprecated, using start and end dates
   }
 
   function toggleAdminLeaveDate(d: string) {
@@ -330,13 +329,32 @@ export function AvailabilityBuilder({
   }
 
   function submitLeave() {
-    if (leaveDates.length === 0) return;
+    if (!leaveStartDate || !leaveEndDate) return;
+    
+    const dates: string[] = [];
+    const start = new Date(leaveStartDate);
+    const end = new Date(leaveEndDate);
+    
+    if (start > end) {
+      toast.error(t("invalidDateRange") || "Ungültiger Datumsbereich");
+      return;
+    }
+    
+    let current = new Date(start);
+    while (current <= end) {
+      dates.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    
+    if (dates.length === 0) return;
+
     startLeaveTransition(async () => {
-      const res = await submitLeaveRequest(leaveDates);
+      const res = await submitLeaveRequest(dates);
       if (res.ok) {
         toast.success(t("leaveRequested") || "Urlaub angefragt");
         setIsLeaveOpen(false);
-        setLeaveDates([]);
+        setLeaveStartDate("");
+        setLeaveEndDate("");
         router.refresh();
       } else {
         toast.error(res.error || "Fehler");
@@ -604,27 +622,39 @@ export function AvailabilityBuilder({
             </DialogHeader>
             <div className="py-4">
               <p className="text-sm text-muted-foreground mb-4">
-                {t("selectLeaveDates") || "Bitte wählen Sie die Tage aus:"}
+                {t("selectLeaveDatesRange") || "Bitte wählen Sie den Zeitraum aus:"}
               </p>
-              <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2">
-                {days.filter(d => !d.past).map(d => (
-                  <label key={d.date} className="flex items-center gap-2 text-sm p-1 hover:bg-muted/50 rounded cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={leaveDates.includes(d.date)}
-                      onChange={() => toggleLeaveDate(d.date)}
-                      className="rounded border-input"
-                    />
-                    <span>{d.date} ({d.label})</span>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="text-sm font-medium mb-1.5 block">
+                    {t("startDate") || "Von (Startdatum)"}
                   </label>
-                ))}
+                  <input
+                    type="date"
+                    value={leaveStartDate}
+                    onChange={(e) => setLeaveStartDate(e.target.value)}
+                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-sm font-medium mb-1.5 block">
+                    {t("endDate") || "Bis (Enddatum)"}
+                  </label>
+                  <input
+                    type="date"
+                    value={leaveEndDate}
+                    onChange={(e) => setLeaveEndDate(e.target.value)}
+                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    min={leaveStartDate}
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsLeaveOpen(false)} disabled={leavePending}>
                 {c("cancel")}
               </Button>
-              <Button onClick={submitLeave} disabled={leavePending || leaveDates.length === 0}>
+              <Button onClick={submitLeave} disabled={leavePending || !leaveStartDate || !leaveEndDate}>
                 {leavePending ? c("loading") : (t("submitLeave") || "Antrag senden")}
               </Button>
             </DialogFooter>
