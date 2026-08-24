@@ -711,6 +711,7 @@
     "leavePending": "Leave request pending",
     "requestLeave": "Request leave",
     "selectLeaveDates": "Please select the dates:",
+    "selectLeaveDatesRange": "Please select the date range:",
     "submitLeave": "Submit request",
     "previewLeave": "Review request",
     "fullDay": "Day off",
@@ -815,7 +816,38 @@
     "filterClient": "Client",
     "searchClient": "Search client…",
     "clearFilter": "Clear filter",
-    "noClientMatch": "No services for this client."
+    "noClientMatch": "No services for this client.",
+    "markPaid": "Mark as paid",
+    "markUnpaid": "Reset to unpaid",
+    "confirmMarkUnpaid": "Do you really want to mark this invoice as unpaid again?",
+    "markedPaid": "Invoice marked as paid.",
+    "markedUnpaid": "Invoice reset to unpaid.",
+    "statusUpdateError": "The invoice status could not be updated."
+  },
+  "adminDashboard": {
+    "invoiceFinanceTitle": "Finances (invoices)",
+    "noData": "No data available",
+    "amount": "Amount",
+    "invoiceStatus": {
+      "unpaid": "Unpaid (month)",
+      "paid": "Paid (month)",
+      "allTime": "Total (all months)"
+    },
+    "insights": {
+      "title": "Business indicators",
+      "subtitle": "Additional financial, operational and workforce indicators; the familiar overview remains unchanged.",
+      "days": "{count} days",
+      "comparison": { "title": "Compared with previous month", "revenue": "Order value", "hours": "Confirmed hours", "shifts": "Staffed shifts" },
+      "receivables": { "title": "Receivables", "unpaid": "Outstanding amount", "overdue": "Overdue", "oldest": "Oldest unpaid invoice", "rule": "Overdue according to each client's payment terms." },
+      "coverage": { "title": "Coverage rate", "rate": "Assigned positions in the selected month", "assigned": "Assigned / requested" },
+      "urgent": { "title": "Urgent open shifts", "hours24": "Within 24 hours", "days7": "Within 7 days", "hint": "Unfilled staff positions in upcoming shifts." },
+      "hoursStatus": { "title": "Hours status", "confirmed": "Confirmed by client", "awaiting": "Worked, awaiting confirmation" },
+      "utilization": { "title": "Workforce utilization", "rate": "Credited hours / target hours", "under": "Below 90%", "over": "Above 110%" },
+      "expiries": { "title": "Employment contracts expiring", "days30": "Within 30 days", "days60": "Within 60 days", "days90": "Within 90 days", "hint": "Document expiry will appear once structured expiry dates can be recorded." },
+      "concentration": { "title": "Client concentration", "top3": "Top 3 share", "top5": "Top 5 share", "hint": "Share of invoiced monthly revenue." },
+      "acceptance": { "title": "Worker responses", "rate": "Acceptance rate", "accepted": "Accepted", "declined": "Declined", "cancellations": "Withdrawal requests" },
+      "trend": { "title": "Invoice trend – last 12 months", "paid": "Paid", "unpaid": "Unpaid" }
+    }
   },
   "accounts": {
     "accountSection": "Account & access",
@@ -855,6 +887,8 @@
     "subtitle": "Availability (line 1) and worked shifts (line 2) for all care staff. Blank availability = not yet entered – tap a cell to edit.",
     "empty": "No active care staff with this qualification.",
     "nameHeader": "Name",
+    "sortByName": "Sort alphabetically (click again to reverse)",
+    "sortByInternalNumber": "Sort by personnel number (click again to reverse)",
     "legend": "Legend",
     "legendConfirmed": "Confirmed by the client (ward, 0 = not specified)",
     "legendPending": "Faded codes = acceptance by the worker still pending",

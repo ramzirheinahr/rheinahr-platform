@@ -191,6 +191,7 @@ describe("masterScheduleCsv", () => {
     const rows: GridWorkerRow[] = [
       {
         workerId: "w1",
+        internalNumber: "1",
         name: "Akayezu, Diane",
         phone: null,
         requiredHours: 160,

@@ -713,6 +713,7 @@
     "leavePending": "Urlaubsantrag ausstehend",
     "requestLeave": "Urlaub beantragen",
     "selectLeaveDates": "Bitte wählen Sie die Tage aus:",
+    "selectLeaveDatesRange": "Bitte wählen Sie den Zeitraum aus:",
     "submitLeave": "Antrag senden",
     "previewLeave": "Urlaubsantrag prüfen",
     "fullDay": "Ruhetag",
@@ -817,7 +818,38 @@
     "filterClient": "Kunde",
     "searchClient": "Kunde suchen …",
     "clearFilter": "Filter zurücksetzen",
-    "noClientMatch": "Keine Leistungen für diesen Kunden."
+    "noClientMatch": "Keine Leistungen für diesen Kunden.",
+    "markPaid": "Als bezahlt markieren",
+    "markUnpaid": "Auf unbezahlt zurücksetzen",
+    "confirmMarkUnpaid": "Soll diese Rechnung wirklich wieder als unbezahlt markiert werden?",
+    "markedPaid": "Rechnung wurde als bezahlt markiert.",
+    "markedUnpaid": "Rechnung wurde wieder als unbezahlt markiert.",
+    "statusUpdateError": "Der Rechnungsstatus konnte nicht aktualisiert werden."
+  },
+  "adminDashboard": {
+    "invoiceFinanceTitle": "Finanzen (Rechnungen)",
+    "noData": "Keine Daten verfügbar",
+    "amount": "Betrag",
+    "invoiceStatus": {
+      "unpaid": "Offen (Monat)",
+      "paid": "Bezahlt (Monat)",
+      "allTime": "Gesamt (alle Monate)"
+    },
+    "insights": {
+      "title": "Unternehmenskennzahlen",
+      "subtitle": "Zusätzliche Finanz-, Einsatz- und Personalindikatoren; die gewohnte Übersicht bleibt unverändert.",
+      "days": "{count} Tage",
+      "comparison": { "title": "Vergleich zum Vormonat", "revenue": "Auftragswert", "hours": "Bestätigte Stunden", "shifts": "Besetzte Schichten" },
+      "receivables": { "title": "Forderungen", "unpaid": "Offener Betrag", "overdue": "Überfällig", "oldest": "Älteste offene Rechnung", "rule": "Überfällig gemäß Zahlungsziel des jeweiligen Kunden." },
+      "coverage": { "title": "Besetzungsquote", "rate": "Zugewiesene Plätze im ausgewählten Monat", "assigned": "Besetzt / angefordert" },
+      "urgent": { "title": "Dringende offene Schichten", "hours24": "Innerhalb 24 Stunden", "days7": "Innerhalb 7 Tagen", "hint": "Noch unbesetzte Mitarbeiterplätze in bevorstehenden Schichten." },
+      "hoursStatus": { "title": "Stundenstatus", "confirmed": "Vom Kunden bestätigt", "awaiting": "Geleistet, Bestätigung offen" },
+      "utilization": { "title": "Mitarbeiterauslastung", "rate": "Gutgeschriebene Stunden / Sollstunden", "under": "Unter 90 %", "over": "Über 110 %" },
+      "expiries": { "title": "Auslaufende Arbeitsverträge", "days30": "Innerhalb 30 Tagen", "days60": "Innerhalb 60 Tagen", "days90": "Innerhalb 90 Tagen", "hint": "Dokumentablaufdaten werden ergänzt, sobald sie strukturiert erfasst werden können." },
+      "concentration": { "title": "Kundenkonzentration", "top3": "Anteil Top 3", "top5": "Anteil Top 5", "hint": "Anteil am fakturierten Monatsumsatz." },
+      "acceptance": { "title": "Mitarbeiterreaktionen", "rate": "Annahmequote", "accepted": "Angenommen", "declined": "Abgelehnt", "cancellations": "Rückzugsanträge" },
+      "trend": { "title": "Rechnungsentwicklung – letzte 12 Monate", "paid": "Bezahlt", "unpaid": "Offen" }
+    }
   },
   "accounts": {
     "accountSection": "Konto & Zugang",
@@ -858,6 +890,8 @@
     "subtitle": "Verfügbarkeit (Zeile 1) und geleistete Dienste (Zeile 2) aller Pflegekräfte. Leere Verfügbarkeit = noch nicht eingetragen – Zelle antippen zum Bearbeiten.",
     "empty": "Keine aktiven Pflegekräfte mit dieser Qualifikation.",
     "nameHeader": "Name",
+    "sortByName": "Alphabetisch sortieren (erneut klicken zum Umkehren)",
+    "sortByInternalNumber": "Nach Personalnummer sortieren (erneut klicken zum Umkehren)",
     "legend": "Legende",
     "legendConfirmed": "Vom Kunden bestätigt (Wohnbereich, 0 = ohne Angabe)",
     "legendPending": "Blasse Codes = Annahme durch Mitarbeiter ausstehend",

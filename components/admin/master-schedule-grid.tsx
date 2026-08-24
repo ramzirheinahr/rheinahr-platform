@@ -37,6 +37,8 @@ import {
   Undo2,
   Redo2,
   MessageCircle,
+  ArrowUpDown,
+  Hash,
 } from "lucide-react";
 import { netShiftHours } from "@/lib/pricing";
 import {
@@ -78,6 +80,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const SHIFT_LETTER: Record<ShiftKey, string> = { early: "F", late: "S", night: "N" };
 
 type JobState = "pending" | "accepted" | "done" | "signed";
+type WorkerSort = { by: "name" | "internalNumber"; direction: "asc" | "desc" };
 
 // Lifecycle of one deployment for coloring: worker side (pending → accepted),
 // then done once the shift's end time has passed, then client-signed.
@@ -160,6 +163,33 @@ export function MasterScheduleGrid({
   const localRows = undoState.rows;
   const localUnassigned = undoState.unassigned;
   const ops = undoState.ops;
+
+  // The roster opens alphabetically. Compact controls in the sticky name
+  // header let the dispatcher reverse names or switch to personnel numbers.
+  const [workerSort, setWorkerSort] = useState<WorkerSort>({ by: "name", direction: "asc" });
+  const sortedRows = useMemo(() => {
+    const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
+    return [...localRows].sort((a, b) => {
+      let comparison: number;
+      if (workerSort.by === "internalNumber") {
+        // Workers without a personnel number remain at the bottom in either direction.
+        if (!a.internalNumber && !b.internalNumber) comparison = collator.compare(a.name, b.name);
+        else if (!a.internalNumber) return 1;
+        else if (!b.internalNumber) return -1;
+        else comparison = collator.compare(a.internalNumber, b.internalNumber);
+      } else {
+        comparison = collator.compare(a.name, b.name);
+      }
+      return workerSort.direction === "asc" ? comparison : -comparison;
+    });
+  }, [localRows, locale, workerSort]);
+
+  function toggleWorkerSort(by: WorkerSort["by"]) {
+    setWorkerSort((current) => ({
+      by,
+      direction: current.by === by && current.direction === "asc" ? "desc" : "asc",
+    }));
+  }
 
   const unassignedRows = useMemo(
     () => layoutUnassigned(localUnassigned, daysInMonth),
@@ -271,8 +301,38 @@ export function MasterScheduleGrid({
           <thead>
             {/* Sticky first row: stays visible while the sheet scrolls. */}
             <tr>
-              <th className="sticky start-0 top-0 z-30 min-w-40 border border-rose-950 bg-rose-950 p-1.5 text-start text-xs font-semibold text-white">
-                {t("nameHeader")}
+              <th className="sticky start-0 top-0 z-30 min-w-48 border border-rose-950 bg-rose-950 p-1 text-start text-xs font-semibold text-white">
+                <div className="flex items-center justify-between gap-1">
+                  <span>{t("nameHeader")}</span>
+                  <span className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => toggleWorkerSort("name")}
+                      aria-label={t("sortByName")}
+                      title={t("sortByName")}
+                      className={cn(
+                        "inline-flex h-6 items-center gap-0.5 rounded px-1 text-[9px] font-semibold transition-colors hover:bg-white/20",
+                        workerSort.by === "name" && "bg-white/20 ring-1 ring-white/40",
+                      )}
+                    >
+                      <ArrowUpDown className="size-3" />
+                      {workerSort.by === "name" && workerSort.direction === "desc" ? "Z–A" : "A–Z"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleWorkerSort("internalNumber")}
+                      aria-label={t("sortByInternalNumber")}
+                      title={t("sortByInternalNumber")}
+                      className={cn(
+                        "inline-flex h-6 items-center gap-0.5 rounded px-1 text-[9px] font-semibold transition-colors hover:bg-white/20",
+                        workerSort.by === "internalNumber" && "bg-white/20 ring-1 ring-white/40",
+                      )}
+                    >
+                      <Hash className="size-3" />
+                      {workerSort.by === "internalNumber" && workerSort.direction === "desc" ? "9–1" : "1–9"}
+                    </button>
+                  </span>
+                </div>
               </th>
               {days.map((d) => (
                 <th
@@ -290,7 +350,7 @@ export function MasterScheduleGrid({
             </tr>
           </thead>
           <tbody>
-            {localRows.map((r) => (
+            {sortedRows.map((r) => (
               <tr key={r.workerId} className="border-b border-b-border">
                 {/* Name cell → worker info dialog (hours account + month summary). */}
                 <th
@@ -303,7 +363,14 @@ export function MasterScheduleGrid({
                   }}
                   className="sticky start-0 z-10 cursor-pointer border border-rose-900/50 bg-rose-900 p-1.5 text-start align-middle text-xs font-semibold text-white hover:bg-rose-800"
                 >
-                  {r.name}
+                  <span className="flex items-center gap-1.5">
+                    {r.internalNumber && (
+                      <span className="inline-flex min-w-6 shrink-0 items-center justify-center rounded bg-white/15 px-1 py-0.5 text-[9px] font-bold tabular-nums text-white/90 ring-1 ring-white/20">
+                        {r.internalNumber}
+                      </span>
+                    )}
+                    <span>{r.name}</span>
+                  </span>
                 </th>
                 {r.days.map((cell, i) => {
                   const d = days[i];

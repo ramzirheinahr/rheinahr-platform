@@ -43,9 +43,10 @@ export async function getMasterSchedule(
             : qualification,
         user: { active: true },
       },
-      orderBy: { internalNumber: "asc" },
+      orderBy: { fullName: "asc" },
       select: {
         id: true,
+        internalNumber: true,
         fullName: true,
         phone: true,
         requiredHours: true,
@@ -217,6 +218,7 @@ export async function getMasterSchedule(
 
     return {
       workerId: w.id,
+      internalNumber: w.internalNumber,
       name: w.fullName,
       phone: w.phone,
       requiredHours: getEffectiveSollHours(targetMonthStr, w.requiredHours, w.sollHoursHistory),

@@ -147,6 +147,7 @@ export type GridDay = {
 
 export type GridWorkerRow = {
   workerId: string;
+  internalNumber: string | null;
   name: string;
   phone: string | null;
   requiredHours: number;

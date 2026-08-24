@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal } from "lucide-react";
+import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
 import { deleteInvoice, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
@@ -18,15 +19,21 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function InvoicingList({ invoices }: { invoices: any[] }) {
+  const t = useTranslations("invoicing");
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     if (currentStatus === "cancelled") return;
+    if (currentStatus === "paid" && !confirm(t("confirmMarkUnpaid"))) return;
     setLoadingId(id);
     const newStatus = currentStatus === "paid" ? "unpaid" : "paid";
     try {
-      await toggleInvoiceStatus(id, newStatus);
-      toast.success(`Rechnung wurde als ${newStatus === "paid" ? "bezahlt" : "unbezahlt"} markiert.`);
+      const result = await toggleInvoiceStatus(id, newStatus);
+      if (!result.ok) {
+        toast.error(t("statusUpdateError"));
+        return;
+      }
+      toast.success(newStatus === "paid" ? t("markedPaid") : t("markedUnpaid"));
     } catch (e: unknown) {
       toast.error((e as Error).message || "Fehler beim Aktualisieren");
     } finally {
@@ -133,6 +140,18 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
               <FileText className="size-4 mr-2" />
               PDF anzeigen
             </DropdownMenuItem>
+            {r.status === "paid" && (
+              <DropdownMenuItem onClick={() => handleToggleStatus(r.id, r.status)}>
+                <RotateCcw className="size-4 mr-2" />
+                {t("markUnpaid")}
+              </DropdownMenuItem>
+            )}
+            {r.status === "unpaid" && (
+              <DropdownMenuItem onClick={() => handleToggleStatus(r.id, r.status)}>
+                <CheckCircle2 className="size-4 mr-2" />
+                {t("markPaid")}
+              </DropdownMenuItem>
+            )}
             {r.status !== "cancelled" && (
               <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleCancel(r.id)}>
                 <Ban className="size-4 mr-2" />
