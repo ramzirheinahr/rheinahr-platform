@@ -833,7 +833,7 @@
     "invoiceStatus": {
       "unpaid": "Offen (Monat)",
       "paid": "Bezahlt (Monat)",
-      "allTime": "Gesamt (alle Monate)"
+      "allTimeUnpaid": "Offen (alle Monate)"
     },
     "insights": {
       "title": "Unternehmenskennzahlen",

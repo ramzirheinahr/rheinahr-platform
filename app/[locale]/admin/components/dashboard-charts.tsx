@@ -92,7 +92,16 @@ export function DashboardCharts({ fulfillmentData, qualificationData, invoiceDat
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={localizedInvoiceData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" fontSize={11} tickLine={false} axisLine={false} interval={0} />
+                  <XAxis 
+                    dataKey="label" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    interval={0} 
+                    angle={-25}
+                    textAnchor="end"
+                    height={50}
+                  />
                   <YAxis fontSize={12} tickLine={false} axisLine={false} />
                   <Tooltip
                     cursor={{ fill: "transparent" }}
@@ -105,7 +114,7 @@ export function DashboardCharts({ fulfillmentData, qualificationData, invoiceDat
                     {localizedInvoiceData.map((entry) => (
                       <Cell
                         key={entry.name}
-                        fill={entry.name === "allTime" ? "#0f766e" : "#8b5cf6"}
+                        fill={entry.name === "allTimeUnpaid" ? "#0f766e" : "#8b5cf6"}
                       />
                     ))}
                   </Bar>

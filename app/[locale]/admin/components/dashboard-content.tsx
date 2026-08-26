@@ -259,7 +259,7 @@ async function getStats(monthStr?: string) {
     const invoiceData = [
       { name: "unpaid", value: monthInvoiceTotals.get("unpaid") ?? 0 },
       { name: "paid", value: monthInvoiceTotals.get("paid") ?? 0 },
-      { name: "allTime", value: Number(allTimeInvoices._sum.grossAmount || 0) },
+      { name: "allTimeUnpaid", value: unpaidInvoices.reduce((sum, invoice) => sum + invoice.grossAmount, 0) },
     ];
 
     let previousRevenue = 0;

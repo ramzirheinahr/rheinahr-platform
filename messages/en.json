@@ -831,7 +831,7 @@
     "invoiceStatus": {
       "unpaid": "Unpaid (month)",
       "paid": "Paid (month)",
-      "allTime": "Total (all months)"
+      "allTimeUnpaid": "Unpaid (All Months)"
     },
     "insights": {
       "title": "Business indicators",
