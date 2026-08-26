@@ -267,7 +267,7 @@ model Worker {
   travelAllowanceEnabled Boolean @default(false) @map("travel_allowance_enabled")
   travelAllowancePerKm   Float?  @map("travel_allowance_per_km")
   
-  mealAllowanceType      String  @default("multiple_shifts_only") @map("meal_allowance_type")
+  mealAllowanceType      String  @default("per_day") @map("meal_allowance_type")
   mealAllowance          Float?  @default(14.0) @map("meal_allowance")
   
 

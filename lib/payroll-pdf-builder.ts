@@ -4,8 +4,8 @@ import { resolveWorkerRates, resolveSurcharges, resolveNightWindow, rateFor, shi
 import { germanHolidays } from "@/lib/holidays";
 import { qualLabel } from "@/lib/invoicing";
 import type { PayrollPdfData } from "@/lib/pdf/payroll";
-import type { Qualification } from "@/lib/validations";
 import type { WorkerScheduleRow } from "@/lib/worker-schedule";
+import { totalDailyMealAllowance } from "@/lib/meal-allowance";
 
 const formatNumber = (num: number) => num.toFixed(2).replace(".", ",");
 const formatAmount = (num: number) => `${formatNumber(num)} €`;
@@ -37,16 +37,9 @@ export function buildPayrollPdfData(
   let nightHours = 0;
   let holidayHours = 0;
   let totalTravelCost = 0;
-  let totalMealAllowance = 0;
-  const uniqueDatesWithMeal = new Set<string>();
-
-  // Count confirmed shifts per day to know if it's a multiple-shift day
-  const shiftsPerDay = new Map<string, number>();
-  for (const a of assignments) {
-    if (a.confirmedHours != null) {
-      shiftsPerDay.set(a.date, (shiftsPerDay.get(a.date) || 0) + 1);
-    }
-  }
+  // Defensive calendar-day cap: even legacy rows that carried 14 € on every
+  // shift can contribute only one meal allowance per date.
+  const totalMealAllowance = totalDailyMealAllowance(assignments);
 
   for (const a of assignments) {
     const effectiveHours = a.confirmedHours != null ? a.confirmedHours : (a.scheduledHours ?? 0);
@@ -61,21 +54,6 @@ export function buildPayrollPdfData(
     if (a.travelCost) {
       totalTravelCost += a.travelCost;
     }
-    if (a.mealAllowance) {
-      if (a.addMealAllowance) {
-        totalMealAllowance += a.mealAllowance;
-      } else if (worker.mealAllowanceType === "per_shift") {
-        totalMealAllowance += a.mealAllowance;
-      } else if (worker.mealAllowanceType === "multiple_shifts_only") {
-        if (shiftsPerDay.get(a.date)! >= 2) {
-          if (!uniqueDatesWithMeal.has(a.date)) {
-            uniqueDatesWithMeal.add(a.date);
-            totalMealAllowance += a.mealAllowance;
-          }
-        }
-      }
-    }
-
     // But wait, do we have breakMinutes in the query?
     // Let's check `lib/payroll-pdf-builder.ts`
     const breakMinutes = a.breakMinutes;

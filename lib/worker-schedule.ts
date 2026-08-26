@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { netShiftHours } from "@/lib/pricing";
 import type { AssignmentStatus } from "@prisma/client";
+import { dailyMealAllowanceAssignmentIds, isDailyMealAllowanceEnabled } from "@/lib/meal-allowance";
 
 // One month of a worker's assignments enriched with the client-side service
 // confirmation. `confirmedHours` mirrors what the client signed off on the
@@ -127,6 +128,17 @@ export async function getWorkerMonthSchedule(
     hours: ld.hours,
   }));
 
+  const mealAllowanceAssignmentIds = dailyMealAllowanceAssignmentIds(
+    assignments.map((assignment) => ({
+      id: assignment.id,
+      date: assignment.order.shiftDate.toISOString().slice(0, 10),
+      status: assignment.status,
+      addMealAllowance: assignment.addMealAllowance,
+      excludeMealAllowance: assignment.excludeMealAllowance,
+    })),
+    isDailyMealAllowanceEnabled(worker?.mealAllowanceType),
+  );
+
   const rows: WorkerScheduleRow[] = await Promise.all(
     assignments.map(async (a) => {
       let distanceKm: number | null = null;
@@ -147,21 +159,8 @@ export async function getWorkerMonthSchedule(
         }
       }
 
-      if (a.addMealAllowance) {
+      if (mealAllowanceAssignmentIds.has(a.id)) {
         mealAllowance = worker?.mealAllowance ?? 14.0;
-      } else if (!a.excludeMealAllowance) {
-        if (worker?.mealAllowanceType === "per_shift") {
-          mealAllowance = worker?.mealAllowance ?? 14.0;
-        } else if (worker?.mealAllowanceType === "multiple_shifts_only") {
-          const dateStr = a.order.shiftDate.toISOString().slice(0, 10);
-          const shiftsThatDay = assignments.filter(x => x.order.shiftDate.toISOString().slice(0, 10) === dateStr && x.status !== "declined");
-          if (shiftsThatDay.length >= 2) {
-            // Only attach meal allowance to the first shift visually
-            if (shiftsThatDay[0].id === a.id) {
-              mealAllowance = worker?.mealAllowance ?? 14.0;
-            }
-          }
-        }
       }
 
       return {
