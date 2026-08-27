@@ -1,8 +1,13 @@
 // German domestic meal allowance is calendar-day based, never shift based.
 // Legacy database values (per_shift / multiple_shifts_only) remain enabled but
 // are deliberately interpreted as the compliant per-day mode.
-export function isDailyMealAllowanceEnabled(type: string | null | undefined): boolean {
-  return type !== "none";
+export type MealAllowancePolicy = "none" | "per_day" | "multiple_shifts_only";
+
+// Old `per_shift` records are interpreted as the safe once-per-day policy.
+export function normalizeMealAllowancePolicy(type: string | null | undefined): MealAllowancePolicy {
+  if (type === "none") return "none";
+  if (type === "multiple_shifts_only") return "multiple_shifts_only";
+  return "per_day";
 }
 
 export type MealAllowanceCandidate = {
@@ -17,7 +22,7 @@ export type MealAllowanceCandidate = {
 // otherwise the first non-excluded shift carries the day's amount visually.
 export function dailyMealAllowanceAssignmentIds(
   candidates: MealAllowanceCandidate[],
-  globallyEnabled: boolean,
+  policy: MealAllowancePolicy,
 ): Set<string> {
   const byDate = new Map<string, MealAllowanceCandidate[]>();
   for (const candidate of candidates) {
@@ -30,7 +35,9 @@ export function dailyMealAllowanceAssignmentIds(
   const selected = new Set<string>();
   for (const day of byDate.values()) {
     const explicit = day.find((candidate) => candidate.addMealAllowance);
-    const automatic = globallyEnabled
+    const eligibleByPolicy =
+      policy === "per_day" || (policy === "multiple_shifts_only" && day.length >= 2);
+    const automatic = eligibleByPolicy
       ? day.find((candidate) => !candidate.excludeMealAllowance)
       : undefined;
     const assignment = explicit ?? automatic;

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { netShiftHours } from "@/lib/pricing";
 import type { AssignmentStatus } from "@prisma/client";
-import { dailyMealAllowanceAssignmentIds, isDailyMealAllowanceEnabled } from "@/lib/meal-allowance";
+import { dailyMealAllowanceAssignmentIds, normalizeMealAllowancePolicy } from "@/lib/meal-allowance";
 
 // One month of a worker's assignments enriched with the client-side service
 // confirmation. `confirmedHours` mirrors what the client signed off on the
@@ -136,7 +136,7 @@ export async function getWorkerMonthSchedule(
       addMealAllowance: assignment.addMealAllowance,
       excludeMealAllowance: assignment.excludeMealAllowance,
     })),
-    isDailyMealAllowanceEnabled(worker?.mealAllowanceType),
+    normalizeMealAllowancePolicy(worker?.mealAllowanceType),
   );
 
   const rows: WorkerScheduleRow[] = await Promise.all(

@@ -255,10 +255,11 @@ export function WorkerCreateForm({
                 <select
                   id="mealAllowanceType"
                   name="mealAllowanceType"
-                  defaultValue="per_day"
+                  defaultValue="multiple_shifts_only"
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="per_day">{t("mealAllowance_per_day")}</option>
+                  <option value="multiple_shifts_only">{t("mealAllowance_multiple_shifts_only")}</option>
                   <option value="none">{t("mealAllowance_none")}</option>
                 </select>
               </div>

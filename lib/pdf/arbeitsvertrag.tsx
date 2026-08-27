@@ -248,7 +248,7 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
         )}
         {data.mealAllowanceType !== "none" && (
           <Text style={styles.paragraph}>
-            ({data.travelAllowanceEnabled ? '10' : '9'}) Dem Mitarbeiter wird je anspruchsberechtigtem Kalendertag höchstens einmal ein steuerfreier Verpflegungsmehraufwand in Höhe von {data.mealAllowance ? data.mealAllowance.toFixed(2).replace('.', ',') : "14,00"} € gewährt, sofern die gesetzlichen Voraussetzungen für die Auswärtstätigkeit, insbesondere die maßgebliche Abwesenheitsdauer, erfüllt sind.
+            ({data.travelAllowanceEnabled ? '10' : '9'}) Dem Mitarbeiter wird {data.mealAllowanceType === "multiple_shifts_only" ? "an Kalendertagen mit mehr als einer geleisteten Schicht" : "je Arbeitstag"} höchstens einmal ein Verpflegungsmehraufwand in Höhe von {data.mealAllowance ? data.mealAllowance.toFixed(2).replace('.', ',') : "14,00"} € gewährt. Eine steuerfreie Behandlung erfolgt nur, soweit die gesetzlichen Voraussetzungen für die Auswärtstätigkeit, insbesondere die maßgebliche Abwesenheitsdauer, erfüllt sind.
           </Text>
         )}
         {(data.surchargeNight || data.surchargeSat || data.surchargeSun || data.surchargeHoliday) ? (
