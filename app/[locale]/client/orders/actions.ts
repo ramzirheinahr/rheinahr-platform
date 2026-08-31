@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, resolveClientId } from "@/lib/auth";
+import { getCurrentUser, resolveClientId, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { diffRequestShifts, isRequestEditable, isRequestCancelable } from "@/lib/orders";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
@@ -822,6 +822,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     <p><strong>Bestätigte Stunden:</strong> ${data.hoursWorked} Std.</p>
   `;
 
+  const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.userId);
+
   await Promise.all([
     pushToUsers([assignment.worker.userId], {
       title: "Leistung bestätigt",
@@ -852,22 +854,14 @@ export async function getWorkerProfilePreview(workerId: string) {
   const user = await getCurrentUser();
   if (!user || user.role !== "client") return null;
 
-  const worker = await prisma.worker.findUnique({
-    where: { id: workerId },
-    select: {
-      id: true,
-      fullName: true,
-      qualification: true,
-      experienceYears: true,
-      bio: true,
-      user: { select: { photoUrl: true } },
-      documents: {
-        where: { verified: true, category: { in: ["certification", "vaccination"] } },
-        select: { id: true, category: true, fileName: true, uploadedAt: true },
-      },
-    },
+  const link = await prisma.assignment.findFirst({
+    where: { workerId, order: { client: { userId: user.id } } },
+    select: { id: true },
   });
-  return worker;
+  if (!link) return null;
+
+  const { getWorkerProfileData } = await import("@/lib/worker-profile");
+  return getWorkerProfileData(workerId);
 }
 
 // ─────────── Hours correction on an ALREADY-signed shift (proposal → approval) ───────────
@@ -884,15 +878,18 @@ const hoursCorrectionSchema = z.object({
 });
 
 // Admin proposes changed hours on a client-signed shift → client's inbox.
-export async function requestHoursCorrection(
-  assignmentId: string,
-  hours: number,
-  note?: string,
-): Promise<ActionState> {
+export async function requestHoursCorrection(input: {
+  assignmentId: string;
+  hours: number;
+  note?: string;
+}): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user || !roleSatisfies(user.role, ["client", "admin"])) {
     return { ok: false, error: "forbidden" };
   }
+  const parsed = hoursCorrectionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "saveError" };
+  const { assignmentId, hours, note } = parsed.data;
 
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
@@ -930,7 +927,7 @@ export async function requestHoursCorrection(
   const requestGroupId = assignment.order.requestGroupId ?? assignment.order.id;
   const clientUserId = assignment.order.client.userId;
   if (clientUserId) {
-    const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || clientUserId);
+    const facilityUserIds = await getFacilityClientUserIds(clientUserId);
     const noteSuffix = note ? ` – ${note}` : "";
     const body = `Stundenkorrektur (${dateLabel}, ${assignment.worker.fullName}): ${current ?? "?"} → ${hours} Std. Bitte im Portal neu bestätigen.${noteSuffix}`;
     const { getOrCreateRequestConversation } = await import("@/lib/inbox");
@@ -970,7 +967,7 @@ export async function requestHoursCorrection(
     action: "service.correctionRequest",
     entity: "Assignment",
     entityId: assignmentId,
-    metadata: { from: current, to: hours, hasNote: !!note },
+    metadata: { from: current != null ? Number(current) : null, to: hours, hasNote: !!note },
   });
 
   revalidatePath(`/admin/orders/${requestGroupId}`);

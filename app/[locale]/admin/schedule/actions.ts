@@ -737,7 +737,7 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
       },
     });
     if (assignment.order.client.userId) {
-      const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId);
+      const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.userId);
       for (const uid of facilityUserIds) {
         await tx.notification.create({
           data: {
@@ -765,7 +765,7 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
   `;
 
   const facilityUserIds = assignment.order.client.userId
-    ? await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId)
+    ? await getFacilityClientUserIds(assignment.order.client.userId)
     : [];
 
   await Promise.all([
