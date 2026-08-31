@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
@@ -12,9 +10,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, AlertTriangle } from "lucide-react";
 import { swapWorker } from "@/app/[locale]/admin/orders/actions";
 import { cn } from "@/lib/utils";
+import type { CandidateConflict } from "@/lib/orders";
 
 const candColor = {
   available: "text-primary",
@@ -35,6 +34,7 @@ export function SwapWorkerDialog({
     email: string;
     status: "available" | "busy" | "unavailable";
     conflictTimes: string[];
+    conflicts?: CandidateConflict[];
   }[];
 }) {
   const t = useTranslations("orders");
@@ -49,9 +49,22 @@ export function SwapWorkerDialog({
     unavailable: t("wOff"),
   };
 
-  function confirmSwap(newWorkerId: string) {
+  function confirmSwap(cand: { workerId: string; fullName: string; conflicts?: CandidateConflict[] }) {
+    if (cand.conflicts && cand.conflicts.length > 0) {
+      const hasOverlap = cand.conflicts.some((c) => c.overlaps);
+      const conflictMsg = cand.conflicts
+        .map((c) => `${c.overlaps ? "⚠️ Zeitüberschneidung" : "ℹ️ Bereits eingeteilt"}: ${c.startTime}–${c.endTime} (${c.facilityName})`)
+        .join("\n");
+      const promptText = hasOverlap
+        ? `Achtung: Zeitüberschneidung!\n\n${cand.fullName} ist zur gleichen Zeit bereits eingeteilt:\n\n${conflictMsg}\n\nMöchten Sie die Schicht trotzdem tauschen?`
+        : `Achtung: ${cand.fullName} hat am selben Tag bereits folgende Schicht(en):\n\n${conflictMsg}\n\nMöchten Sie die Schicht trotzdem tauschen?`;
+      
+      const confirmed = window.confirm(promptText);
+      if (!confirmed) return;
+    }
+
     startTransition(async () => {
-      const res = await swapWorker(assignmentId, newWorkerId);
+      const res = await swapWorker(assignmentId, cand.workerId);
       if (res.ok) {
         toast.success(t("swapSuccess"));
         setOpen(false);
@@ -77,7 +90,7 @@ export function SwapWorkerDialog({
           </Button>
         }
       />
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("swapWorkerTitle")}</DialogTitle>
         </DialogHeader>
@@ -94,16 +107,40 @@ export function SwapWorkerDialog({
               {candidates.map((cand) => (
                 <li
                   key={cand.workerId}
-                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
                 >
-                  <div>
-                    <div className="text-sm font-medium">{cand.fullName}</div>
-                    <div className="text-xs text-muted-foreground">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <div className="text-sm font-medium text-slate-900">{cand.fullName}</div>
+                    <div className="text-xs text-muted-foreground truncate">
                       {cand.email}
-                      {cand.status === "busy" && cand.conflictTimes.length
-                        ? ` · ${cand.conflictTimes.join(", ")}`
-                        : ""}
                     </div>
+                    {cand.conflicts && cand.conflicts.length > 0 ? (
+                      <div className="mt-1.5 space-y-1">
+                        {cand.conflicts.map((conf, idx) => (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "text-xs flex items-center gap-1.5 font-medium px-2 py-0.5 rounded",
+                              conf.overlaps
+                                ? "bg-red-50 text-red-700 border border-red-200"
+                                : "bg-amber-50 text-amber-800 border border-amber-200"
+                            )}
+                          >
+                            <AlertTriangle className="size-3 shrink-0" />
+                            <span>
+                              {conf.overlaps
+                                ? `Zeitüberschneidung: ${conf.startTime}–${conf.endTime} (${conf.facilityName})`
+                                : `Bereits eingeteilt: ${conf.startTime}–${conf.endTime} (${conf.facilityName})`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : cand.conflictTimes && cand.conflictTimes.length > 0 ? (
+                      <div className="mt-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <AlertTriangle className="size-3 shrink-0" />
+                        <span>Bereits eingeteilt: {cand.conflictTimes.join(", ")}</span>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-3">
                     <span
@@ -114,9 +151,9 @@ export function SwapWorkerDialog({
                     <Button
                       size="sm"
                       variant="secondary"
-                      className="gap-2"
+                      className="gap-2 shrink-0"
                       disabled={pending}
-                      onClick={() => confirmSwap(cand.workerId)}
+                      onClick={() => confirmSwap(cand)}
                     >
                       <RefreshCw className="size-3.5" />
                       {t("swapWorker")}
@@ -131,3 +168,4 @@ export function SwapWorkerDialog({
     </Dialog>
   );
 }
+

@@ -143,12 +143,21 @@ export function diffRequestShifts(
   return { updates, creates, deleteIds: remaining.map((e) => e.id) };
 }
 
+export type CandidateConflict = {
+  orderId: string;
+  facilityName: string;
+  startTime: string;
+  endTime: string;
+  overlaps: boolean;
+};
+
 export type Candidate = {
   workerId: string;
   fullName: string;
   email: string;
   status: "available" | "busy" | "unavailable";
-  conflictTimes: string[]; // other same-day shifts (when busy)
+  conflictTimes: string[]; // other same-day shifts formatted string
+  conflicts: CandidateConflict[];
 };
 
 const toMin = (t: string) => {
@@ -189,7 +198,14 @@ export async function candidatesForShift(order: {
           order: { shiftDate: order.shiftDate },
         },
         select: {
-          order: { select: { id: true, startTime: true, endTime: true } },
+          order: {
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              client: { select: { facilityName: true } },
+            },
+          },
         },
       },
     },
@@ -210,21 +226,36 @@ export async function candidatesForShift(order: {
           overlaps(a.startTime, a.endTime, order.startTime, order.endTime)),
     );
     const others = w.assignments.filter((a) => a.order.id !== order.id);
-    const status: Candidate["status"] = !declared
-      ? "unavailable"
-      : others.length > 0
-        ? "busy"
-        : "available";
+    const conflicts: CandidateConflict[] = others.map((a) => ({
+      orderId: a.order.id,
+      facilityName: a.order.client?.facilityName || "Einrichtung",
+      startTime: a.order.startTime,
+      endTime: a.order.endTime,
+      overlaps: overlaps(a.order.startTime, a.order.endTime, order.startTime, order.endTime),
+    }));
+
+    const hasOverlap = conflicts.some((c) => c.overlaps);
+
+    let status: Candidate["status"] = "available";
+    if (hasOverlap || conflicts.length > 0) {
+      status = "busy";
+    } else if (!declared) {
+      status = "unavailable";
+    }
+
     list.push({
       workerId: w.id,
       fullName: w.fullName,
       email: w.user.email,
       status,
-      conflictTimes: others.map((a) => `${a.order.startTime}–${a.order.endTime}`),
+      conflictTimes: conflicts.map(
+        (c) => `${c.startTime}–${c.endTime} (${c.facilityName})`
+      ),
+      conflicts,
     });
   }
 
-  const rank = { available: 0, busy: 1, unavailable: 2 } as const;
+  const rank = { available: 0, unavailable: 1, busy: 2 } as const;
   return list.sort(
     (a, b) => rank[a.status] - rank[b.status] || a.fullName.localeCompare(b.fullName),
   );

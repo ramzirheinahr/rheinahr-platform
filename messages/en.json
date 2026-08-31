@@ -1020,5 +1020,24 @@
     "mainUser": "Main Account",
     "subUser": "Sub Account",
     "empty": "No additional users created."
+  },
+  "emailDialog": {
+    "title": "Send Email to Facility",
+    "contractTitle": "Send Contract via Email",
+    "confirmTitle": "Send Timesheet Confirmation via Email",
+    "invoiceTitle": "Send Invoice via Email",
+    "description": "Select the recipients from the contacts of this facility.",
+    "selectRecipients": "Select recipients",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "primaryContact": "Primary Contact",
+    "addCustomEmail": "Add additional email",
+    "customEmailPlaceholder": "name@facility.com",
+    "sendEmail": "Send Email",
+    "sendInvoiceEmail": "Send invoice via email",
+    "sending": "Sending...",
+    "sendSuccess": "Email sent successfully!",
+    "noRecipientsSelected": "Please select at least one recipient.",
+    "invalidEmail": "Invalid email address."
   }
 }

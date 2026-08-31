@@ -2,9 +2,109 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { sendEmailToUsers } from "@/lib/email";
+import { sendEmailToRecipients } from "@/lib/email";
 import { buildShiftHtmlTable } from "@/lib/notify";
 import { qualLabel } from "@/lib/invoicing";
+
+export type FacilityRecipient = {
+  id: string;
+  email: string;
+  name: string;
+  jobTitle?: string;
+  isPrimary: boolean;
+};
+
+export async function getFacilityRecipients({
+  requestGroupId,
+  clientId,
+  contractId,
+  invoiceId,
+}: {
+  requestGroupId?: string;
+  clientId?: string;
+  contractId?: string;
+  invoiceId?: string;
+}): Promise<{ ok: boolean; recipients?: FacilityRecipient[]; facilityName?: string; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  let clientDbId: string | undefined = clientId;
+
+  if (!clientDbId && contractId) {
+    const contract = await prisma.clientContract.findUnique({
+      where: { id: contractId },
+      select: { clientId: true }
+    });
+    if (contract) clientDbId = contract.clientId;
+  }
+
+  if (!clientDbId && invoiceId) {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { clientId: true }
+    });
+    if (invoice) clientDbId = invoice.clientId;
+  }
+
+  if (!clientDbId && requestGroupId) {
+    const firstOrder = await prisma.order.findFirst({
+      where: { requestGroupId },
+      select: { clientId: true }
+    });
+    if (firstOrder) clientDbId = firstOrder.clientId;
+  }
+
+  if (!clientDbId) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientDbId },
+    include: {
+      user: {
+        select: { id: true, email: true, fullName: true, active: true }
+      },
+      subUsers: {
+        where: { active: true },
+        select: { id: true, email: true, fullName: true, jobTitle: true, active: true }
+      }
+    }
+  });
+
+  if (!client) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const list: FacilityRecipient[] = [];
+
+  if (client.user && client.user.active !== false) {
+    list.push({
+      id: client.user.id,
+      email: client.user.email,
+      name: client.user.fullName || client.user.email,
+      jobTitle: "Hauptkontakt",
+      isPrimary: true
+    });
+  }
+
+  if (client.subUsers && client.subUsers.length > 0) {
+    for (const sub of client.subUsers) {
+      if (sub.id !== client.user?.id) {
+        list.push({
+          id: sub.id,
+          email: sub.email,
+          name: sub.fullName || sub.email,
+          jobTitle: sub.jobTitle || undefined,
+          isPrimary: false
+        });
+      }
+    }
+  }
+
+  return { ok: true, recipients: list, facilityName: client.facilityName };
+}
 
 export async function sendPublicLinkEmail({
   requestGroupId,
@@ -13,6 +113,7 @@ export async function sendPublicLinkEmail({
   startDate,
   endDate,
   signerName,
+  recipients,
 }: {
   requestGroupId: string;
   type: "contract" | "confirm";
@@ -20,6 +121,7 @@ export async function sendPublicLinkEmail({
   startDate?: string;
   endDate?: string;
   signerName?: string;
+  recipients?: string[];
 }) {
   const user = await getCurrentUser();
   if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
@@ -151,7 +253,9 @@ export async function sendPublicLinkEmail({
     </div>
   `;
 
-  await sendEmailToUsers([clientId], {
+  const targetRecipients = recipients && recipients.length > 0 ? recipients : [clientId];
+
+  await sendEmailToRecipients(targetRecipients, {
     subject,
     body,
     html
@@ -159,3 +263,4 @@ export async function sendPublicLinkEmail({
 
   return { ok: true };
 }
+

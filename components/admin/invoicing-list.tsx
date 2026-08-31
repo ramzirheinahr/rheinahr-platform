@@ -6,10 +6,11 @@ import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw } from "lucide-react";
+import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
-import { deleteInvoice, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { deleteInvoice, cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +21,9 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function InvoicingList({ invoices }: { invoices: any[] }) {
   const t = useTranslations("invoicing");
+  const tEmail = useTranslations("emailDialog");
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     if (currentStatus === "cancelled") return;
@@ -67,56 +70,72 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
     }
   };
 
+  const handleSendEmail = async (recipients: string[]) => {
+    if (!emailInvoiceId) return;
+    try {
+      await sendInvoiceEmail({
+        invoiceId: emailInvoiceId,
+        recipients,
+      });
+      toast.success("E-Mail erfolgreich versendet!");
+      setEmailInvoiceId(null);
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Senden der E-Mail");
+    }
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const columns: Column<any>[] = [
-    { 
-      header: "Datum", 
-      primary: true, 
-      cell: (r) => format(new Date(r.date), "dd.MM.yyyy") 
-    },
-    { 
-      header: "Rechnungsnr.", 
+    {
+      header: "Rechnungsnr.",
       cell: (r) => (
-        <span className={`font-medium font-mono ${r.status === "cancelled" ? "line-through text-red-500 opacity-75" : "text-slate-700"}`}>
-          {r.invoiceNumber}
+        <div className="flex items-center gap-2">
+          <FileText className="size-4 text-emerald-600 shrink-0" />
+          <span className="font-semibold">{r.invoiceNumber}</span>
+        </div>
+      ),
+    },
+    {
+      header: "Kunde",
+      cell: (r) => (
+        <span className="font-medium text-slate-900">
+          {r.client?.facilityName || r.snapshotData?.facilityName || "—"}
         </span>
-      ) 
+      ),
     },
-    { 
-      header: "Einrichtung", 
-      cell: (r) => r.client.facilityName 
+    {
+      header: "Datum",
+      cell: (r) => format(new Date(r.date), "dd.MM.yyyy"),
     },
-    { 
-      header: "Netto", 
-      className: "text-end", 
-      cell: (r) => `${r.netAmount.toFixed(2).replace(".", ",")} €` 
-    },
-    { 
-      header: "Endbetrag", 
-      className: "text-end font-semibold", 
-      cell: (r) => `${r.grossAmount.toFixed(2).replace(".", ",")} €` 
+    {
+      header: "Betrag (Brutto)",
+      cell: (r) => (
+        <span className="font-semibold">
+          {Number(r.grossAmount).toLocaleString("de-DE", { style: "currency", currency: "EUR" })}
+        </span>
+      ),
     },
     {
       header: "Status",
-      className: "text-center",
       cell: (r) => (
         <button
           onClick={() => handleToggleStatus(r.id, r.status)}
           disabled={loadingId === r.id || r.status === "cancelled"}
-          className="transition-opacity hover:opacity-80 disabled:opacity-50"
+          className="transition-opacity hover:opacity-80 cursor-pointer disabled:cursor-not-allowed text-left"
+          title={r.status === "paid" ? "Klicken, um als offen zu markieren" : r.status === "unpaid" ? "Klicken, um als bezahlt zu markieren" : undefined}
         >
-          {r.status === "cancelled" ? (
-            <Badge variant="outline" className="gap-1 border-red-200 bg-red-50 text-red-600 font-normal opacity-75">
-              <Ban className="size-3" />
-              Storniert
-            </Badge>
-          ) : r.status === "paid" ? (
-            <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700 font-normal">
+          {r.status === "paid" ? (
+            <Badge variant="secondary" className="gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
               <CheckCircle2 className="size-3" />
               Bezahlt
             </Badge>
+          ) : r.status === "cancelled" ? (
+            <Badge variant="destructive" className="gap-1.5 opacity-70">
+              <Ban className="size-3" />
+              Storniert
+            </Badge>
           ) : (
-            <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-700 font-normal">
+            <Badge variant="outline" className="gap-1.5 bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100">
               <Clock className="size-3" />
               Ausstehend
             </Badge>
@@ -140,6 +159,12 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
               <FileText className="size-4 mr-2" />
               PDF anzeigen
             </DropdownMenuItem>
+            {r.status !== "cancelled" && (
+              <DropdownMenuItem onClick={() => setEmailInvoiceId(r.id)}>
+                <Mail className="size-4 mr-2" />
+                {tEmail("sendInvoiceEmail")}
+              </DropdownMenuItem>
+            )}
             {r.status === "paid" && (
               <DropdownMenuItem onClick={() => handleToggleStatus(r.id, r.status)}>
                 <RotateCcw className="size-4 mr-2" />
@@ -187,6 +212,16 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
           empty={null}
         />
       </div>
+
+      <EmailRecipientsDialog
+        open={!!emailInvoiceId}
+        onOpenChange={(open) => {
+          if (!open) setEmailInvoiceId(null);
+        }}
+        title={tEmail("invoiceTitle")}
+        invoiceId={emailInvoiceId || undefined}
+        onSend={handleSendEmail}
+      />
     </div>
   );
 }

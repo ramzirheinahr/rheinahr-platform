@@ -56,33 +56,40 @@ export async function sendEmail(payload: { to: string; subject: string; html: st
   }
 }
 
-// Send an email to the specified users by their userIds.
-export async function sendEmailToUsers(
-  userIds: string[],
+// Send an email to the specified users by their userIds or direct email addresses.
+export async function sendEmailToRecipients(
+  recipients: string[],
   payload: EmailPayload,
   options?: { force?: boolean }
 ): Promise<void> {
   const mailer = getTransporter();
-  if (!mailer || userIds.length === 0) return;
+  if (!mailer || recipients.length === 0) return;
 
-  const uniqueIds = [...new Set(userIds)];
-  const users = await prisma.user.findMany({
-    where: { 
-      id: { in: uniqueIds }, 
-      ...(options?.force ? {} : { receiveEmails: true }) 
-    },
-    select: { email: true },
-  });
+  const directEmails = recipients.filter((r) => r.includes("@"));
+  const userIds = recipients.filter((r) => !r.includes("@"));
 
-  if (users.length === 0) return;
+  const resolvedEmails = [...directEmails];
 
-  const emails = [...new Set(users.map((u) => u.email).filter(Boolean))];
-  if (emails.length === 0) return;
+  if (userIds.length > 0) {
+    const uniqueIds = [...new Set(userIds)];
+    const users = await prisma.user.findMany({
+      where: {
+        id: { in: uniqueIds },
+        ...(options?.force ? {} : { receiveEmails: true }),
+      },
+      select: { email: true },
+    });
+    users.forEach((u) => {
+      if (u.email) resolvedEmails.push(u.email);
+    });
+  }
+
+  const uniqueEmails = [...new Set(resolvedEmails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (uniqueEmails.length === 0) return;
 
   let textBody = payload.body;
-
   const contentHtml = payload.html || textBody.replace(/\n/g, "<br>");
-  
+
   const signatureHtml = `
 <br><br>
 <hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;" />
@@ -109,7 +116,7 @@ export async function sendEmailToUsers(
 
   try {
     await Promise.allSettled(
-      emails.map(async (email) => {
+      uniqueEmails.map(async (email) => {
         try {
           await mailer.sendMail({
             from: EMAIL_FROM,
@@ -125,6 +132,16 @@ export async function sendEmailToUsers(
       })
     );
   } catch (error) {
-    console.error("Error sending emails sequentially:", error);
+    console.error("Error sending emails:", error);
   }
 }
+
+// Send an email to the specified users by their userIds.
+export async function sendEmailToUsers(
+  userIds: string[],
+  payload: EmailPayload,
+  options?: { force?: boolean }
+): Promise<void> {
+  return sendEmailToRecipients(userIds, payload, options);
+}
+

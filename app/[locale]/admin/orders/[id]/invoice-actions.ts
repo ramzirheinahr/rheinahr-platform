@@ -7,9 +7,62 @@ import { audit } from "@/lib/audit";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } from "@/lib/pricing";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
-import { sendEmailToUsers } from "@/lib/email";
+import { sendEmailToRecipients } from "@/lib/email";
 
 const VAT_RATE = 0.19;
+
+export async function sendInvoiceEmail({
+  invoiceId,
+  recipients,
+}: {
+  invoiceId: string;
+  recipients?: string[];
+}) {
+  await requireRole("de", "admin");
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: {
+      client: {
+        include: {
+          user: true,
+          subUsers: true,
+        }
+      },
+      assignments: {
+        include: {
+          order: true,
+          worker: true,
+        },
+        orderBy: { order: { shiftDate: "asc" } },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new Error("Rechnung nicht gefunden.");
+  }
+
+  const client = invoice.client;
+  const pdfData = buildInvoicePdfData(invoice, client, invoice.assignments);
+  const pdfBuffer = await generateInvoicePdf(pdfData);
+
+  const targetRecipients = recipients && recipients.length > 0 ? recipients : [client.userId];
+
+  await sendEmailToRecipients(targetRecipients, {
+    subject: `Rechnung ${invoice.invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
+    body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoice.invoiceNumber}).\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+    attachments: [
+      {
+        filename: `${invoice.invoiceNumber}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      },
+    ],
+  });
+
+  return { ok: true };
+}
 
 export async function deleteInvoice(invoiceId: string) {
   const user = await requireRole("de", "admin");
@@ -80,7 +133,7 @@ export async function cancelInvoice(invoiceId: string) {
   revalidatePath("/", "layout");
 }
 
-export async function generateOrderInvoices(assignmentIds: string[], customInvoiceNumber?: string) {
+export async function generateOrderInvoices(assignmentIds: string[], customInvoiceNumber?: string, recipients?: string[]) {
   const user = await requireRole("de", "admin");
   
   if (!assignmentIds || assignmentIds.length === 0) {
@@ -215,8 +268,10 @@ export async function generateOrderInvoices(assignmentIds: string[], customInvoi
   const pdfData = buildInvoicePdfData(invoice, client, assignments);
   const pdfBuffer = await generateInvoicePdf(pdfData);
 
+  const targetRecipients = recipients && recipients.length > 0 ? recipients : [client.userId];
+
   // Send Email with Attachment
-  await sendEmailToUsers([client.userId], {
+  await sendEmailToRecipients(targetRecipients, {
     subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
     body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel}).\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
     url: `/client/orders/${requestGroupId}`,
@@ -232,3 +287,4 @@ export async function generateOrderInvoices(assignmentIds: string[], customInvoi
   revalidatePath("/", "layout");
   return { ok: true, invoiceId: invoice.id };
 }
+

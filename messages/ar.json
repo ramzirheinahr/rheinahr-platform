@@ -1021,5 +1021,24 @@
     "mainUser": "الحساب الرئيسي",
     "subUser": "حساب فرعي",
     "empty": "لا يوجد مستخدمون إضافيون."
+  },
+  "emailDialog": {
+    "title": "إرسال بريد إلكتروني إلى المنشأة",
+    "contractTitle": "إرسال العقد عبر البريد الإلكتروني",
+    "confirmTitle": "إرسال ورق الساعات عبر البريد الإلكتروني",
+    "invoiceTitle": "إرسال الفاتورة عبر البريد الإلكتروني",
+    "description": "اختر المستلمين من جهات اتصال هذه المنشأة.",
+    "selectRecipients": "تحديد المستلمين",
+    "selectAll": "تحديد الكل",
+    "deselectAll": "إلغاء تحديد الكل",
+    "primaryContact": "جهة الاتصال الرئيسية",
+    "addCustomEmail": "إضافة بريد إلكتروني آخر",
+    "customEmailPlaceholder": "name@facility.com",
+    "sendEmail": "إرسال البريد",
+    "sendInvoiceEmail": "إرسال الفاتورة عبر البريد",
+    "sending": "جاري الإرسال...",
+    "sendSuccess": "تم إرسال البريد الإلكتروني بنجاح!",
+    "noRecipientsSelected": "يرجى تحديد مستلم واحد على الأقل.",
+    "invalidEmail": "عنوان بريد إلكتروني غير صالح."
   }
 }

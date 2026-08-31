@@ -7,11 +7,11 @@ import { audit } from "@/lib/audit";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } from "@/lib/pricing";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
-import { sendEmailToUsers } from "@/lib/email";
+import { sendEmailToRecipients } from "@/lib/email";
 
 const VAT_RATE = 0.19;
 
-export async function generateMonthInvoices(clientId: string, year: number, month: number, customInvoiceNumber?: string) {
+export async function generateMonthInvoices(clientId: string, year: number, month: number, customInvoiceNumber?: string, recipients?: string[]) {
   const user = await requireRole("de", "admin"); // Locale doesn't matter for role check here
   
   const startDate = new Date(Date.UTC(year, month - 1, 1));
@@ -135,8 +135,10 @@ export async function generateMonthInvoices(clientId: string, year: number, mont
   const pdfData = buildInvoicePdfData(invoice, client, assignments);
   const pdfBuffer = await generateInvoicePdf(pdfData);
 
+  const targetRecipients = recipients && recipients.length > 0 ? recipients : [client.userId];
+
   // Send Email with Attachment
-  await sendEmailToUsers([client.userId], {
+  await sendEmailToRecipients(targetRecipients, {
     subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
     body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
     url: `/client/schedule?year=${year}&month=${month}`,
@@ -152,3 +154,4 @@ export async function generateMonthInvoices(clientId: string, year: number, mont
   revalidatePath("/", "layout");
   return { ok: true, invoiceId: invoice.id };
 }
+

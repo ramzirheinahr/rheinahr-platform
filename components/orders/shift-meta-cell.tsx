@@ -26,7 +26,7 @@ import { usePendingResponses } from "@/components/orders/pending-responses-provi
 import { ToggleMealAllowanceButton } from "@/components/orders/allowance-toggles";
 import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, MessageSquare, MessageCircle, Users, UserRound, Download } from "lucide-react";
+import { CheckCircle2, MessageSquare, MessageCircle, Users, UserRound, Download, AlertTriangle } from "lucide-react";
 import type { AssignmentStatus, OrderStatus } from "@prisma/client";
 
 // Per-shift pipeline data shown inside the request table, keyed like the
@@ -78,6 +78,13 @@ export type ShiftMeta = {
     email: string;
     status: "available" | "busy" | "unavailable";
     conflictTimes: string[];
+    conflicts?: {
+      orderId: string;
+      facilityName: string;
+      startTime: string;
+      endTime: string;
+      overlaps: boolean;
+    }[];
   }[];
 };
 
@@ -383,16 +390,40 @@ export function ShiftMetaCell({
                   {candidates.map((cand) => (
                     <li
                       key={cand.workerId}
-                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
                     >
-                      <div>
-                        <div className="text-sm font-medium">{cand.fullName}</div>
-                        <div className="text-xs text-muted-foreground">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="text-sm font-medium text-slate-900">{cand.fullName}</div>
+                        <div className="text-xs text-muted-foreground truncate">
                           {cand.email}
-                          {cand.status === "busy" && cand.conflictTimes.length
-                            ? ` · ${cand.conflictTimes.join(", ")}`
-                            : ""}
                         </div>
+                        {cand.conflicts && cand.conflicts.length > 0 ? (
+                          <div className="mt-1.5 space-y-1">
+                            {cand.conflicts.map((conf, idx) => (
+                              <div
+                                key={idx}
+                                className={cn(
+                                  "text-xs flex items-center gap-1.5 font-medium px-2 py-0.5 rounded",
+                                  conf.overlaps
+                                    ? "bg-red-50 text-red-700 border border-red-200"
+                                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                                )}
+                              >
+                                <AlertTriangle className="size-3 shrink-0" />
+                                <span>
+                                  {conf.overlaps
+                                    ? `Zeitüberschneidung: ${conf.startTime}–${conf.endTime} (${conf.facilityName})`
+                                    : `Bereits eingeteilt: ${conf.startTime}–${conf.endTime} (${conf.facilityName})`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : cand.conflictTimes && cand.conflictTimes.length > 0 ? (
+                          <div className="mt-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
+                            <AlertTriangle className="size-3 shrink-0" />
+                            <span>Bereits eingeteilt: {cand.conflictTimes.join(", ")}</span>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-3">
                         <span
@@ -403,6 +434,8 @@ export function ShiftMetaCell({
                         <AssignWorkerButton
                           orderId={meta.orderId}
                           workerId={cand.workerId}
+                          workerName={cand.fullName}
+                          conflicts={cand.conflicts}
                         />
                       </div>
                     </li>

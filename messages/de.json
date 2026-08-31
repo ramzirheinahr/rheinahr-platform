@@ -1024,5 +1024,24 @@
     "mainUser": "Hauptkonto",
     "subUser": "Unterkonto",
     "empty": "Keine weiteren Benutzer angelegt."
+  },
+  "emailDialog": {
+    "title": "E-Mail an Einrichtung senden",
+    "contractTitle": "Vertrag per E-Mail senden",
+    "confirmTitle": "Leistungsnachweise per E-Mail senden",
+    "invoiceTitle": "Rechnung per E-Mail senden",
+    "description": "Wählen Sie die Empfänger aus den Kontakten dieser Einrichtung aus.",
+    "selectRecipients": "Empfänger auswählen",
+    "selectAll": "Alle auswählen",
+    "deselectAll": "Alle abwählen",
+    "primaryContact": "Hauptkontakt",
+    "addCustomEmail": "Zusätzliche E-Mail hinzufügen",
+    "customEmailPlaceholder": "name@einrichtung.de",
+    "sendEmail": "E-Mail senden",
+    "sendInvoiceEmail": "Rechnung per E-Mail senden",
+    "sending": "Wird gesendet...",
+    "sendSuccess": "E-Mail wurde erfolgreich versendet!",
+    "noRecipientsSelected": "Bitte wählen Sie mindestens einen Empfänger aus.",
+    "invalidEmail": "Ungültige E-Mail-Adresse."
   }
 }
