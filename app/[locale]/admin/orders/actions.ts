@@ -18,7 +18,7 @@ import {
 } from "@/lib/orders";
 import { offerAssignmentsBulk, offerAssignment } from "@/lib/assignments";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
-import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
+import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import type { OrderStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
@@ -834,10 +834,11 @@ export async function approveTimeChange(input: {
   const dateLabel = formatDateDE(assignment.order.shiftDate);
   const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
   const summary = `Zeitkorrektur genehmigt (${dateLabel}): ${oldWindow} → ${newStart}–${newEnd} · ${newHours} Std.`;
+  const clientUserIds = assignment.order.client.userId
+    ? await getFacilityClientUserIds(assignment.order.client.userId)
+    : [];
   const recipients = [
-    ...(assignment.order.client.userId
-      ? [{ id: assignment.order.client.userId, role: "client" as const }]
-      : []),
+    ...clientUserIds.map((id) => ({ id, role: "client" as const })),
     { id: assignment.worker.userId, role: "worker" as const },
   ];
   await prisma.notification.createMany({
@@ -1114,14 +1115,21 @@ export async function rejectTimeChange(assignmentId: string): Promise<ActionStat
 
   const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
   if (assignment.order.client.userId) {
-    await prisma.notification.create({
-      data: {
-        userId: assignment.order.client.userId,
+    const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.userId);
+    const content = `Zeitkorrektur abgelehnt (${formatDateDE(assignment.order.shiftDate)}): ${assignment.order.startTime}–${assignment.order.endTime} bleibt bestehen.`;
+    await prisma.notification.createMany({
+      data: facilityUserIds.map((userId) => ({
+        userId,
         type: "order_status_changed",
         channel: "in_app",
-        content: `Zeitkorrektur abgelehnt (${formatDateDE(assignment.order.shiftDate)}): ${assignment.order.startTime}–${assignment.order.endTime} bleibt bestehen.`,
+        content,
         link: orderLink("client", reqGroup),
-      },
+      })),
+    });
+    await pushToUsers(facilityUserIds, {
+      title: "Zeitkorrektur abgelehnt",
+      body: content,
+      url: orderLink("client", reqGroup),
     });
   }
 
@@ -1247,15 +1255,18 @@ export async function swapWorker(
       
       // Client
       if (order.client.userId) {
-        await tx.notification.create({
-          data: {
-            userId: order.client.userId,
-            type: "order_status_changed",
-            channel: "in_app",
-            content: `Mitarbeiterwechsel – ${dateStr} ${timeStr}`,
-            link: orderLink("client", order.requestGroupId || order.id),
-          },
-        });
+        const clientUserIds = [order.client.userId, ...order.client.subUsers.map((u) => u.id)];
+        for (const uid of clientUserIds) {
+          await tx.notification.create({
+            data: {
+              userId: uid,
+              type: "order_status_changed",
+              channel: "in_app",
+              content: `Mitarbeiterwechsel – ${dateStr} ${timeStr}`,
+              link: orderLink("client", order.requestGroupId || order.id),
+            },
+          });
+        }
       }
     });
   } catch (err) {
@@ -1290,7 +1301,7 @@ export async function swapWorker(
         });
       }
     } catch (e) {
-      console.error("Failed to attach worker certificate:", e);
+      console.error("Failed to load certificate attachment", e);
     }
   }
 
@@ -1376,9 +1387,9 @@ export async function swapWorker(
       html: clientHtml,
       url: orderLink("client", order.requestGroupId || order.id),
       attachments // Attach certificate here
-    }, { force: true });
+    });
     
-    await pushToUsers([order.client.userId], {
+    await pushToUsers(clientUserIds, {
       title: "Mitarbeiterwechsel",
       body: `${dateStr} ${timeStr} · ${newWorker.fullName} (neu)`,
       url: orderLink("client", order.requestGroupId || order.id),

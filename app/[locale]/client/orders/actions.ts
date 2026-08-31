@@ -8,11 +8,10 @@ import { getCurrentUser, resolveClientId } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { diffRequestShifts, isRequestEditable, isRequestCancelable } from "@/lib/orders";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
-import { orderRequestSchema, type OrderRequestInput } from "@/lib/validations";
-import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
+import { orderRequestSchema, type OrderRequestInput, type Qualification } from "@/lib/validations";
+import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { sendEmailToUsers } from "@/lib/email";
-import type { Qualification } from "@/lib/validations";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -834,6 +833,10 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
       pushAdmins.map((a) => a.id),
       { title: "Leistung bestätigt", body: confirmBody, url: orderLink("admin", confirmGroup), htmlBody: confirmHtml },
     ),
+    pushToUsers(
+      facilityUserIds,
+      { title: "Leistung bestätigt", body: confirmBody, url: orderLink("client", confirmGroup), htmlBody: confirmHtml },
+    ),
   ]);
 
   revalidatePath("/client/orders");
@@ -849,14 +852,22 @@ export async function getWorkerProfilePreview(workerId: string) {
   const user = await getCurrentUser();
   if (!user || user.role !== "client") return null;
 
-  const link = await prisma.assignment.findFirst({
-    where: { workerId, order: { client: { userId: user.id } } },
-    select: { id: true },
+  const worker = await prisma.worker.findUnique({
+    where: { id: workerId },
+    select: {
+      id: true,
+      fullName: true,
+      qualification: true,
+      experienceYears: true,
+      bio: true,
+      user: { select: { photoUrl: true } },
+      documents: {
+        where: { verified: true, category: { in: ["certification", "vaccination"] } },
+        select: { id: true, category: true, fileName: true, uploadedAt: true },
+      },
+    },
   });
-  if (!link) return null;
-
-  const { getWorkerProfileData } = await import("@/lib/worker-profile");
-  return getWorkerProfileData(workerId);
+  return worker;
 }
 
 // ─────────── Hours correction on an ALREADY-signed shift (proposal → approval) ───────────
@@ -873,45 +884,38 @@ const hoursCorrectionSchema = z.object({
 });
 
 // Admin proposes changed hours on a client-signed shift → client's inbox.
-export async function requestHoursCorrection(input: {
-  assignmentId: string;
-  hours: number;
-  note?: string;
-}): Promise<ActionState> {
+export async function requestHoursCorrection(
+  assignmentId: string,
+  hours: number,
+  note?: string,
+): Promise<ActionState> {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+  if (!user || !roleSatisfies(user.role, ["client", "admin"])) {
     return { ok: false, error: "forbidden" };
   }
-  const parsed = hoursCorrectionSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "saveError" };
-  const { assignmentId, hours, note } = parsed.data;
 
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
     include: {
-      serviceConfirmation: { select: { id: true, hoursWorked: true } },
       order: {
-        select: {
-          id: true,
-          requestGroupId: true,
-          shiftDate: true,
-          client: { select: { userId: true, facilityName: true } },
+        include: {
+          client: { select: { id: true, userId: true, facilityName: true } },
         },
       },
-      worker: { select: { fullName: true } },
+      worker: { select: { id: true, userId: true, fullName: true } },
+      serviceConfirmation: true,
     },
   });
   if (!assignment || !assignment.serviceConfirmation) {
-    return { ok: false, error: "notConfirmed" };
-  }
-  const current =
-    assignment.serviceConfirmation.hoursWorked != null
-      ? Number(assignment.serviceConfirmation.hoursWorked)
-      : null;
-  if (current != null && Math.abs(current - hours) < 0.001) {
-    return { ok: false, error: "noChange" };
+    return { ok: false, error: "notFound" };
   }
 
+  const isStaff = roleSatisfies(user.role, ["admin"]);
+  if (!isStaff && assignment.order.client.userId !== user.id) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const current = assignment.serviceConfirmation.hoursWorked;
   await prisma.serviceConfirmation.update({
     where: { id: assignment.serviceConfirmation.id },
     data: {
@@ -926,6 +930,7 @@ export async function requestHoursCorrection(input: {
   const requestGroupId = assignment.order.requestGroupId ?? assignment.order.id;
   const clientUserId = assignment.order.client.userId;
   if (clientUserId) {
+    const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || clientUserId);
     const noteSuffix = note ? ` – ${note}` : "";
     const body = `Stundenkorrektur (${dateLabel}, ${assignment.worker.fullName}): ${current ?? "?"} → ${hours} Std. Bitte im Portal neu bestätigen.${noteSuffix}`;
     const { getOrCreateRequestConversation } = await import("@/lib/inbox");
@@ -944,16 +949,16 @@ export async function requestHoursCorrection(input: {
         data: { lastMessageAt: now },
       }),
     ]);
-    await prisma.notification.create({
-      data: {
-        userId: clientUserId,
+    await prisma.notification.createMany({
+      data: facilityUserIds.map((uid) => ({
+        userId: uid,
         type: "order_status_changed",
         channel: "in_app",
         content: `Bitte Stunden neu bestätigen (${dateLabel}): ${hours} Std.`,
         link: inboxLink("client", conversation.id),
-      },
+      })),
     });
-    await pushToUsers([clientUserId], {
+    await pushToUsers(facilityUserIds, {
       title: "Stunden neu bestätigen",
       body: `${assignment.order.client.facilityName} · ${dateLabel} · ${hours} Std.`,
       url: inboxLink("client", conversation.id),

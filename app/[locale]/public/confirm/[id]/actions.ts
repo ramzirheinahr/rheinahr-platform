@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
-import { workerShiftLink, orderLink, buildShiftHtmlTable } from "@/lib/notify";
+import { workerShiftLink, orderLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { formatDateTimeDE, formatDateDE } from "@/lib/utils";
 import { pushToUsers } from "@/lib/push";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -100,6 +100,8 @@ export async function confirmServicePublic(
 
   if (urlError) return { ok: false, error: "saveError" };
 
+  const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId);
+
   await prisma.$transaction(async (tx) => {
     await tx.serviceConfirmation.create({
       data: {
@@ -134,6 +136,7 @@ export async function confirmServicePublic(
       where: {
         OR: [
           { id: assignment.worker.userId },
+          { id: { in: facilityUserIds }, active: true },
           { role: { in: ["admin", "super_admin"] }, active: true },
         ],
       },
@@ -198,6 +201,10 @@ export async function confirmServicePublic(
     pushToUsers(
       pushAdmins.map((a) => a.id),
       { title: "Leistung bestätigt (Public)", body: confirmBody, url: orderLink("admin", confirmGroup), htmlBody: confirmHtml },
+    ),
+    pushToUsers(
+      facilityUserIds,
+      { title: "Leistung bestätigt", body: confirmBody, url: orderLink("client", confirmGroup), htmlBody: confirmHtml },
     ),
   ]);
 

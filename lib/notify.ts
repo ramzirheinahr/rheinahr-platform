@@ -68,10 +68,36 @@ export function buildShiftHtmlTable(shifts: {
             <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.notes || "-"}</td>
             ${showQuantity ? `<td style="padding: 10px; border: 1px solid #e5e7eb;">${s.quantity}</td>` : ""}
           </tr>
-        `
+        `,
           )
           .join("")}
       </tbody>
     </table>
   `;
 }
+
+import { prisma } from "@/lib/prisma";
+
+export async function getFacilityClientUserIds(clientIdOrUserId: string): Promise<string[]> {
+  if (!clientIdOrUserId) return [];
+  const client = await prisma.client.findFirst({
+    where: {
+      OR: [
+        { id: clientIdOrUserId },
+        { userId: clientIdOrUserId },
+      ],
+    },
+    select: {
+      userId: true,
+      subUsers: {
+        where: { active: true },
+        select: { id: true },
+      },
+    },
+  });
+
+  if (!client) return [clientIdOrUserId];
+  const ids = [client.userId, ...client.subUsers.map((u) => u.id)].filter(Boolean);
+  return [...new Set(ids)];
+}
+

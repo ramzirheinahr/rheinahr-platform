@@ -8,11 +8,10 @@ import { audit } from "@/lib/audit";
 import { lettersToBlocks, SHIFT_PRESETS, type ShiftKey, type GridOperation } from "@/lib/master-schedule-core";
 import { candidatesForShift, type Candidate } from "@/lib/orders";
 import { offerAssignment } from "@/lib/assignments";
-import { qualifications } from "@/lib/validations";
 import { formatDateDE } from "@/lib/utils";
-import { orderLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
+import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
+import { qualifications, type Qualification } from "@/lib/validations";
 import { pushToUsers } from "@/lib/push";
-import type { Qualification } from "@/lib/validations";
 
 // Cell-level edits on the master schedule grid. Every edit here mutates the
 // SAME entities the order/availability pages use (WorkerAvailability, Order,
@@ -362,16 +361,17 @@ export async function createOpenOrderFromGrid(input: {
   });
 
   if (client.userId) {
-    await prisma.notification.create({
-      data: {
-        userId: client.userId,
+    const facilityUserIds = await getFacilityClientUserIds(client.userId);
+    await prisma.notification.createMany({
+      data: facilityUserIds.map((userId) => ({
+        userId,
         type: "new_order",
         channel: "in_app",
         content: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
         link: orderLink("client", newRequestGroupId),
-      },
+      })),
     });
-    await pushToUsers([client.userId], {
+    await pushToUsers(facilityUserIds, {
       title: "Neue Anfrage",
       body: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
       url: orderLink("client", newRequestGroupId),
@@ -737,15 +737,18 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
       },
     });
     if (assignment.order.client.userId) {
-      await tx.notification.create({
-        data: {
-          userId: assignment.order.client.userId,
-          type: "order_status_changed",
-          channel: "in_app",
-          content: `Schicht gelöscht – ${label}`,
-          link: "/client/orders",
-        },
-      });
+      const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId);
+      for (const uid of facilityUserIds) {
+        await tx.notification.create({
+          data: {
+            userId: uid,
+            type: "order_status_changed",
+            channel: "in_app",
+            content: `Schicht gelöscht – ${label}`,
+            link: "/client/orders",
+          },
+        });
+      }
     }
   });
 
@@ -761,12 +764,28 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
     }])}
   `;
 
-  await pushToUsers([assignment.worker.userId], {
-    title: "Einsatz gelöscht",
-    body: label,
-    url: workerShiftLink(),
-    htmlBody: deleteHtml,
-  });
+  const facilityUserIds = assignment.order.client.userId
+    ? await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId)
+    : [];
+
+  await Promise.all([
+    pushToUsers([assignment.worker.userId], {
+      title: "Einsatz gelöscht",
+      body: label,
+      url: workerShiftLink(),
+      htmlBody: deleteHtml,
+    }),
+    ...(facilityUserIds.length > 0
+      ? [
+          pushToUsers(facilityUserIds, {
+            title: "Schicht gelöscht",
+            body: label,
+            url: "/client/orders",
+            htmlBody: deleteHtml,
+          }),
+        ]
+      : []),
+  ]);
 
   await audit({
     userId: admin.id,

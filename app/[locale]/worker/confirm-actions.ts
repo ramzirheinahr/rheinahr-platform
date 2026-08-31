@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { workerShiftLink, orderLink, buildShiftHtmlTable } from "@/lib/notify";
+import { workerShiftLink, orderLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { sendEmail } from "@/lib/email";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
@@ -196,20 +196,31 @@ export async function confirmServiceByWorkerOnDevice(
         `,
       });
     }
-    const clientUser = assignment.order.client.userId ? await tx.user.findUnique({ where: { id: assignment.order.client.userId } }) : null;
-    if (clientUser?.email) {
-      emails.push({
-        to: clientUser.email,
-        subject: `Schicht bestätigt: ${assignment.worker.fullName} am ${assignment.order.shiftDate.toISOString().slice(0, 10)}`,
-        html: `
-          <p>Guten Tag,</p>
-          <p>Eine Schicht in Ihrer Einrichtung wurde soeben vor Ort elektronisch von ${data.signerName} abgezeichnet.</p>
-          <p><strong>Mitarbeiter:</strong> ${assignment.worker.fullName}</p>
-          ${htmlBody}
-          <p>Sie finden den Beleg im Kundenportal unter Ihren bestätigten Schichten.</p>
-        `,
-      });
-    }
+
+    const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId);
+    const clientUsers = await tx.user.findMany({
+      where: {
+        id: { in: facilityUserIds },
+        active: true,
+        receiveEmails: true,
+      },
+      select: { email: true },
+    });
+    clientUsers.forEach((u) => {
+      if (u.email) {
+        emails.push({
+          to: u.email,
+          subject: `Schicht bestätigt: ${assignment.worker.fullName} am ${assignment.order.shiftDate.toISOString().slice(0, 10)}`,
+          html: `
+            <p>Guten Tag,</p>
+            <p>Eine Schicht in Ihrer Einrichtung wurde soeben vor Ort elektronisch von ${data.signerName} abgezeichnet.</p>
+            <p><strong>Mitarbeiter:</strong> ${assignment.worker.fullName}</p>
+            ${htmlBody}
+            <p>Sie finden den Beleg im Kundenportal unter Ihren bestätigten Schichten.</p>
+          `,
+        });
+      }
+    });
 
     // Email to Worker
     const workerUser = await tx.user.findUnique({ where: { id: assignment.worker.userId } });
@@ -266,6 +277,8 @@ export async function confirmServiceByWorkerOnDevice(
     <p><strong>Unterzeichner:</strong> ${data.signerName}</p>
   `;
 
+  const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId);
+
   await Promise.all([
     pushToUsers([assignment.worker.userId], {
       title: "Ihre Leistung wurde bestätigt",
@@ -276,6 +289,10 @@ export async function confirmServiceByWorkerOnDevice(
     pushToUsers(
       pushAdmins.map((a) => a.id),
       { title: "Leistung bestätigt (Vor Ort)", body: confirmBody, url: orderLink("admin", confirmGroup), htmlBody: confirmHtml },
+    ),
+    pushToUsers(
+      facilityUserIds,
+      { title: "Leistung bestätigt", body: confirmBody, url: orderLink("client", confirmGroup), htmlBody: confirmHtml },
     ),
   ]);
 

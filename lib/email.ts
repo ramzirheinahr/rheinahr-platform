@@ -75,6 +75,7 @@ export async function sendEmailToRecipients(
     const users = await prisma.user.findMany({
       where: {
         id: { in: uniqueIds },
+        active: true,
         ...(options?.force ? {} : { receiveEmails: true }),
       },
       select: { email: true },
