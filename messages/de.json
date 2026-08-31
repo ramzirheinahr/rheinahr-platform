@@ -519,7 +519,7 @@
     "confirm": "Leistung bestätigen",
     "confirmed": "Leistung wurde bestätigt.",
     "legalNote": "Ich bestätige rechtsverbindlich, dass die oben angegebene Leistung erbracht wurde. Zeitpunkt und IP-Adresse werden gemäß DSGVO protokolliert.",
-    "reviewNote": "Bitte prüfen Sie den Leistungsnachweis und unterschreiben Sie ihn anschließend elektronisch.",
+    "reviewNote": "Bitte prüfen Sie den Leistungsnachweis und unterschreiben Sie ihn anschließend elektronisch oder handschriftlich.",
     "documentPreview": "Leistungsnachweis (Entwurf)",
     "openInNewTab": "In neuem Tab öffnen",
     "hoursPreviewHint": "Änderungen werden nach Verlassen des Feldes in der Vorschau übernommen.",

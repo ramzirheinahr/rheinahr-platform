@@ -517,7 +517,7 @@
     "confirm": "Confirm service",
     "confirmed": "Service confirmed.",
     "legalNote": "I confirm, in a legally binding way, that the service stated above was performed. The timestamp and IP address are logged per GDPR.",
-    "reviewNote": "Please review the service record and then sign it electronically.",
+    "reviewNote": "Please review the service record and then sign it electronically or manually.",
     "documentPreview": "Service record (draft)",
     "openInNewTab": "Open in new tab",
     "hoursPreviewHint": "Changes are applied to the preview after you leave the field.",

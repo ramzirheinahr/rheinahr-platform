@@ -120,7 +120,7 @@ function LeistungsnachweisPage({ d }: { d: LeistungsnachweisData }) {
         <Text style={styles.draftBanner}>
           ENTWURF / VORSCHAU — Dieses Dokument ist noch nicht bestätigt. Bitte
           prüfen Sie die Angaben und bestätigen Sie die Leistung anschließend
-          elektronisch.
+          elektronisch oder handschriftlich.
         </Text>
       ) : null}
 
