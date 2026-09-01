@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { LegalShell } from "@/components/legal/legal-shell";
+import { companyConfig } from "@/lib/config/company";
 
-export const metadata: Metadata = {
-  title: "Datenschutzerklärung — RheinAhr Dienstleistungen GmbH",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: `Datenschutzerklärung — ${companyConfig.name}`,
+  };
+}
 
 export default async function DatenschutzPage({
   params,
@@ -27,15 +30,15 @@ export default async function DatenschutzPage({
       <p>
         Verantwortlich im Sinne der DSGVO ist:
         <br />
-        RheinAhr Dienstleistungen GmbH
+        {companyConfig.name}
         <br />
-        Theaterplatz 1, 53177 Bonn, Deutschland
+        {companyConfig.street}, {companyConfig.city}, Deutschland
         <br />
-        Geschäftsführer: Basem Aldanaf
+        Geschäftsführer: {companyConfig.ceo}
         <br />
-        E-Mail: <a href="mailto:info@rheinahr-gmbh.de">info@rheinahr-gmbh.de</a>
+        E-Mail: <a href={`mailto:${companyConfig.email}`}>{companyConfig.email}</a>
         <br />
-        Telefon: 0228 / 28 68 3821
+        Telefon: {companyConfig.phone}
       </p>
 
       <h2>2. Allgemeines zur Datenverarbeitung</h2>
@@ -102,7 +105,7 @@ export default async function DatenschutzPage({
         Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18),
         Datenübertragbarkeit (Art. 20) sowie ein Widerspruchsrecht (Art. 21).
         Zur Ausübung genügt eine Nachricht an{" "}
-        <a href="mailto:info@rheinahr-gmbh.de">info@rheinahr-gmbh.de</a>.
+        <a href={`mailto:${companyConfig.email}`}>{companyConfig.email}</a>.
       </p>
 
       <h2>9. Beschwerderecht bei der Aufsichtsbehörde</h2>

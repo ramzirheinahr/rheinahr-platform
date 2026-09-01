@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { CookieConsent } from "@/components/cookie-consent";
 import { PwaRegister } from "@/components/pwa-register";
 import { routing, localeDirection, type Locale } from "@/i18n/routing";
+import { companyConfig } from "@/lib/config/company";
 
 const geistSans = localFont({
   src: "../fonts/GeistVF.woff",
@@ -21,14 +22,15 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
-export const metadata: Metadata = {
-  title: "RheinAhr Dienstleistungen GmbH — Personaldienstleistung Altenpflege",
-  description:
-    "Digitale Koordination qualifizierter Pflege- und Betreuungskräfte für Pflegeheime, Seniorenheime und ambulante Pflegedienste.",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "RheinAhr", statusBarStyle: "default" },
-  icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: `${companyConfig.name} — Personaldienstleistung Altenpflege`,
+    description: "Digitale Koordination qualifizierter Pflege- und Betreuungskräfte für Pflegeheime, Seniorenheime und ambulante Pflegedienste.",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: { capable: true, title: companyConfig.shortName, statusBarStyle: "default" },
+    icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#1e3a8a",

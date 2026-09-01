@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { LegalShell } from "@/components/legal/legal-shell";
+import { companyConfig } from "@/lib/config/company";
 
-export const metadata: Metadata = {
-  title: "Impressum — RheinAhr Dienstleistungen GmbH",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: `Impressum — ${companyConfig.name}`,
+  };
+}
 
 export default async function ImpressumPage({
   params,
@@ -18,43 +21,43 @@ export default async function ImpressumPage({
     <LegalShell title="Impressum">
       <h2>Angaben gemäß § 5 DDG</h2>
       <p>
-        RheinAhr Dienstleistungen GmbH
+        {companyConfig.name}
         <br />
-        Theaterplatz 1
+        {companyConfig.street}
         <br />
-        53177 Bonn
+        {companyConfig.city}
         <br />
         Deutschland
       </p>
 
       <h2>Vertreten durch</h2>
-      <p>Geschäftsführer: Basem Aldanaf</p>
+      <p>Geschäftsführer: {companyConfig.ceo}</p>
 
       <h2>Kontakt</h2>
       <p>
-        Telefon: <a href="tel:+4922828683821">0228 / 28 68 3821</a>
+        Telefon: <a href={`tel:${companyConfig.phone.replace(/[^0-9+]/g, '')}`}>{companyConfig.phone}</a>
         <br />
-        Telefax: 0228 / 360 391 05
+        Telefax: {companyConfig.fax}
         <br />
-        E-Mail: <a href="mailto:info@rheinahr-gmbh.de">info@rheinahr-gmbh.de</a>
+        E-Mail: <a href={`mailto:${companyConfig.email}`}>{companyConfig.email}</a>
         <br />
-        Web: <a href="https://www.rheinahr-gmbh.de">www.rheinahr-gmbh.de</a>
+        Web: <a href={companyConfig.websiteUrl}>{companyConfig.website}</a>
       </p>
 
       <h2>Registereintrag</h2>
       <p>
         Eintragung im Handelsregister
         <br />
-        Registergericht: Amtsgericht Bonn
+        Registergericht: {companyConfig.registryCourt}
         <br />
-        Registernummer: HRB 23459
+        Registernummer: {companyConfig.hrb}
       </p>
 
       <h2>Umsatzsteuer-ID</h2>
       <p>
         Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz:
         <br />
-        DE316507908
+        {companyConfig.vatId}
       </p>
 
       <h2>Erlaubnis nach dem Arbeitnehmerüberlassungsgesetz (AÜG)</h2>
@@ -70,9 +73,9 @@ export default async function ImpressumPage({
 
       <h2>Redaktionell verantwortlich (§ 18 Abs. 2 MStV)</h2>
       <p>
-        Basem Aldanaf
+        {companyConfig.ceo}
         <br />
-        Theaterplatz 1, 53177 Bonn
+        {companyConfig.street}, {companyConfig.city}
       </p>
 
       <h2>EU-Streitschlichtung</h2>

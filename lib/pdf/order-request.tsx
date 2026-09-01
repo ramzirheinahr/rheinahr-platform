@@ -8,6 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import React from "react";
+import { companyConfig } from "@/lib/config/company";
 import { qualLabel } from "@/lib/invoicing";
 import type { ClientScheduleRow, ClientScheduleTotals } from "@/lib/client-schedule";
 
@@ -117,12 +118,12 @@ function OrderRequestDocument({ d }: { d: OrderRequestPdfData }) {
   return (
     <Document
       title={`Anfrage ${d.requestLabel} – ${d.facilityName}`}
-      author="RheinAhr Dienstleistungen GmbH"
+      author=companyConfig.name
     >
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow} fixed>
           <View>
-            <Text style={styles.brand}>RheinAhr Dienstleistungen GmbH</Text>
+            <Text style={styles.brand}>{companyConfig.name}</Text>
             <Text style={styles.brandSub}>Theaterplatz 1, 53177 Bonn · info@rheinahr-gmbh.de</Text>
           </View>
           <Text style={styles.brandSub}>HRB 23459 · USt-IdNr. DE316507908</Text>

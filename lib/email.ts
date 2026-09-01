@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
+import { companyConfig } from "@/lib/config/company";
 
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465;
@@ -91,27 +92,10 @@ export async function sendEmailToRecipients(
   let textBody = payload.body;
   const contentHtml = payload.html || textBody.replace(/\n/g, "<br>");
 
-  const signatureHtml = `
-<br><br>
-<hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;" />
-<div style="font-family: Arial, sans-serif; font-size: 14px; color: #555; line-height: 1.6;">
-  Mit freundlichen Grüßen<br><br>
-  <strong>Mohammed Abuibaid</strong><br>
-  Einsatzleiter<br><br>
-  <div style="margin-top: 15px; margin-bottom: 15px;">
-    <img src="https://platform.rheinahr-gmbh.de/logo.png" alt="RheinAhr Dienstleistungen GmbH" style="max-height: 50px; width: auto;" />
-  </div>
-  <strong>RheinAhr Dienstleistungen GmbH</strong> | Theaterplatz 1, 53177 Bonn<br>
-  Telefon: +49 (228) 28683821 | Handy: +49 (1523) 3646562 | Telefax: +49 (228) 36039105<br>
-  Email: <a href="mailto:info@rheinahr-gmbh.de" style="color: #0056b3; text-decoration: none;">info@rheinahr-gmbh.de</a> | Web: <a href="http://www.rheinahr-gmbh.de" style="color: #0056b3; text-decoration: none;">http://www.rheinahr-gmbh.de</a><br>
-  Portal: <a href="https://platform.rheinahr-gmbh.de/de/admin" style="color: #0056b3; text-decoration: none;">platform.rheinahr-gmbh.de/de/admin</a>
-</div>
-  `;
-
   const finalHtml = `
 <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
   ${contentHtml}
-  ${signatureHtml}
+  ${getEmailFooterHtml()}
 </div>
   `;
 
@@ -144,5 +128,24 @@ export async function sendEmailToUsers(
   options?: { force?: boolean }
 ): Promise<void> {
   return sendEmailToRecipients(userIds, payload, options);
+}
+
+function getEmailFooterHtml(): string {
+  return `
+<br><br>
+<hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;" />
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #555; line-height: 1.6;">
+  Mit freundlichen Grüßen<br><br>
+  <strong>${companyConfig.ceo}</strong><br>
+  Geschäftsführung<br><br>
+  <div style="margin-top: 15px; margin-bottom: 15px;">
+    <img src="${companyConfig.websiteUrl}${companyConfig.logoUrl}" alt="${companyConfig.name}" style="max-height: 50px; width: auto;" />
+  </div>
+  <strong>${companyConfig.name}</strong> | ${companyConfig.street}, ${companyConfig.city}<br>
+  Telefon: ${companyConfig.phone} | Handy: ${companyConfig.mobile} | Telefax: ${companyConfig.fax}<br>
+  Email: <a href="mailto:${companyConfig.email}" style="color: #0056b3; text-decoration: none;">${companyConfig.email}</a> | Web: <a href="${companyConfig.websiteUrl}" style="color: #0056b3; text-decoration: none;">${companyConfig.website}</a><br>
+  Portal: <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/de/admin" style="color: #0056b3; text-decoration: none;">Zum Portal</a>
+</div>
+  `;
 }
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import { companyConfig } from "@/lib/config/company";
 import { format } from "@/lib/date-utils";
 import { buildAddressString } from "@/lib/utils";
 
@@ -84,7 +85,7 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
         
         <View style={{ marginBottom: 16 }}>
           <Text style={styles.paragraph}>Zwischen</Text>
-          <Text style={[styles.paragraph, styles.highlight]}>RheinAhr Dienstleistungen GmbH</Text>
+          <Text style={[styles.paragraph, styles.highlight]}>{companyConfig.name}</Text>
           <Text style={[styles.paragraph, styles.highlight]}>Theaterplatz 1</Text>
           <Text style={[styles.paragraph, styles.highlight]}>53177 Bonn</Text>
           <Text style={styles.paragraph}>- nachstehend Arbeitgeber genannt -</Text>

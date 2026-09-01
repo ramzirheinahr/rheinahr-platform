@@ -1,6 +1,7 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/renderer";
 import React from "react";
+import { companyConfig } from "@/lib/config/company";
 
 const styles = StyleSheet.create({
   page: { padding: 48, fontSize: 10, color: "#1f2937", fontFamily: "Helvetica", lineHeight: 1.5 },
@@ -50,7 +51,7 @@ export const PersonallisteTemplate = ({ data }: { data: PersonallistePdfData }) 
 
         <View style={styles.header}>
           <View>
-            <Image src={process.cwd() + "/public/logo.png"} style={{ height: 40 }} />
+            <Image src={process.cwd() + "/public" + companyConfig.logoUrl.replace(/^\//, '')} style={{ height: 40 }} />
           </View>
           <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
             <Text style={{ color: "#d32f2f", fontFamily: "Helvetica-Bold" }}>INTEGRITÄT</Text>

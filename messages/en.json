@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "RheinAhr Dienstleistungen",
+    "appName": "our agency",
     "tagline": "Staffing for elderly care",
     "login": "Sign in",
     "logout": "Sign out",
@@ -47,7 +47,7 @@
     "hero": {
       "badge": "Staffing for elderly care",
       "title": "Qualified care & support staff — fast, reliable, digital.",
-      "subtitle": "RheinAhr Dienstleistungen places registered care staff with nursing homes, senior residences and outpatient services in Bonn, NRW and across Germany — with digital dispatch and legally sound service confirmation.",
+      "subtitle": "our agency places registered care staff with nursing homes, senior residences and outpatient services in Bonn, NRW and across Germany — with digital dispatch and legally sound service confirmation.",
       "ctaClient": "Request care staff",
       "ctaWorker": "Apply as care staff"
     },
@@ -77,7 +77,7 @@
       "step3Body": "After the shift, the service is confirmed digitally — by signature or upload, audit-proof."
     },
     "why": {
-      "title": "Why RheinAhr",
+      "title": "Why us",
       "subtitle": "One partner uniting dispatch, compliance and technology.",
       "f1Title": "Fast staffing",
       "f1Body": "Automated matching instead of phone and Excel — the right people in minutes.",
@@ -158,7 +158,7 @@
     "wrongPin": "Wrong PIN. Please try again.",
     "locked": "Too many attempts. Please try again later.",
     "invalidTitle": "Link invalid or expired",
-    "invalidBody": "This access link is no longer valid. Please contact RheinAhr.",
+    "invalidBody": "This access link is no longer valid. Please contact us.",
     "goToLogin": "Go to normal sign-in",
     "installApp": "Add app to home screen",
     "iosInstallHint": "To install: “Share” → “Add to Home Screen”.",
@@ -674,12 +674,12 @@
   },
   "inbox": {
     "title": "Inbox",
-    "subtitle": "Send and receive messages with the RheinAhr team.",
+    "subtitle": "Send and receive messages with the our team.",
     "subtitleAdmin": "Send and receive messages with facilities and care staff.",
-    "agencyTeam": "RheinAhr team",
+    "agencyTeam": "our team",
     "compose": "New message",
     "composeTitle": "New message",
-    "composeHint": "Your message goes to the RheinAhr team.",
+    "composeHint": "Your message goes to the our team.",
     "composeHintAdmin": "With multiple recipients, a separate private conversation is created per recipient.",
     "recipients": "Recipients",
     "recipientsPlaceholder": "Select recipients…",

@@ -10,6 +10,7 @@ import {
 } from "@react-pdf/renderer";
 import React from "react";
 import path from "path";
+import { companyConfig } from "@/lib/config/company";
 
 export type InvoicePdfData = {
   invoiceNumber: string;
@@ -102,7 +103,7 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
         <View>
           <View style={styles.logoContainer}>
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
-            <Image src={path.join(process.cwd(), "public", "logo.png")} style={{ width: 140, objectFit: "contain" }} />
+            <Image src={path.join(process.cwd(), "public", companyConfig.logoUrl.replace(/^\//, ""))} style={{ width: 140, objectFit: "contain" }} />
           </View>
           <View style={styles.sloganRow}>
             <Text style={styles.sloganRed}>INTEGRITÄT</Text>
@@ -113,20 +114,20 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
         </View>
 
         <View style={styles.companyContactBlock}>
-          <Text style={styles.companyNameBold}>RheinAhr Dienstleistungen GmbH</Text>
-          <Text>Theaterplatz 1</Text>
-          <Text>53177 Bonn</Text>
-          <Text>Telefon: +49 (0) 228 / 28683821</Text>
-          <Text>Telefax: +49 (0) 228 / 36039105</Text>
-          <Text>Mobile: +49 (0) 152 / 33646562</Text>
-          <Text>E-Mail: info@rheinahr-gmbh.de</Text>
-          <Text>Internet: www.rheinahr-gmbh.de</Text>
+          <Text style={styles.companyNameBold}>{companyConfig.name}</Text>
+          <Text>{companyConfig.street}</Text>
+          <Text>{companyConfig.city}</Text>
+          <Text>Telefon: {companyConfig.phone}</Text>
+          <Text>Telefax: {companyConfig.fax}</Text>
+          <Text>Mobile: {companyConfig.mobile}</Text>
+          <Text>E-Mail: {companyConfig.email}</Text>
+          <Text>Internet: {companyConfig.website}</Text>
         </View>
       </View>
 
       <View style={{ flexDirection: "row" }}>
         <View style={styles.senderBlock}>
-          <Text style={styles.returnAddress}>RheinAhr Dienstleistungen GmbH , Theaterplatz 1 , 53177 Bonn</Text>
+          <Text style={styles.returnAddress}>{companyConfig.name} , {companyConfig.street} , {companyConfig.city}</Text>
           <View style={styles.clientAddress}>
             {data.billingInfo ? (
               data.billingInfo.split("\n").map((line, i) => (
@@ -214,26 +215,26 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
       {/* Footer */}
       <View style={styles.footer} fixed>
         <View style={styles.footerCol}>
-          <Text style={styles.footerBoldPrimary}>RheinAhr Dienstleistungen GmbH</Text>
-          <Text style={styles.footerText}>Theaterplatz 1</Text>
-          <Text style={styles.footerText}>53177 Bonn</Text>
-          <Text style={styles.footerText}>Telefon: +49 (0) 228 / 28683821</Text>
-          <Text style={styles.footerText}>Telefax: +49 (0) 228 / 36039105</Text>
-          <Text style={styles.footerText}>Mobile: +49 (0) 152 / 33 64 65 62</Text>
+          <Text style={styles.footerBoldPrimary}>{companyConfig.name}</Text>
+          <Text style={styles.footerText}>{companyConfig.street}</Text>
+          <Text style={styles.footerText}>{companyConfig.city}</Text>
+          <Text style={styles.footerText}>Telefon: {companyConfig.phone}</Text>
+          <Text style={styles.footerText}>Telefax: {companyConfig.fax}</Text>
+          <Text style={styles.footerText}>Mobile: {companyConfig.mobile}</Text>
         </View>
         <View style={styles.footerCol}>
-          <Text style={styles.footerBoldGray}>Postbank</Text>
-          <Text style={styles.footerText}>IBAN: DE62440100460387966464</Text>
-          <Text style={styles.footerText}>BIC: PBNKDEFF</Text>
-          <Text style={{ marginTop: 10, marginBottom: 2 }}>E-Mail: info@rheinahr-gmbh.de</Text>
-          <Text style={styles.footerText}>Internet: www.rheinahr-gmbh.de</Text>
+          <Text style={styles.footerBoldGray}>{companyConfig.bankName}</Text>
+          <Text style={styles.footerText}>IBAN: {companyConfig.iban}</Text>
+          <Text style={styles.footerText}>BIC: {companyConfig.bic}</Text>
+          <Text style={{ marginTop: 10, marginBottom: 2 }}>E-Mail: {companyConfig.email}</Text>
+          <Text style={styles.footerText}>Internet: {companyConfig.website}</Text>
         </View>
         <View style={styles.footerCol}>
-          <Text style={styles.footerBoldGray}>Amtsgericht Bonn</Text>
-          <Text style={styles.footerText}>HRB 23459</Text>
-          <Text style={styles.footerText}>Steuernummer : 206/5946/0589</Text>
-          <Text style={styles.footerText}>Ust-IdNr : DE316507908</Text>
-          <Text style={styles.footerText}>Geschäftsführer : Basem Aldanaf</Text>
+          <Text style={styles.footerBoldGray}>{companyConfig.registryCourt}</Text>
+          <Text style={styles.footerText}>{companyConfig.hrb}</Text>
+          <Text style={styles.footerText}>Steuernummer : {companyConfig.taxId}</Text>
+          <Text style={styles.footerText}>Ust-IdNr : {companyConfig.vatId}</Text>
+          <Text style={styles.footerText}>Geschäftsführer : {companyConfig.ceo}</Text>
         </View>
       </View>
     </Page>

@@ -9,6 +9,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import React from "react";
+import { companyConfig } from "@/lib/config/company";
 
 export type ContractPdfData = {
   facilityName: string;
@@ -62,7 +63,7 @@ const ContractPage = ({ data }: { data: ContractPdfData }) => (
       ))}
       <Text style={styles.paragraph}>(Auftraggeber)</Text>
       <Text style={styles.paragraph}>und</Text>
-      <Text style={[styles.paragraph, styles.bold]}>RheinAhr Dienstleistungen GmbH</Text>
+      <Text style={[styles.paragraph, styles.bold]}>{companyConfig.name}</Text>
       <Text style={styles.paragraph}>Theaterplatz 1, 53177 Bonn</Text>
       <Text style={styles.paragraph}>(Personaldienstleister)</Text>
       <Text style={styles.paragraph}>wird folgender Arbeitnehmerüberlassungsvertrag geschlossen:</Text>
@@ -135,7 +136,7 @@ const ContractPage = ({ data }: { data: ContractPdfData }) => (
           </View>
           <View>
             <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
-              Signiert von RheinAhr Dienstleistungen GmbH (Verleiher),
+              Signiert von {companyConfig.name} (Verleiher),
             </Text>
             <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
               am {data.signedAt}
@@ -152,7 +153,7 @@ const ContractPage = ({ data }: { data: ContractPdfData }) => (
             )}
             <View style={styles.signatureLine}>
               <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 4 }}>Personaldienstleister</Text>
-              <Text>RheinAhr Dienstleistungen GmbH</Text>
+              <Text>{companyConfig.name}</Text>
             </View>
           </View>
           

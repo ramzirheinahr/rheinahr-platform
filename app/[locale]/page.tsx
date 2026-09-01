@@ -6,6 +6,7 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Logo } from "@/components/logo";
 import { qualifications } from "@/lib/validations";
 import { ContactForm } from "@/components/landing/contact-form";
+import { companyConfig } from "@/lib/config/company";
 import {
   ShieldCheck,
   Lock,
@@ -29,11 +30,11 @@ import {
 import Image from "next/image";
 
 const COMPANY = {
-  phone: "0228 / 28 68 3821",
-  tel: "+4922828683821",
-  whatsapp: "https://wa.me/4915233646562",
-  email: "info@rheinahr-gmbh.de",
-  address: "Theaterplatz 1, 53177 Bonn",
+  phone: companyConfig.phone,
+  tel: companyConfig.phone.replace(/[^0-9+]/g, ''),
+  whatsapp: `https://wa.me/${companyConfig.mobile.replace(/[^0-9+]/g, '').replace(/^\+49/, '49')}`,
+  email: companyConfig.email,
+  address: `${companyConfig.street}, ${companyConfig.city}`,
 };
 
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -81,7 +82,7 @@ function Landing() {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border/50 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/40">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <Link href="/" aria-label="RheinAhr Dienstleistungen GmbH" className="transition-transform hover:scale-105">
+          <Link href="/" aria-label={companyConfig.name} className="transition-transform hover:scale-105">
             <Logo className="h-9 w-auto drop-shadow-sm" priority />
           </Link>
           <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
@@ -145,7 +146,7 @@ function Landing() {
               <div className="relative mx-auto w-full max-w-lg lg:max-w-none">
                 <div className="relative rounded-3xl border border-white/10 bg-muted/20 p-2 shadow-2xl backdrop-blur-3xl overflow-hidden aspect-[4/3] group">
                   <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-transparent to-secondary/10 opacity-50 z-0"></div>
-                  <Image src="/hero_image.png" alt="RheinAhr Care" fill className="object-cover rounded-2xl z-10 transition-transform duration-700 group-hover:scale-105" priority />
+                  <Image src="/hero_image.png" alt={companyConfig.shortName} fill className="object-cover rounded-2xl z-10 transition-transform duration-700 group-hover:scale-105" priority />
                 </div>
                 {/* Floating Elements for aesthetics */}
                 <div className="absolute -left-8 top-1/4 rounded-2xl border bg-background/80 backdrop-blur-md p-4 shadow-xl hidden sm:block animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
@@ -408,7 +409,7 @@ function Landing() {
         </div>
         <div className="border-t bg-muted/30 py-6 text-center text-xs text-muted-foreground">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-2">
-            <span>© {new Date().getFullYear()} RheinAhr Dienstleistungen GmbH — {f("rights")}</span>
+            <span>© {new Date().getFullYear()} {companyConfig.name} — {f("rights")}</span>
           </div>
         </div>
       </footer>

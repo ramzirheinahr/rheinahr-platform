@@ -8,6 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import React from "react";
+import { companyConfig } from "@/lib/config/company";
 import {
   availCellText,
   workCellText,
@@ -101,12 +102,12 @@ function DienstplanDocument({ d }: { d: DienstplanPdfData }) {
   return (
     <Document
       title={`Dienstplan ${d.qualificationLabel} ${d.monthLabel}`}
-      author="RheinAhr Dienstleistungen GmbH"
+      author=companyConfig.name
     >
       <Page size="A4" orientation="landscape" style={styles.page}>
         <View style={styles.headerRow} fixed>
           <View>
-            <Text style={styles.brand}>RheinAhr Dienstleistungen GmbH</Text>
+            <Text style={styles.brand}>{companyConfig.name}</Text>
             <Text style={styles.brandSub}>Theaterplatz 1, 53177 Bonn · info@rheinahr-gmbh.de</Text>
           </View>
           <Text style={styles.brandSub}>HRB 23459 · USt-IdNr. DE316507908</Text>

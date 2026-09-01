@@ -9,6 +9,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import React from "react";
+import { companyConfig } from "@/lib/config/company";
 import path from "path";
 
 export type PayrollPdfData = {
@@ -95,7 +96,7 @@ export async function generatePayrollPdf(data: PayrollPdfData): Promise<Buffer> 
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.brandTextContainer}>
-              <Text style={styles.brandTextMain}>RheinAhr</Text>
+              <Text style={styles.brandTextMain}>{companyConfig.shortName}</Text>
               <Text style={styles.brandTextSub}>Dienstleistungen</Text>
             </View>
           </View>
@@ -104,7 +105,7 @@ export async function generatePayrollPdf(data: PayrollPdfData): Promise<Buffer> 
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <View style={styles.senderBlock}>
             <Text style={styles.returnAddress}>
-              RheinAhr Dienstleistungen GmbH • Musterstraße 1 • 53474 Bad Neuenahr-Ahrweiler
+              {companyConfig.name} • {companyConfig.street} • {companyConfig.city}
             </Text>
             <View style={styles.workerAddress}>
               <Text>{data.workerName}</Text>
@@ -114,7 +115,7 @@ export async function generatePayrollPdf(data: PayrollPdfData): Promise<Buffer> 
             </View>
           </View>
           <View style={styles.companyContactBlock}>
-            <Text style={styles.companyNameBold}>RheinAhr Dienstleistungen GmbH</Text>
+            <Text style={styles.companyNameBold}>{companyConfig.name}</Text>
             <Text>Musterstraße 1</Text>
             <Text>53474 Bad Neuenahr-Ahrweiler</Text>
             <Text style={{ marginTop: 10 }}>Telefon: 02641 / 123456</Text>
@@ -178,7 +179,7 @@ export async function generatePayrollPdf(data: PayrollPdfData): Promise<Buffer> 
 
         <View style={styles.footer} fixed>
           <View style={styles.footerCol}>
-            <Text style={styles.footerTitle}>RheinAhr Dienstleistungen GmbH</Text>
+            <Text style={styles.footerTitle}>{companyConfig.name}</Text>
             <Text>Musterstraße 1</Text>
             <Text>53474 Bad Neuenahr-Ahrweiler</Text>
           </View>

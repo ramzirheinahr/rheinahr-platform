@@ -1,6 +1,7 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import { companyConfig } from "@/lib/config/company";
 import { format } from "@/lib/date-utils";
 
 export type RahmenvertragData = {
@@ -35,7 +36,7 @@ export const RahmenvertragTemplate = ({ data }: { data: RahmenvertragData }) => 
         
         <Text style={styles.paragraph}>und</Text>
         
-        <Text style={[styles.paragraph, styles.bold]}>RheinAhr Dienstleistungen GmbH</Text>
+        <Text style={[styles.paragraph, styles.bold]}>{companyConfig.name}</Text>
         <Text style={styles.paragraph}>Theaterplatz 1, 53177 Bonn</Text>
         <Text style={styles.paragraph}>Vertreten durch Geschäftsführer Basem Aldanaf</Text>
         <Text style={styles.paragraph}>(nachfolgend „Personaldienstleister“ genannt)</Text>
@@ -202,7 +203,7 @@ export const RahmenvertragTemplate = ({ data }: { data: RahmenvertragData }) => 
       <View style={{ marginTop: 60, flexDirection: "row", justifyContent: "space-between" }}>
         <View style={styles.signatureBox}>
           <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 20 }}>Personaldienstleister</Text>
-          <Text>RheinAhr Dienstleistungen GmbH</Text>
+          <Text>{companyConfig.name}</Text>
           <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 40 }}>Ort, Datum, Unterschrift</Text>
         </View>
         

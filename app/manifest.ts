@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
+import { companyConfig } from "@/lib/config/company";
 
 // Web App Manifest → served at /manifest.webmanifest. Makes the platform
 // installable on phones (esp. the mobile-first care-staff portal).
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "RheinAhr Dienstleistungen",
-    short_name: "RheinAhr",
+    name: companyConfig.name,
+    short_name: companyConfig.shortName,
     description: "Personaldienstleistung für die Altenpflege — Einsätze, Verfügbarkeit, Leistungsnachweise.",
     start_url: "/de",
     scope: "/",
