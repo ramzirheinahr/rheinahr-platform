@@ -118,7 +118,7 @@ function OrderRequestDocument({ d }: { d: OrderRequestPdfData }) {
   return (
     <Document
       title={`Anfrage ${d.requestLabel} – ${d.facilityName}`}
-      author=companyConfig.name
+      author={companyConfig.name}
     >
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow} fixed>

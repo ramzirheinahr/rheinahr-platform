@@ -183,7 +183,7 @@ function LeistungsnachweisDocument({ entries }: { entries: LeistungsnachweisData
   return (
     <Document
       title={title}
-      author=companyConfig.name
+      author={companyConfig.name}
     >
       {entries.map((d, i) => (
         <LeistungsnachweisPage key={i} d={d} />

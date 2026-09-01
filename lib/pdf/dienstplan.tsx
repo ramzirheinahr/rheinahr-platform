@@ -102,7 +102,7 @@ function DienstplanDocument({ d }: { d: DienstplanPdfData }) {
   return (
     <Document
       title={`Dienstplan ${d.qualificationLabel} ${d.monthLabel}`}
-      author=companyConfig.name
+      author={companyConfig.name}
     >
       <Page size="A4" orientation="landscape" style={styles.page}>
         <View style={styles.headerRow} fixed>

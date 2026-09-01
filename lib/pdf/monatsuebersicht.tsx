@@ -109,7 +109,7 @@ function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
   return (
     <Document
       title={`Monatsübersicht ${d.monthLabel} – ${d.facilityName}`}
-      author=companyConfig.name
+      author={companyConfig.name}
     >
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow} fixed>
