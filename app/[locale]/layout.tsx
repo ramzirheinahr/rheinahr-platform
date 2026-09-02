@@ -29,7 +29,10 @@ export async function generateMetadata(): Promise<Metadata> {
     description: "Digitale Koordination qualifizierter Pflege- und Betreuungskräfte für Pflegeheime, Seniorenheime und ambulante Pflegedienste.",
     manifest: "/manifest.webmanifest",
     appleWebApp: { capable: true, title: companyConfig.shortName, statusBarStyle: "default" },
-    icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
+    icons: { 
+      icon: `/${companyConfig.shortName.toLowerCase()}-favicon.ico`, 
+      apple: `/${companyConfig.shortName.toLowerCase()}-icon-192.png` 
+    },
   };
 }
 
