@@ -8,7 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 import { qualLabel } from "@/lib/invoicing";
 import type { ClientScheduleRow, ClientScheduleTotals } from "@/lib/client-schedule";
 
@@ -105,7 +105,7 @@ const statusText = (r: ClientScheduleRow): string =>
           ? "Abgelehnt"
           : "Bestätigt";
 
-function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
+function MonatsuebersichtDocument({ d, companyConfig }: { d: MonatsuebersichtData, companyConfig: any }) {
   return (
     <Document
       title={`Monatsübersicht ${d.monthLabel} – ${d.facilityName}`}
@@ -201,6 +201,7 @@ function MonatsuebersichtDocument({ d }: { d: MonatsuebersichtData }) {
   );
 }
 
-export function renderMonatsuebersichtPdf(d: MonatsuebersichtData): Promise<Buffer> {
-  return renderToBuffer(<MonatsuebersichtDocument d={d} />);
+export async function renderMonatsuebersichtPdf(d: MonatsuebersichtData): Promise<Buffer> {
+  const companyConfig = await getCompanyConfig();
+  return renderToBuffer(<MonatsuebersichtDocument d={d} companyConfig={companyConfig} />);
 }

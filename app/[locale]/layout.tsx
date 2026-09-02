@@ -9,7 +9,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { CookieConsent } from "@/components/cookie-consent";
 import { PwaRegister } from "@/components/pwa-register";
 import { routing, localeDirection, type Locale } from "@/i18n/routing";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 
 const geistSans = localFont({
   src: "../fonts/GeistVF.woff",
@@ -23,6 +23,7 @@ const geistMono = localFont({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
+  const companyConfig = await getCompanyConfig();
   return {
     title: `${companyConfig.name} — Personaldienstleistung Altenpflege`,
     description: "Digitale Koordination qualifizierter Pflege- und Betreuungskräfte für Pflegeheime, Seniorenheime und ambulante Pflegedienste.",

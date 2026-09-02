@@ -1,7 +1,7 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 
 const styles = StyleSheet.create({
   page: { padding: 48, fontSize: 10, color: "#1f2937", fontFamily: "Helvetica", lineHeight: 1.5 },
@@ -36,7 +36,7 @@ export type PersonallistePdfData = {
   }[];
 };
 
-export const PersonallisteTemplate = ({ data }: { data: PersonallistePdfData }) => {
+export const PersonallisteTemplate = ({ data, companyConfig }: { data: PersonallistePdfData, companyConfig: any }) => {
   const formatSum = (h: number) => {
     return h.toFixed(2).replace(".", ",");
   };

@@ -1,7 +1,7 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 import { format } from "@/lib/date-utils";
 
 export type RahmenvertragData = {
@@ -21,7 +21,7 @@ const styles = StyleSheet.create({
   signatureBox: { marginTop: 40, borderTopWidth: 1, borderTopColor: "#9ca3af", paddingTop: 8, width: 200 },
 });
 
-export const RahmenvertragTemplate = ({ data }: { data: RahmenvertragData }) => (
+export const RahmenvertragTemplate = ({ data, companyConfig }: { data: RahmenvertragData, companyConfig: any }) => (
   <Document>
     <Page size="A4" style={styles.page}>
       <Text style={styles.header}>Arbeitnehmerüberlassungsvertrag (Rahmenvertrag)</Text>
@@ -218,5 +218,6 @@ export const RahmenvertragTemplate = ({ data }: { data: RahmenvertragData }) => 
 );
 
 export async function renderRahmenvertragPdf(data: RahmenvertragData) {
-  return renderToBuffer(<RahmenvertragTemplate data={data} />);
+  const companyConfig = await getCompanyConfig();
+  return renderToBuffer(<RahmenvertragTemplate companyConfig={companyConfig} data={data} />);
 }

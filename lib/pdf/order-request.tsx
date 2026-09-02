@@ -8,7 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 import { qualLabel } from "@/lib/invoicing";
 import type { ClientScheduleRow, ClientScheduleTotals } from "@/lib/client-schedule";
 
@@ -114,7 +114,7 @@ const statusText = (r: ClientScheduleRow): string => {
                   : "Bestätigt";
 };
 
-function OrderRequestDocument({ d }: { d: OrderRequestPdfData }) {
+function OrderRequestDocument({ d, companyConfig }: { d: OrderRequestPdfData, companyConfig: any }) {
   return (
     <Document
       title={`Anfrage ${d.requestLabel} – ${d.facilityName}`}
@@ -210,6 +210,7 @@ function OrderRequestDocument({ d }: { d: OrderRequestPdfData }) {
   );
 }
 
-export function renderOrderRequestPdf(d: OrderRequestPdfData): Promise<Buffer> {
-  return renderToBuffer(<OrderRequestDocument d={d} />);
+export async function renderOrderRequestPdf(d: OrderRequestPdfData): Promise<Buffer> {
+  const companyConfig = await getCompanyConfig();
+  return renderToBuffer(<OrderRequestDocument d={d} companyConfig={companyConfig} />);
 }

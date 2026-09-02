@@ -1,7 +1,7 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 import { format } from "@/lib/date-utils";
 import { buildAddressString } from "@/lib/utils";
 
@@ -58,7 +58,7 @@ const getQualificationText = (q: string) => {
   return map[q] || q;
 };
 
-export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) => {
+export const ArbeitsvertragTemplate = ({ data, companyConfig }: { data: ArbeitsvertragData, companyConfig: any }) => {
   const startDateStr = data.startDate ? format(data.startDate, "dd.MM.yyyy") : "___.___.____";
   const endDateStr = data.endDate ? format(data.endDate, "dd.MM.yyyy") : "___.___.____";
   const isUnbefristet = data.contractType === "unbefristet";
@@ -456,5 +456,6 @@ export const ArbeitsvertragTemplate = ({ data }: { data: ArbeitsvertragData }) =
 };
 
 export async function generateArbeitsvertragPdf(data: ArbeitsvertragData): Promise<Buffer> {
-  return await renderToBuffer(<ArbeitsvertragTemplate data={data} />);
+  const companyConfig = await getCompanyConfig();
+  return await renderToBuffer(<ArbeitsvertragTemplate companyConfig={companyConfig} data={data} />);
 }

@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465;
@@ -95,7 +95,7 @@ export async function sendEmailToRecipients(
   const finalHtml = `
 <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
   ${contentHtml}
-  ${getEmailFooterHtml()}
+  ${await getEmailFooterHtml()}
 </div>
   `;
 
@@ -130,7 +130,8 @@ export async function sendEmailToUsers(
   return sendEmailToRecipients(userIds, payload, options);
 }
 
-function getEmailFooterHtml(): string {
+async function getEmailFooterHtml(): Promise<string> {
+  const companyConfig = await getCompanyConfig();
   return `
 <br><br>
 <hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;" />

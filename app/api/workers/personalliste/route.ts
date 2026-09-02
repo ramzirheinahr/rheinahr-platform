@@ -63,8 +63,12 @@ export async function GET(req: Request) {
     };
   });
 
+  const { getCompanyConfig } = await import("@/lib/config/company");
+  const companyConfig = await getCompanyConfig();
+
   const pdfStream = await renderToStream(
     React.createElement(PersonallisteTemplate, {
+      companyConfig,
       data: {
         month,
         workers: workersData,

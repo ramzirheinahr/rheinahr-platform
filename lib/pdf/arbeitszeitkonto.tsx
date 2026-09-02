@@ -1,7 +1,7 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 import { MonthlyHoursAccount } from "@/lib/hours-account";
 
 const styles = StyleSheet.create({
@@ -43,7 +43,7 @@ export type ArbeitszeitkontoPdfData = {
   initialCarryover: number;
 };
 
-export const ArbeitszeitkontoTemplate = ({ data }: { data: ArbeitszeitkontoPdfData }) => {
+export const ArbeitszeitkontoTemplate = ({ data, companyConfig }: { data: ArbeitszeitkontoPdfData, companyConfig: any }) => {
   const formatHour = (h: number) => {
     if (h === 0) return "";
     return h.toFixed(2).replace(".", ",");

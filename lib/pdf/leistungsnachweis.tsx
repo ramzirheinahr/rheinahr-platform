@@ -9,7 +9,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export type LeistungsnachweisData = {
   facilityName: string | null;
@@ -104,7 +104,7 @@ function Field({ label, value }: { label: string; value?: string | null | number
   );
 }
 
-function LeistungsnachweisPage({ d }: { d: LeistungsnachweisData }) {
+function LeistungsnachweisPage({ d, companyConfig }: { d: LeistungsnachweisData, companyConfig: any }) {
   return (
     <Page size="A4" style={styles.page}>
       <View style={styles.headerRow}>
@@ -174,7 +174,7 @@ function LeistungsnachweisPage({ d }: { d: LeistungsnachweisData }) {
   );
 }
 
-function LeistungsnachweisDocument({ entries }: { entries: LeistungsnachweisData[] }) {
+function LeistungsnachweisDocument({ entries, companyConfig }: { entries: LeistungsnachweisData[], companyConfig: any }) {
   const first = entries[0];
   const title = entries.length === 1 
     ? `Leistungsnachweis ${first.shiftDate}` 
@@ -186,20 +186,22 @@ function LeistungsnachweisDocument({ entries }: { entries: LeistungsnachweisData
       author={companyConfig.name}
     >
       {entries.map((d, i) => (
-        <LeistungsnachweisPage key={i} d={d} />
+        <LeistungsnachweisPage key={i} d={d} companyConfig={companyConfig} />
       ))}
     </Document>
   );
 }
 
-export function renderLeistungsnachweisPdf(
-  d: LeistungsnachweisData,
+export async function renderLeistungsnachweisPdf(
+  entry: LeistungsnachweisData
 ): Promise<Buffer> {
-  return renderToBuffer(<LeistungsnachweisDocument entries={[d]} />);
+  const companyConfig = await getCompanyConfig();
+  return renderToBuffer(<LeistungsnachweisDocument entries={[entry]} companyConfig={companyConfig} />);
 }
 
-export function renderBulkLeistungsnachweisPdf(
-  entries: LeistungsnachweisData[],
+export async function renderBulkLeistungsnachweisPdf(
+  entries: LeistungsnachweisData[]
 ): Promise<Buffer> {
-  return renderToBuffer(<LeistungsnachweisDocument entries={entries} />);
+  const companyConfig = await getCompanyConfig();
+  return renderToBuffer(<LeistungsnachweisDocument entries={entries} companyConfig={companyConfig} />);
 }

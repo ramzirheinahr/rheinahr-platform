@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 
 // Web App Manifest → served at /manifest.webmanifest. Makes the platform
 // installable on phones (esp. the mobile-first care-staff portal).
-export default function manifest(): MetadataRoute.Manifest {
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const companyConfig = await getCompanyConfig();
   return {
     name: companyConfig.name,
     short_name: companyConfig.shortName,

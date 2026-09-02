@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { LegalShell } from "@/components/legal/legal-shell";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export async function generateMetadata(): Promise<Metadata> {
+  const companyConfig = await getCompanyConfig();
   return {
     title: `Impressum — ${companyConfig.name}`,
   };
@@ -16,6 +17,8 @@ export default async function ImpressumPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+
+  const companyConfig = await getCompanyConfig();
 
   return (
     <LegalShell title="Impressum">

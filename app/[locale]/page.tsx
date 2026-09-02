@@ -6,7 +6,7 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Logo } from "@/components/logo";
 import { qualifications } from "@/lib/validations";
 import { ContactForm } from "@/components/landing/contact-form";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig, CompanyConfig } from "@/lib/config/company";
 import { prisma } from "@/lib/prisma";
 import {
   ShieldCheck,
@@ -30,14 +30,6 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 
-const COMPANY = {
-  phone: companyConfig.phone,
-  tel: companyConfig.phone.replace(/[^0-9+]/g, ''),
-  whatsapp: `https://wa.me/${companyConfig.mobile.replace(/[^0-9+]/g, '').replace(/^\+49/, '49')}`,
-  email: companyConfig.email,
-  address: `${companyConfig.street}, ${companyConfig.city}`,
-};
-
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
@@ -49,14 +41,24 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
     return acc;
   }, {} as Record<string, string>);
 
-  return <Landing settings={settings} />;
+  const companyConfig = await getCompanyConfig();
+
+  return <Landing settings={settings} companyConfig={companyConfig} />;
 }
 
-function Landing({ settings }: { settings: Record<string, string> }) {
+function Landing({ settings, companyConfig }: { settings: Record<string, string>, companyConfig: CompanyConfig }) {
   const t = useTranslations("landing");
   const c = useTranslations("common");
   const f = useTranslations("footer");
   const eq = useTranslations("enums.qualification");
+
+  const COMPANY = {
+    phone: companyConfig.phone,
+    tel: companyConfig.phone.replace(/[^0-9+]/g, ''),
+    whatsapp: `https://wa.me/${companyConfig.mobile.replace(/[^0-9+]/g, '').replace(/^\+49/, '49')}`,
+    email: companyConfig.email,
+    address: `${companyConfig.street}, ${companyConfig.city}`,
+  };
 
   const stats = [
     { value: "200+", label: t("stats.workers") },

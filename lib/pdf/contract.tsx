@@ -9,7 +9,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export type ContractPdfData = {
   facilityName: string;
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   audit: { fontSize: 7, color: "#9ca3af", marginTop: 2 },
 });
 
-const ContractPage = ({ data }: { data: ContractPdfData }) => (
+const ContractPage = ({ data, companyConfig }: { data: ContractPdfData, companyConfig: any }) => (
   <Page size="A4" style={styles.page}>
     <Text style={styles.header}>Arbeitnehmerüberlassungsvertrag</Text>
     
@@ -170,18 +170,19 @@ const ContractPage = ({ data }: { data: ContractPdfData }) => (
   </Page>
 );
 
-const AuegContractTemplate = ({ data }: { data: ContractPdfData }) => (
+const AuegContractTemplate = ({ data, companyConfig }: { data: ContractPdfData, companyConfig: any }) => (
   <Document>
     {data.splitByShift ? (
       data.assignments.map((a, i) => (
-        <ContractPage key={i} data={{ ...data, assignments: [a], period: a.shiftDate }} />
+        <ContractPage key={i} data={{ ...data, assignments: [a], period: a.shiftDate }} companyConfig={companyConfig} />
       ))
     ) : (
-      <ContractPage data={data} />
+      <ContractPage data={data} companyConfig={companyConfig} />
     )}
   </Document>
 );
 
 export async function renderContractPdf(data: ContractPdfData): Promise<Buffer> {
-  return Buffer.from(await renderToBuffer(<AuegContractTemplate data={data} />));
+  const companyConfig = await getCompanyConfig();
+  return Buffer.from(await renderToBuffer(<AuegContractTemplate companyConfig={companyConfig} data={data} />));
 }

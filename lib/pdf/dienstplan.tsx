@@ -8,7 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 import {
   availCellText,
   workCellText,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   },
 });
 
-function DienstplanDocument({ d }: { d: DienstplanPdfData }) {
+function DienstplanDocument({ d, companyConfig }: { d: DienstplanPdfData, companyConfig: any }) {
   const dayIdx = Array.from({ length: d.daysInMonth }, (_, i) => i);
   return (
     <Document
@@ -190,6 +190,7 @@ function DienstplanDocument({ d }: { d: DienstplanPdfData }) {
   );
 }
 
-export function renderDienstplanPdf(d: DienstplanPdfData): Promise<Buffer> {
-  return renderToBuffer(<DienstplanDocument d={d} />);
+export async function renderDienstplanPdf(d: DienstplanPdfData): Promise<Buffer> {
+  const companyConfig = await getCompanyConfig();
+  return renderToBuffer(<DienstplanDocument d={d} companyConfig={companyConfig} />);
 }

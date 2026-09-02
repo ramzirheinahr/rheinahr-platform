@@ -39,8 +39,12 @@ export async function GET(
   const hoursAcc = await getWorkerHoursAccount(id, "2026-07", endMonth);
   const actualStartMonthForPdf = hoursAcc.months.length > 0 ? hoursAcc.months[0].month : startMonth;
 
+  const { getCompanyConfig } = await import("@/lib/config/company");
+  const companyConfig = await getCompanyConfig();
+
   const pdfStream = await renderToStream(
     React.createElement(ArbeitszeitkontoTemplate, {
+      companyConfig,
       data: {
         workerName: worker.fullName,
         workerId: worker.id,

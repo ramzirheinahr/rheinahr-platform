@@ -9,7 +9,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import React from "react";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 import path from "path";
 
 export type PayrollPdfData = {
@@ -89,6 +89,7 @@ const styles = StyleSheet.create({
 });
 
 export async function generatePayrollPdf(data: PayrollPdfData): Promise<Buffer> {
+  const companyConfig = await getCompanyConfig();
   // same layout as invoice roughly
   const element = (
     <Document>

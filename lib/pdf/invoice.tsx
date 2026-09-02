@@ -10,7 +10,7 @@ import {
 } from "@react-pdf/renderer";
 import React from "react";
 import path from "path";
-import { companyConfig } from "@/lib/config/company";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export type InvoicePdfData = {
   invoiceNumber: string;
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   footerText: { marginBottom: 2 },
 });
 
-const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
+const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData, companyConfig: any }) => (
   <Document>
     <Page size="A4" style={styles.page}>
       
@@ -242,5 +242,6 @@ const InvoiceTemplate = ({ data }: { data: InvoicePdfData }) => (
 );
 
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
-  return await renderToBuffer(<InvoiceTemplate data={data} />);
+  const companyConfig = await getCompanyConfig();
+  return await renderToBuffer(<InvoiceTemplate companyConfig={companyConfig} data={data} />);
 }
