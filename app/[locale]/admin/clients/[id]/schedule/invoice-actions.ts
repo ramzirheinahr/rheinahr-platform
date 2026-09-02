@@ -8,10 +8,18 @@ import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } 
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { sendEmailToRecipients } from "@/lib/email";
+import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
 
 const VAT_RATE = 0.19;
 
-export async function generateMonthInvoices(clientId: string, year: number, month: number, customInvoiceNumber?: string, recipients?: string[]) {
+export async function generateMonthInvoices(
+  clientId: string,
+  year: number,
+  month: number,
+  customInvoiceNumber?: string,
+  recipients?: string[],
+  attachTimesheets: boolean = true
+) {
   const user = await requireRole("de", "admin"); // Locale doesn't matter for role check here
   
   const startDate = new Date(Date.UTC(year, month - 1, 1));
@@ -135,20 +143,33 @@ export async function generateMonthInvoices(clientId: string, year: number, mont
   const pdfData = buildInvoicePdfData(invoice, client, assignments);
   const pdfBuffer = await generateInvoicePdf(pdfData);
 
+  const attachments: { filename: string; content: Buffer; contentType: string }[] = [
+    {
+      filename: `${invoiceNumber}.pdf`,
+      content: pdfBuffer,
+      contentType: "application/pdf"
+    }
+  ];
+
+  if (attachTimesheets && assignments.length > 0) {
+    const timesheetBuffer = await generateLeistungsnachweisePdf(assignments.map(a => a.id));
+    if (timesheetBuffer) {
+      attachments.push({
+        filename: `Leistungsnachweise_${invoiceNumber}.pdf`,
+        content: timesheetBuffer,
+        contentType: "application/pdf"
+      });
+    }
+  }
+
   const targetRecipients = recipients && recipients.length > 0 ? recipients : [client.userId];
 
   // Send Email with Attachment
   await sendEmailToRecipients(targetRecipients, {
     subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-    body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+    body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
     url: `/client/schedule?year=${year}&month=${month}`,
-    attachments: [
-      {
-        filename: `${invoiceNumber}.pdf`,
-        content: pdfBuffer,
-        contentType: "application/pdf"
-      }
-    ]
+    attachments
   });
 
   revalidatePath("/", "layout");

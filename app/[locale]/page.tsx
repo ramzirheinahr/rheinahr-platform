@@ -7,6 +7,7 @@ import { Logo } from "@/components/logo";
 import { qualifications } from "@/lib/validations";
 import { ContactForm } from "@/components/landing/contact-form";
 import { companyConfig } from "@/lib/config/company";
+import { prisma } from "@/lib/prisma";
 import {
   ShieldCheck,
   Lock,
@@ -40,10 +41,18 @@ const COMPANY = {
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  return <Landing />;
+
+  // Fetch dynamic system settings (e.g. landing page images uploaded by admin)
+  const settingsArray = await prisma.systemSetting.findMany();
+  const settings = settingsArray.reduce((acc, setting) => {
+    acc[setting.key] = setting.value;
+    return acc;
+  }, {} as Record<string, string>);
+
+  return <Landing settings={settings} />;
 }
 
-function Landing() {
+function Landing({ settings }: { settings: Record<string, string> }) {
   const t = useTranslations("landing");
   const c = useTranslations("common");
   const f = useTranslations("footer");
@@ -146,7 +155,7 @@ function Landing() {
               <div className="relative mx-auto w-full max-w-lg lg:max-w-none">
                 <div className="relative rounded-3xl border border-white/10 bg-muted/20 p-2 shadow-2xl backdrop-blur-3xl overflow-hidden aspect-[4/3] group">
                   <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-transparent to-secondary/10 opacity-50 z-0"></div>
-                  <Image src="/hero_image.png" alt={companyConfig.shortName} fill className="object-cover rounded-2xl z-10 transition-transform duration-700 group-hover:scale-105" priority />
+                  <Image src={settings["landing.hero_image"] || "/hero_image.png"} alt={companyConfig.shortName} fill className="object-cover rounded-2xl z-10 transition-transform duration-700 group-hover:scale-105" priority />
                 </div>
                 {/* Floating Elements for aesthetics */}
                 <div className="absolute -left-8 top-1/4 rounded-2xl border bg-background/80 backdrop-blur-md p-4 shadow-xl hidden sm:block animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
@@ -236,7 +245,7 @@ function Landing() {
               {/* Steps Image Space */}
               <div className="relative rounded-3xl border bg-muted/20 p-2 shadow-2xl aspect-square lg:aspect-auto lg:h-[600px] overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-bl from-primary/10 to-transparent z-0"></div>
-                <Image src="/facilities_team.png" alt="Our Team" fill className="object-cover rounded-2xl z-10 transition-transform duration-700 group-hover:scale-105" />
+                <Image src={settings["landing.facilities_image"] || "/facilities_team.png"} alt="Our Team" fill className="object-cover rounded-2xl z-10 transition-transform duration-700 group-hover:scale-105" />
               </div>
             </div>
           </div>
@@ -300,7 +309,7 @@ function Landing() {
             
             {/* Workers Image Space */}
             <div className="mt-8 relative rounded-3xl border bg-muted/20 shadow-inner h-64 md:h-96 overflow-hidden group">
-              <Image src="/workers_community.png" alt="Community" fill className="object-cover object-[center_15%] transition-transform duration-700 group-hover:scale-105" />
+              <Image src={settings["landing.workers_image"] || "/workers_community.png"} alt="Community" fill className="object-cover object-[center_15%] transition-transform duration-700 group-hover:scale-105" />
             </div>
           </div>
         </section>

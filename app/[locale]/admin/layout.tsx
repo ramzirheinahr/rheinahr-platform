@@ -53,6 +53,7 @@ export default async function AdminLayout({
   if (user.role === "super_admin") {
     const tu = await getTranslations("users");
     nav.push({ href: "/admin/users", label: tu("title"), icon: "users" as any });
+    nav.push({ href: "/admin/settings/system", label: "System Settings", icon: "settings" });
   }
 
   return (

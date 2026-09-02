@@ -714,3 +714,11 @@ model WorkerSollHours {
   @@unique([workerId, validFrom])
   @@map("worker_soll_hours")
 }
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}

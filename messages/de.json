@@ -1042,6 +1042,8 @@
     "sending": "Wird gesendet...",
     "sendSuccess": "E-Mail wurde erfolgreich versendet!",
     "noRecipientsSelected": "Bitte wählen Sie mindestens einen Empfänger aus.",
-    "invalidEmail": "Ungültige E-Mail-Adresse."
+    "invalidEmail": "Ungültige E-Mail-Adresse.",
+    "attachTimesheetsLabel": "Leistungsnachweise (Stundenzettel) beifügen",
+    "attachTimesheetsHint": "Alle zu dieser Rechnung gehörenden Schichtbestätigungen (auch unbestätigte/hochgeladene Nachweise) gesammelt als PDF anhängen."
   }
 }

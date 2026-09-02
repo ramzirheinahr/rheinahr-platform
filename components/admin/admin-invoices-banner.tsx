@@ -82,11 +82,12 @@ export function AdminInvoicesBanner({
     }
   };
 
-  const handleSendEmail = async (recipients: string[]) => {
+  const handleSendEmail = async (recipients: string[], options?: { attachTimesheets?: boolean }) => {
     if (!emailInvoiceId) return;
     await sendInvoiceEmail({
       invoiceId: emailInvoiceId,
       recipients,
+      attachTimesheets: options?.attachTimesheets,
     });
   };
 

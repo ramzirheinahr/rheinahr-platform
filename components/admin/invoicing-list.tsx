@@ -70,12 +70,13 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
     }
   };
 
-  const handleSendEmail = async (recipients: string[]) => {
+  const handleSendEmail = async (recipients: string[], options?: { attachTimesheets?: boolean }) => {
     if (!emailInvoiceId) return;
     try {
       await sendInvoiceEmail({
         invoiceId: emailInvoiceId,
         recipients,
+        attachTimesheets: options?.attachTimesheets,
       });
       toast.success("E-Mail erfolgreich versendet!");
       setEmailInvoiceId(null);

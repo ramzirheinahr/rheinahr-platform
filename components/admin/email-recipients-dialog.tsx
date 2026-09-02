@@ -20,6 +20,7 @@ import {
   X,
   Check,
   Loader2,
+  FileCheck,
 } from "lucide-react";
 import {
   getFacilityRecipients,
@@ -37,7 +38,8 @@ export interface EmailRecipientsDialogProps {
   clientId?: string;
   initialRecipients?: FacilityRecipient[];
   facilityName?: string;
-  onSend: (recipients: string[]) => Promise<void>;
+  showAttachTimesheets?: boolean;
+  onSend: (recipients: string[], options?: { attachTimesheets?: boolean }) => Promise<void>;
 }
 
 export function EmailRecipientsDialog({
@@ -51,6 +53,7 @@ export function EmailRecipientsDialog({
   clientId,
   initialRecipients,
   facilityName: initialFacilityName,
+  showAttachTimesheets,
   onSend,
 }: EmailRecipientsDialogProps) {
   const t = useTranslations("emailDialog");
@@ -65,12 +68,14 @@ export function EmailRecipientsDialog({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [customEmails, setCustomEmails] = useState<string[]>([]);
   const [customInput, setCustomInput] = useState("");
+  const [attachTimesheets, setAttachTimesheets] = useState(true);
   const [loading, setLoading] = useState(false);
   const [isSending, startTransition] = useTransition();
 
   // Load facility recipients when dialog opens
   useEffect(() => {
     if (!open) return;
+    setAttachTimesheets(true);
 
     if (initialRecipients && initialRecipients.length > 0) {
       setRecipients(initialRecipients);
@@ -167,7 +172,7 @@ export function EmailRecipientsDialog({
 
     startTransition(async () => {
       try {
-        await onSend(chosenList);
+        await onSend(chosenList, { attachTimesheets });
         toast.success(t("sendSuccess"));
         onOpenChange(false);
       } catch (err: unknown) {
@@ -196,6 +201,41 @@ export function EmailRecipientsDialog({
         </DialogHeader>
 
         <div className="px-6 py-3 flex-1 overflow-y-auto space-y-5">
+          {/* Shift Confirmations (Leistungsnachweise) Attachment Option */}
+          {Boolean(invoiceId || showAttachTimesheets) && (
+            <div
+              onClick={() => setAttachTimesheets((prev) => !prev)}
+              className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-all ${
+                attachTimesheets
+                  ? "border-emerald-500/50 bg-emerald-50/40"
+                  : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+              }`}
+            >
+              <input
+                type="checkbox"
+                id="attach-timesheets-toggle"
+                checked={attachTimesheets}
+                onChange={(e) => setAttachTimesheets(e.target.checked)}
+                className="mt-0.5 size-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div className="space-y-0.5 select-none flex-1">
+                <div className="flex items-center gap-1.5">
+                  <FileCheck className="size-3.5 text-emerald-600 shrink-0" />
+                  <label
+                    htmlFor="attach-timesheets-toggle"
+                    className="text-xs font-semibold text-slate-900 cursor-pointer block"
+                  >
+                    {t("attachTimesheetsLabel")}
+                  </label>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {t("attachTimesheetsHint")}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Quick Select Buttons */}
           <div className="flex items-center justify-between text-xs text-muted-foreground border-b pb-2">
             <span className="font-medium">{t("selectRecipients")}</span>

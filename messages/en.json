@@ -1038,6 +1038,8 @@
     "sending": "Sending...",
     "sendSuccess": "Email sent successfully!",
     "noRecipientsSelected": "Please select at least one recipient.",
-    "invalidEmail": "Invalid email address."
+    "invalidEmail": "Invalid email address.",
+    "attachTimesheetsLabel": "Attach shift confirmations (timesheets)",
+    "attachTimesheetsHint": "Attach all shift confirmation sheets for this invoice (including unconfirmed/uploaded records) as a PDF."
   }
 }
