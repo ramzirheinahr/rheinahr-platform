@@ -30,8 +30,8 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: "/manifest.webmanifest",
     appleWebApp: { capable: true, title: companyConfig.shortName, statusBarStyle: "default" },
     icons: { 
-      icon: `/${companyConfig.shortName.toLowerCase()}-favicon.ico`, 
-      apple: `/${companyConfig.shortName.toLowerCase()}-icon-192.png` 
+      icon: companyConfig.iconUrl, 
+      apple: companyConfig.iconUrl 
     },
   };
 }

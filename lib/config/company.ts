@@ -20,6 +20,7 @@ export type CompanyConfig = {
   iban: string;
   bic: string;
   logoUrl: string;
+  iconUrl: string;
 };
 
 // Fallbacks are read from env during build or if DB is empty.
@@ -43,6 +44,7 @@ const FALLBACK: CompanyConfig = {
   iban: process.env.NEXT_PUBLIC_COMPANY_IBAN || "DE39 3705 0299 0113 4293 22",
   bic: process.env.NEXT_PUBLIC_COMPANY_BIC || "COKSDE33XXX",
   logoUrl: process.env.NEXT_PUBLIC_COMPANY_LOGO_URL || "/logo.png",
+  iconUrl: process.env.NEXT_PUBLIC_COMPANY_ICON_URL || "/rheinahr-icon-192.png",
 };
 
 export async function getCompanyConfig(): Promise<CompanyConfig> {
@@ -78,6 +80,7 @@ export async function getCompanyConfig(): Promise<CompanyConfig> {
       iban: dbConf["company.iban"] || FALLBACK.iban,
       bic: dbConf["company.bic"] || FALLBACK.bic,
       logoUrl: dbConf["company.logoUrl"] || FALLBACK.logoUrl,
+      iconUrl: dbConf["company.iconUrl"] || FALLBACK.iconUrl,
     };
   } catch (e) {
     return FALLBACK;

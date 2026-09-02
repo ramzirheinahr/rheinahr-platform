@@ -17,9 +17,9 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     lang: "de",
     dir: "auto",
     icons: [
-      { src: `/${companyConfig.shortName.toLowerCase()}-icon-192.png`, sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: `/${companyConfig.shortName.toLowerCase()}-icon-512.png`, sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: `/${companyConfig.shortName.toLowerCase()}-icon-512.png`, sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: companyConfig.iconUrl, sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: companyConfig.iconUrl, sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: companyConfig.iconUrl, sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

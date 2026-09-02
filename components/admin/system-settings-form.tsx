@@ -122,6 +122,11 @@ export function SystemSettingsForm({ settings }: { settings: Record<string, stri
         settingKey="landing.workers_image"
         initialUrl={settings["landing.workers_image"] || null}
       />
+      <ImageUploadField
+        label="App Icon (Favicon & PWA)"
+        settingKey="company.iconUrl"
+        initialUrl={settings["company.iconUrl"] || null}
+      />
     </div>
   );
 }
