@@ -127,3 +127,64 @@ export function toCsv(rows: InvoiceRow[]): string {
   }
   return "﻿" + lines.join("\r\n");
 }
+
+/**
+ * Calculates the next sequential invoice number based on the highest existing invoice sequence.
+ * This avoids collisions when past invoices have been deleted or when numbers have gaps.
+ */
+export async function getNextInvoiceSequenceNumber(): Promise<number> {
+  const invoices = await prisma.invoice.findMany({
+    select: { invoiceNumber: true },
+  });
+
+  let maxSeq = 303; // Invoices start at 304 if none exist
+  for (const inv of invoices) {
+    const match = inv.invoiceNumber.match(/^(\d+)/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  }
+
+  return maxSeq + 1;
+}
+
+/**
+ * Generates a guaranteed unique invoice number in the standard company format:
+ * `${seqNumber}-${identifier}-${monthStr}${yearStr}` (e.g. `476-268-0726`).
+ */
+export async function generateUniqueInvoiceNumber({
+  identifier,
+  date,
+  customInvoiceNumber,
+}: {
+  identifier: string;
+  date: Date;
+  customInvoiceNumber?: string;
+}): Promise<string> {
+  if (customInvoiceNumber && customInvoiceNumber.trim() !== "") {
+    const trimmed = customInvoiceNumber.trim();
+    const existing = await prisma.invoice.findUnique({
+      where: { invoiceNumber: trimmed },
+    });
+    if (existing) {
+      throw new Error(`Die Rechnungsnummer "${trimmed}" ist bereits vergeben.`);
+    }
+    return trimmed;
+  }
+
+  let nextSeq = await getNextInvoiceSequenceNumber();
+  const monthStr = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const yearStr = String(date.getUTCFullYear()).slice(-2);
+
+  let candidate = `${nextSeq}-${identifier}-${monthStr}${yearStr}`;
+  while (await prisma.invoice.findUnique({ where: { invoiceNumber: candidate } })) {
+    nextSeq++;
+    candidate = `${nextSeq}-${identifier}-${monthStr}${yearStr}`;
+  }
+
+  return candidate;
+}
+

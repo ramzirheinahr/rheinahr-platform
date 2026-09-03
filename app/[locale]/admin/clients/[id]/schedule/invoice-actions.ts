@@ -9,6 +9,7 @@ import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { sendEmailToRecipients } from "@/lib/email";
 import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
+import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
 
 const VAT_RATE = 0.19;
 
@@ -68,16 +69,13 @@ export async function generateMonthInvoices(
   const vatAmount = netAmount * VAT_RATE;
   const grossAmount = netAmount + vatAmount;
 
-  // Generate invoice number
-  // Format: INV-YYYYMM-[ShortCode or ID]-Seq
-  const seqCount = await prisma.invoice.count();
-  const seqNumber = String(seqCount + 304).padStart(4, "0");
   const monthStr = String(month).padStart(2, "0");
-  const identifier = client.shortCode || client.id.substring(0, 4).toUpperCase();
-  const generatedNumber = `279-${identifier}-${year}${monthStr}-${seqNumber}`;
-  const invoiceNumber = customInvoiceNumber && customInvoiceNumber.trim() !== "" 
-    ? customInvoiceNumber.trim() 
-    : generatedNumber;
+  const identifier = client.internalNumber || client.shortCode || client.id.substring(0, 4).toUpperCase();
+  const invoiceNumber = await generateUniqueInvoiceNumber({
+    identifier,
+    date: startDate,
+    customInvoiceNumber,
+  });
 
   // Create invoice
   const invoice = await prisma.invoice.create({
@@ -164,13 +162,17 @@ export async function generateMonthInvoices(
 
   const targetRecipients = recipients && recipients.length > 0 ? recipients : [client.userId];
 
-  // Send Email with Attachment
-  await sendEmailToRecipients(targetRecipients, {
-    subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-    body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
-    url: `/client/schedule?year=${year}&month=${month}`,
-    attachments
-  });
+  // Send Email with Attachment (non-fatal if SMTP fails)
+  try {
+    await sendEmailToRecipients(targetRecipients, {
+      subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
+      body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+      url: `/client/schedule?year=${year}&month=${month}`,
+      attachments
+    });
+  } catch (emailErr) {
+    console.error("Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);
+  }
 
   revalidatePath("/", "layout");
   return { ok: true, invoiceId: invoice.id };

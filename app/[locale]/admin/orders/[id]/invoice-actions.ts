@@ -9,6 +9,7 @@ import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { sendEmailToRecipients } from "@/lib/email";
 import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
+import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
 
 const VAT_RATE = 0.19;
 
@@ -218,14 +219,12 @@ export async function generateOrderInvoices(
   const vatAmount = netAmount * VAT_RATE;
   const grossAmount = netAmount + vatAmount;
 
-  const seqCount = await prisma.invoice.count();
-  const seqNumber = String(seqCount + 304);
   const identifier = client.internalNumber || client.shortCode || client.id.substring(0, 4).toUpperCase();
-  const monthStr = String(firstDate.getUTCMonth() + 1).padStart(2, "0");
-  const yearStr = String(firstDate.getUTCFullYear()).slice(-2);
-  const invoiceNumber = customInvoiceNumber && customInvoiceNumber.trim() !== "" 
-    ? customInvoiceNumber.trim() 
-    : `${seqNumber}-${identifier}-${monthStr}${yearStr}`;
+  const invoiceNumber = await generateUniqueInvoiceNumber({
+    identifier,
+    date: firstDate,
+    customInvoiceNumber,
+  });
 
   // Create invoice
   const invoice = await prisma.invoice.create({
@@ -311,13 +310,17 @@ export async function generateOrderInvoices(
 
   const targetRecipients = recipients && recipients.length > 0 ? recipients : [client.userId];
 
-  // Send Email with Attachment
-  await sendEmailToRecipients(targetRecipients, {
-    subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-    body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
-    url: `/client/orders/${requestGroupId}`,
-    attachments
-  });
+  // Send Email with Attachment (non-fatal if SMTP fails)
+  try {
+    await sendEmailToRecipients(targetRecipients, {
+      subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
+      body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+      url: `/client/orders/${requestGroupId}`,
+      attachments
+    });
+  } catch (emailErr) {
+    console.error("Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);
+  }
 
   revalidatePath("/", "layout");
   return { ok: true, invoiceId: invoice.id };
