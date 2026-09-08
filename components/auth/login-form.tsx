@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "@/i18n/navigation";
+import { useRouter, Link } from "@/i18n/navigation";
 import { loginUser } from "@/app/[locale]/login/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,15 @@ export function LoginForm() {
         <Input id="email" name="email" type="email" autoComplete="email" required />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">{c("password")}</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">{c("password")}</Label>
+          <Link
+            href="/forgot-password"
+            className="text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-4 hover:underline"
+          >
+            {t("forgotPassword")}
+          </Link>
+        </div>
         <Input
           id="password"
           name="password"

@@ -124,6 +124,7 @@ export async function updateClientSubUser(
   const raw = {
     fullName: formData.get("fullName"),
     email: formData.get("email"),
+    password: formData.get("password") || undefined,
     jobTitle: formData.get("jobTitle"),
     active: formData.get("active") === "on",
   };
@@ -139,13 +140,45 @@ export async function updateClientSubUser(
     return { ok: false, error: "forbidden" };
   }
 
+  // Handle email change if needed
+  if (data.email !== targetUser.email) {
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+      select: { id: true },
+    });
+    if (existing && existing.id !== id) {
+      return { ok: false, error: "emailInUse" };
+    }
+    const supabase = createSupabaseAdminClient();
+    const { error: authErr } = await supabase.auth.admin.updateUserById(id, {
+      email: data.email,
+      email_confirm: true,
+    });
+    if (authErr) {
+      return { ok: false, error: "emailInUse" };
+    }
+  }
+
+  // Handle optional password update
+  let newPasswordHash: string | undefined = undefined;
+  if (data.password) {
+    if (data.password.length < 12) {
+      return { ok: false, error: "passwordMinLength" };
+    }
+    newPasswordHash = await bcrypt.hash(data.password, 12);
+    const supabase = createSupabaseAdminClient();
+    await supabase.auth.admin.updateUserById(id, { password: data.password }).catch(() => {});
+  }
+
   try {
     await prisma.user.update({
       where: { id },
       data: {
         fullName: data.fullName,
+        email: data.email,
         jobTitle: data.jobTitle,
         active: data.active,
+        ...(newPasswordHash ? { passwordHash: newPasswordHash } : {}),
       },
     });
   } catch {
@@ -160,6 +193,115 @@ export async function updateClientSubUser(
   });
 
   revalidatePath("/client/settings");
+  return { ok: true };
+}
+
+export async function deleteClientSubUser(
+  id: string,
+  targetClientId?: string
+): Promise<ActionState> {
+  const actor = await getCurrentUser();
+  if (!actor) return { ok: false, error: "forbidden" };
+
+  let allowedClientId = targetClientId;
+  
+  if (actor.role === "client") {
+    const actorUser = await prisma.user.findUnique({
+      where: { id: actor.id },
+      include: { client: { select: { id: true } } },
+    });
+    if (!actorUser?.client?.id) return { ok: false, error: "forbidden" };
+    allowedClientId = actorUser.client.id;
+  } else if (actor.role !== "admin" && actor.role !== "super_admin") {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id },
+    include: { client: { select: { id: true } } },
+  });
+
+  if (!targetUser) return { ok: false, error: "saveError" };
+
+  // Never allow deleting the facility primary user!
+  if (targetUser.client) {
+    return { ok: false, error: "cannotDeleteMainUser" };
+  }
+
+  if (allowedClientId && targetUser.clientId !== allowedClientId) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  // Delete from Supabase Auth
+  try {
+    const supabase = createSupabaseAdminClient();
+    await supabase.auth.admin.deleteUser(id);
+  } catch (err) {
+    console.warn("Supabase user delete skipped or failed:", err);
+  }
+
+  // Delete from Prisma (cascades sessions, appointments, etc.)
+  try {
+    await prisma.user.delete({ where: { id } });
+  } catch (err) {
+    console.error("Failed to delete user in Prisma:", err);
+    return { ok: false, error: "saveError" };
+  }
+
+  await audit({
+    userId: actor.id,
+    action: "clientUser.delete",
+    entity: "User",
+    entityId: id,
+    metadata: { clientId: allowedClientId || null },
+  });
+
+  revalidatePath("/client/settings");
+  return { ok: true };
+}
+
+import { createPasswordResetToken } from "@/lib/password-reset";
+
+export async function sendSubUserPasswordResetEmail(
+  id: string,
+  locale: string = "de",
+  targetClientId?: string
+): Promise<ActionState> {
+  const actor = await getCurrentUser();
+  if (!actor) return { ok: false, error: "forbidden" };
+
+  let allowedClientId = targetClientId;
+  
+  if (actor.role === "client") {
+    const actorUser = await prisma.user.findUnique({
+      where: { id: actor.id },
+      include: { client: { select: { id: true } } },
+    });
+    if (!actorUser?.client?.id) return { ok: false, error: "forbidden" };
+    allowedClientId = actorUser.client.id;
+  } else if (actor.role !== "admin" && actor.role !== "super_admin") {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, email: true, clientId: true },
+  });
+
+  if (!targetUser) return { ok: false, error: "saveError" };
+  if (allowedClientId && targetUser.clientId !== allowedClientId) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  await createPasswordResetToken(targetUser.email, locale);
+
+  await audit({
+    userId: actor.id,
+    action: "clientUser.send_reset_email",
+    entity: "User",
+    entityId: id,
+  });
+
   return { ok: true };
 }
 

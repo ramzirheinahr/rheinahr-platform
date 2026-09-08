@@ -130,7 +130,7 @@ export async function sendEmailToUsers(
   return sendEmailToRecipients(userIds, payload, options);
 }
 
-async function getEmailFooterHtml(): Promise<string> {
+export async function getEmailFooterHtml(): Promise<string> {
   const companyConfig = await getCompanyConfig();
   return `
 <br><br>

@@ -1,14 +1,14 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, Trash2, Mail } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClientSubUser, updateClientSubUser } from "./actions";
+import { createClientSubUser, updateClientSubUser, deleteClientSubUser, sendSubUserPasswordResetEmail } from "./actions";
 import { toast } from "sonner";
 import { useRouter } from "@/i18n/navigation";
 
@@ -24,11 +24,13 @@ export type SubUser = {
 export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUser[], isMainUser: boolean, clientId?: string }) {
   const t = useTranslations("clientUsers");
   const c = useTranslations("common");
+  const locale = useLocale();
   const router = useRouter();
   
   const [editingUser, setEditingUser] = useState<SubUser | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -47,6 +49,37 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
         toast.error(t(res.error as any));
       }
     });
+  };
+
+  const handleDelete = (userId: string) => {
+    if (!confirm(t("confirmDelete"))) return;
+    startTransition(async () => {
+      const res = await deleteClientSubUser(userId, clientId);
+      if (res.ok) {
+        toast.success(t("deleted"));
+        if (editingUser?.id === userId) {
+          setEditingUser(null);
+        }
+        router.refresh();
+      } else {
+        toast.error(t(res.error as any));
+      }
+    });
+  };
+
+  const handleSendResetEmail = async () => {
+    if (!editingUser) return;
+    setIsSendingEmail(true);
+    try {
+      const res = await sendSubUserPasswordResetEmail(editingUser.id, locale, clientId);
+      if (res.ok) {
+        toast.success(t("resetEmailSent"));
+      } else {
+        toast.error(t(res.error as any));
+      }
+    } finally {
+      setIsSendingEmail(false);
+    }
   };
 
   return (
@@ -91,12 +124,23 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
                 {isMainUser && (
                   <td className="px-4 py-3 text-right">
                     {!user.isMainUser && (
-                      <button
-                        onClick={() => setEditingUser(user)}
-                        className="text-primary hover:underline"
-                      >
-                        {c("edit")}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingUser(user)}
+                          className="text-primary hover:underline"
+                        >
+                          {c("edit")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(user.id)}
+                          className="text-destructive hover:text-destructive/80 p-1 rounded hover:bg-destructive/10 transition-colors"
+                          title={t("delete")}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
                     )}
                   </td>
                 )}
@@ -117,7 +161,7 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
           setEditingUser(null);
         }
       }}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{isCreating ? t("new") : t("edit")}</DialogTitle>
           </DialogHeader>
@@ -130,17 +174,28 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
               <Label htmlFor="email">{c("email")}</Label>
               <Input id="email" name="email" type="email" defaultValue={editingUser?.email || ""} required />
             </div>
-            {isCreating && (
-              <div className="space-y-2">
-                <Label htmlFor="password">{c("password")}</Label>
-                <Input id="password" name="password" type="password" required minLength={12} />
-              </div>
-            )}
+
+            {/* Password field: required when creating, optional when editing */}
+            <div className="space-y-2">
+              <Label htmlFor="password">{isCreating ? c("password") : t("newPassword")}</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                placeholder={isCreating ? "" : t("newPasswordPlaceholder")}
+                required={isCreating}
+                minLength={12}
+              />
+              {!isCreating && (
+                <p className="text-xs text-muted-foreground">{t("newPasswordPlaceholder")}</p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="jobTitle">{t("jobTitle")}</Label>
               <Input id="jobTitle" name="jobTitle" placeholder={t("jobTitlePlaceholder")} defaultValue={editingUser?.jobTitle || ""} />
             </div>
-            <div className="flex items-center space-x-2 pt-2">
+            <div className="flex items-center space-x-2 pt-1">
               <input 
                 type="checkbox" 
                 id="active" 
@@ -150,11 +205,48 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
               />
               <Label htmlFor="active">{t("active")}</Label>
             </div>
-            <div className="pt-4 flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => { setIsCreating(false); setEditingUser(null); }}>
-                {c("cancel")}
-              </Button>
-              <Button type="submit" disabled={isPending}>{c("save")}</Button>
+
+            {/* Option to send password reset email directly to user */}
+            {!isCreating && (
+              <div className="p-3 bg-muted/40 rounded-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-3">
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground block">{t("sendResetEmail")}</span>
+                  <p>{t("sendResetEmailDesc")}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isSendingEmail}
+                  onClick={handleSendResetEmail}
+                  className="gap-2 shrink-0 text-xs"
+                >
+                  <Mail className="size-3.5" />
+                  {isSendingEmail ? c("loading") : t("sendResetEmailButton")}
+                </Button>
+              </div>
+            )}
+
+            <div className="pt-4 flex items-center justify-between border-t mt-4">
+              <div>
+                {!isCreating && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 text-xs"
+                    onClick={() => handleDelete(editingUser!.id)}
+                  >
+                    <Trash2 className="size-4" />
+                    {t("delete")}
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" onClick={() => { setIsCreating(false); setEditingUser(null); }}>
+                  {c("cancel")}
+                </Button>
+                <Button type="submit" disabled={isPending}>{c("save")}</Button>
+              </div>
             </div>
           </form>
         </DialogContent>
