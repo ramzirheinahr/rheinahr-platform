@@ -207,7 +207,13 @@ export async function getWorkerMonthSchedule(
   const effectiveRequiredHours = getEffectiveSollHours(
     targetMonthStr,
     worker?.requiredHours ?? 151.67,
-    worker?.sollHoursHistory
+    worker?.sollHoursHistory,
+    {
+      employmentStartDate: worker?.employmentStartDate,
+      employmentEndDate: worker?.employmentEndDate,
+      employedSince: worker?.employedSince,
+      monthlySalary: worker?.monthlySalary,
+    }
   );
 
   return {

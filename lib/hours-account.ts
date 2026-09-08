@@ -27,8 +27,8 @@ export async function getWorkerHoursAccount(
   if (!worker) throw new Error("Worker not found");
 
   // Determine the actual start month to calculate from
-  // If employmentStartDate exists, use it. Otherwise use createdAt.
-  const startDate = worker.employmentStartDate || worker.createdAt;
+  // If employmentStartDate or employedSince exists, use it. Otherwise use createdAt.
+  const startDate = worker.employmentStartDate || worker.employedSince || worker.createdAt;
   const startYearMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`;
   
   // We need to calculate all months from startYearMonth up to endMonth
@@ -134,8 +134,18 @@ export async function getWorkerHoursAccount(
     const kAusgleichHours = monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0);
     const sonstigeHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0) + otherLeaveHours; // Add other leaves to sonstige
 
-    // Required hours dynamic based on history
-    const requiredHours = getEffectiveSollHours(monthStr, baseRequiredHours, worker.sollHoursHistory);
+    // Required hours dynamic based on history and contract dates
+    const requiredHours = getEffectiveSollHours(
+      monthStr,
+      baseRequiredHours,
+      worker.sollHoursHistory,
+      {
+        employmentStartDate: worker.employmentStartDate,
+        employmentEndDate: worker.employmentEndDate,
+        employedSince: worker.employedSince,
+        monthlySalary: worker.monthlySalary,
+      }
+    );
 
     const monthBalance = (workedHours + vacationHours + sickHours + sonstigeHours) - (requiredHours + kAusgleichHours);
     cumulativeBalance += monthBalance;
@@ -183,7 +193,7 @@ export async function getMultipleWorkersHoursAccount(
   // We'll take the earliest employment start date among all workers
   let earliestStartDate = new Date();
   for (const w of workers) {
-    const d = w.employmentStartDate || w.createdAt;
+    const d = w.employmentStartDate || w.employedSince || w.createdAt;
     if (d < earliestStartDate) earliestStartDate = d;
   }
   
@@ -252,7 +262,7 @@ export async function getMultipleWorkersHoursAccount(
     const adjustments = allAdjustments.filter(a => a.workerId === workerId);
 
     // determine this worker's individual start month
-    const wStartDate = worker.employmentStartDate || worker.createdAt;
+    const wStartDate = worker.employmentStartDate || worker.employedSince || worker.createdAt;
     const wStartYearMonth = `${wStartDate.getFullYear()}-${String(wStartDate.getMonth() + 1).padStart(2, "0")}`;
     let wActualStartMonth = wStartYearMonth < startMonth ? wStartYearMonth : startMonth;
     if (wActualStartMonth < "2026-07") wActualStartMonth = "2026-07";
@@ -291,7 +301,17 @@ export async function getMultipleWorkersHoursAccount(
       const kAusgleichHours = monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0);
       const sonstigeHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0) + otherLeaveHours;
 
-      const requiredHours = getEffectiveSollHours(monthStr, baseRequiredHours, worker.sollHoursHistory);
+      const requiredHours = getEffectiveSollHours(
+        monthStr,
+        baseRequiredHours,
+        worker.sollHoursHistory,
+        {
+          employmentStartDate: worker.employmentStartDate,
+          employmentEndDate: worker.employmentEndDate,
+          employedSince: worker.employedSince,
+          monthlySalary: worker.monthlySalary,
+        }
+      );
       const monthBalance = (workedHours + vacationHours + sickHours + sonstigeHours) - (requiredHours + kAusgleichHours);
       cumulativeBalance += monthBalance;
 

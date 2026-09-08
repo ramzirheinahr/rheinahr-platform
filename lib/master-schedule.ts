@@ -52,6 +52,10 @@ export async function getMasterSchedule(
         requiredHours: true,
         carryoverHours: true,
         sollHoursHistory: true,
+        employmentStartDate: true,
+        employmentEndDate: true,
+        employedSince: true,
+        monthlySalary: true,
         availability: {
           where: { date: { gte: monthStart, lt: monthEnd } },
           select: { date: true, startTime: true, endTime: true, status: true },
@@ -221,7 +225,17 @@ export async function getMasterSchedule(
       internalNumber: w.internalNumber,
       name: w.fullName,
       phone: w.phone,
-      requiredHours: getEffectiveSollHours(targetMonthStr, w.requiredHours, w.sollHoursHistory),
+      requiredHours: getEffectiveSollHours(
+        targetMonthStr,
+        w.requiredHours,
+        w.sollHoursHistory,
+        {
+          employmentStartDate: w.employmentStartDate,
+          employmentEndDate: w.employmentEndDate,
+          employedSince: w.employedSince,
+          monthlySalary: w.monthlySalary,
+        }
+      ),
       carryoverHours: hoursAcc?.initialCarryover ?? w.carryoverHours,
       confirmedHours,
       acceptedHours,

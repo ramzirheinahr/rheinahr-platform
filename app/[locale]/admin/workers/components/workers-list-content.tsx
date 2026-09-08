@@ -61,6 +61,17 @@ export async function WorkersListContent({
       console.error(`Error calculating hours for worker ${w.id}:`, err);
     }
 
+    const startMonth = (w.employmentStartDate || w.employedSince)
+      ? (w.employmentStartDate || w.employedSince)!.toISOString().slice(0, 7)
+      : null;
+    const endMonth = w.employmentEndDate
+      ? w.employmentEndDate.toISOString().slice(0, 7)
+      : null;
+
+    const isEmployedInMonth =
+      (!startMonth || startMonth <= currentMonthStr) &&
+      (!endMonth || endMonth >= currentMonthStr);
+
     rows.push({
       id: w.id,
       fullName: w.fullName,
@@ -68,7 +79,7 @@ export async function WorkersListContent({
       email: w.user.email,
       userId: w.user.id,
       receiveEmails: w.user.receiveEmails,
-      active: w.user.active,
+      active: w.user.active && isEmployedInMonth,
       qualification: w.qualification,
       qualificationLabel: eq(w.qualification),
       contractLabel: ec(w.contractType),

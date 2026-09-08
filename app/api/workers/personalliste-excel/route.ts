@@ -18,15 +18,29 @@ export async function GET(req: Request) {
   }
 
   const allWorkers = await prisma.worker.findMany({
-    select: { id: true, fullName: true, internalNumber: true, employedSince: true },
+    select: { 
+      id: true, 
+      fullName: true, 
+      internalNumber: true, 
+      employedSince: true,
+      employmentStartDate: true,
+      employmentEndDate: true,
+    },
     orderBy: { fullName: "asc" },
   });
 
   const workers = allWorkers.filter((w) => {
-    if (!w.employedSince) return true;
-    // Extract YYYY-MM from employedSince and compare lexicographically
-    const employedMonth = w.employedSince.toISOString().slice(0, 7);
-    return employedMonth <= month;
+    const startMonth = (w.employmentStartDate || w.employedSince)
+      ? (w.employmentStartDate || w.employedSince)!.toISOString().slice(0, 7)
+      : null;
+    if (startMonth && startMonth > month) return false;
+
+    const endMonth = w.employmentEndDate
+      ? w.employmentEndDate.toISOString().slice(0, 7)
+      : null;
+    if (endMonth && endMonth < month) return false;
+
+    return true;
   });
 
   if (workers.length === 0) {

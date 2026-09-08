@@ -183,6 +183,10 @@ async function getStats(monthStr?: string) {
           id: true,
           requiredHours: true,
           sollHoursHistory: true,
+          employmentStartDate: true,
+          employmentEndDate: true,
+          employedSince: true,
+          monthlySalary: true,
           assignments: {
             where: {
               status: "confirmed",
@@ -309,7 +313,17 @@ async function getStats(monthStr?: string) {
 
     const monthKey = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
     const workerUtilization = activeWorkers.map((worker) => {
-      const required = getEffectiveSollHours(monthKey, worker.requiredHours, worker.sollHoursHistory);
+      const required = getEffectiveSollHours(
+        monthKey,
+        worker.requiredHours,
+        worker.sollHoursHistory,
+        {
+          employmentStartDate: worker.employmentStartDate,
+          employmentEndDate: worker.employmentEndDate,
+          employedSince: worker.employedSince,
+          monthlySalary: worker.monthlySalary,
+        }
+      );
       const credited = worker.assignments.reduce((sum, assignment) => {
         const hours = assignment.serviceConfirmation?.hoursWorked != null
           ? Number(assignment.serviceConfirmation.hoursWorked)
