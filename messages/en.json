@@ -35,7 +35,9 @@
     "confirmRevokeSession": "Are you sure you want to revoke this session?",
     "sessionRevoked": "Session successfully revoked.",
     "revokeSession": "Revoke Session",
-    "lastActive": "Last Active"
+    "lastActive": "Last Active",
+    "saved": "Saved.",
+    "saveError": "Failed to save. Please try again."
   },
   "landing": {
     "nav": {
@@ -307,7 +309,8 @@
     "invalidDateFormat": "Invalid date format (YYYY-MM expected)",
     "duplicatePeriod": "An entry already exists for this month.",
     "noData": "No entries available.",
-    "confirmDelete": "Are you sure you want to delete this entry?"
+    "confirmDelete": "Are you sure you want to delete this entry?",
+    "numberInUse": "This personnel number is already in use."
   },
   "clients": {
     "title": "Facilities",
@@ -354,7 +357,8 @@
     "confirmRevokeSession": "Are you sure you want to revoke this session?",
     "sessionRevoked": "Session successfully revoked.",
     "revokeSession": "Revoke Session",
-    "lastActive": "Last Active"
+    "lastActive": "Last Active",
+    "numberInUse": "This client number is already in use."
   },
   "orders": {
     "sortDateDesc": "Date (Newest first)",
@@ -790,7 +794,13 @@
     "signerName": "Signer name (Facility)",
     "consentText": "I confirm as a representative of the facility that the service was provided. IP and timestamp will be saved as proof.",
     "signShift": "Confirm & Sign",
-    "signing": "Signing..."
+    "signing": "Signing...",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "invalidDateRange": "Invalid date range",
+    "requestLeaveEditTitle": "Request leave change",
+    "requestLeaveEditDesc": "Please describe how this leave should be changed (e.g. \"Remove last day\").",
+    "requestLeaveEditPlaceholder": "Your message..."
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",
@@ -855,16 +865,66 @@
       "title": "Business indicators",
       "subtitle": "Additional financial, operational and workforce indicators; the familiar overview remains unchanged.",
       "days": "{count} days",
-      "comparison": { "title": "Compared with previous month", "revenue": "Order value", "hours": "Confirmed hours", "shifts": "Staffed shifts" },
-      "receivables": { "title": "Receivables", "unpaid": "Outstanding amount", "overdue": "Overdue", "oldest": "Oldest unpaid invoice", "rule": "Overdue according to each client's payment terms." },
-      "coverage": { "title": "Coverage rate", "rate": "Assigned positions in the selected month", "assigned": "Assigned / requested" },
-      "urgent": { "title": "Urgent open shifts", "hours24": "Within 24 hours", "days7": "Within 7 days", "hint": "Unfilled staff positions in upcoming shifts." },
-      "hoursStatus": { "title": "Hours status", "confirmed": "Confirmed by client", "awaiting": "Worked, awaiting confirmation" },
-      "utilization": { "title": "Workforce utilization", "rate": "Credited hours / target hours", "under": "Below 90%", "over": "Above 110%" },
-      "expiries": { "title": "Employment contracts expiring", "days30": "Within 30 days", "days60": "Within 60 days", "days90": "Within 90 days", "hint": "Document expiry will appear once structured expiry dates can be recorded." },
-      "concentration": { "title": "Client concentration", "top3": "Top 3 share", "top5": "Top 5 share", "hint": "Share of invoiced monthly revenue." },
-      "acceptance": { "title": "Worker responses", "rate": "Acceptance rate", "accepted": "Accepted", "declined": "Declined", "cancellations": "Withdrawal requests" },
-      "trend": { "title": "Invoice trend – last 12 months", "paid": "Paid", "unpaid": "Unpaid" }
+      "comparison": {
+        "title": "Compared with previous month",
+        "revenue": "Order value",
+        "hours": "Confirmed hours",
+        "shifts": "Staffed shifts"
+      },
+      "receivables": {
+        "title": "Receivables",
+        "unpaid": "Outstanding amount",
+        "overdue": "Overdue",
+        "oldest": "Oldest unpaid invoice",
+        "rule": "Overdue according to each client's payment terms."
+      },
+      "coverage": {
+        "title": "Coverage rate",
+        "rate": "Assigned positions in the selected month",
+        "assigned": "Assigned / requested"
+      },
+      "urgent": {
+        "title": "Urgent open shifts",
+        "hours24": "Within 24 hours",
+        "days7": "Within 7 days",
+        "hint": "Unfilled staff positions in upcoming shifts."
+      },
+      "hoursStatus": {
+        "title": "Hours status",
+        "confirmed": "Confirmed by client",
+        "awaiting": "Worked, awaiting confirmation"
+      },
+      "utilization": {
+        "title": "Workforce utilization",
+        "rate": "Credited hours / target hours",
+        "under": "Below 90%",
+        "over": "Above 110%"
+      },
+      "expiries": {
+        "title": "Employment contracts expiring",
+        "days30": "Within 30 days",
+        "days60": "Within 60 days",
+        "days90": "Within 90 days",
+        "hint": "Document expiry will appear once structured expiry dates can be recorded."
+      },
+      "concentration": {
+        "title": "Client concentration",
+        "top3": "Top 3 share",
+        "top5": "Top 5 share",
+        "hint": "Share of invoiced monthly revenue."
+      },
+      "acceptance": {
+        "title": "Worker responses",
+        "rate": "Acceptance rate",
+        "accepted": "Accepted",
+        "declined": "Declined",
+        "cancellations": "Withdrawal requests"
+      },
+      "trend": {
+        "title": "Invoice trend – last 12 months",
+        "paid": "Paid",
+        "unpaid": "Unpaid"
+      }
     }
   },
   "accounts": {
@@ -885,7 +945,8 @@
     "active": "Active",
     "updated": "Changes saved.",
     "saveError": "Saving failed. Please check your input.",
-    "forbidden": "Not authorized."
+    "forbidden": "Not authorized.",
+    "numberInUse": "This number is already in use."
   },
   "clientSchedule": {
     "title": "Monthly overview",
@@ -996,7 +1057,8 @@
     },
     "created": "Appointment created.",
     "updated": "Appointment updated.",
-    "deleted": "Appointment deleted."
+    "deleted": "Appointment deleted.",
+    "confirmDelete": "Are you sure you want to delete this appointment?"
   },
   "users": {
     "title": "User Management",

@@ -153,16 +153,23 @@ export function calculateWorkerMonthlySoll(
 
   const salary = details.monthlySalary;
   if (salary && salary > 0 && baseHours > 0) {
-    // Step 1: Hourly rate from contract (e.g. 590 / 34.67 = 17.02)
-    const hourlyRate = Math.round((salary / baseHours) * 100) / 100;
-    // Step 2: Daily rate with fixed 30-day divisor (e.g. 590 / 30 = 19.67)
-    const dailyRate = Math.round((salary / 30) * 100) / 100;
-    // Step 3: Partial month salary (e.g. 19.67 * 15 = 295.05)
-    const partialSalary = Math.round(dailyRate * activeDays * 100) / 100;
-    // Step 4: Partial required hours (e.g. 295.05 / 17.02 = 17.34)
-    const requiredHours = hourlyRate > 0
-      ? Math.round((partialSalary / hourlyRate) * 100) / 100
-      : Math.round(((activeDays / 30) * baseHours) * 100) / 100;
+    // Unrounded intermediate steps: precision is preserved throughout all steps
+    // Step 1: Hourly rate (raw)
+    const rawHourlyRate = salary / baseHours;
+    // Step 2: Daily rate (raw)
+    const rawDailyRate = salary / 30;
+    // Step 3: Partial month salary (raw)
+    const rawPartialSalary = (salary * activeDays) / 30;
+    // Step 4: Partial required hours (raw)
+    const rawRequiredHours = rawHourlyRate > 0
+      ? rawPartialSalary / rawHourlyRate
+      : (activeDays / 30) * baseHours;
+
+    // Rounding is ONLY applied in the final step to 2 decimal places:
+    const requiredHours = Math.round(rawRequiredHours * 100) / 100;
+    const hourlyRate = Math.round(rawHourlyRate * 100) / 100;
+    const dailyRate = Math.round(rawDailyRate * 100) / 100;
+    const partialSalary = Math.round(rawPartialSalary * 100) / 100;
 
     return {
       requiredHours,

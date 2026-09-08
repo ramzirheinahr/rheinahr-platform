@@ -1,6 +1,8 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/renderer";
 import React from "react";
+import path from "path";
+import fs from "fs";
 import { getCompanyConfig } from "@/lib/config/company";
 import { MonthlyHoursAccount } from "@/lib/hours-account";
 
@@ -37,6 +39,7 @@ const styles = StyleSheet.create({
 export type ArbeitszeitkontoPdfData = {
   workerName: string;
   workerId: string;
+  workerNumber?: string | null;
   startMonth: string;
   endMonth: string;
   months: MonthlyHoursAccount[];
@@ -53,21 +56,43 @@ export const ArbeitszeitkontoTemplate = ({ data, companyConfig }: { data: Arbeit
     return h.toFixed(2).replace(".", ",");
   };
 
+  let logoSrc: string | null = null;
+  if (companyConfig?.logoUrl) {
+    if (companyConfig.logoUrl.startsWith("http") || companyConfig.logoUrl.startsWith("data:")) {
+      logoSrc = companyConfig.logoUrl;
+    } else {
+      const fullPath = path.join(process.cwd(), "public", companyConfig.logoUrl.replace(/^\//, ""));
+      if (fs.existsSync(fullPath)) {
+        logoSrc = fullPath;
+      }
+    }
+  }
+
   const finalBalance = data.months.length > 0 ? data.months[data.months.length - 1].cumulativeBalance : data.initialCarryover;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View fixed style={{ position: "absolute", top: 20, left: 48, right: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", fontSize: 8, color: "#6b7280", borderBottomWidth: 1, borderBottomColor: "#e5e7eb", paddingBottom: 4 }}>
-          <Text>Arbeitszeitkonto - Mitarbeiter: {data.workerName}</Text>
+          <Text>
+            Arbeitszeitkonto - Mitarbeiter: {data.workerName}
+            {data.workerNumber ? ` (Personal-Nr. ${data.workerNumber})` : ""}
+          </Text>
           <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
         </View>
 
         <View style={styles.header}>
-          <View>
-            <Image src={process.cwd() + "/public" + companyConfig.logoUrl.replace(/^\//, '')} style={{ height: 40 }} />
+          <View style={{ width: 140, minHeight: 45, justifyContent: "center" }}>
+            {logoSrc ? (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image src={logoSrc} style={{ width: 140, maxHeight: 45, objectFit: "contain" }} />
+            ) : (
+              <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: "#1e3a8a" }}>
+                {companyConfig?.name || "RheinAhr"}
+              </Text>
+            )}
           </View>
-          <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
+          <View style={{ flexDirection: "row", gap: 16, marginTop: 14 }}>
             <Text style={{ color: "#d32f2f", fontFamily: "Helvetica-Bold" }}>INTEGRITÄT</Text>
             <Text style={{ color: "#1e3a8a", fontFamily: "Helvetica-Bold" }}>WÜRDE</Text>
             <Text style={{ color: "#d32f2f", fontFamily: "Helvetica-Bold" }}>KOMPETENZ</Text>
@@ -75,17 +100,23 @@ export const ArbeitszeitkontoTemplate = ({ data, companyConfig }: { data: Arbeit
           </View>
         </View>
 
-        <View style={{ marginBottom: 24, marginTop: 24 }}>
-          <View style={{ flexDirection: "row", marginBottom: 8 }}>
-            <Text style={{ width: 100, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>Mitarbeiter :</Text>
+        <View style={{ marginBottom: 20, marginTop: 16 }}>
+          {data.workerNumber ? (
+            <View style={{ flexDirection: "row", marginBottom: 6 }}>
+              <Text style={{ width: 110, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>Personal-Nr. :</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>{data.workerNumber}</Text>
+            </View>
+          ) : null}
+          <View style={{ flexDirection: "row", marginBottom: 6 }}>
+            <Text style={{ width: 110, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>Mitarbeiter :</Text>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>{data.workerName}</Text>
           </View>
-          <View style={{ flexDirection: "row", marginBottom: 8 }}>
-            <Text style={{ width: 100, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>From :</Text>
+          <View style={{ flexDirection: "row", marginBottom: 6 }}>
+            <Text style={{ width: 110, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>From :</Text>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>{data.startMonth}</Text>
           </View>
-          <View style={{ flexDirection: "row", marginBottom: 8 }}>
-            <Text style={{ width: 100, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>To :</Text>
+          <View style={{ flexDirection: "row", marginBottom: 6 }}>
+            <Text style={{ width: 110, fontFamily: "Helvetica-Bold", color: "#d32f2f" }}>To :</Text>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>{data.endMonth}</Text>
           </View>
         </View>

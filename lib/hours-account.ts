@@ -30,11 +30,11 @@ export async function getWorkerHoursAccount(
   // If employmentStartDate or employedSince exists, use it. Otherwise use createdAt.
   const startDate = worker.employmentStartDate || worker.employedSince || worker.createdAt;
   const startYearMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`;
+  const endDate = worker.employmentEndDate;
+  const endYearMonth = endDate ? `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}` : null;
   
-  // We need to calculate all months from startYearMonth up to endMonth
+  // Calculate months starting from startYearMonth or startMonth, but not before 2026-07
   let actualStartMonth = startYearMonth < startMonth ? startYearMonth : startMonth;
-  
-  // Enforce global app start date of 2026-07
   if (actualStartMonth < "2026-07") {
     actualStartMonth = "2026-07";
   }
@@ -100,6 +100,10 @@ export async function getWorkerHoursAccount(
   const result: MonthlyHoursAccount[] = [];
 
   for (const monthStr of monthsToProcess) {
+    // Skip processing or adding months if worker hasn't joined yet or already left
+    const isEmployedInMonth = monthStr >= startYearMonth && (!endYearMonth || monthStr <= endYearMonth);
+    if (!isEmployedInMonth) continue;
+
     // worked hours
     const monthAssignments = assignments.filter(a => {
       const d = a.order.shiftDate;
@@ -147,8 +151,8 @@ export async function getWorkerHoursAccount(
       }
     );
 
-    const monthBalance = (workedHours + vacationHours + sickHours + sonstigeHours) - (requiredHours + kAusgleichHours);
-    cumulativeBalance += monthBalance;
+    const monthBalance = Math.round(((workedHours + vacationHours + sickHours + sonstigeHours) - (requiredHours + kAusgleichHours)) * 100) / 100;
+    cumulativeBalance = Math.round((cumulativeBalance + monthBalance) * 100) / 100;
 
     if (monthStr >= startMonth) {
       result.push({
@@ -167,9 +171,9 @@ export async function getWorkerHoursAccount(
 
   let initialCarryover = worker.carryoverHours || 0;
   if (result.length > 0) {
-    initialCarryover = result[0].cumulativeBalance - result[0].monthBalance;
+    initialCarryover = Math.round((result[0].cumulativeBalance - result[0].monthBalance) * 100) / 100;
   } else {
-    initialCarryover = cumulativeBalance; // if nothing is returned, the cumulative is the carryover
+    initialCarryover = Math.round(cumulativeBalance * 100) / 100;
   }
 
   return { months: result, initialCarryover };
@@ -261,14 +265,15 @@ export async function getMultipleWorkersHoursAccount(
     const leaveDays = allLeaves.filter(l => l.leaveRequest.workerId === workerId);
     const adjustments = allAdjustments.filter(a => a.workerId === workerId);
 
-    // determine this worker's individual start month
+    // determine this worker's individual start month and end month
     const wStartDate = worker.employmentStartDate || worker.employedSince || worker.createdAt;
     const wStartYearMonth = `${wStartDate.getFullYear()}-${String(wStartDate.getMonth() + 1).padStart(2, "0")}`;
-    let wActualStartMonth = wStartYearMonth < startMonth ? wStartYearMonth : startMonth;
-    if (wActualStartMonth < "2026-07") wActualStartMonth = "2026-07";
+    const wEndDate = worker.employmentEndDate;
+    const wEndYearMonth = wEndDate ? `${wEndDate.getFullYear()}-${String(wEndDate.getMonth() + 1).padStart(2, "0")}` : null;
 
     for (const monthStr of monthsToProcess) {
-      if (monthStr < wActualStartMonth) continue; // Skip months before worker joined
+      if (monthStr < wStartYearMonth) continue; // Skip months before worker joined
+      if (wEndYearMonth && monthStr > wEndYearMonth) continue; // Skip months after worker left
 
       const monthAssignments = assignments.filter(a => {
         const d = a.order.shiftDate;
@@ -312,8 +317,8 @@ export async function getMultipleWorkersHoursAccount(
           monthlySalary: worker.monthlySalary,
         }
       );
-      const monthBalance = (workedHours + vacationHours + sickHours + sonstigeHours) - (requiredHours + kAusgleichHours);
-      cumulativeBalance += monthBalance;
+      const monthBalance = Math.round(((workedHours + vacationHours + sickHours + sonstigeHours) - (requiredHours + kAusgleichHours)) * 100) / 100;
+      cumulativeBalance = Math.round((cumulativeBalance + monthBalance) * 100) / 100;
 
       if (monthStr >= startMonth) {
         workerMonths.push({
@@ -332,9 +337,9 @@ export async function getMultipleWorkersHoursAccount(
 
     let initialCarryover = worker.carryoverHours || 0;
     if (workerMonths.length > 0) {
-      initialCarryover = workerMonths[0].cumulativeBalance - workerMonths[0].monthBalance;
+      initialCarryover = Math.round((workerMonths[0].cumulativeBalance - workerMonths[0].monthBalance) * 100) / 100;
     } else {
-      initialCarryover = cumulativeBalance;
+      initialCarryover = Math.round(cumulativeBalance * 100) / 100;
     }
 
     resultByWorker[workerId] = { months: workerMonths, initialCarryover };

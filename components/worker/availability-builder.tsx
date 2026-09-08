@@ -664,25 +664,25 @@ export function AvailabilityBuilder({
         <Dialog open={editRequestOpen} onOpenChange={setEditRequestOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Urlaub ändern anfragen</DialogTitle>
+              <DialogTitle>{t("requestLeaveEditTitle")}</DialogTitle>
             </DialogHeader>
             <div className="py-4 space-y-4">
               <p className="text-sm">
-                Bitte beschreiben Sie, wie dieser Urlaub geändert werden soll (z.B. &quot;Letzten Tag entfernen&quot;).
+                {t("requestLeaveEditDesc")}
               </p>
               <textarea
                 className={cn(field, "min-h-[100px] resize-y")}
                 value={editRequestText}
                 onChange={(e) => setEditRequestText(e.target.value)}
-                placeholder="Ihre Nachricht..."
+                placeholder={t("requestLeaveEditPlaceholder")}
               />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditRequestOpen(false)} disabled={editPending}>
-                Abbrechen
+                {c("cancel")}
               </Button>
               <Button onClick={handleRequestEdit} disabled={editPending || !editRequestText.trim()}>
-                {editPending ? c("loading") : "Anfrage senden"}
+                {editPending ? c("loading") : t("sendRequest")}
               </Button>
             </DialogFooter>
           </DialogContent>

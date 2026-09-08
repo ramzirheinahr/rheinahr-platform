@@ -1,6 +1,8 @@
 import "server-only";
 import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/renderer";
 import React from "react";
+import path from "path";
+import fs from "fs";
 import { getCompanyConfig } from "@/lib/config/company";
 
 const styles = StyleSheet.create({
@@ -41,6 +43,18 @@ export const PersonallisteTemplate = ({ data, companyConfig }: { data: Personall
     return h.toFixed(2).replace(".", ",");
   };
 
+  let logoSrc: string | null = null;
+  if (companyConfig?.logoUrl) {
+    if (companyConfig.logoUrl.startsWith("http") || companyConfig.logoUrl.startsWith("data:")) {
+      logoSrc = companyConfig.logoUrl;
+    } else {
+      const fullPath = path.join(process.cwd(), "public", companyConfig.logoUrl.replace(/^\//, ""));
+      if (fs.existsSync(fullPath)) {
+        logoSrc = fullPath;
+      }
+    }
+  }
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -50,10 +64,17 @@ export const PersonallisteTemplate = ({ data, companyConfig }: { data: Personall
         </View>
 
         <View style={styles.header}>
-          <View>
-            <Image src={process.cwd() + "/public" + companyConfig.logoUrl.replace(/^\//, '')} style={{ height: 40 }} />
+          <View style={{ width: 140, minHeight: 45, justifyContent: "center" }}>
+            {logoSrc ? (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image src={logoSrc} style={{ width: 140, maxHeight: 45, objectFit: "contain" }} />
+            ) : (
+              <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: "#1e3a8a" }}>
+                {companyConfig?.name || "RheinAhr"}
+              </Text>
+            )}
           </View>
-          <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
+          <View style={{ flexDirection: "row", gap: 16, marginTop: 14 }}>
             <Text style={{ color: "#d32f2f", fontFamily: "Helvetica-Bold" }}>INTEGRITÄT</Text>
             <Text style={{ color: "#1e3a8a", fontFamily: "Helvetica-Bold" }}>WÜRDE</Text>
             <Text style={{ color: "#d32f2f", fontFamily: "Helvetica-Bold" }}>KOMPETENZ</Text>

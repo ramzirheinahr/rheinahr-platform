@@ -24,7 +24,15 @@ export async function GET(
 
   const worker = await prisma.worker.findUnique({
     where: { id },
-    select: { id: true, fullName: true, userId: true },
+    select: {
+      id: true,
+      fullName: true,
+      internalNumber: true,
+      userId: true,
+      employmentStartDate: true,
+      employedSince: true,
+      employmentEndDate: true,
+    },
   });
 
   if (!worker) {
@@ -35,9 +43,17 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // The user wants to see all historical data up to the requested endMonth
-  const hoursAcc = await getWorkerHoursAccount(id, "2026-07", endMonth);
-  const actualStartMonthForPdf = hoursAcc.months.length > 0 ? hoursAcc.months[0].month : startMonth;
+  // Determine worker's employment start month
+  const joinDate = worker.employmentStartDate || worker.employedSince;
+  const joinMonth = joinDate ? joinDate.toISOString().slice(0, 7) : null;
+
+  // The earliest relevant month for this worker is when they joined (or 2026-07 if they joined earlier)
+  const workerStartMonth = joinMonth && joinMonth > "2026-07" ? joinMonth : "2026-07";
+
+  // Calculate historical account from workerStartMonth up to the requested endMonth
+  const hoursAcc = await getWorkerHoursAccount(id, workerStartMonth, endMonth);
+  const actualStartMonthForPdf = hoursAcc.months.length > 0 ? hoursAcc.months[0].month : workerStartMonth;
+  const actualEndMonthForPdf = hoursAcc.months.length > 0 ? hoursAcc.months[hoursAcc.months.length - 1].month : endMonth;
 
   const { getCompanyConfig } = await import("@/lib/config/company");
   const companyConfig = await getCompanyConfig();
@@ -48,8 +64,9 @@ export async function GET(
       data: {
         workerName: worker.fullName,
         workerId: worker.id,
+        workerNumber: worker.internalNumber,
         startMonth: actualStartMonthForPdf,
-        endMonth,
+        endMonth: actualEndMonthForPdf,
         months: hoursAcc.months,
         initialCarryover: hoursAcc.initialCarryover,
       },

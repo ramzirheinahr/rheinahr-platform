@@ -35,7 +35,9 @@
     "confirmRevokeSession": "Möchten Sie diese Sitzung wirklich abmelden?",
     "sessionRevoked": "Sitzung erfolgreich abgemeldet.",
     "revokeSession": "Sitzung beenden",
-    "lastActive": "Zuletzt aktiv"
+    "lastActive": "Zuletzt aktiv",
+    "saved": "Gespeichert.",
+    "saveError": "Speichern fehlgeschlagen. Bitte erneut versuchen."
   },
   "landing": {
     "nav": {
@@ -792,7 +794,13 @@
     "signerName": "Name des Unterzeichners (Einrichtung)",
     "consentText": "Ich bestätige als Vertreter der Einrichtung die Erbringung der Dienstleistung. IP und Zeitstempel werden als Nachweis gespeichert.",
     "signShift": "Bestätigen & Signieren",
-    "signing": "Wird signiert..."
+    "signing": "Wird signiert...",
+    "startDate": "Von (Startdatum)",
+    "endDate": "Bis (Enddatum)",
+    "invalidDateRange": "Ungültiger Datumsbereich",
+    "requestLeaveEditTitle": "Urlaub ändern anfragen",
+    "requestLeaveEditDesc": "Bitte beschreiben Sie, wie dieser Urlaub geändert werden soll (z.B. \"Letzten Tag entfernen\").",
+    "requestLeaveEditPlaceholder": "Ihre Nachricht..."
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",
@@ -857,16 +865,66 @@
       "title": "Unternehmenskennzahlen",
       "subtitle": "Zusätzliche Finanz-, Einsatz- und Personalindikatoren; die gewohnte Übersicht bleibt unverändert.",
       "days": "{count} Tage",
-      "comparison": { "title": "Vergleich zum Vormonat", "revenue": "Auftragswert", "hours": "Bestätigte Stunden", "shifts": "Besetzte Schichten" },
-      "receivables": { "title": "Forderungen", "unpaid": "Offener Betrag", "overdue": "Überfällig", "oldest": "Älteste offene Rechnung", "rule": "Überfällig gemäß Zahlungsziel des jeweiligen Kunden." },
-      "coverage": { "title": "Besetzungsquote", "rate": "Zugewiesene Plätze im ausgewählten Monat", "assigned": "Besetzt / angefordert" },
-      "urgent": { "title": "Dringende offene Schichten", "hours24": "Innerhalb 24 Stunden", "days7": "Innerhalb 7 Tagen", "hint": "Noch unbesetzte Mitarbeiterplätze in bevorstehenden Schichten." },
-      "hoursStatus": { "title": "Stundenstatus", "confirmed": "Vom Kunden bestätigt", "awaiting": "Geleistet, Bestätigung offen" },
-      "utilization": { "title": "Mitarbeiterauslastung", "rate": "Gutgeschriebene Stunden / Sollstunden", "under": "Unter 90 %", "over": "Über 110 %" },
-      "expiries": { "title": "Auslaufende Arbeitsverträge", "days30": "Innerhalb 30 Tagen", "days60": "Innerhalb 60 Tagen", "days90": "Innerhalb 90 Tagen", "hint": "Dokumentablaufdaten werden ergänzt, sobald sie strukturiert erfasst werden können." },
-      "concentration": { "title": "Kundenkonzentration", "top3": "Anteil Top 3", "top5": "Anteil Top 5", "hint": "Anteil am fakturierten Monatsumsatz." },
-      "acceptance": { "title": "Mitarbeiterreaktionen", "rate": "Annahmequote", "accepted": "Angenommen", "declined": "Abgelehnt", "cancellations": "Rückzugsanträge" },
-      "trend": { "title": "Rechnungsentwicklung – letzte 12 Monate", "paid": "Bezahlt", "unpaid": "Offen" }
+      "comparison": {
+        "title": "Vergleich zum Vormonat",
+        "revenue": "Auftragswert",
+        "hours": "Bestätigte Stunden",
+        "shifts": "Besetzte Schichten"
+      },
+      "receivables": {
+        "title": "Forderungen",
+        "unpaid": "Offener Betrag",
+        "overdue": "Überfällig",
+        "oldest": "Älteste offene Rechnung",
+        "rule": "Überfällig gemäß Zahlungsziel des jeweiligen Kunden."
+      },
+      "coverage": {
+        "title": "Besetzungsquote",
+        "rate": "Zugewiesene Plätze im ausgewählten Monat",
+        "assigned": "Besetzt / angefordert"
+      },
+      "urgent": {
+        "title": "Dringende offene Schichten",
+        "hours24": "Innerhalb 24 Stunden",
+        "days7": "Innerhalb 7 Tagen",
+        "hint": "Noch unbesetzte Mitarbeiterplätze in bevorstehenden Schichten."
+      },
+      "hoursStatus": {
+        "title": "Stundenstatus",
+        "confirmed": "Vom Kunden bestätigt",
+        "awaiting": "Geleistet, Bestätigung offen"
+      },
+      "utilization": {
+        "title": "Mitarbeiterauslastung",
+        "rate": "Gutgeschriebene Stunden / Sollstunden",
+        "under": "Unter 90 %",
+        "over": "Über 110 %"
+      },
+      "expiries": {
+        "title": "Auslaufende Arbeitsverträge",
+        "days30": "Innerhalb 30 Tagen",
+        "days60": "Innerhalb 60 Tagen",
+        "days90": "Innerhalb 90 Tagen",
+        "hint": "Dokumentablaufdaten werden ergänzt, sobald sie strukturiert erfasst werden können."
+      },
+      "concentration": {
+        "title": "Kundenkonzentration",
+        "top3": "Anteil Top 3",
+        "top5": "Anteil Top 5",
+        "hint": "Anteil am fakturierten Monatsumsatz."
+      },
+      "acceptance": {
+        "title": "Mitarbeiterreaktionen",
+        "rate": "Annahmequote",
+        "accepted": "Angenommen",
+        "declined": "Abgelehnt",
+        "cancellations": "Rückzugsanträge"
+      },
+      "trend": {
+        "title": "Rechnungsentwicklung – letzte 12 Monate",
+        "paid": "Bezahlt",
+        "unpaid": "Offen"
+      }
     }
   },
   "accounts": {
