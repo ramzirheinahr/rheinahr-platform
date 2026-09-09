@@ -12,6 +12,14 @@ export type MonthlyHoursAccount = {
   cumulativeBalance: number; // Cumulative Sum
 };
 
+function toYearMonth(d: Date | null | undefined): string | null {
+  if (!d || isNaN(d.getTime())) return null;
+  let y = d.getFullYear();
+  if (y < 100) y += 2000;
+  if (y > 2100) y = 2024;
+  return `${String(y).padStart(4, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export async function getWorkerHoursAccount(
   workerId: string,
   startMonth: string, // YYYY-MM
@@ -29,15 +37,12 @@ export async function getWorkerHoursAccount(
   // Determine the actual start month to calculate from
   // If employmentStartDate or employedSince exists, use it. Otherwise use createdAt.
   const startDate = worker.employmentStartDate || worker.employedSince || worker.createdAt;
-  const startYearMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`;
+  const startYearMonth = toYearMonth(startDate) || "2026-07";
   const endDate = worker.employmentEndDate;
-  const endYearMonth = endDate ? `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}` : null;
+  const endYearMonth = toYearMonth(endDate);
   
-  // Calculate months starting from startYearMonth or startMonth, but not before 2026-07
-  let actualStartMonth = startYearMonth < startMonth ? startYearMonth : startMonth;
-  if (actualStartMonth < "2026-07") {
-    actualStartMonth = "2026-07";
-  }
+  // Calculate months starting from 2026-07 (when shift tracking began), but not after startMonth
+  const actualStartMonth = startMonth < "2026-07" ? startMonth : "2026-07";
   
   const startD = new Date(`${actualStartMonth}-01T00:00:00Z`);
   const endD = new Date(`${endMonth}-01T00:00:00Z`);
@@ -193,19 +198,11 @@ export async function getMultipleWorkersHoursAccount(
     },
   });
 
-  // Calculate start and end dates globally for the query
-  // We'll take the earliest employment start date among all workers
-  let earliestStartDate = new Date();
-  for (const w of workers) {
-    const d = w.employmentStartDate || w.employedSince || w.createdAt;
-    if (d < earliestStartDate) earliestStartDate = d;
-  }
-  
-  const startYearMonth = `${earliestStartDate.getFullYear()}-${String(earliestStartDate.getMonth() + 1).padStart(2, "0")}`;
-  let actualStartMonth = startYearMonth < startMonth ? startYearMonth : startMonth;
-  if (actualStartMonth < "2026-07") {
-    actualStartMonth = "2026-07";
-  }
+  // The system hour tracking began globally in 2026-07.
+  // Any historical hours prior to 2026-07 are stored in worker.carryoverHours.
+  // To compute the correct carryover (Stand Alt) into startMonth, we must process
+  // all months starting from 2026-07 (or startMonth if earlier) up to endMonth.
+  const actualStartMonth = startMonth < "2026-07" ? startMonth : "2026-07";
 
   const startD = new Date(`${actualStartMonth}-01T00:00:00Z`);
   const endD = new Date(`${endMonth}-01T00:00:00Z`);
@@ -267,9 +264,9 @@ export async function getMultipleWorkersHoursAccount(
 
     // determine this worker's individual start month and end month
     const wStartDate = worker.employmentStartDate || worker.employedSince || worker.createdAt;
-    const wStartYearMonth = `${wStartDate.getFullYear()}-${String(wStartDate.getMonth() + 1).padStart(2, "0")}`;
+    const wStartYearMonth = toYearMonth(wStartDate) || "2026-07";
     const wEndDate = worker.employmentEndDate;
-    const wEndYearMonth = wEndDate ? `${wEndDate.getFullYear()}-${String(wEndDate.getMonth() + 1).padStart(2, "0")}` : null;
+    const wEndYearMonth = toYearMonth(wEndDate);
 
     for (const monthStr of monthsToProcess) {
       if (monthStr < wStartYearMonth) continue; // Skip months before worker joined
