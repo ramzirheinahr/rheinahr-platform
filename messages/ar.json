@@ -879,7 +879,10 @@
       "leaves": "انصراف",
       "pause": "استراحة",
       "sum": "الساعات",
-      "client": "العميل"
+      "client": "العميل",
+      "signedSheet": "ورقة التوقيع (Nachweis)",
+      "signed": "موقعة",
+      "pending": "بانتظار التوقيع"
     },
     "aueg": {
       "title": "قائمة عمالة الإعارة AÜG: الحالية والسابقة",
@@ -904,8 +907,10 @@
     },
     "arbeitszeitkonto": {
       "title": "حساب رصيد ساعات العمل Arbeitszeitkonto",
-      "totalPeriod": "إجمالي تسجيل الساعات",
-      "withPrevBalance": "مع الرصيد السابق",
+      "totalPeriod": "Zeiterfassung insgesamt (إجمالي تسجيل الساعات)",
+      "withPrevBalance": "Mit Übertrag (مع الرصيد السابق)",
+      "carryover": "Übertrag (الرصيد المنقول)",
+      "carryoverHint": "الرصيد السابق المنقول من الشهور السابقة",
       "selectAll": "تحديد الكل",
       "soll": "المطلوب (Soll)",
       "ist": "الفعلي (Ist)",
@@ -915,7 +920,7 @@
       "other": "أخرى (Sonstige)",
       "monthBalance": "رصيد الشهر",
       "cumBalance": "الرصيد التراكمي",
-      "notesHeader": "ملاحظات (Notes)"
+      "notesHeader": "ملاحظات (Bemerkungen)"
     },
     "reisespesen": {
       "title": "مصاريف وبدلات السفر Reisespesen",

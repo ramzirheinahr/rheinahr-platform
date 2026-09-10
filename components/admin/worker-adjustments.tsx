@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTranslations } from "next-intl";
-import { Plus, Trash2 } from "lucide-react";
-import { addWorkerAdjustment, deleteWorkerAdjustment } from "@/app/[locale]/admin/workers/[id]/schedule/actions";
+import { Plus, Trash2, FileText, Save, Check, Loader2 } from "lucide-react";
+import {
+  addWorkerAdjustment,
+  deleteWorkerAdjustment,
+  saveWorkerMonthlyNoteAction,
+} from "@/app/[locale]/admin/workers/[id]/schedule/actions";
 import {
   Select,
   SelectContent,
@@ -26,21 +30,35 @@ export type AdjustmentInfo = {
 export function WorkerAdjustments({
   workerId,
   adjustments,
+  monthStr,
+  initialMonthlyNote,
 }: {
   workerId: string;
   adjustments: AdjustmentInfo[];
+  monthStr?: string;
+  initialMonthlyNote?: string;
 }) {
   const t = useTranslations("portal");
   const c = useTranslations("common");
   const [pending, startTransition] = useTransition();
 
   const [month, setMonth] = useState(() => {
+    if (monthStr) return monthStr;
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
   const [type, setType] = useState<"k_ausgleich" | "sonstige">("k_ausgleich");
   const [hours, setHours] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [currentMonthlyNote, setCurrentMonthlyNote] = useState(initialMonthlyNote || "");
+  const [noteSaved, setNoteSaved] = useState(false);
+
+  useEffect(() => {
+    if (initialMonthlyNote !== undefined) {
+      setCurrentMonthlyNote(initialMonthlyNote);
+    }
+  }, [initialMonthlyNote]);
 
   const handleAdd = () => {
     if (!hours || isNaN(Number(hours))) return;
@@ -49,6 +67,14 @@ export function WorkerAdjustments({
       await addWorkerAdjustment(workerId, month, type, Number(hours), notes);
       setHours("");
       setNotes("");
+    });
+  };
+
+  const handleSaveMonthlyNote = () => {
+    startTransition(async () => {
+      await saveWorkerMonthlyNoteAction(workerId, month, currentMonthlyNote);
+      setNoteSaved(true);
+      setTimeout(() => setNoteSaved(false), 3000);
     });
   };
 
@@ -149,6 +175,47 @@ export function WorkerAdjustments({
               <Plus className="size-4 ltr:mr-2 rtl:ml-2" />
               {c("add")}
             </Button>
+          </div>
+
+          {/* Synchronized Monthly Note (Arbeitszeitkonto) */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <FileText className="size-4 text-primary" />
+                  <span>Monatsnotiz (Arbeitszeitkonto) – {month}</span>
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Wird direkt mit dem Arbeitszeitkonto-Bericht für diesen Monat synchronisiert.
+                </p>
+              </div>
+              {noteSaved && (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                  <Check className="size-3.5" />
+                  {c("saved") || "Gespeichert"}
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                value={currentMonthlyNote}
+                onChange={(e) => setCurrentMonthlyNote(e.target.value)}
+                placeholder="Notiz für diesen Monat im Arbeitszeitkonto..."
+                disabled={pending}
+                className="flex-1 text-sm bg-background"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveMonthlyNote}
+                disabled={pending}
+                className="gap-1.5 h-9"
+              >
+                {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                {c("save") || "Speichern"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -15,12 +15,13 @@ export async function GET(
 
   const { id } = await params;
   const url = new URL(req.url);
-  const startMonth = url.searchParams.get("start") || ""; // YYYY-MM
-  const endMonth = url.searchParams.get("end") || ""; // YYYY-MM
+  const rawStart = url.searchParams.get("start") || url.searchParams.get("startMonth") || "";
+  const rawEnd = url.searchParams.get("end") || url.searchParams.get("endMonth") || "";
+  const withPrevBalance = url.searchParams.get("withPrevBalance") !== "false";
 
-  if (!startMonth || !endMonth) {
-    return NextResponse.json({ error: "Missing start or end month" }, { status: 400 });
-  }
+  const now = new Date();
+  const currentMonthStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const endMonth = rawEnd || currentMonthStr;
 
   const worker = await prisma.worker.findUnique({
     where: { id },
@@ -47,13 +48,26 @@ export async function GET(
   const joinDate = worker.employmentStartDate || worker.employedSince;
   const joinMonth = joinDate ? joinDate.toISOString().slice(0, 7) : null;
 
-  // The earliest relevant month for this worker is when they joined (or 2026-07 if they joined earlier)
-  const workerStartMonth = joinMonth && joinMonth > "2026-07" ? joinMonth : "2026-07";
+  // Earliest start month is July 2026 (when system started) or when worker joined
+  let workerStartMonth: string;
+  if (!rawStart || rawStart === "auto") {
+    workerStartMonth = joinMonth && joinMonth > "2026-07" ? joinMonth : "2026-07";
+  } else {
+    workerStartMonth = rawStart < "2026-07" ? "2026-07" : rawStart;
+  }
 
   // Calculate historical account from workerStartMonth up to the requested endMonth
   const hoursAcc = await getWorkerHoursAccount(id, workerStartMonth, endMonth);
   const actualStartMonthForPdf = hoursAcc.months.length > 0 ? hoursAcc.months[0].month : workerStartMonth;
   const actualEndMonthForPdf = hoursAcc.months.length > 0 ? hoursAcc.months[hoursAcc.months.length - 1].month : endMonth;
+
+  const initialCarryover = withPrevBalance ? hoursAcc.initialCarryover : 0;
+  const pdfMonths = withPrevBalance
+    ? hoursAcc.months
+    : hoursAcc.months.map((m) => ({
+        ...m,
+        cumulativeBalance: Math.round((m.cumulativeBalance - hoursAcc.initialCarryover) * 100) / 100,
+      }));
 
   const { getCompanyConfig } = await import("@/lib/config/company");
   const companyConfig = await getCompanyConfig();
@@ -67,8 +81,8 @@ export async function GET(
         workerNumber: worker.internalNumber,
         startMonth: actualStartMonthForPdf,
         endMonth: actualEndMonthForPdf,
-        months: hoursAcc.months,
-        initialCarryover: hoursAcc.initialCarryover,
+        months: pdfMonths,
+        initialCarryover,
       },
     }) as any
   );
@@ -76,7 +90,7 @@ export async function GET(
   return new NextResponse(pdfStream as any, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="arbeitszeitkonto_${worker.fullName}_${startMonth}_${endMonth}.pdf"`,
+      "Content-Disposition": `inline; filename="arbeitszeitkonto_${worker.fullName}_${actualStartMonthForPdf}_${actualEndMonthForPdf}.pdf"`,
     },
   });
 }

@@ -205,16 +205,16 @@ export function ReisespesenView({
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-start border-collapse">
               <thead>
-                <tr className="bg-muted/60 border-b text-muted-foreground font-semibold">
-                  <th className="p-2 text-center w-10">#</th>
-                  <th className="p-2">{t("stundennachweis.shiftDate")}</th>
-                  <th className="p-2 text-center">{t("reisespesen.from")}</th>
-                  <th className="p-2 text-center">{t("reisespesen.to")}</th>
-                  <th className="p-2">{t("reisespesen.customer")}</th>
-                  <th className="p-2">{t("reisespesen.addressFrom")}</th>
-                  <th className="p-2">{t("reisespesen.addressTo")}</th>
-                  <th className="p-2 text-right">{t("reisespesen.distance")}</th>
-                  <th className="p-2 text-right">{t("reisespesen.totalCost")}</th>
+                <tr className="bg-muted/80 border-b border-border/80 text-foreground font-bold">
+                  <th className="p-2.5 text-center w-10 font-bold text-foreground">#</th>
+                  <th className="p-2.5 font-bold text-foreground">{t("stundennachweis.shiftDate")}</th>
+                  <th className="p-2.5 text-center font-bold text-foreground">{t("reisespesen.from")}</th>
+                  <th className="p-2.5 text-center font-bold text-foreground">{t("reisespesen.to")}</th>
+                  <th className="p-2.5 font-bold text-foreground">{t("reisespesen.customer")}</th>
+                  <th className="p-2.5 font-bold text-foreground">{t("reisespesen.addressFrom")}</th>
+                  <th className="p-2.5 font-bold text-foreground">{t("reisespesen.addressTo")}</th>
+                  <th className="p-2.5 text-right font-bold text-foreground">{t("reisespesen.distance")}</th>
+                  <th className="p-2.5 text-right font-bold text-foreground">{t("reisespesen.totalCost")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

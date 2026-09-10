@@ -879,7 +879,10 @@
       "leaves": "Out",
       "pause": "Break",
       "sum": "Hours",
-      "client": "Client"
+      "client": "Client",
+      "signedSheet": "Signed Sheet",
+      "signed": "Signed",
+      "pending": "Pending"
     },
     "aueg": {
       "title": "List of Temporary Agency Workers: Current and Departed",
@@ -904,8 +907,10 @@
     },
     "arbeitszeitkonto": {
       "title": "Working Time Account",
-      "totalPeriod": "Overall Time Tracking",
-      "withPrevBalance": "With Prev Balance",
+      "totalPeriod": "Overall Time Tracking (Zeiterfassung insgesamt)",
+      "withPrevBalance": "Mit Übertrag",
+      "carryover": "Übertrag",
+      "carryoverHint": "Initial carryover from previous period",
       "selectAll": "Select All",
       "soll": "Target",
       "ist": "Actual",

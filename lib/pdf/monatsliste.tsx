@@ -15,10 +15,11 @@ const styles = StyleSheet.create({
   metaContainer: { marginTop: 12, marginBottom: 12 },
   workerLine: { fontSize: 11, fontFamily: "Helvetica-Bold", color: "#b91c1c", marginBottom: 4 },
   dateLine: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#b91c1c" },
-  table: { width: "100%", borderStyle: "solid", borderWidth: 1, borderColor: "#000", marginTop: 6 },
-  tableHeader: { flexDirection: "row", backgroundColor: "#f3f4f6", fontFamily: "Helvetica-Bold", borderBottomWidth: 1, borderBottomColor: "#000" },
-  tableRow: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#d1d5db" },
-  col: { padding: 3, borderRightWidth: 0.5, borderRightColor: "#d1d5db", justifyContent: "center", textAlign: "center" },
+  table: { width: "100%", borderStyle: "solid", borderWidth: 1.2, borderColor: "#111827", marginTop: 6 },
+  tableHeader: { flexDirection: "row", backgroundColor: "#e5e7eb", fontFamily: "Helvetica-Bold", borderBottomWidth: 1.5, borderBottomColor: "#111827" },
+  tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#374151" },
+  tableRowEven: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#374151", backgroundColor: "#f9fafb" },
+  col: { padding: 3.5, borderRightWidth: 0.8, borderRightColor: "#4b5563", justifyContent: "center", textAlign: "center" },
   colDate: { width: "13%" },
   colShift: { width: "9%" },
   colHours: { width: "9%" },
@@ -100,7 +101,7 @@ export const MonatslisteTemplate = ({
           </View>
 
           {rows.map((r, idx) => (
-            <View key={idx} style={styles.tableRow}>
+            <View key={idx} style={idx % 2 === 1 ? styles.tableRowEven : styles.tableRow}>
               <Text style={[styles.col, styles.colDate]}>{r.date}</Text>
               <Text style={[styles.col, styles.colShift]}>{r.shift1.kommt}</Text>
               <Text style={[styles.col, styles.colShift]}>{r.shift1.geht}</Text>

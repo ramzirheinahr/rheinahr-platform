@@ -53,8 +53,8 @@ export function ArbeitszeitkontoView({
   const [zeiterfassungInsgesamt, setZeiterfassungInsgesamt] = useState<boolean>(true);
   const [withPrevBalance, setWithPrevBalance] = useState<boolean>(true);
 
-  const [startYear, setStartYear] = useState<number>(currentY - 1);
-  const [startMonth, setStartMonth] = useState<string>("01");
+  const [startYear, setStartYear] = useState<number>(2026);
+  const [startMonth, setStartMonth] = useState<string>("07");
   const [endYear, setEndYear] = useState<number>(currentY);
   const [endMonth, setEndMonth] = useState<string>(currentM);
 
@@ -62,8 +62,9 @@ export function ArbeitszeitkontoView({
   const [selectedWorkersBatch, setSelectedWorkersBatch] = useState<string[]>([]);
   const [batchSearchQuery, setBatchSearchQuery] = useState<string>("");
 
-  // Table rows & editable notes
+  // Table rows, initial carryover & editable notes
   const [rows, setRows] = useState<Array<MonthlyHoursAccount & { notes?: string }> | null>(null);
+  const [initialCarryover, setInitialCarryover] = useState<number | null>(null);
   const [notesState, setNotesState] = useState<Record<string, string>>({});
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
 
@@ -82,6 +83,7 @@ export function ArbeitszeitkontoView({
       });
 
       setRows(res.months);
+      setInitialCarryover(res.initialCarryover);
       const initialNotes: Record<string, string> = {};
       for (const m of res.months) {
         initialNotes[m.month] = m.notes || "";
@@ -89,6 +91,12 @@ export function ArbeitszeitkontoView({
       setNotesState(initialNotes);
     });
   };
+
+  React.useEffect(() => {
+    if (selectedWorkerId) {
+      handleSearch();
+    }
+  }, [selectedWorkerId, zeiterfassungInsgesamt, withPrevBalance]);
 
   const handleSaveNotes = () => {
     if (!selectedWorkerId) return;
@@ -104,8 +112,9 @@ export function ArbeitszeitkontoView({
 
   const handlePrint = (workerIdToPrint: string) => {
     const params = new URLSearchParams({
-      startMonth: zeiterfassungInsgesamt ? "auto" : `${startYear}-${startMonth}`,
-      endMonth: `${endYear}-${endMonth}`,
+      start: zeiterfassungInsgesamt ? "2026-07" : `${startYear}-${startMonth}`,
+      end: `${endYear}-${endMonth}`,
+      withPrevBalance: String(withPrevBalance),
     });
     window.open(`/api/workers/${workerIdToPrint}/arbeitszeitkonto?${params.toString()}`, "_blank");
   };
@@ -176,8 +185,19 @@ export function ArbeitszeitkontoView({
                   onChange={(e) => setWithPrevBalance(e.target.checked)}
                   className="h-4 w-4 rounded border-input text-primary focus:ring-primary/40"
                 />
-                <span className="font-medium text-foreground">
-                  {t("arbeitszeitkonto.withPrevBalance")}
+                <span className="font-medium text-foreground flex items-center gap-2">
+                  <span>{t("arbeitszeitkonto.withPrevBalance")}</span>
+                  {initialCarryover !== null && withPrevBalance && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-bold tracking-tight shadow-xs ${
+                        initialCarryover >= 0
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                          : "bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                      }`}
+                    >
+                      {initialCarryover > 0 ? `+${initialCarryover.toFixed(2)}` : initialCarryover.toFixed(2)} Std.
+                    </span>
+                  )}
                 </span>
               </label>
             </div>
@@ -393,8 +413,36 @@ export function ArbeitszeitkontoView({
                     </td>
                   </tr>
                 ) : (
-                  rows.map((r, i) => (
-                    <tr key={i} className="hover:bg-muted/30 transition-colors">
+                  <>
+                    {withPrevBalance && initialCarryover !== null && (
+                      <tr className="bg-slate-50/80 dark:bg-zinc-800/50 font-semibold border-b border-border text-foreground">
+                        <td className="p-2 text-center text-muted-foreground">-</td>
+                        <td className="p-2 font-bold whitespace-nowrap text-primary">
+                          {t("arbeitszeitkonto.carryover")}
+                        </td>
+                        <td className="p-2 text-right text-muted-foreground">-</td>
+                        <td className="p-2 text-right text-muted-foreground">-</td>
+                        <td className="p-2 text-right text-muted-foreground">-</td>
+                        <td className="p-2 text-right text-muted-foreground">-</td>
+                        <td className="p-2 text-right text-muted-foreground">-</td>
+                        <td className="p-2 text-right text-muted-foreground">-</td>
+                        <td className="p-2 text-right text-muted-foreground">-</td>
+                        <td
+                          className={`p-2 text-right font-bold ${
+                            initialCarryover >= 0
+                              ? "text-emerald-700 dark:text-emerald-400"
+                              : "text-rose-700 dark:text-rose-400"
+                          }`}
+                        >
+                          {initialCarryover.toFixed(2)}
+                        </td>
+                        <td className="p-2 text-muted-foreground italic text-[11px]">
+                          {t("arbeitszeitkonto.carryoverHint")}
+                        </td>
+                      </tr>
+                    )}
+                    {rows.map((r, i) => (
+                      <tr key={i} className="hover:bg-muted/30 transition-colors">
                       <td className="p-2 text-center text-muted-foreground">{i + 1}</td>
                       <td className="p-2 font-semibold whitespace-nowrap bg-muted/10">
                         {r.month}
@@ -442,9 +490,10 @@ export function ArbeitszeitkontoView({
                         />
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
+                  ))}
+                </>
+              )}
+            </tbody>
             </table>
           </div>
         </Card>

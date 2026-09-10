@@ -26,8 +26,51 @@ export async function addWorkerAdjustment(
     },
   });
 
+  // Automatically sync note into Arbeitszeitkonto (azk.note) if notes is provided
+  if (notes && notes.trim()) {
+    const key = `azk.note.${workerId}.${month}`;
+    const existing = await prisma.systemSetting.findUnique({ where: { key } });
+    const trimmed = notes.trim();
+    if (!existing || !existing.value) {
+      await prisma.systemSetting.upsert({
+        where: { key },
+        create: { key, value: trimmed },
+        update: { value: trimmed },
+      });
+    } else if (!existing.value.includes(trimmed)) {
+      const updated = `${existing.value}; ${trimmed}`;
+      await prisma.systemSetting.update({
+        where: { key },
+        data: { value: updated },
+      });
+    }
+  }
+
   revalidatePath(`/admin/workers/${workerId}/schedule`);
+  revalidatePath(`/admin/reports`);
   revalidatePath(`/worker`);
+}
+
+export async function saveWorkerMonthlyNoteAction(
+  workerId: string,
+  month: string,
+  note: string
+) {
+  const user = await getCurrentUser();
+  if (!user || !["super_admin", "admin"].includes(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  const key = `azk.note.${workerId}.${month}`;
+  await prisma.systemSetting.upsert({
+    where: { key },
+    create: { key, value: note },
+    update: { value: note },
+  });
+
+  revalidatePath(`/admin/workers/${workerId}/schedule`);
+  revalidatePath(`/admin/reports`);
+  return { success: true };
 }
 
 export async function deleteWorkerAdjustment(id: string) {

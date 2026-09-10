@@ -57,8 +57,12 @@ export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) 
     },
     {
       header: "Kunde",
+      className: "min-w-[260px] max-w-[420px]",
       cell: (r) => (
-        <span className="font-medium text-slate-900 block truncate max-w-[180px]">
+        <span
+          className="font-medium text-slate-900 leading-snug whitespace-normal break-words block"
+          title={r.facilityName}
+        >
           {r.facilityName}
         </span>
       ),

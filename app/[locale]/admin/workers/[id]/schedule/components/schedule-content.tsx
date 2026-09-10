@@ -22,12 +22,17 @@ export async function ScheduleContent({
 }) {
   const av = await getTranslations("availability");
 
-  const [{ rows: assignments, leaveDays, totals }, initialBlocks, adjustmentsData] = await Promise.all([
+  const monthStr = `${year}-${String(month).padStart(2, "0")}`;
+
+  const [{ rows: assignments, leaveDays, totals }, initialBlocks, adjustmentsData, noteSetting] = await Promise.all([
     getWorkerMonthSchedule(workerId, year, month),
     getWorkerMonthAvailability(workerId, year, month),
     prisma.workerHoursAdjustment.findMany({
-      where: { workerId, month: `${year}-${String(month).padStart(2, "0")}` },
+      where: { workerId, month: monthStr },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.systemSetting.findUnique({
+      where: { key: `azk.note.${workerId}.${monthStr}` },
     }),
   ]);
 
@@ -38,6 +43,9 @@ export async function ScheduleContent({
     hours: a.hours,
     notes: a.notes,
   }));
+
+  const adjNotesList = adjustmentsData.map((a) => a.notes?.trim()).filter(Boolean);
+  const initialMonthlyNote = noteSetting?.value || (adjNotesList.length > 0 ? adjNotesList.join("; ") : "");
 
   return (
     <div className="space-y-6 mt-6">
@@ -83,7 +91,12 @@ export async function ScheduleContent({
       </section>
 
       <section>
-        <WorkerAdjustments workerId={workerId} adjustments={adjustments} />
+        <WorkerAdjustments
+          workerId={workerId}
+          adjustments={adjustments}
+          monthStr={monthStr}
+          initialMonthlyNote={initialMonthlyNote}
+        />
       </section>
     </div>
   );

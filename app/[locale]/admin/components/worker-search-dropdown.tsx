@@ -28,7 +28,8 @@ export function WorkerSearchDropdown({
   const options = workers.map((w) => ({
     value: w.id,
     label: w.fullName,
-    hint: `${w.internalNumber || ""} ${w.phone || ""} ${w.email || ""}`,
+    subLabel: w.internalNumber ? `${w.internalNumber}` : undefined,
+    searchTerms: `${w.fullName} ${w.internalNumber || ""} ${w.phone || ""} ${w.email || ""}`,
   }));
 
   const handleChange = (val: string) => {

@@ -199,6 +199,12 @@ export type MonatslisteRow = {
   shift2: MonatslisteShift;
   hours: number;
   customerName: string;
+  assignmentId1?: string;
+  hasConfirmation1?: boolean;
+  signerName1?: string | null;
+  assignmentId2?: string;
+  hasConfirmation2?: boolean;
+  signerName2?: string | null;
 };
 
 export async function getMonatslisteData(params: {
@@ -289,6 +295,15 @@ export async function getMonatslisteData(params: {
       .filter(Boolean)
       .join(", ");
 
+    const hasConf1 = !!(
+      assign1?.serviceConfirmation?.signatureData ||
+      assign1?.serviceConfirmation?.documentUrl
+    );
+    const hasConf2 = !!(
+      assign2?.serviceConfirmation?.signatureData ||
+      assign2?.serviceConfirmation?.documentUrl
+    );
+
     rows.push({
       date: formattedDate,
       dayOfMonth: d,
@@ -308,6 +323,12 @@ export async function getMonatslisteData(params: {
         : { kommt: "-----", geht: "-----", pause: "0,00" },
       hours: totalHours,
       customerName: clientNames || "—",
+      assignmentId1: assign1?.id,
+      hasConfirmation1: hasConf1,
+      signerName1: assign1?.serviceConfirmation?.signerName || null,
+      assignmentId2: assign2?.id,
+      hasConfirmation2: hasConf2,
+      signerName2: assign2?.serviceConfirmation?.signerName || null,
     });
   }
 
@@ -566,13 +587,16 @@ export async function getArbeitszeitkontoData(params: {
     const startDate = worker.employmentStartDate || worker.employedSince || worker.createdAt;
     const startY = startDate.getUTCFullYear();
     const startM = String(startDate.getUTCMonth() + 1).padStart(2, "0");
-    startMonth = `${startY}-${startM}`;
+    const workerJoinMonth = `${startY}-${startM}`;
+    // The system started in 2026-07. If worker joined before 2026-07, start from 2026-07.
+    // If worker joined later (e.g. 2026-08), start from their join month.
+    startMonth = workerJoinMonth > "2026-07" ? workerJoinMonth : "2026-07";
     endMonth = currentMonthStr;
   }
 
   const result = await getWorkerHoursAccount(params.workerId, startMonth, endMonth);
 
-  // Fetch notes stored in SystemSetting
+  // Fetch notes stored in SystemSetting (custom notes from Arbeitszeitkonto)
   const monthKeys = result.months.map((m) => `azk.note.${params.workerId}.${m.month}`);
   const settings = await prisma.systemSetting.findMany({
     where: { key: { in: monthKeys } },
@@ -583,12 +607,52 @@ export async function getArbeitszeitkontoData(params: {
     noteMap.set(m, s.value);
   }
 
-  const monthsWithNotes = result.months.map((m) => ({
-    ...m,
-    notes: noteMap.get(m.month) || "",
-  }));
+  // Fetch manual adjustments notes from WorkerHoursAdjustment
+  const adjustments = await prisma.workerHoursAdjustment.findMany({
+    where: {
+      workerId: params.workerId,
+      month: { in: result.months.map((m) => m.month) },
+    },
+    orderBy: { createdAt: "asc" },
+  });
 
-  const initialCarryover = params.withPrevBalance ? result.initialCarryover : 0;
+  const adjMap = new Map<string, string[]>();
+  for (const a of adjustments) {
+    if (a.notes && a.notes.trim()) {
+      const list = adjMap.get(a.month) || [];
+      const trimmed = a.notes.trim();
+      if (!list.includes(trimmed)) {
+        list.push(trimmed);
+      }
+      adjMap.set(a.month, list);
+    }
+  }
+
+  const initialCarryover = params.withPrevBalance !== false ? result.initialCarryover : 0;
+
+  const monthsWithNotes = result.months.map((m) => {
+    const customNote = (noteMap.get(m.month) || "").trim();
+    const adjNotes = adjMap.get(m.month) || [];
+
+    let combinedNote = customNote;
+    if (!combinedNote && adjNotes.length > 0) {
+      combinedNote = adjNotes.join("; ");
+    } else if (combinedNote && adjNotes.length > 0) {
+      const missing = adjNotes.filter((n) => !combinedNote.includes(n));
+      if (missing.length > 0) {
+        combinedNote = `${combinedNote}; ${missing.join("; ")}`;
+      }
+    }
+
+    return {
+      ...m,
+      cumulativeBalance:
+        params.withPrevBalance !== false
+          ? m.cumulativeBalance
+          : Math.round((m.cumulativeBalance - result.initialCarryover) * 100) / 100,
+      notes: combinedNote,
+    };
+  });
 
   return {
     worker,

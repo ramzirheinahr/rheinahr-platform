@@ -879,7 +879,10 @@
       "leaves": "Geht",
       "pause": "Pause",
       "sum": "Stunden",
-      "client": "Auftraggeber"
+      "client": "Auftraggeber",
+      "signedSheet": "Unterschriftsnachweis",
+      "signed": "Signiert",
+      "pending": "Ausstehend"
     },
     "aueg": {
       "title": "Liste der Leiharbeitskräfte : aktuell und ausgeschieden",
@@ -905,7 +908,9 @@
     "arbeitszeitkonto": {
       "title": "Arbeitszeitkonto",
       "totalPeriod": "Zeiterfassung insgesamt",
-      "withPrevBalance": "With Prev Balance",
+      "withPrevBalance": "Mit Übertrag",
+      "carryover": "Übertrag",
+      "carryoverHint": "Startübertrag aus Vormonaten",
       "selectAll": "alles auswählen",
       "soll": "Soll",
       "ist": "Ist",
@@ -915,19 +920,19 @@
       "other": "Sonstige",
       "monthBalance": "Monatssaldo",
       "cumBalance": "Gesamtsaldo",
-      "notesHeader": "Notes"
+      "notesHeader": "Bemerkungen"
     },
     "reisespesen": {
       "title": "Reisespesen",
       "shiftTime": "Schichtzeit",
-      "from": "From",
-      "to": "To",
-      "customer": "Customer",
-      "addressFrom": "Address From",
-      "addressTo": "Address To",
-      "distance": "Distance (km)",
-      "totalCost": "Total Cost (€)",
-      "home": "Home",
+      "from": "Von",
+      "to": "Bis",
+      "customer": "Auftraggeber",
+      "addressFrom": "Startadresse",
+      "addressTo": "Zieladresse",
+      "distance": "Entfernung (km)",
+      "totalCost": "Gesamtkosten (€)",
+      "home": "Wohnort",
       "totalDistance": "Gesamtkilometer",
       "totalAmount": "Gesamterstattungsbetrag"
     },
