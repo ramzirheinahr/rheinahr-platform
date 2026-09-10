@@ -170,6 +170,20 @@ export async function generateMonthInvoices(
       url: `/client/schedule?year=${year}&month=${month}`,
       attachments
     });
+
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        snapshotData: {
+          ...(invoice.snapshotData as any),
+          emailSent: {
+            sentAt: new Date().toISOString(),
+            recipients: targetRecipients,
+            attachTimesheets,
+          }
+        }
+      }
+    });
   } catch (emailErr) {
     console.error("Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);
   }

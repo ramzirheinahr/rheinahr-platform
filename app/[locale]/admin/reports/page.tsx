@@ -1,8 +1,9 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { orderStatuses } from "@/lib/validations";
+import { orderStatuses, qualifications } from "@/lib/validations";
 import type { OrderStatus } from "@prisma/client";
+import { ReportsHub } from "@/components/admin/reports/reports-hub";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,29 @@ export default async function ReportsPage() {
   const es = await getTranslations("enums.orderStatus");
   const s = await getStats();
 
+  // Fetch workers and clients for the report filters
+  const [workers, clients] = await Promise.all([
+    prisma.worker.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        internalNumber: true,
+        qualification: true,
+        employmentStartDate: true,
+        employedSince: true,
+      },
+      orderBy: { fullName: "asc" },
+    }),
+    prisma.client.findMany({
+      select: {
+        id: true,
+        facilityName: true,
+        internalNumber: true,
+      },
+      orderBy: { facilityName: "asc" },
+    }),
+  ]);
+
   const kpis = [
     { label: t("totalOrders"), value: s?.totalOrders ?? "—" },
     { label: t("activeOrders"), value: s?.activeOrders ?? "—" },
@@ -111,13 +135,8 @@ export default async function ReportsPage() {
 
   const maxStatus = s ? Math.max(1, ...Object.values(s.byStatus)) : 1;
 
-  return (
+  const kpiContent = (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((k) => (
           <Card key={k.label}>
@@ -188,5 +207,14 @@ export default async function ReportsPage() {
         </Card>
       </div>
     </div>
+  );
+
+  return (
+    <ReportsHub
+      workers={workers}
+      clients={clients}
+      qualifications={qualifications as unknown as string[]}
+      kpiContent={kpiContent}
+    />
   );
 }

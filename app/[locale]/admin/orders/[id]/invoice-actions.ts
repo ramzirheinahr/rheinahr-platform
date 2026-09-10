@@ -79,6 +79,24 @@ export async function sendInvoiceEmail({
     attachments,
   });
 
+  // Track email dispatch in snapshotData
+  const currentSnapshot = (invoice.snapshotData as any) || {};
+  await prisma.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      snapshotData: {
+        ...currentSnapshot,
+        emailSent: {
+          sentAt: new Date().toISOString(),
+          recipients: targetRecipients,
+          attachTimesheets,
+        },
+      },
+    },
+  });
+
+  revalidatePath("/admin/invoicing");
+  revalidatePath(`/admin/orders`);
   return { ok: true };
 }
 
@@ -317,6 +335,20 @@ export async function generateOrderInvoices(
       body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
       url: `/client/orders/${requestGroupId}`,
       attachments
+    });
+
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        snapshotData: {
+          ...(invoice.snapshotData as any),
+          emailSent: {
+            sentAt: new Date().toISOString(),
+            recipients: targetRecipients,
+            attachTimesheets,
+          }
+        }
+      }
     });
   } catch (emailErr) {
     console.error("Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);

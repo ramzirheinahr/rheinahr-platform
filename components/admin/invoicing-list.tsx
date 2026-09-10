@@ -6,11 +6,12 @@ import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail } from "lucide-react";
+import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail, Edit3, Send } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
 import { deleteInvoice, cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
+import { EditInvoiceDialog } from "./invoicing/edit-invoice-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +25,7 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
   const tEmail = useTranslations("emailDialog");
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     if (currentStatus === "cancelled") return;
@@ -118,31 +120,43 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
     },
     {
       header: "Status",
-      cell: (r) => (
-        <button
-          onClick={() => handleToggleStatus(r.id, r.status)}
-          disabled={loadingId === r.id || r.status === "cancelled"}
-          className="transition-opacity hover:opacity-80 cursor-pointer disabled:cursor-not-allowed text-left"
-          title={r.status === "paid" ? "Klicken, um als offen zu markieren" : r.status === "unpaid" ? "Klicken, um als bezahlt zu markieren" : undefined}
-        >
-          {r.status === "paid" ? (
-            <Badge variant="secondary" className="gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-              <CheckCircle2 className="size-3" />
-              Bezahlt
-            </Badge>
-          ) : r.status === "cancelled" ? (
-            <Badge variant="destructive" className="gap-1.5 opacity-70">
-              <Ban className="size-3" />
-              Storniert
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="gap-1.5 bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100">
-              <Clock className="size-3" />
-              Ausstehend
-            </Badge>
-          )}
-        </button>
-      )
+      cell: (r) => {
+        const emailSent = r.snapshotData?.emailSent;
+        return (
+          <div className="flex flex-col gap-1 items-start">
+            <button
+              onClick={() => handleToggleStatus(r.id, r.status)}
+              disabled={loadingId === r.id || r.status === "cancelled"}
+              className="transition-opacity hover:opacity-80 cursor-pointer disabled:cursor-not-allowed text-left"
+              title={r.status === "paid" ? "Klicken, um als offen zu markieren" : r.status === "unpaid" ? "Klicken, um als bezahlt zu markieren" : undefined}
+            >
+              {r.status === "paid" ? (
+                <Badge variant="secondary" className="gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                  <CheckCircle2 className="size-3" />
+                  Bezahlt
+                </Badge>
+              ) : r.status === "cancelled" ? (
+                <Badge variant="destructive" className="gap-1.5 opacity-70">
+                  <Ban className="size-3" />
+                  Storniert
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1.5 bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100">
+                  <Clock className="size-3" />
+                  Ausstehend
+                </Badge>
+              )}
+            </button>
+
+            {emailSent && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1 font-normal" title={`Versendet am ${format(new Date(emailSent.sentAt), "dd.MM.yyyy HH:mm")}`}>
+                <Send className="size-2.5 text-blue-600" />
+                Per E-Mail versendet
+              </Badge>
+            )}
+          </div>
+        );
+      }
     },
     {
       header: "Aktion",
@@ -160,6 +174,12 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
               <FileText className="size-4 mr-2" />
               PDF anzeigen
             </DropdownMenuItem>
+            {r.status !== "cancelled" && (
+              <DropdownMenuItem onClick={() => setEditingInvoice(r)}>
+                <Edit3 className="size-4 mr-2" />
+                Rechnung bearbeiten
+              </DropdownMenuItem>
+            )}
             {r.status !== "cancelled" && (
               <DropdownMenuItem onClick={() => setEmailInvoiceId(r.id)}>
                 <Mail className="size-4 mr-2" />
@@ -222,6 +242,14 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
         title={tEmail("invoiceTitle")}
         invoiceId={emailInvoiceId || undefined}
         onSend={handleSendEmail}
+      />
+
+      <EditInvoiceDialog
+        open={!!editingInvoice}
+        onOpenChange={(open) => {
+          if (!open) setEditingInvoice(null);
+        }}
+        invoice={editingInvoice}
       />
     </div>
   );

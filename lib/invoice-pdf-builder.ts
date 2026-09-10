@@ -97,6 +97,19 @@ export function buildInvoicePdfData(
     }
   }
 
+  // Handle Net Adjustment (Zu- oder Abschlag auf Netto-Betrag)
+  const netAdjustment = typeof snapshot.netAdjustment === "number" ? snapshot.netAdjustment : 0;
+  if (netAdjustment !== 0) {
+    const reason = snapshot.adjustmentReason?.trim() || (netAdjustment < 0 ? "Abschlag (Netto)" : "Zuschlag (Netto)");
+    items.push({
+      pos: pos++,
+      description: reason,
+      hours: "-",
+      rate: "-",
+      amount: formatAmount(netAdjustment),
+    });
+  }
+
   const allAssignments = [...assignments].sort((a, b) => a.order.shiftDate.getTime() - b.order.shiftDate.getTime());
   const periodStart = allAssignments[0] ? format(allAssignments[0].order.shiftDate, "dd.MM.yyyy") : "";
   const periodEnd = allAssignments[allAssignments.length - 1] ? format(allAssignments[allAssignments.length - 1].order.shiftDate, "dd.MM.yyyy") : "";
