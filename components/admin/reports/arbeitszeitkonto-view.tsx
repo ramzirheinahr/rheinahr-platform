@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Printer, Search, Save, Loader2, Check } from "lucide-react";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Printer, Search, Save, Loader2, Check, X } from "lucide-react";
 import { fetchArbeitszeitkontoAction, saveAzkNotesAction } from "@/app/[locale]/admin/reports/actions";
 import type { MonthlyHoursAccount } from "@/lib/hours-account";
 
@@ -24,6 +25,13 @@ const MONTHS = [
   { value: "11", label: "November" },
   { value: "12", label: "Dezember" },
 ];
+
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 export function ArbeitszeitkontoView({
   workers,
@@ -52,6 +60,7 @@ export function ArbeitszeitkontoView({
 
   // Multi-select for batch printing
   const [selectedWorkersBatch, setSelectedWorkersBatch] = useState<string[]>([]);
+  const [batchSearchQuery, setBatchSearchQuery] = useState<string>("");
 
   // Table rows & editable notes
   const [rows, setRows] = useState<Array<MonthlyHoursAccount & { notes?: string }> | null>(null);
@@ -133,22 +142,18 @@ export function ArbeitszeitkontoView({
           <CardContent className="pt-5 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("common.worker")}:</label>
-              <Select value={selectedWorkerId} onValueChange={(v) => { if (v !== null) setSelectedWorkerId(v); }}>
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder={t("common.worker")}>
-                    {selectedWorker
-                      ? `${selectedWorker.fullName} ${selectedWorker.internalNumber ? `(${selectedWorker.internalNumber})` : ""}`
-                      : undefined}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {workers.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.fullName} {w.internalNumber ? `(${w.internalNumber})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={workers.map((w) => ({
+                  value: w.id,
+                  label: w.fullName,
+                  subLabel: w.internalNumber ? w.internalNumber : undefined,
+                  searchTerms: `${w.fullName} ${w.internalNumber || ""}`,
+                }))}
+                value={selectedWorkerId}
+                onValueChange={setSelectedWorkerId}
+                placeholder={t("common.worker")}
+                searchPlaceholder="Mitarbeiter suchen..."
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-6 text-xs">
@@ -293,24 +298,51 @@ export function ArbeitszeitkontoView({
               {t("arbeitszeitkonto.selectAll")}
             </Button>
           </CardHeader>
-          <CardContent className="p-2 flex-1 flex flex-col justify-between">
-            <div className="h-44 overflow-y-auto space-y-1 pr-1">
-              {workers.map((w) => (
-                <label
-                  key={w.id}
-                  className="flex items-center gap-2 p-1 rounded hover:bg-muted/50 cursor-pointer text-xs"
+          <CardContent className="p-2 flex-1 flex flex-col justify-between space-y-2">
+            <div className="relative">
+              <Search className="size-3.5 absolute left-2.5 top-2 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Mitarbeiter filtern..."
+                value={batchSearchQuery}
+                onChange={(e) => setBatchSearchQuery(e.target.value)}
+                className="h-7 text-xs pl-8 pr-7"
+              />
+              {batchSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setBatchSearchQuery("")}
+                  className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedWorkersBatch.includes(w.id)}
-                    onChange={() => toggleWorkerBatch(w.id)}
-                    className="h-3.5 w-3.5 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                  />
-                  <span className="truncate">
-                    {w.fullName} {w.internalNumber ? `- ${w.internalNumber}` : ""}
-                  </span>
-                </label>
-              ))}
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="h-40 overflow-y-auto space-y-1 pr-1">
+              {workers
+                .filter((w) => {
+                  const tokens = normalize(batchSearchQuery).split(/\s+/).filter(Boolean);
+                  if (tokens.length === 0) return true;
+                  const hay = normalize(`${w.fullName} ${w.internalNumber || ""} ${w.id}`);
+                  return tokens.every((token) => hay.includes(token));
+                })
+                .map((w) => (
+                  <label
+                    key={w.id}
+                    className="flex items-center gap-2 p-1 rounded hover:bg-muted/50 cursor-pointer text-xs"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedWorkersBatch.includes(w.id)}
+                      onChange={() => toggleWorkerBatch(w.id)}
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary/40"
+                    />
+                    <span className="truncate">
+                      {w.fullName} {w.internalNumber ? `- ${w.internalNumber}` : ""}
+                    </span>
+                  </label>
+                ))}
             </div>
 
             <div className="pt-2 border-t mt-2 flex justify-end">

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Printer, Search, Loader2 } from "lucide-react";
 import { fetchMonatslisteAction } from "@/app/[locale]/admin/reports/actions";
 import type { MonatslisteRow } from "@/lib/reports-data";
@@ -115,41 +116,36 @@ export function MonatslisteView({
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("common.worker")}</label>
-              <Select value={workerId} onValueChange={(v) => { if (v !== null) setWorkerId(v); }}>
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder={t("common.worker")}>
-                    {selectedWorker
-                      ? `${selectedWorker.fullName} ${selectedWorker.internalNumber ? `(${selectedWorker.internalNumber})` : ""}`
-                      : undefined}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {workers.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.fullName} {w.internalNumber ? `(${w.internalNumber})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={workers.map((w) => ({
+                  value: w.id,
+                  label: w.fullName,
+                  subLabel: w.internalNumber ? w.internalNumber : undefined,
+                  searchTerms: `${w.fullName} ${w.internalNumber || ""}`,
+                }))}
+                value={workerId}
+                onValueChange={setWorkerId}
+                placeholder={t("common.worker")}
+                searchPlaceholder="Mitarbeiter suchen..."
+              />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("common.client")}</label>
-              <Select value={clientId} onValueChange={(v) => { if (v !== null) setClientId(v); }}>
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder={t("common.allClients")}>
-                    {clientId === "all" ? t("common.allClients") : (selectedClient?.facilityName || "")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("common.allClients")}</SelectItem>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.facilityName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={[
+                  { value: "all", label: t("common.allClients") },
+                  ...clients.map((c) => ({
+                    value: c.id,
+                    label: c.facilityName,
+                    searchTerms: c.facilityName,
+                  })),
+                ]}
+                value={clientId}
+                onValueChange={setClientId}
+                placeholder={t("common.allClients")}
+                searchPlaceholder="Kunde suchen..."
+              />
             </div>
           </div>
 

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Copy, ArrowRightLeft, Search, Loader2, Check, X } from "lucide-react";
 import { fetchMonatslisteAction, transferOrCopyShiftsAction } from "@/app/[locale]/admin/reports/actions";
@@ -158,41 +159,34 @@ export function ZeiterfassungTransferView({
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("common.client")}:</label>
-              <Select value={clientId} onValueChange={(v) => { if (v !== null) setClientId(v); }}>
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder={t("common.client")}>
-                    {selectedClient?.facilityName}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.facilityName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={clients.map((c) => ({
+                  value: c.id,
+                  label: c.facilityName,
+                  searchTerms: c.facilityName,
+                }))}
+                value={clientId}
+                onValueChange={setClientId}
+                placeholder={t("common.client")}
+                searchPlaceholder="Kunde suchen..."
+              />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">{t("common.worker")}:</label>
-            <Select value={workerId} onValueChange={(v) => { if (v !== null) setWorkerId(v); }}>
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue placeholder={t("common.worker")}>
-                  {selectedWorker
-                    ? `${selectedWorker.fullName} ${selectedWorker.internalNumber ? `(${selectedWorker.internalNumber})` : ""}`
-                    : undefined}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {workers.map((w) => (
-                  <SelectItem key={w.id} value={w.id}>
-                    {w.fullName} {w.internalNumber ? `(${w.internalNumber})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={workers.map((w) => ({
+                value: w.id,
+                label: w.fullName,
+                subLabel: w.internalNumber ? w.internalNumber : undefined,
+                searchTerms: `${w.fullName} ${w.internalNumber || ""}`,
+              }))}
+              value={workerId}
+              onValueChange={setWorkerId}
+              placeholder={t("common.worker")}
+              searchPlaceholder="Mitarbeiter suchen..."
+            />
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border/60">
@@ -429,41 +423,33 @@ export function ZeiterfassungTransferView({
 
               <div className="space-y-1">
                 <label className="text-[11px] text-muted-foreground">{t("common.worker")}:</label>
-                <Select value={targetWorkerId} onValueChange={(v) => { if (v !== null) setTargetWorkerId(v); }}>
-                  <SelectTrigger className="h-8 text-xs w-full">
-                    <SelectValue placeholder={t("common.worker")}>
-                      {(() => {
-                        const tw = workers.find((w) => w.id === targetWorkerId);
-                        return tw ? `${tw.fullName} ${tw.internalNumber ? `(${tw.internalNumber})` : ""}` : undefined;
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {workers.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.fullName} {w.internalNumber ? `(${w.internalNumber})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={workers.map((w) => ({
+                    value: w.id,
+                    label: w.fullName,
+                    subLabel: w.internalNumber ? w.internalNumber : undefined,
+                    searchTerms: `${w.fullName} ${w.internalNumber || ""}`,
+                  }))}
+                  value={targetWorkerId}
+                  onValueChange={setTargetWorkerId}
+                  placeholder={t("common.worker")}
+                  searchPlaceholder="Mitarbeiter suchen..."
+                />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] text-muted-foreground">{t("common.client")}:</label>
-                <Select value={targetClientId} onValueChange={(v) => { if (v !== null) setTargetClientId(v); }}>
-                  <SelectTrigger className="h-8 text-xs w-full">
-                    <SelectValue placeholder={t("common.client")}>
-                      {clients.find((c) => c.id === targetClientId)?.facilityName}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.facilityName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={clients.map((c) => ({
+                    value: c.id,
+                    label: c.facilityName,
+                    searchTerms: c.facilityName,
+                  }))}
+                  value={targetClientId}
+                  onValueChange={setTargetClientId}
+                  placeholder={t("common.client")}
+                  searchPlaceholder="Kunde suchen..."
+                />
               </div>
 
               <div className="space-y-1">

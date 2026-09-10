@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Calculator, Loader2 } from "lucide-react";
 import { calculateUrlaubAction } from "@/app/[locale]/admin/reports/actions";
 
@@ -72,22 +73,18 @@ export function UrlaubBerechnungView({
           <div className="grid gap-4 sm:grid-cols-3 items-end">
             <div className="sm:col-span-2 space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("common.worker")}:</label>
-              <Select value={workerId} onValueChange={(v) => { if (v !== null) setWorkerId(v); }}>
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder={t("common.worker")}>
-                    {selectedWorker
-                      ? `${selectedWorker.fullName} ${selectedWorker.internalNumber ? `(${selectedWorker.internalNumber})` : ""}`
-                      : undefined}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {workers.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.fullName} {w.internalNumber ? `(${w.internalNumber})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={workers.map((w) => ({
+                  value: w.id,
+                  label: w.fullName,
+                  subLabel: w.internalNumber ? w.internalNumber : undefined,
+                  searchTerms: `${w.fullName} ${w.internalNumber || ""}`,
+                }))}
+                value={workerId}
+                onValueChange={setWorkerId}
+                placeholder={t("common.worker")}
+                searchPlaceholder="Mitarbeiter suchen..."
+              />
             </div>
 
             <div className="space-y-1.5">

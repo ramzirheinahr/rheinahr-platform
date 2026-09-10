@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Printer, Search, Loader2 } from "lucide-react";
 import { fetchMitarbeiterListeAction } from "@/app/[locale]/admin/reports/actions";
 import type { MitarbeiterListeRow } from "@/lib/reports-data";
@@ -92,39 +93,35 @@ export function MitarbeiterListeView({
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("common.client")}</label>
-              <Select value={clientId} onValueChange={(v) => { if (v !== null) setClientId(v); }}>
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder={t("common.client")}>
-                    {selectedClient?.facilityName}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.facilityName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={clients.map((c) => ({
+                  value: c.id,
+                  label: c.facilityName,
+                  searchTerms: c.facilityName,
+                }))}
+                value={clientId}
+                onValueChange={setClientId}
+                placeholder={t("common.client")}
+                searchPlaceholder="Kunde suchen..."
+              />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("common.qualification")}</label>
-              <Select value={qualification} onValueChange={(v) => { if (v !== null) setQualification(v); }}>
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder={t("common.all")}>
-                    {qualification === "alle" ? t("common.all") : qualification}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="alle">{t("common.all")}</SelectItem>
-                  {qualifications.map((q) => (
-                    <SelectItem key={q} value={q}>
-                      {q}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={[
+                  { value: "alle", label: t("common.all") },
+                  ...qualifications.map((q) => ({
+                    value: q,
+                    label: q,
+                    searchTerms: q,
+                  })),
+                ]}
+                value={qualification}
+                onValueChange={setQualification}
+                placeholder={t("common.all")}
+                searchPlaceholder="Qualifikation suchen..."
+              />
             </div>
           </div>
 
