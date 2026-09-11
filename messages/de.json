@@ -595,7 +595,25 @@
     "rejectTimeChange": "Ablehnen",
     "timeChangeApproved": "Zeitkorrektur genehmigt – Stunden neu berechnet.",
     "timeChangeRejected": "Zeitkorrektur abgelehnt.",
-    "timeChangeSignerHint": "Ihr vollständiger Name (erscheint auf dem neu erstellten Nachweis, Textform § 126b BGB)"
+    "timeChangeSignerHint": "Ihr vollständiger Name (erscheint auf dem neu erstellten Nachweis, Textform § 126b BGB)",
+    "uploadSignedTitle": "Signierten Leistungsnachweis hochladen",
+    "uploadSignedDesc": "Wählen Sie die Schichten aus, für die dieser manuell signierte Leistungsnachweis gilt, und laden Sie das Dokument hoch.",
+    "uploadSignedBtn": "Signierten Leistungsnachweis hochladen",
+    "uploadSignedSuccess": "Leistungsnachweis erfolgreich hochgeladen! {count} Schicht(en) bestätigt.",
+    "uploadSignedSubmit": "Hochladen & {count} Schicht(en) bestätigen",
+    "uploading": "Wird hochgeladen...",
+    "signerFacilityLabel": "Signiert von / Einrichtung (optional)",
+    "signerFacilityPlaceholder": "z. B. Frau Nadine Fey / Pflegedienstleitung",
+    "signedDocLabel": "Signiertes Dokument (PDF oder Bild)",
+    "signedDocHint": "Gilt für alle oben ausgewählten Schichten.",
+    "allWorkers": "Alle Mitarbeiter",
+    "selectAll": "Alle auswählen",
+    "deselectAll": "Auswahl aufheben",
+    "selectedCount": "{selected} von {total} Schichten ausgewählt",
+    "confirmedBadge": "Bestätigt",
+    "confirmedCountBadge": "{confirmed}/{total} bestätigt",
+    "bannerDescEmpty": "Laden Sie die Leistungsnachweise für die ausgewählten Schichten gesammelt als PDF herunter oder laden Sie signierte Nachweise direkt hoch.",
+    "bannerDescConfirmed": "{confirmed} von {total} Schichten bestätigt. Laden Sie signierte Nachweise hoch oder generieren Sie Sammel-PDFs."
   },
   "enums": {
     "qualification": {

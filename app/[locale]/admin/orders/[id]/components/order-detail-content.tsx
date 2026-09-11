@@ -128,7 +128,8 @@ export async function OrderDetailContent({
         workerName: a.worker.fullName,
         shiftDate: formatDateDE(o.shiftDate),
         startTime: o.startTime,
-        endTime: o.endTime
+        endTime: o.endTime,
+        hasConfirmation: !!a.serviceConfirmation,
       }))
   );
 
@@ -211,6 +212,7 @@ export async function OrderDetailContent({
       />
 
       <OrderConfirmationsBanner 
+        requestGroupId={id}
         assignments={confirmedAssignments}
       />
 

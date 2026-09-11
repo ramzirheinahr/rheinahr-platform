@@ -595,7 +595,25 @@
     "rejectTimeChange": "Reject",
     "timeChangeApproved": "Time change approved — hours recalculated.",
     "timeChangeRejected": "Time change rejected.",
-    "timeChangeSignerHint": "Your full name (goes on the regenerated record, text form § 126b BGB)"
+    "timeChangeSignerHint": "Your full name (goes on the regenerated record, text form § 126b BGB)",
+    "uploadSignedTitle": "Upload signed timesheet",
+    "uploadSignedDesc": "Select the shifts this manually signed timesheet applies to and upload the document.",
+    "uploadSignedBtn": "Upload signed timesheet",
+    "uploadSignedSuccess": "Timesheet uploaded successfully! {count} shift(s) confirmed.",
+    "uploadSignedSubmit": "Upload & confirm {count} shift(s)",
+    "uploading": "Uploading...",
+    "signerFacilityLabel": "Signed by / Facility (optional)",
+    "signerFacilityPlaceholder": "e.g. Ms. Nadine Fey / Head of Nursing",
+    "signedDocLabel": "Signed document (PDF or image)",
+    "signedDocHint": "Applies to all shifts selected above.",
+    "allWorkers": "All employees",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "selectedCount": "{selected} of {total} shifts selected",
+    "confirmedBadge": "Confirmed",
+    "confirmedCountBadge": "{confirmed}/{total} confirmed",
+    "bannerDescEmpty": "Download timesheets for selected shifts as a combined PDF or directly upload signed documents.",
+    "bannerDescConfirmed": "{confirmed} of {total} shifts confirmed. Upload signed documents or generate combined PDFs."
   },
   "enums": {
     "qualification": {

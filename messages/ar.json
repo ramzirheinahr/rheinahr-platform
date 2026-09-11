@@ -595,7 +595,25 @@
     "rejectTimeChange": "رفض",
     "timeChangeApproved": "تمت الموافقة على تعديل الوقت — أُعيد احتساب الساعات.",
     "timeChangeRejected": "تم رفض تعديل الوقت.",
-    "timeChangeSignerHint": "اسمك الكامل (يظهر على الإثبات المُعاد إنشاؤه — نموذج نصي § 126b BGB)"
+    "timeChangeSignerHint": "اسمك الكامل (يظهر على الإثبات المُعاد إنشاؤه — نموذج نصي § 126b BGB)",
+    "uploadSignedTitle": "رفع إثبات أداء موقّع",
+    "uploadSignedDesc": "اختر الورديات التي ينطبق عليها إثبات الأداء الموقّع يدويًا، وارفع المستند.",
+    "uploadSignedBtn": "رفع إثبات أداء موقّع",
+    "uploadSignedSuccess": "تم رفع إثبات الأداء بنجاح وتأكيد {count} وردية.",
+    "uploadSignedSubmit": "رفع وتأكيد {count} وردية",
+    "uploading": "جاري الرفع...",
+    "signerFacilityLabel": "الموقّع / المنشأة (اختياري)",
+    "signerFacilityPlaceholder": "مثال: السيدة نادين فاي / إدارة التمريض",
+    "signedDocLabel": "المستند الموقّع (PDF أو صورة)",
+    "signedDocHint": "ينطبق على جميع الورديات المحددة أعلاه.",
+    "allWorkers": "جميع الموظفين",
+    "selectAll": "تحديد الكل",
+    "deselectAll": "إلغاء التحديد",
+    "selectedCount": "تم تحديد {selected} من {total} وردية",
+    "confirmedBadge": "مؤكدة",
+    "confirmedCountBadge": "{confirmed}/{total} مؤكدة",
+    "bannerDescEmpty": "قم بتنزيل إثباتات الأداء للورديات المحددة كملف PDF مجمع أو ارفع الإثباتات الموقعة مباشرة.",
+    "bannerDescConfirmed": "تم تأكيد {confirmed} من {total} وردية. يمكنك رفع إثباتات موقعة أو إنشاء ملفات PDF مجمعة."
   },
   "enums": {
     "qualification": {
