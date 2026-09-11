@@ -115,8 +115,8 @@ export function ShiftMetaCell({
   // The scheduled window, parsed from the "…· HH:mm–HH:mm" label, so the confirm
   // dialog can offer a time correction prefilled with the planned times.
   const timeMatch = meta.label.match(/(\d{2}:\d{2})[–-](\d{2}:\d{2})/);
-  const scheduledStart = timeMatch?.[1];
-  const scheduledEnd = timeMatch?.[2];
+  const scheduledStart = meta.startTime || timeMatch?.[1];
+  const scheduledEnd = meta.endTime || timeMatch?.[2];
 
   if (!assignable) {
     const confirmedWorkers = assignments.filter((a) => a.status === "confirmed" && a.worker);
@@ -173,7 +173,7 @@ export function ShiftMetaCell({
                     currentHours={a.hours ?? null}
                     newHours={a.correctionHours}
                   />
-                ) : meta.isPast && a.hasConfirmation ? (
+                ) : a.hasConfirmation ? (
                   <div className="flex items-center gap-1">
                     <CheckCircle2 className="size-4 text-primary" />
                     <a

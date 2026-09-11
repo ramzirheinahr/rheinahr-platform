@@ -18,6 +18,7 @@ import { ClientContractsBanner } from "@/components/client/client-contracts-bann
 import { ClientInvoicesBanner } from "@/components/client/client-invoices-banner";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
+import { fromZonedTime } from "date-fns-tz";
 import { ArrowLeft, Pencil, Download } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -139,11 +140,23 @@ export default async function ClientRequestDetail({
     const date = d(o.shiftDate);
     const slot = slotByDate[date] ?? 0;
     slotByDate[date] = slot + 1;
+    const startDateTime = fromZonedTime(`${date}T${o.startTime}:00`, "Europe/Berlin");
+    const [sh, sm] = o.startTime.split(":").map(Number);
     const [eh, em] = o.endTime.split(":").map(Number);
-    const endDateTime = new Date(o.shiftDate);
-    endDateTime.setUTCHours(eh, em, 0, 0);
+    const isOvernight = (eh * 60 + em) <= (sh * 60 + sm);
+
+    let endDateStr = date;
+    if (isOvernight) {
+      const nextDate = new Date(`${date}T00:00:00Z`);
+      nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+      endDateStr = nextDate.toISOString().slice(0, 10);
+    }
+    const endDateTime = fromZonedTime(`${endDateStr}T${o.endTime}:00`, "Europe/Berlin");
+
+    // A shift can be signed once it has started (e.g. at handover during the shift) or anytime after it ends.
+    // Future shifts that have not started cannot be signed yet.
     // eslint-disable-next-line react-hooks/purity
-    const isPast = Date.now() > endDateTime.getTime();
+    const isPast = Date.now() >= startDateTime.getTime();
     const scheduledHours = netShiftHours(o.startTime, o.endTime, o.breakMinutes);
 
     shiftMeta[`${date}:${slot}`] = {
