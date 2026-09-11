@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileSignature, Plus, FileClock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { generateOrderContracts, uploadDirectSignedContract } from "@/app/[locale]/admin/orders/[id]/contract-actions";
+import { generateOrderContracts } from "@/app/[locale]/admin/orders/[id]/contract-actions";
 import { ContractAdminDialog } from "./contract-admin-dialog";
 import { CopyPublicLinkButton } from "./copy-public-link-button";
 
@@ -31,20 +31,6 @@ export function OrderContractsBanner({
       router.refresh();
     } catch (e: unknown) {
       toast.error((e as Error).message || "Fehler beim Generieren der Verträge");
-    }
-  };
-
-  const handleDirectUpload = async (formData: FormData) => {
-    try {
-      const res = await uploadDirectSignedContract(formData);
-      if (res.ok) {
-        toast.success("Vertrag erfolgreich hochgeladen und signiert!");
-        router.refresh();
-      } else {
-        toast.error(res.error || "Fehler beim Hochladen des Vertrags.");
-      }
-    } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Hochladen des Vertrags");
     }
   };
 
@@ -84,7 +70,6 @@ export function OrderContractsBanner({
           <div className="flex items-center gap-2">
             <DirectContractUploadDialog
               assignments={uncontractedAssignments}
-              onSubmit={handleDirectUpload}
             />
             <SelectAssignmentsDialog
               assignments={uncontractedAssignments}

@@ -26,25 +26,6 @@ export function OrderConfirmationsBanner({
     window.open(url, "_blank");
   };
 
-  const handleDirectUpload = async (formData: FormData) => {
-    try {
-      const res = await fetch("/api/confirmations/upload-signed", {
-        method: "POST",
-        body: formData,
-      });
-      
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.ok) {
-        toast.success(t("uploadSignedSuccess", { count: data.count ?? 0 }));
-        router.refresh();
-      } else {
-        toast.error(data?.error || t("saveError"));
-      }
-    } catch (e: unknown) {
-      toast.error((e as Error).message || t("saveError"));
-    }
-  };
-
   const confirmedCount = assignments.filter((a) => a.hasConfirmation).length;
 
   return (
@@ -78,7 +59,6 @@ export function OrderConfirmationsBanner({
             <DirectConfirmationUploadDialog
               assignments={assignments}
               requestGroupId={requestGroupId}
-              onSubmit={handleDirectUpload}
             />
             <SelectAssignmentsDialog
               assignments={assignments}

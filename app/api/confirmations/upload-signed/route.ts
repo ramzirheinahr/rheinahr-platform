@@ -84,14 +84,17 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(bytes);
 
     // Determine contentType
-    let contentType = file.type;
+    let contentType = file.type?.toLowerCase().split(";")[0]?.trim();
     if (!contentType || contentType === "application/octet-stream") {
       const ext = file.name.split(".").pop()?.toLowerCase();
       if (ext === "pdf") contentType = "application/pdf";
       else if (ext === "png") contentType = "image/png";
       else if (ext === "jpg" || ext === "jpeg") contentType = "image/jpeg";
+      else if (ext === "webp") contentType = "image/webp";
       else contentType = "application/pdf";
     }
+    if (contentType === "image/jpg") contentType = "image/jpeg";
+    if (!contentType) contentType = "application/pdf";
 
     const cleanFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const path = `signed-confirmations/${requestGroupId}/${Date.now()}-${cleanFilename}`;

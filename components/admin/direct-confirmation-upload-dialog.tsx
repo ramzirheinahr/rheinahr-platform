@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   Dialog,
@@ -12,8 +13,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Upload, CheckCircle2 } from "lucide-react";
+import { Upload, CheckCircle2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { 
+  createConfirmationUploadTicket, 
+  finalizeDirectSignedConfirmation,
+  uploadDirectSignedConfirmation
+} from "@/app/[locale]/admin/orders/[id]/confirmation-actions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export type SelectableConfirmationAssignment = {
   id: string;
@@ -33,12 +41,14 @@ export function DirectConfirmationUploadDialog({
   assignments: SelectableConfirmationAssignment[];
   requestGroupId?: string;
   buttonClassName?: string;
-  onSubmit: (formData: FormData) => Promise<void>;
+  onSubmit?: (formData: FormData) => Promise<void>;
 }) {
+  const router = useRouter();
   const t = useTranslations("confirmations");
   const c = useTranslations("common");
 
   const [open, setOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => {
       const unconfirmed = assignments.filter((a) => !a.hasConfirmation).map((a) => a.id);
@@ -71,26 +81,88 @@ export function DirectConfirmationUploadDialog({
       const unconfirmed = assignments.filter((a) => !a.hasConfirmation).map((a) => a.id);
       setSelectedIds(new Set(unconfirmed.length > 0 ? unconfirmed : assignments.map((a) => a.id)));
       setWorkerFilter("all");
+      setSelectedFile(null);
     }
   };
 
   const formAction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0) {
+      toast.error(t("noShiftsSelected") || "Bitte mindestens eine Schicht auswählen.");
+      return;
+    }
+    if (!selectedFile) {
+      toast.error(t("fileRequired") || "Bitte eine Datei auswählen.");
+      return;
+    }
+
     setSubmitting(true);
-    
-    const formData = new FormData(e.currentTarget);
-    formData.set("assignmentIds", JSON.stringify(Array.from(selectedIds)));
-    if (requestGroupId) {
-      formData.set("requestGroupId", requestGroupId);
-    }
-    if (signerName.trim()) {
-      formData.set("signerName", signerName.trim());
-    }
-    
     try {
-      await onSubmit(formData);
+      if (onSubmit) {
+        const formData = new FormData(e.currentTarget);
+        formData.set("assignmentIds", JSON.stringify(Array.from(selectedIds)));
+        if (requestGroupId) formData.set("requestGroupId", requestGroupId);
+        if (signerName.trim()) formData.set("signerName", signerName.trim());
+        formData.set("document", selectedFile);
+        await onSubmit(formData);
+        setOpen(false);
+        return;
+      }
+
+      // Step 1: Request signed upload ticket
+      const ticket = await createConfirmationUploadTicket({
+        requestGroupId: requestGroupId || "general",
+        fileName: selectedFile.name,
+        fileType: selectedFile.type,
+        fileSize: selectedFile.size,
+      });
+
+      if (!ticket.ok) {
+        throw new Error(ticket.error || t("saveError"));
+      }
+
+      // Step 2: Upload directly to Supabase storage from the browser (no serverless payload limit)
+      const supabase = createSupabaseBrowserClient();
+      let contentType = selectedFile.type?.toLowerCase().split(";")[0]?.trim();
+      if (!contentType || contentType === "application/octet-stream") {
+        const ext = selectedFile.name.split(".").pop()?.toLowerCase();
+        if (ext === "pdf") contentType = "application/pdf";
+        else if (ext === "png") contentType = "image/png";
+        else if (ext === "jpg" || ext === "jpeg") contentType = "image/jpeg";
+        else if (ext === "webp") contentType = "image/webp";
+      }
+      if (contentType === "image/jpg") contentType = "image/jpeg";
+      if (!contentType) contentType = "application/pdf";
+
+      const { error: storageError } = await supabase.storage
+        .from("confirmations")
+        .uploadToSignedUrl(ticket.path, ticket.token, selectedFile, {
+          contentType,
+        });
+
+      if (storageError) {
+        console.error("Storage uploadToSignedUrl error:", storageError);
+        throw new Error(storageError.message || "Fehler beim Hochladen der Datei.");
+      }
+
+      // Step 3: Finalize records in DB
+      const res = await finalizeDirectSignedConfirmation({
+        assignmentIds: Array.from(selectedIds),
+        path: ticket.path,
+        signerName: signerName.trim() || undefined,
+        requestGroupId,
+      });
+
+      if (!res.ok) {
+        throw new Error(res.error || t("saveError"));
+      }
+
+      toast.success(t("uploadSignedSuccess", { count: res.count ?? selectedIds.size }));
       setOpen(false);
+      router.refresh();
+    } catch (err: any) {
+      console.error("Confirmation upload error:", err);
+      toast.error(err?.message || t("saveError"));
     } finally {
       setSubmitting(false);
     }
@@ -223,13 +295,22 @@ export function DirectConfirmationUploadDialog({
               <Input 
                 type="file" 
                 name="document" 
-                accept="application/pdf,image/png,image/jpeg,image/webp" 
+                accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp" 
                 required 
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                 className="cursor-pointer" 
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {t("signedDocHint")}
-              </p>
+              {selectedFile ? (
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300 font-semibold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded px-2 py-1">
+                  <FileText className="size-3.5 shrink-0 text-emerald-600" />
+                  <span className="truncate">{selectedFile.name}</span>
+                  <span className="shrink-0 text-muted-foreground">({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {t("signedDocHint")}
+                </p>
+              )}
             </div>
           </div>
 

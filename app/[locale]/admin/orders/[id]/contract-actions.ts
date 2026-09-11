@@ -216,6 +216,123 @@ export async function uploadSignedContract(formData: FormData) {
   return { ok: true };
 }
 
+export async function createContractUploadTicket({
+  fileName,
+  fileSize,
+}: {
+  fileName: string;
+  fileSize: number;
+}): Promise<{ ok: true; path: string; token: string } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user || !roleSatisfies(user.role, ["admin"])) {
+    return { ok: false, error: "forbidden" };
+  }
+  if (!fileSize || fileSize <= 0) {
+    return { ok: false, error: "Bitte eine Datei auswählen." };
+  }
+  if (fileSize > 25 * 1024 * 1024) {
+    return { ok: false, error: "Datei ist zu groß (max. 25 MB)." };
+  }
+
+  const cleanFilename = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
+  const path = `contracts/${Date.now()}-${cleanFilename}`;
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createSupabaseAdminClient();
+
+  const { data, error } = await supabase.storage
+    .from("confirmations")
+    .createSignedUploadUrl(path);
+
+  if (error || !data) {
+    console.error("Failed to create signed upload url for contract:", error);
+    return { ok: false, error: "Fehler beim Vorbereiten des Uploads." };
+  }
+
+  return { ok: true, path: data.path, token: data.token };
+}
+
+export async function finalizeDirectSignedContract({
+  assignmentIds,
+  path,
+}: {
+  assignmentIds: string[];
+  path: string;
+}): Promise<{ ok: boolean; contractId?: string; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user || !roleSatisfies(user.role, ["admin"])) return { ok: false, error: "forbidden" };
+
+  if (!assignmentIds.length) {
+    return { ok: false, error: "Keine Schichten ausgewählt." };
+  }
+
+  const assignments = await prisma.assignment.findMany({
+    where: {
+      id: { in: assignmentIds },
+      contractId: null,
+      status: "confirmed"
+    },
+    select: { 
+      id: true,
+      order: { 
+        select: { 
+          shiftDate: true,
+          clientId: true,
+        } 
+      }
+    },
+    orderBy: { order: { shiftDate: "asc" } }
+  });
+
+  if (!assignments.length) {
+    return { ok: false, error: "Keine passenden Schichten gefunden." };
+  }
+
+  const clientId = assignments[0].order.clientId;
+  if (assignments.some(a => a.order.clientId !== clientId)) {
+    return { ok: false, error: "Schichten gehören zu verschiedenen Kunden." };
+  }
+
+  const firstDate = assignments[0].order.shiftDate;
+  const lastDate = assignments[assignments.length - 1].order.shiftDate;
+  
+  const formatDate = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin" }).format(d);
+  
+  let periodLabel = formatDate(firstDate);
+  if (firstDate.getTime() !== lastDate.getTime()) {
+    periodLabel = `${formatDate(firstDate)} – ${formatDate(lastDate)}`;
+  }
+
+  const { headers } = await import("next/headers");
+  const headersList = await headers();
+  const ip = headersList.get("x-forwarded-for") || "unknown";
+
+  const contract = await prisma.clientContract.create({
+    data: {
+      clientId,
+      period: periodLabel,
+      status: "signed",
+      splitByShift: false,
+      documentUrl: path,
+      signedAt: new Date(),
+      ipAddress: ip,
+      assignments: {
+        connect: assignments.map(a => ({ id: a.id }))
+      }
+    }
+  });
+
+  await audit({
+    userId: user.id,
+    action: "contract.direct_signed_upload",
+    entity: "ClientContract",
+    entityId: contract.id,
+    metadata: { assignmentCount: assignments.length, period: periodLabel }
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true, contractId: contract.id };
+}
+
 export async function uploadDirectSignedContract(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || !roleSatisfies(user.role, ["admin"])) return { ok: false, error: "forbidden" };
@@ -291,20 +408,31 @@ export async function uploadDirectSignedContract(formData: FormData) {
 
   // Upload file
   const path = `contracts/${contract.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+  let contentType = file.type?.toLowerCase().split(";")[0]?.trim();
+  if (!contentType || contentType === "application/octet-stream") {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "pdf") contentType = "application/pdf";
+    else if (ext === "png") contentType = "image/png";
+    else if (ext === "jpg" || ext === "jpeg") contentType = "image/jpeg";
+    else if (ext === "webp") contentType = "image/webp";
+  }
+  if (contentType === "image/jpg") contentType = "image/jpeg";
+  if (!contentType) contentType = "application/pdf";
+
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const supabase = createSupabaseAdminClient();
   const { error: uploadError } = await supabase.storage
     .from("confirmations")
     .upload(path, await file.arrayBuffer(), {
-      contentType: file.type,
-      upsert: false,
+      contentType,
+      upsert: true,
     });
 
   if (uploadError) {
     console.error("Supabase upload error:", uploadError);
     // Cleanup contract if upload failed
     await prisma.clientContract.delete({ where: { id: contract.id } });
-    return { ok: false, error: "saveError" };
+    return { ok: false, error: `Upload-Fehler: ${uploadError.message}` };
   }
 
   const { headers } = await import("next/headers");
