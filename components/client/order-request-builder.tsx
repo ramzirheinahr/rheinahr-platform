@@ -118,7 +118,7 @@ function fromInitial(shifts: InitialRequest["shifts"]) {
   return { cells, counts };
 }
 const field =
-  "w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50";
+  "w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm font-semibold text-slate-900 dark:text-slate-100 outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40 disabled:bg-slate-100/90 dark:disabled:bg-slate-800/90 disabled:text-slate-950 dark:disabled:text-slate-100 disabled:opacity-100 disabled:border-slate-300 dark:disabled:border-slate-700 disabled:cursor-not-allowed";
 
 export function OrderRequestBuilder({
   initial,
@@ -673,7 +673,7 @@ export function OrderRequestBuilder({
         disabled={past}
         value={cell.type}
         onChange={(e) => onType(date, slot, e.target.value)}
-        className={cn(field, "min-w-20")}
+        className={cn(field, "min-w-20 font-medium")}
       >
         <option value="none">{t("presetNone")}</option>
         <option value="early">{t("preset_early")}</option>
@@ -688,7 +688,7 @@ export function OrderRequestBuilder({
     const past = (date < todayStr && !allowPast) || ro;
     return (
       <>
-        <td className={cn("p-1", sep && "border-s")}>
+        <td className={cn("p-1", sep && "border-s border-slate-300 dark:border-slate-700")}>
           {TypeSelect({ date, slot })}
         </td>
         <td className="p-1">
@@ -698,7 +698,7 @@ export function OrderRequestBuilder({
             disabled={past}
             defaultValue={cell.start}
             onChange={(e) => update(date, slot, { start: e.target.value })}
-            className={cn(field, "min-w-20")}
+            className={cn(field, "min-w-20 font-medium")}
           />
         </td>
         <td className="p-1">
@@ -708,20 +708,37 @@ export function OrderRequestBuilder({
             disabled={past}
             defaultValue={cell.end}
             onChange={(e) => update(date, slot, { end: e.target.value })}
-            className={cn(field, "min-w-20")}
+            className={cn(field, "min-w-20 font-medium")}
           />
         </td>
         <td className="p-1">
-          <input type="number" min={0} max={480} step={5} disabled={past} value={cell.pause} onChange={(e) => update(date, slot, { pause: Math.max(0, Number(e.target.value) || 0) })} className={cn(field, "w-16")} />
+          <input
+            type="number"
+            min={0}
+            max={480}
+            step={5}
+            disabled={past}
+            value={cell.pause}
+            onChange={(e) => update(date, slot, { pause: Math.max(0, Number(e.target.value) || 0) })}
+            className={cn(field, "w-16 font-medium text-center")}
+          />
         </td>
-        <td className="whitespace-nowrap p-1 text-end font-medium tabular-nums">
+        <td className="whitespace-nowrap p-1 text-end font-bold text-sm tabular-nums text-slate-950 dark:text-slate-50">
           {(() => {
             const net = netHours(cell.start, cell.end, cell.pause);
-            return net === null ? <span className="text-muted-foreground">—</span> : fmtH(net);
+            return net === null ? <span className="text-slate-400 font-normal">—</span> : `${fmtH(net)} h`;
           })()}
         </td>
         <td className="p-1">
-          <input type="number" min={1} max={50} disabled={past} value={cell.quantity} onChange={(e) => update(date, slot, { quantity: Math.max(1, Number(e.target.value) || 1) })} className={cn(field, "w-14")} />
+          <input
+            type="number"
+            min={1}
+            max={50}
+            disabled={past}
+            value={cell.quantity}
+            onChange={(e) => update(date, slot, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+            className={cn(field, "w-14 font-medium text-center")}
+          />
         </td>
         <td className="p-1">
           <input
@@ -737,7 +754,7 @@ export function OrderRequestBuilder({
               const nx = days[idx + 1];
               if (nx) document.getElementById(`bereich-${nx.date}-0`)?.focus();
             }}
-            className={cn(field, "min-w-20")}
+            className={cn(field, "min-w-20 font-medium")}
           />
         </td>
         {shiftMeta ? (
@@ -895,24 +912,24 @@ export function OrderRequestBuilder({
       </div>
 
       {/* Month table */}
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
-              <th className="p-2 text-start">Datum</th>
-              <th className="p-2 text-start" colSpan={shiftMeta ? 8 : 7}>{t("shift1")}</th>
+            <tr className="border-b-2 border-slate-300 bg-slate-100 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+              <th className="p-2.5 text-start font-bold uppercase tracking-wider">{t("date")}</th>
+              <th className="p-2.5 text-start font-bold uppercase tracking-wider" colSpan={shiftMeta ? 8 : 7}>{t("shift1")}</th>
             </tr>
-            <tr className="border-b text-[11px] text-muted-foreground">
-              <th className="p-1" />
-              <th className="p-1 text-start font-normal">{t("von")}/{t("bis")}</th>
-              <th className="p-1 text-start font-normal">{t("von")}</th>
-              <th className="p-1 text-start font-normal">{t("bis")}</th>
-              <th className="p-1 text-start font-normal">{t("pause")}</th>
-              <th className="p-1 text-end font-normal">{t("netHours")}</th>
-              <th className="p-1 text-start font-normal">{t("count")}</th>
-              <th className="p-1 text-start font-normal">{t("ward")}</th>
+            <tr className="border-b border-slate-300 bg-slate-50 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-850 dark:text-slate-200">
+              <th className="p-1.5" />
+              <th className="p-1.5 text-start font-bold">{t("von")}/{t("bis")}</th>
+              <th className="p-1.5 text-start font-bold">{t("von")}</th>
+              <th className="p-1.5 text-start font-bold">{t("bis")}</th>
+              <th className="p-1.5 text-start font-bold">{t("pause")}</th>
+              <th className="p-1.5 text-end font-bold">{t("netHours")}</th>
+              <th className="p-1.5 text-start font-bold">{t("count")}</th>
+              <th className="p-1.5 text-start font-bold">{t("ward")}</th>
               {shiftMeta ? (
-                <th className="p-1 text-start font-normal">{o("status")}</th>
+                <th className="p-1.5 text-start font-bold">{o("status")}</th>
               ) : null}
             </tr>
           </thead>
@@ -920,15 +937,23 @@ export function OrderRequestBuilder({
             {days.map((d) => {
               const lockedDay = d.past && !allowPast;
               const rowCls = cn(
-                lockedDay && "opacity-50",
-                (d.weekend || d.holiday) && "bg-rose-500/10",
+                (d.weekend || d.holiday)
+                  ? "bg-rose-50/70 hover:bg-rose-100/60 dark:bg-rose-950/20 dark:hover:bg-rose-950/30"
+                  : "bg-white hover:bg-slate-50/80 dark:bg-slate-900 dark:hover:bg-slate-800/50",
               );
               const count = effCount(d.date);
               const extra = Array.from({ length: count - 1 }, (_, k) => k + 1);
+              const hasExtra = extra.length > 0;
               return (
                 <Fragment key={d.date}>
-                  <tr title={d.holiday ?? undefined} className={cn("border-b", rowCls)}>
-                    <td className="whitespace-nowrap p-2 font-medium">
+                  <tr
+                    title={d.holiday ?? undefined}
+                    className={cn(
+                      hasExtra ? "border-b border-slate-200 dark:border-slate-800" : "border-b-2 border-slate-300 dark:border-slate-700",
+                      rowCls
+                    )}
+                  >
+                    <td className="whitespace-nowrap p-2 font-bold text-slate-950 dark:text-slate-50">
                       <div className="flex items-center gap-1.5">
                         <span className="flex size-5 shrink-0 items-center justify-center">
                           {lockedDay || ro ? null : dayHasContent(d.date) ? (
@@ -937,7 +962,7 @@ export function OrderRequestBuilder({
                               onClick={() => copyDay(d.date)}
                               aria-label={t("copyTitle")}
                               title={t("copyTitle")}
-                              className="flex size-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                              className="flex size-5 items-center justify-center rounded-full text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                             >
                               <Copy className="size-3.5" />
                             </button>
@@ -953,8 +978,8 @@ export function OrderRequestBuilder({
                             </button>
                           ) : null}
                         </span>
-                        <span>{d.label}</span>
-                        {d.holiday ? <span className="text-rose-600">•</span> : null}
+                        <span className="text-sm font-bold text-slate-950 dark:text-slate-100 tracking-tight">{d.label}</span>
+                        {d.holiday ? <span className="text-rose-600 font-bold text-base leading-none">•</span> : null}
                         {!lockedDay && !ro ? (
                           <span className="ms-auto flex items-center gap-1">
                             {dayHasContent(d.date) ? (
@@ -985,40 +1010,49 @@ export function OrderRequestBuilder({
                     </td>
                     {ShiftCells({ date: d.date, slot: 0 })}
                   </tr>
-                  {extra.map((slot) => (
-                    <tr key={slot} className={cn("border-b", rowCls)}>
-                      <td className="whitespace-nowrap p-1 ps-3 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          {!ro && !lockedDay ? (
-                            <button
-                              type="button"
-                              onClick={() => removeShiftRow(d.date, slot)}
-                              aria-label={t("cancelShift")}
-                              title={t("cancelShift")}
-                              className="flex size-5 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
-                            >
-                              <X className="size-3.5" />
-                            </button>
-                          ) : (
-                            <span className="size-5" />
-                          )}
-                          <span>↳ {t("shiftLabel", { num: slot + 1 })}</span>
-                          {!lockedDay && !ro && slot === count - 1 ? (
-                            <button
-                              type="button"
-                              onClick={() => addSlot(d.date)}
-                              aria-label={t("shiftLabel", { num: slot + 2 })}
-                              title={t("shiftLabel", { num: slot + 2 })}
-                              className="ms-auto flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                            >
-                              <Plus className="size-3.5" />
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                      {ShiftCells({ date: d.date, slot })}
-                    </tr>
-                  ))}
+                  {extra.map((slot, sIdx) => {
+                    const isLastExtra = sIdx === extra.length - 1;
+                    return (
+                      <tr
+                        key={slot}
+                        className={cn(
+                          isLastExtra ? "border-b-2 border-slate-300 dark:border-slate-700" : "border-b border-slate-200 dark:border-slate-800",
+                          rowCls
+                        )}
+                      >
+                        <td className="whitespace-nowrap p-1 ps-4 text-xs font-bold text-slate-800 dark:text-slate-200">
+                          <div className="flex items-center gap-1.5">
+                            {!ro && !lockedDay ? (
+                              <button
+                                type="button"
+                                onClick={() => removeShiftRow(d.date, slot)}
+                                aria-label={t("cancelShift")}
+                                title={t("cancelShift")}
+                                className="flex size-5 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            ) : (
+                              <span className="size-5" />
+                            )}
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">↳ {t("shiftLabel", { num: slot + 1 })}</span>
+                            {!lockedDay && !ro && slot === count - 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => addSlot(d.date)}
+                                aria-label={t("shiftLabel", { num: slot + 2 })}
+                                title={t("shiftLabel", { num: slot + 2 })}
+                                className="ms-auto flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                              >
+                                <Plus className="size-3.5" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                        {ShiftCells({ date: d.date, slot })}
+                      </tr>
+                    );
+                  })}
                 </Fragment>
               );
             })}
@@ -1028,19 +1062,19 @@ export function OrderRequestBuilder({
 
       {/* Footer */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
+          <div className="flex flex-wrap gap-x-5 gap-y-1">
             <span>
               {t("totalShifts")}:{" "}
-              <span className="font-semibold text-foreground">{activeShifts.length}</span>
+              <span className="font-bold text-slate-950 dark:text-slate-50">{activeShifts.length}</span>
             </span>
             <span>
               {t("totalHours")}:{" "}
-              <span className="font-semibold text-foreground">{fmtH(totalHours)} Std</span>
+              <span className="font-bold text-slate-950 dark:text-slate-50">{fmtH(totalHours)} Std</span>
             </span>
             <span className="inline-flex items-center gap-1">
               {t("totalPrice")}:{" "}
-              <span className="font-semibold text-foreground">{fmtEur(totalPrice)}</span>
+              <span className="font-bold text-slate-950 dark:text-slate-50">{fmtEur(totalPrice)}</span>
               <span className="relative inline-flex">
                 <button
                   type="button"

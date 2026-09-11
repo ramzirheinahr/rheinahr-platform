@@ -9,7 +9,6 @@ import {
   DirectConfirmationUploadDialog, 
   type SelectableConfirmationAssignment 
 } from "./direct-confirmation-upload-dialog";
-import { uploadDirectSignedConfirmation } from "@/app/[locale]/admin/orders/[id]/confirmation-actions";
 
 export function OrderConfirmationsBanner({ 
   requestGroupId,
@@ -29,12 +28,17 @@ export function OrderConfirmationsBanner({
 
   const handleDirectUpload = async (formData: FormData) => {
     try {
-      const res = await uploadDirectSignedConfirmation(formData);
-      if (res.ok) {
-        toast.success(t("uploadSignedSuccess", { count: res.count ?? 0 }));
+      const res = await fetch("/api/confirmations/upload-signed", {
+        method: "POST",
+        body: formData,
+      });
+      
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok) {
+        toast.success(t("uploadSignedSuccess", { count: data.count ?? 0 }));
         router.refresh();
       } else {
-        toast.error(res.error || t("saveError"));
+        toast.error(data?.error || t("saveError"));
       }
     } catch (e: unknown) {
       toast.error((e as Error).message || t("saveError"));

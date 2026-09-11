@@ -13,7 +13,8 @@ export async function uploadDirectSignedConfirmation(formData: FormData) {
     return { ok: false, error: "forbidden" };
   }
 
-  const assignmentIdsStr = formData.get("assignmentIds") as string;
+  try {
+    const assignmentIdsStr = formData.get("assignmentIds") as string;
   const file = formData.get("document") as File | null;
   const signerName = (formData.get("signerName") as string)?.trim() || "Manuell signiert";
   const clientNotes = (formData.get("clientNotes") as string)?.trim() || "Manuell signierter Leistungsnachweis";
@@ -195,6 +196,10 @@ export async function uploadDirectSignedConfirmation(formData: FormData) {
     },
   });
 
-  revalidatePath("/", "layout");
-  return { ok: true, count: assignments.length };
+    revalidatePath("/", "layout");
+    return { ok: true, count: assignments.length };
+  } catch (error: any) {
+    console.error("Critical error in uploadDirectSignedConfirmation:", error);
+    return { ok: false, error: error?.message || "Unerwarteter Fehler beim Hochladen." };
+  }
 }

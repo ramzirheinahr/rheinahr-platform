@@ -127,8 +127,10 @@ export function ShiftMetaCell({
           {meta.quantity > 1 ? (
              <span
               className={cn(
-                "inline-flex items-center gap-1 text-xs tabular-nums font-medium",
-                active >= meta.quantity ? "text-primary" : "text-muted-foreground",
+                "inline-flex items-center gap-1 text-xs tabular-nums font-bold px-1.5 py-0.5 rounded border",
+                active >= meta.quantity
+                  ? "bg-emerald-50 text-emerald-950 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-800"
+                  : "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700",
               )}
             >
               <Users className="size-3.5" />
@@ -139,12 +141,12 @@ export function ShiftMetaCell({
         {confirmedWorkers.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {confirmedWorkers.map((a) => (
-              <div key={a.id} className="flex items-center gap-1 rounded-md border bg-muted/20 p-0.5 pr-1.5">
+              <div key={a.id} className="flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-0.5 pr-1.5 shadow-sm">
                 <WorkerProfileDialog workerId={a.worker!.id}>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 gap-1.5 px-2 text-xs font-medium"
+                    className="h-7 gap-1.5 px-2 text-xs font-bold text-slate-900 dark:text-slate-100 hover:text-primary"
                   >
                     <div className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
                       {a.worker!.hasPhoto ? (
@@ -226,8 +228,10 @@ export function ShiftMetaCell({
         <OrderStatusBadge status={meta.status} />
         <span
           className={cn(
-            "inline-flex items-center gap-1 text-xs tabular-nums",
-            active >= meta.quantity ? "text-primary" : "text-muted-foreground",
+            "inline-flex items-center gap-1 text-xs tabular-nums font-bold px-1.5 py-0.5 rounded border",
+            active >= meta.quantity
+              ? "bg-emerald-50 text-emerald-950 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-800"
+              : "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700",
           )}
         >
           <Users className="size-3.5" />
