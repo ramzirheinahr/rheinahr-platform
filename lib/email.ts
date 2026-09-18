@@ -1,35 +1,93 @@
 import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { getCompanyConfig } from "@/lib/config/company";
+import { decrypt } from "@/lib/crypto";
 
-const SMTP_HOST = process.env.SMTP_HOST;
-const SMTP_PORT = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465;
-const SMTP_USER = process.env.SMTP_USER;
-const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
-const EMAIL_FROM = process.env.EMAIL_FROM || "info@rheinahr-gmbh.de";
+export type EmailConfig = {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+  secure: boolean;
+  source: "database" | "environment";
+};
 
-let transporter: nodemailer.Transporter | null = null;
-
-function getTransporter() {
-  if (!transporter) {
-    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASSWORD) {
-      console.warn("SMTP credentials are not fully configured in environment variables.");
-      return null;
-    }
-    transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_PORT === 465, // true for 465, false for other ports
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASSWORD,
-      },
-      connectionTimeout: 15000, // 15 seconds timeout
-      greetingTimeout: 10000,
-      socketTimeout: 20000,
+export async function getEmailConfig(): Promise<EmailConfig | null> {
+  try {
+    const settings = await prisma.systemSetting.findMany({
+      where: { key: { startsWith: "email." } },
     });
+
+    const map = settings.reduce((acc, s) => {
+      acc[s.key] = s.value;
+      return acc;
+    }, {} as Record<string, string>);
+
+    const dbHost = map["email.smtp_host"]?.trim();
+    const dbUser = map["email.smtp_user"]?.trim();
+    const dbPortStr = map["email.smtp_port"]?.trim();
+    const dbPassEncrypted = map["email.smtp_password"]?.trim();
+    const dbFrom = map["email.from"]?.trim();
+
+    if (dbHost && dbUser && dbPassEncrypted) {
+      const port = dbPortStr ? parseInt(dbPortStr) : 465;
+      const pass = decrypt(dbPassEncrypted);
+      const from = dbFrom || dbUser;
+      return {
+        host: dbHost,
+        port,
+        user: dbUser,
+        pass,
+        from,
+        secure: port === 465,
+        source: "database",
+      };
+    }
+  } catch (err) {
+    console.error("Failed to load email config from system settings:", err);
   }
-  return transporter;
+
+  // Fallback to environment variables
+  const envHost = process.env.SMTP_HOST?.trim();
+  const envPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465;
+  const envUser = process.env.SMTP_USER?.trim();
+  const envPass = process.env.SMTP_PASSWORD?.trim();
+  const envFrom = process.env.EMAIL_FROM?.trim() || "info@rheinahr-gmbh.de";
+
+  if (envHost && envUser && envPass) {
+    return {
+      host: envHost,
+      port: envPort,
+      user: envUser,
+      pass: envPass,
+      from: envFrom,
+      secure: envPort === 465,
+      source: "environment",
+    };
+  }
+
+  return null;
+}
+
+export async function getTransporter(): Promise<nodemailer.Transporter | null> {
+  const config = await getEmailConfig();
+  if (!config) {
+    console.warn("SMTP credentials are not configured in system settings or environment variables.");
+    return null;
+  }
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+    connectionTimeout: 15000, // 15 seconds timeout
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+  });
 }
 
 export type EmailPayload = {
@@ -124,8 +182,9 @@ export async function sendEmail(payload: {
     return;
   }
 
-  const mailer = getTransporter();
-  if (!mailer) {
+  const emailConfig = await getEmailConfig();
+  const mailer = await getTransporter();
+  if (!mailer || !emailConfig) {
     await logOutgoingEmail({
       to: normalizedTo,
       recipientName: user?.fullName,
@@ -134,7 +193,7 @@ export async function sendEmail(payload: {
       body: textBody,
       html: payload.html,
       status: "failed",
-      error: "SMTP credentials are not fully configured in environment variables.",
+      error: "SMTP credentials are not configured in system settings or environment variables.",
       attachments: attachmentMeta,
     });
     return;
@@ -142,7 +201,7 @@ export async function sendEmail(payload: {
 
   try {
     await mailer.sendMail({
-      from: EMAIL_FROM,
+      from: emailConfig.from,
       to: normalizedTo,
       subject: payload.subject,
       text: textBody,
@@ -301,8 +360,9 @@ export async function sendEmailToRecipients(
 
   if (toSend.length === 0) return;
 
-  const mailer = getTransporter();
-  if (!mailer) {
+  const emailConfig = await getEmailConfig();
+  const mailer = await getTransporter();
+  if (!mailer || !emailConfig) {
     for (const r of toSend) {
       await logOutgoingEmail({
         to: r.email,
@@ -312,7 +372,7 @@ export async function sendEmailToRecipients(
         body: textBody,
         html: finalHtml,
         status: "failed",
-        error: "SMTP credentials are not fully configured in environment variables.",
+        error: "SMTP credentials are not configured in system settings or environment variables.",
         attachments: attachmentMeta,
       });
     }
@@ -324,7 +384,7 @@ export async function sendEmailToRecipients(
       toSend.map(async (r) => {
         try {
           await mailer.sendMail({
-            from: EMAIL_FROM,
+            from: emailConfig.from,
             to: r.email,
             subject: payload.subject,
             text: textBody,

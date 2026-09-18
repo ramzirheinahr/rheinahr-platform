@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import type { Locale } from "@/i18n/routing";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mail, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "@/i18n/navigation";
+import { Mail, CheckCircle2, XCircle, AlertTriangle, Settings } from "lucide-react";
 import { EmailLogTable } from "@/components/admin/email-log-table";
 import { SendTestEmailDialog } from "@/components/admin/send-test-email-dialog";
 import type { OutgoingEmailItem } from "@/components/admin/email-preview-modal";
@@ -62,6 +64,10 @@ export default async function AdminEmailsPage({
 
         <div className="flex items-center gap-2">
           <SendTestEmailDialog defaultEmail={user.email} />
+          <Button variant="outline" size="sm" render={<Link href="/admin/settings/system#email-settings" />}>
+            <Settings className="size-4" />
+            <span>{t("configureSettings")}</span>
+          </Button>
         </div>
       </div>
 
