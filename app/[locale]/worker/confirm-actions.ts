@@ -178,7 +178,7 @@ export async function confirmServiceByWorkerOnDevice(
     }
 
     const admins = await tx.user.findMany({
-      where: { role: { in: ["admin", "super_admin"] }, active: true },
+      where: { role: { in: ["admin", "super_admin"] }, active: true, receiveEmails: true },
       select: { id: true, role: true, email: true },
     });
     
@@ -285,14 +285,27 @@ export async function confirmServiceByWorkerOnDevice(
       body: confirmBody,
       url: workerShiftLink(),
       htmlBody: confirmHtml,
+      skipEmail: true, // Email already sent above via sendEmail
     }),
     pushToUsers(
       pushAdmins.map((a) => a.id),
-      { title: "Leistung bestätigt (Vor Ort)", body: confirmBody, url: orderLink("admin", confirmGroup), htmlBody: confirmHtml },
+      {
+        title: "Leistung bestätigt (Vor Ort)",
+        body: confirmBody,
+        url: orderLink("admin", confirmGroup),
+        htmlBody: confirmHtml,
+        skipEmail: true, // Email already sent above via sendEmail
+      },
     ),
     pushToUsers(
       facilityUserIds,
-      { title: "Leistung bestätigt", body: confirmBody, url: orderLink("client", confirmGroup), htmlBody: confirmHtml },
+      {
+        title: "Leistung bestätigt",
+        body: confirmBody,
+        url: orderLink("client", confirmGroup),
+        htmlBody: confirmHtml,
+        skipEmail: true, // Email already sent above via sendEmail
+      },
     ),
   ]);
 
