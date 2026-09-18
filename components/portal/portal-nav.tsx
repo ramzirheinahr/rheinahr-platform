@@ -17,6 +17,7 @@ import {
   FileSignature,
   CalendarCheck,
   Settings,
+  Mail,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -53,6 +54,7 @@ const ICONS: Record<string, LucideIcon> = {
   contracts: FileSignature,
   appointments: CalendarCheck,
   settings: Settings,
+  emails: Mail,
 };
 
 export function PortalNav({

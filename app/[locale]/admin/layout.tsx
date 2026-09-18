@@ -23,6 +23,7 @@ export default async function AdminLayout({
   const ti = await getTranslations("invoicing");
   const tw = await getTranslations("workers");
   const eq = await getTranslations("enums.qualification");
+  const te = await getTranslations("emails");
 
   // "Care staff" opens a dropdown: one page per qualification (so each admin can
   // work only their own type) plus an "all types" overview. Accounts are managed
@@ -48,6 +49,7 @@ export default async function AdminLayout({
     { href: "/admin/appointments", label: t("appointments"), icon: "appointments" },
     { href: "/admin/reports", label: tr("title"), icon: "reports" },
     { href: "/admin/invoicing", label: ti("title"), icon: "invoicing" },
+    { href: "/admin/emails", label: te("title"), icon: "emails" },
   ];
 
   if (user.role === "super_admin") {

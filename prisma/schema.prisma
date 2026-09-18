@@ -198,6 +198,7 @@ model User {
   createdBy     User?   @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers  User[]  @relation("UserCreatedBy")
   createdOrders Order[] @relation("OrderCreatedBy")
+  outgoingEmails OutgoingEmail[]
 
   @@map("users")
 }
@@ -727,3 +728,33 @@ model SystemSetting {
 
   @@map("system_settings")
 }
+
+enum EmailStatus {
+  sent
+  failed
+  skipped_preference
+}
+
+model OutgoingEmail {
+  id            String       @id @default(uuid())
+  to            String
+  recipientName String?      @map("recipient_name")
+  userId        String?      @map("user_id")
+  subject       String
+  body          String       @db.Text
+  html          String?      @db.Text
+  status        EmailStatus  @default(sent)
+  error         String?      @db.Text
+  attachments   Json?
+  sentAt        DateTime     @default(now()) @map("sent_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([to])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("outgoing_emails")
+}
+

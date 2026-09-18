@@ -24,9 +24,9 @@ function getTransporter() {
         user: SMTP_USER,
         pass: SMTP_PASSWORD,
       },
-      connectionTimeout: 3000, // 3 seconds timeout
-      greetingTimeout: 3000,
-      socketTimeout: 3000,
+      connectionTimeout: 15000, // 15 seconds timeout
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
     });
   }
   return transporter;
@@ -40,20 +40,139 @@ export type EmailPayload = {
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
 };
 
-export async function sendEmail(payload: { to: string; subject: string; html: string; text?: string; attachments?: any[] }) {
+export function extractAttachmentMetadata(attachments?: any[]): { filename: string; contentType?: string; size?: number }[] | undefined {
+  if (!attachments || !Array.isArray(attachments) || attachments.length === 0) return undefined;
+  return attachments.map((a) => ({
+    filename: a.filename || "unnamed_attachment",
+    contentType: a.contentType,
+    size: a.content ? (Buffer.isBuffer(a.content) ? a.content.length : typeof a.content === "string" ? Buffer.byteLength(a.content) : undefined) : undefined,
+  }));
+}
+
+export async function logOutgoingEmail({
+  to,
+  recipientName,
+  userId,
+  subject,
+  body,
+  html,
+  status,
+  error,
+  attachments,
+}: {
+  to: string;
+  recipientName?: string | null;
+  userId?: string | null;
+  subject: string;
+  body: string;
+  html?: string | null;
+  status: "sent" | "failed" | "skipped_preference";
+  error?: string | null;
+  attachments?: { filename: string; contentType?: string; size?: number }[];
+}) {
+  try {
+    await prisma.outgoingEmail.create({
+      data: {
+        to: to.trim().toLowerCase(),
+        recipientName: recipientName || null,
+        userId: userId || null,
+        subject,
+        body,
+        html: html || null,
+        status,
+        error: error || null,
+        attachments: attachments && attachments.length > 0 ? (attachments as any) : undefined,
+      },
+    });
+  } catch (logErr) {
+    console.error("Failed to log outgoing email:", logErr);
+  }
+}
+
+export async function sendEmail(payload: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  attachments?: any[];
+}) {
+  const normalizedTo = payload.to.trim().toLowerCase();
+  const textBody = payload.text || payload.html.replace(/<[^>]+>/g, "");
+  const attachmentMeta = extractAttachmentMetadata(payload.attachments);
+
+  // Check if recipient is a known user to get userId & recipientName & preferences
+  let user: { id: string; fullName: string | null; receiveEmails: boolean; active: boolean } | null = null;
+  try {
+    user = await prisma.user.findUnique({
+      where: { email: normalizedTo },
+      select: { id: true, fullName: true, receiveEmails: true, active: true },
+    });
+  } catch {}
+
+  if (user && !user.active) {
+    await logOutgoingEmail({
+      to: normalizedTo,
+      recipientName: user.fullName,
+      userId: user.id,
+      subject: payload.subject,
+      body: textBody,
+      html: payload.html,
+      status: "skipped_preference",
+      error: "Benutzerkonto ist inaktiv (active: false)",
+      attachments: attachmentMeta,
+    });
+    return;
+  }
+
   const mailer = getTransporter();
-  if (!mailer) return;
+  if (!mailer) {
+    await logOutgoingEmail({
+      to: normalizedTo,
+      recipientName: user?.fullName,
+      userId: user?.id,
+      subject: payload.subject,
+      body: textBody,
+      html: payload.html,
+      status: "failed",
+      error: "SMTP credentials are not fully configured in environment variables.",
+      attachments: attachmentMeta,
+    });
+    return;
+  }
+
   try {
     await mailer.sendMail({
       from: EMAIL_FROM,
-      to: payload.to,
+      to: normalizedTo,
       subject: payload.subject,
-      text: payload.text || payload.html.replace(/<[^>]+>/g, ""),
+      text: textBody,
       html: payload.html,
       attachments: payload.attachments,
     });
-  } catch (err) {
-    console.error(`Failed to send email to ${payload.to}:`, err);
+
+    await logOutgoingEmail({
+      to: normalizedTo,
+      recipientName: user?.fullName,
+      userId: user?.id,
+      subject: payload.subject,
+      body: textBody,
+      html: payload.html,
+      status: "sent",
+      attachments: attachmentMeta,
+    });
+  } catch (err: any) {
+    console.error(`Failed to send email to ${normalizedTo}:`, err);
+    await logOutgoingEmail({
+      to: normalizedTo,
+      recipientName: user?.fullName,
+      userId: user?.id,
+      subject: payload.subject,
+      body: textBody,
+      html: payload.html,
+      status: "failed",
+      error: err?.message || String(err),
+      attachments: attachmentMeta,
+    });
   }
 }
 
@@ -63,35 +182,27 @@ export async function sendEmailToRecipients(
   payload: EmailPayload,
   options?: { force?: boolean }
 ): Promise<void> {
-  const mailer = getTransporter();
-  if (!mailer || recipients.length === 0) return;
+  if (recipients.length === 0) return;
 
   const directEmails = recipients.filter((r) => r.includes("@"));
   const userIds = recipients.filter((r) => !r.includes("@"));
 
-  const resolvedEmails = [...directEmails];
+  type ResolvedRecipient = {
+    email: string;
+    userId?: string;
+    name?: string | null;
+  };
 
-  if (userIds.length > 0) {
-    const uniqueIds = [...new Set(userIds)];
-    const users = await prisma.user.findMany({
-      where: {
-        id: { in: uniqueIds },
-        active: true,
-        ...(options?.force ? {} : { receiveEmails: true }),
-      },
-      select: { email: true },
-    });
-    users.forEach((u) => {
-      if (u.email) resolvedEmails.push(u.email);
-    });
-  }
-
-  const uniqueEmails = [...new Set(resolvedEmails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
-  if (uniqueEmails.length === 0) return;
+  const toSend: ResolvedRecipient[] = [];
+  const attachmentMeta = extractAttachmentMetadata(payload.attachments);
 
   let textBody = payload.body;
+  if (payload.url) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://platform.rheinahr-gmbh.de";
+    const fullUrl = payload.url.startsWith("http") ? payload.url : `${appUrl}${payload.url}`;
+    textBody += `\n\nLink: ${fullUrl}`;
+  }
   const contentHtml = payload.html || textBody.replace(/\n/g, "<br>");
-
   const finalHtml = `
 <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
   ${contentHtml}
@@ -99,20 +210,151 @@ export async function sendEmailToRecipients(
 </div>
   `;
 
+  if (userIds.length > 0) {
+    const uniqueIds = [...new Set(userIds)];
+    const users = await prisma.user.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, email: true, fullName: true, active: true, receiveEmails: true },
+    });
+
+    for (const u of users) {
+      if (!u.email) continue;
+      const normalizedEmail = u.email.trim().toLowerCase();
+
+      if (!u.active) {
+        await logOutgoingEmail({
+          to: normalizedEmail,
+          recipientName: u.fullName,
+          userId: u.id,
+          subject: payload.subject,
+          body: textBody,
+          html: finalHtml,
+          status: "skipped_preference",
+          error: "Benutzerkonto ist inaktiv (active: false)",
+          attachments: attachmentMeta,
+        });
+        continue;
+      }
+
+      if (!options?.force && !u.receiveEmails) {
+        await logOutgoingEmail({
+          to: normalizedEmail,
+          recipientName: u.fullName,
+          userId: u.id,
+          subject: payload.subject,
+          body: textBody,
+          html: finalHtml,
+          status: "skipped_preference",
+          error: "Benutzer hat den E-Mail-Empfang deaktiviert (receiveEmails: false)",
+          attachments: attachmentMeta,
+        });
+        continue;
+      }
+
+      toSend.push({ email: normalizedEmail, userId: u.id, name: u.fullName });
+    }
+  }
+
+  // Also handle direct email addresses
+  for (const raw of directEmails) {
+    const normalizedEmail = raw.trim().toLowerCase();
+    if (!toSend.some((t) => t.email === normalizedEmail)) {
+      // Look up if this email belongs to a user
+      const u = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+        select: { id: true, fullName: true, active: true, receiveEmails: true },
+      }).catch(() => null);
+
+      if (u && !u.active) {
+        await logOutgoingEmail({
+          to: normalizedEmail,
+          recipientName: u.fullName,
+          userId: u.id,
+          subject: payload.subject,
+          body: textBody,
+          html: finalHtml,
+          status: "skipped_preference",
+          error: "Benutzerkonto ist inaktiv (active: false)",
+          attachments: attachmentMeta,
+        });
+        continue;
+      }
+
+      if (u && !options?.force && !u.receiveEmails) {
+        await logOutgoingEmail({
+          to: normalizedEmail,
+          recipientName: u.fullName,
+          userId: u.id,
+          subject: payload.subject,
+          body: textBody,
+          html: finalHtml,
+          status: "skipped_preference",
+          error: "Benutzer hat den E-Mail-Empfang deaktiviert (receiveEmails: false)",
+          attachments: attachmentMeta,
+        });
+        continue;
+      }
+
+      toSend.push({ email: normalizedEmail, userId: u?.id, name: u?.fullName });
+    }
+  }
+
+  if (toSend.length === 0) return;
+
+  const mailer = getTransporter();
+  if (!mailer) {
+    for (const r of toSend) {
+      await logOutgoingEmail({
+        to: r.email,
+        recipientName: r.name,
+        userId: r.userId,
+        subject: payload.subject,
+        body: textBody,
+        html: finalHtml,
+        status: "failed",
+        error: "SMTP credentials are not fully configured in environment variables.",
+        attachments: attachmentMeta,
+      });
+    }
+    return;
+  }
+
   try {
     await Promise.allSettled(
-      uniqueEmails.map(async (email) => {
+      toSend.map(async (r) => {
         try {
           await mailer.sendMail({
             from: EMAIL_FROM,
-            to: email,
+            to: r.email,
             subject: payload.subject,
             text: textBody,
             html: finalHtml,
             attachments: payload.attachments,
           });
-        } catch (err) {
-          console.error(`Failed to send email to ${email}:`, err);
+
+          await logOutgoingEmail({
+            to: r.email,
+            recipientName: r.name,
+            userId: r.userId,
+            subject: payload.subject,
+            body: textBody,
+            html: finalHtml,
+            status: "sent",
+            attachments: attachmentMeta,
+          });
+        } catch (err: any) {
+          console.error(`Failed to send email to ${r.email}:`, err);
+          await logOutgoingEmail({
+            to: r.email,
+            recipientName: r.name,
+            userId: r.userId,
+            subject: payload.subject,
+            body: textBody,
+            html: finalHtml,
+            status: "failed",
+            error: err?.message || String(err),
+            attachments: attachmentMeta,
+          });
         }
       })
     );

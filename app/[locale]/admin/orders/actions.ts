@@ -196,6 +196,27 @@ export async function updateOrderRequestAsAdmin(
     })),
   );
 
+  let affectedWorkers: { userId: string; order: any }[] = [];
+  if (deleteIds.length > 0) {
+    const assignments = await prisma.assignment.findMany({
+      where: { orderId: { in: deleteIds }, status: { not: "declined" } },
+      include: {
+        worker: { select: { userId: true } },
+        order: {
+          select: {
+            shiftDate: true,
+            startTime: true,
+            endTime: true,
+            requiredQualification: true,
+            notes: true,
+            client: { select: { facilityName: true } },
+          },
+        },
+      },
+    });
+    affectedWorkers = assignments.map((a) => ({ userId: a.worker.userId, order: a.order }));
+  }
+
   if (updates.length + creates.length + deleteIds.length > 0) {
     await prisma.$transaction([
       ...(deleteIds.length
@@ -235,6 +256,27 @@ export async function updateOrderRequestAsAdmin(
           ]
         : []),
     ]);
+
+    // Alert affected workers that their shift was cancelled and removed
+    for (const item of affectedWorkers) {
+      const label = `${formatDateDE(item.order.shiftDate)} ${item.order.startTime}–${item.order.endTime} · ${item.order.client?.facilityName ?? ""}`;
+      await pushToUsers([item.userId], {
+        title: "Einsatz gelöscht",
+        body: label,
+        url: workerShiftLink(),
+        htmlBody: `
+          <p>Der folgende Einsatz wurde storniert und gelöscht:</p>
+          ${buildShiftHtmlTable([{
+            date: item.order.shiftDate,
+            startTime: item.order.startTime,
+            endTime: item.order.endTime,
+            qualification: item.order.requiredQualification,
+            notes: item.order.notes || undefined,
+            facilityName: item.order.client?.facilityName,
+          }])}
+        `,
+      }).catch((err) => console.error("Failed to notify worker of deleted shift:", err));
+    }
   }
 
   await audit({
