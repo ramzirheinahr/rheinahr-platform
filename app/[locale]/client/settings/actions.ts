@@ -16,6 +16,7 @@ const clientSubUserSchema = z.object({
   password: z.string().min(12).optional(),
   jobTitle: z.string().optional(),
   active: z.boolean(),
+  receiveEmails: z.boolean().default(true),
 });
 
 export async function createClientSubUser(
@@ -46,6 +47,7 @@ export async function createClientSubUser(
     password: formData.get("password"),
     jobTitle: formData.get("jobTitle"),
     active: formData.get("active") === "on",
+    receiveEmails: formData.get("receiveEmails") === "on",
   };
 
   const parsed = clientSubUserSchema.safeParse(raw);
@@ -78,6 +80,7 @@ export async function createClientSubUser(
         role: "client",
         passwordHash,
         active: data.active,
+        receiveEmails: data.receiveEmails,
         jobTitle: data.jobTitle,
         clientId, // Link to the same facility
         createdById: actor.id,
@@ -127,6 +130,7 @@ export async function updateClientSubUser(
     password: formData.get("password") || undefined,
     jobTitle: formData.get("jobTitle"),
     active: formData.get("active") === "on",
+    receiveEmails: formData.get("receiveEmails") === "on",
   };
 
   const parsed = clientSubUserSchema.safeParse(raw);
@@ -178,6 +182,7 @@ export async function updateClientSubUser(
         email: data.email,
         jobTitle: data.jobTitle,
         active: data.active,
+        receiveEmails: data.receiveEmails,
         ...(newPasswordHash ? { passwordHash: newPasswordHash } : {}),
       },
     });
@@ -193,6 +198,68 @@ export async function updateClientSubUser(
   });
 
   revalidatePath("/client/settings");
+  if (allowedClientId) {
+    revalidatePath(`/admin/clients/${allowedClientId}/edit`);
+  }
+  return { ok: true };
+}
+
+export async function toggleSubUserReceiveEmails(
+  userId: string,
+  receiveEmails: boolean,
+  targetClientId?: string
+): Promise<ActionState> {
+  const actor = await getCurrentUser();
+  if (!actor) return { ok: false, error: "forbidden" };
+
+  let allowedClientId = targetClientId;
+  if (actor.role === "client") {
+    const actorUser = await prisma.user.findUnique({
+      where: { id: actor.id },
+      include: { client: { select: { id: true } } },
+    });
+    if (!actorUser?.client?.id) return { ok: false, error: "forbidden" };
+    allowedClientId = actorUser.client.id;
+  } else if (actor.role !== "admin" && actor.role !== "super_admin") {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, clientId: true, client: { select: { id: true } } },
+  });
+  if (!targetUser) return { ok: false, error: "saveError" };
+
+  const isFacilityUser =
+    targetUser.clientId === allowedClientId ||
+    targetUser.client?.id === allowedClientId;
+
+  if (allowedClientId && !isFacilityUser) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { receiveEmails },
+    });
+  } catch {
+    return { ok: false, error: "saveError" };
+  }
+
+  await audit({
+    userId: actor.id,
+    action: "clientUser.updateReceiveEmails",
+    entity: "User",
+    entityId: userId,
+    metadata: { receiveEmails },
+  });
+
+  revalidatePath("/client/settings");
+  if (allowedClientId) {
+    revalidatePath(`/admin/clients/${allowedClientId}/edit`);
+  }
+  revalidatePath("/admin/clients");
   return { ok: true };
 }
 

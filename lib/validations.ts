@@ -106,7 +106,7 @@ export const orderShiftSchema = z
 
 export const orderRequestSchema = z.object({
   notes: z.string().max(1000).optional(),
-  shifts: z.array(orderShiftSchema).min(1).max(60),
+  shifts: z.array(orderShiftSchema).min(1).max(1000),
 });
 
 export type OrderShiftInput = z.infer<typeof orderShiftSchema>;

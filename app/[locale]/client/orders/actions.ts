@@ -84,7 +84,10 @@ export async function updateOrderRequest(
   if (!isRequestEditable(existing)) return { ok: false, error: "locked" };
 
   const parsed = orderRequestSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "saveError" };
+  if (!parsed.success) {
+    console.error("updateOrderRequest validation error:", parsed.error.format());
+    return { ok: false, error: "saveError" };
+  }
   const { notes, shifts } = parsed.data;
 
   const { updates, creates, deleteIds } = diffRequestShifts(
@@ -349,7 +352,10 @@ export async function createOrderRequest(
   if (!client) return { ok: false, error: "saveError" };
 
   const parsed = orderRequestSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "saveError" };
+  if (!parsed.success) {
+    console.error("createOrderRequest validation error:", parsed.error.format());
+    return { ok: false, error: "saveError" };
+  }
   const { notes, shifts } = parsed.data;
 
   const requestGroupId = crypto.randomUUID();

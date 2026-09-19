@@ -92,10 +92,10 @@ describe("shiftSurchargeHours — per-hour surcharge grouping (summed model)", (
   it("Saturday night splits at midnight and STACKS with night", () => {
     // 2026-07-11 is a Saturday. Sat 20:00 → Sun 06:00.
     const g = shiftSurchargeHours("2026-07-11", "20:00", "06:00", 30, notHoliday);
-    const factor = (600 - 30) / 600;
-    // Before midnight: Saturday + night. After midnight: Sunday + night.
-    expect(hoursFor(g, "sat+night")).toBeCloseTo(4 * factor, 5);
-    expect(hoursFor(g, "sun+night")).toBeCloseTo(6 * factor, 5);
+    // Break is placed at the middle of the shift (00:45–01:15 Sunday),
+    // so Saturday night has no break (4h) and Sunday night has 0.5h break deducted (5.5h).
+    expect(hoursFor(g, "sat+night")).toBeCloseTo(4, 5);
+    expect(hoursFor(g, "sun+night")).toBeCloseTo(5.5, 5);
     // Sunday-night hour multiplier = 1 + 0.5 + 0.25 = 1.75.
     expect(comboMultiplier(g.get("sun+night")!.components, DEFAULT_SURCHARGES)).toBeCloseTo(
       1.75,

@@ -79,8 +79,8 @@ export function EmailRecipientsDialog({
 
     if (initialRecipients && initialRecipients.length > 0) {
       setRecipients(initialRecipients);
-      // By default, select all active facility recipients
-      setSelectedIds(new Set(initialRecipients.map((r) => r.id)));
+      // By default, select all facility recipients with email reception enabled
+      setSelectedIds(new Set(initialRecipients.filter((r) => r.receiveEmails !== false).map((r) => r.id)));
       return;
     }
 
@@ -98,8 +98,8 @@ export function EmailRecipientsDialog({
         if (res.ok && res.recipients) {
           setRecipients(res.recipients);
           if (res.facilityName) setFacilityName(res.facilityName);
-          // Default select all facility recipients
-          setSelectedIds(new Set(res.recipients.map((r) => r.id)));
+          // Default select facility recipients with email reception enabled
+          setSelectedIds(new Set(res.recipients.filter((r) => r.receiveEmails !== false).map((r) => r.id)));
         } else if (res.error) {
           toast.error(res.error);
         }
@@ -307,6 +307,14 @@ export function EmailRecipientsDialog({
                               {r.jobTitle}
                             </Badge>
                           ) : null}
+                          {r.receiveEmails === false && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] bg-amber-50 text-amber-700 border-amber-200"
+                            >
+                              {t("emailsDisabled")}
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">
                           {r.email}

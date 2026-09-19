@@ -1332,12 +1332,20 @@
     "sendResetEmailDesc": "Sends a link to set a new password to the user's email address.",
     "sendResetEmailButton": "Send reset link",
     "resetEmailSent": "A password reset link has been sent to the user.",
-    "passwordMinLength": "Password must be at least 12 characters long."
+    "passwordMinLength": "Password must be at least 12 characters long.",
+    "emails": "Emails",
+    "receiveEmailsLabel": "Enable email notifications",
+    "receiveEmailsHint": "Allows sending shift confirmations, invoices, and notifications to this user.",
+    "emailSettingsUpdated": "Email settings updated.",
+    "emailsDisabled": "Email disabled",
+    "emailsActive": "Yes",
+    "emailsInactive": "No"
   },
   "emailDialog": {
     "title": "Send Email to Facility",
     "contractTitle": "Send Contract via Email",
     "confirmTitle": "Send Timesheet Confirmation via Email",
+    "emailsDisabled": "Email disabled",
     "invoiceTitle": "Send Invoice via Email",
     "description": "Select the recipients from the contacts of this facility.",
     "selectRecipients": "Select recipients",

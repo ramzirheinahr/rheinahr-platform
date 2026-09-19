@@ -8,7 +8,7 @@ import { Plus, Trash2, Mail } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClientSubUser, updateClientSubUser, deleteClientSubUser, sendSubUserPasswordResetEmail } from "./actions";
+import { createClientSubUser, updateClientSubUser, deleteClientSubUser, sendSubUserPasswordResetEmail, toggleSubUserReceiveEmails } from "./actions";
 import { toast } from "sonner";
 import { useRouter } from "@/i18n/navigation";
 
@@ -18,6 +18,7 @@ export type SubUser = {
   fullName: string | null;
   jobTitle: string | null;
   active: boolean;
+  receiveEmails: boolean;
   isMainUser: boolean;
 };
 
@@ -31,6 +32,7 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
   const [isCreating, setIsCreating] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [pendingToggleUserId, setPendingToggleUserId] = useState<string | null>(null);
 
   const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -82,6 +84,25 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
     }
   };
 
+  const handleToggleEmails = (userId: string, currentVal: boolean) => {
+    setPendingToggleUserId(userId);
+    startTransition(async () => {
+      try {
+        const res = await toggleSubUserReceiveEmails(userId, !currentVal, clientId);
+        if (res.ok) {
+          toast.success(t("emailSettingsUpdated"));
+          router.refresh();
+        } else {
+          toast.error(t(res.error as any));
+        }
+      } catch {
+        toast.error(c("error"));
+      } finally {
+        setPendingToggleUserId(null);
+      }
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -102,6 +123,7 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
               <th className="px-4 py-3 font-medium">{c("name")}</th>
               <th className="px-4 py-3 font-medium">{c("email")}</th>
               <th className="px-4 py-3 font-medium">{t("active")}</th>
+              <th className="px-4 py-3 font-medium">{t("emails")}</th>
               {isMainUser && <th className="px-4 py-3 text-right font-medium">{c("actions")}</th>}
             </tr>
           </thead>
@@ -120,6 +142,27 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
                   <Badge variant={user.active ? "default" : "secondary"}>
                     {user.active ? "Ja" : "Nein"}
                   </Badge>
+                </td>
+                <td className="px-4 py-3">
+                  {isMainUser ? (
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={user.receiveEmails}
+                        disabled={pendingToggleUserId === user.id || isPending}
+                        onChange={() => handleToggleEmails(user.id, user.receiveEmails)}
+                        className="size-4 rounded border-gray-300 text-primary accent-primary cursor-pointer disabled:opacity-50"
+                        title={t("receiveEmailsLabel")}
+                      />
+                      <span className="text-xs font-medium select-none">
+                        {user.receiveEmails ? t("emailsActive") : t("emailsInactive")}
+                      </span>
+                    </label>
+                  ) : (
+                    <Badge variant={user.receiveEmails ? "default" : "secondary"} className="text-xs">
+                      {user.receiveEmails ? t("emailsActive") : t("emailsInactive")}
+                    </Badge>
+                  )}
                 </td>
                 {isMainUser && (
                   <td className="px-4 py-3 text-right">
@@ -204,6 +247,22 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
                 className="size-4 accent-primary" 
               />
               <Label htmlFor="active">{t("active")}</Label>
+            </div>
+
+            <div className="space-y-1 pt-1">
+              <div className="flex items-center space-x-2">
+                <input 
+                  type="checkbox" 
+                  id="receiveEmails" 
+                  name="receiveEmails" 
+                  defaultChecked={editingUser?.receiveEmails ?? true} 
+                  className="size-4 accent-primary" 
+                />
+                <Label htmlFor="receiveEmails">{t("receiveEmailsLabel")}</Label>
+              </div>
+              <p className="text-xs text-muted-foreground pl-6">
+                {t("receiveEmailsHint")}
+              </p>
             </div>
 
             {/* Option to send password reset email directly to user */}

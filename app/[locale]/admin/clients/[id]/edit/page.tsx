@@ -44,7 +44,7 @@ export default async function EditClientPage({
       where: { id },
       include: {
         user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true, fullName: true, jobTitle: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } },
-        subUsers: { select: { id: true, email: true, fullName: true, jobTitle: true, active: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } }
+        subUsers: { select: { id: true, email: true, fullName: true, jobTitle: true, active: true, receiveEmails: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } }
       },
     })
     .catch(() => null);
@@ -129,6 +129,7 @@ export default async function EditClientPage({
                 fullName: client.user.fullName,
                 jobTitle: client.user.jobTitle,
                 active: client.user.active,
+                receiveEmails: client.user.receiveEmails,
                 isMainUser: true,
               },
               ...client.subUsers.map(u => ({
@@ -137,6 +138,7 @@ export default async function EditClientPage({
                 fullName: u.fullName,
                 jobTitle: u.jobTitle,
                 active: u.active,
+                receiveEmails: u.receiveEmails,
                 isMainUser: false,
               }))
             ]}

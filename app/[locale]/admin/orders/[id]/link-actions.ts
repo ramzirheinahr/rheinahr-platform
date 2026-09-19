@@ -11,7 +11,8 @@ export type FacilityRecipient = {
   email: string;
   name: string;
   jobTitle?: string;
-  isPrimary: boolean;
+  isPrimary?: boolean;
+  receiveEmails?: boolean;
 };
 
 export async function getFacilityRecipients({
@@ -64,11 +65,11 @@ export async function getFacilityRecipients({
     where: { id: clientDbId },
     include: {
       user: {
-        select: { id: true, email: true, fullName: true, active: true }
+        select: { id: true, email: true, fullName: true, active: true, receiveEmails: true }
       },
       subUsers: {
         where: { active: true },
-        select: { id: true, email: true, fullName: true, jobTitle: true, active: true }
+        select: { id: true, email: true, fullName: true, jobTitle: true, active: true, receiveEmails: true }
       }
     }
   });
@@ -85,7 +86,8 @@ export async function getFacilityRecipients({
       email: client.user.email,
       name: client.user.fullName || client.user.email,
       jobTitle: "Hauptkontakt",
-      isPrimary: true
+      isPrimary: true,
+      receiveEmails: client.user.receiveEmails,
     });
   }
 
@@ -97,7 +99,8 @@ export async function getFacilityRecipients({
           email: sub.email,
           name: sub.fullName || sub.email,
           jobTitle: sub.jobTitle || undefined,
-          isPrimary: false
+          isPrimary: false,
+          receiveEmails: sub.receiveEmails,
         });
       }
     }

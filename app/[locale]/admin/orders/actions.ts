@@ -53,7 +53,10 @@ export async function createOrderRequestForClient(
   if (!client) return { ok: false, error: "saveError" };
 
   const parsed = orderRequestSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "saveError" };
+  if (!parsed.success) {
+    console.error("createOrderRequestForClient validation error:", parsed.error.format());
+    return { ok: false, error: "saveError" };
+  }
   const { notes, shifts } = parsed.data;
 
   const requestGroupId = crypto.randomUUID();
@@ -179,7 +182,10 @@ export async function updateOrderRequestAsAdmin(
   const clientId = existing[0].clientId;
 
   const parsed = orderRequestSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "saveError" };
+  if (!parsed.success) {
+    console.error("updateOrderRequestAsAdmin validation error:", parsed.error.format());
+    return { ok: false, error: "saveError" };
+  }
   const { notes, shifts } = parsed.data;
 
   const { updates, creates, deleteIds } = diffRequestShifts(

@@ -1332,12 +1332,20 @@
     "sendResetEmailDesc": "Sendet einen Link zum Festlegen eines neuen Passworts an die E-Mail des Benutzers.",
     "sendResetEmailButton": "Reset-Link senden",
     "resetEmailSent": "Ein Link zum Zurücksetzen des Passworts wurde an den Benutzer gesendet.",
-    "passwordMinLength": "Das Passwort muss mindestens 12 Zeichen lang sein."
+    "passwordMinLength": "Das Passwort muss mindestens 12 Zeichen lang sein.",
+    "emails": "E-Mails",
+    "receiveEmailsLabel": "E-Mail-Benachrichtigungen aktivieren",
+    "receiveEmailsHint": "Erlaubt das Senden von Schichtbestätigungen, Rechnungen und Benachrichtigungen an diesen Benutzer.",
+    "emailSettingsUpdated": "E-Mail-Einstellungen aktualisiert.",
+    "emailsDisabled": "E-Mail deaktiviert",
+    "emailsActive": "Ja",
+    "emailsInactive": "Nein"
   },
   "emailDialog": {
     "title": "E-Mail an Einrichtung senden",
     "contractTitle": "Vertrag per E-Mail senden",
     "confirmTitle": "Leistungsnachweise per E-Mail senden",
+    "emailsDisabled": "E-Mail deaktiviert",
     "invoiceTitle": "Rechnung per E-Mail senden",
     "description": "Wählen Sie die Empfänger aus den Kontakten dieser Einrichtung aus.",
     "selectRecipients": "Empfänger auswählen",

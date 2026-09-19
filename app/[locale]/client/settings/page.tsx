@@ -48,6 +48,7 @@ export default async function ClientSettingsPage() {
       fullName: facility.user.fullName,
       jobTitle: facility.user.jobTitle,
       active: facility.user.active,
+      receiveEmails: facility.user.receiveEmails,
       isMainUser: true,
     },
     ...facility.subUsers.map(u => ({
@@ -56,6 +57,7 @@ export default async function ClientSettingsPage() {
       fullName: u.fullName,
       jobTitle: u.jobTitle,
       active: u.active,
+      receiveEmails: u.receiveEmails,
       isMainUser: false,
     }))
   ];
