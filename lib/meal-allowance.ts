@@ -34,7 +34,7 @@ export function dailyMealAllowanceAssignmentIds(
 
   const selected = new Set<string>();
   for (const day of byDate.values()) {
-    const explicit = day.find((candidate) => candidate.addMealAllowance);
+    const explicit = day.find((candidate) => candidate.addMealAllowance && !candidate.excludeMealAllowance);
     const eligibleByPolicy =
       policy === "per_day" || (policy === "multiple_shifts_only" && day.length >= 2);
     const automatic = eligibleByPolicy

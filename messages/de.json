@@ -837,12 +837,22 @@
     "invalidDateRange": "Ungültiger Datumsbereich",
     "requestLeaveEditTitle": "Urlaub ändern anfragen",
     "requestLeaveEditDesc": "Bitte beschreiben Sie, wie dieser Urlaub geändert werden soll (z.B. \"Letzten Tag entfernen\").",
-    "requestLeaveEditPlaceholder": "Ihre Nachricht..."
+    "requestLeaveEditPlaceholder": "Ihre Nachricht...",
+    "mealAllowance": "Verpflegung",
+    "noMealAllowance": "Keine Verpflegung"
   },
   "cookies": {
     "message": "Wir verwenden nur technisch notwendige Cookies, um die Anmeldung und den Betrieb der Plattform zu ermöglichen.",
     "accept": "Verstanden",
     "learnMore": "Datenschutz"
+  },
+  "allowances": {
+    "addMeal": "Verpflegungsmehraufwand (14 €) hinzufügen",
+    "removeMeal": "Verpflegungsmehraufwand entfernen",
+    "toggleMeal": "Verpflegungsmehraufwand umschalten",
+    "addTravel": "Fahrtkosten aktivieren",
+    "removeTravel": "Fahrtkosten ausschließen",
+    "toggleTravel": "Fahrtkosten umschalten"
   },
   "reports": {
     "title": "Berichte & Zeiterfassung",

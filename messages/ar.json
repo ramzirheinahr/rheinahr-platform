@@ -839,12 +839,22 @@
     "invalidDateRange": "نطاق تاريخ غير صالح",
     "requestLeaveEditTitle": "طلب تعديل الإجازة",
     "requestLeaveEditDesc": "يرجى وصف التعديل المطلوب على الإجازة (مثال: \"إزالة اليوم الأخير\").",
-    "requestLeaveEditPlaceholder": "رسالتك..."
+    "requestLeaveEditPlaceholder": "رسالتك...",
+    "mealAllowance": "بدل طعام",
+    "noMealAllowance": "بدون بدل طعام"
   },
   "cookies": {
     "message": "نستخدم فقط ملفات تعريف ارتباط ضرورية تقنيًا لتمكين تسجيل الدخول وتشغيل المنصة.",
     "accept": "فهمت",
     "learnMore": "الخصوصية"
+  },
+  "allowances": {
+    "addMeal": "إضافة بدل الطعام (14 €)",
+    "removeMeal": "إزالة بدل الطعام",
+    "toggleMeal": "تبديل بدل الطعام",
+    "addTravel": "تفعيل بدل المواصلات",
+    "removeTravel": "استبعاد بدل المواصلات",
+    "toggleTravel": "تبديل بدل المواصلات"
   },
   "reports": {
     "title": "التقارير وتسجيل الساعات",

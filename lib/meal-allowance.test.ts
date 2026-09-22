@@ -40,4 +40,25 @@ describe("daily meal allowance", () => {
     ], "per_day");
     expect([...selected]).toEqual(["manual"]);
   });
+
+  it("selects a single shift when manually added even with multiple-shifts-only policy", () => {
+    const selected = dailyMealAllowanceAssignmentIds([
+      { id: "single-manual", date: "2026-08-12", status: "confirmed", addMealAllowance: true },
+    ], "multiple_shifts_only");
+    expect([...selected]).toEqual(["single-manual"]);
+  });
+
+  it("selects a single shift when manually added even with policy none", () => {
+    const selected = dailyMealAllowanceAssignmentIds([
+      { id: "none-manual", date: "2026-08-12", status: "confirmed", addMealAllowance: true },
+    ], "none");
+    expect([...selected]).toEqual(["none-manual"]);
+  });
+
+  it("does not select shift if excludeMealAllowance is true even if addMealAllowance is true", () => {
+    const selected = dailyMealAllowanceAssignmentIds([
+      { id: "both-flags", date: "2026-08-12", status: "confirmed", addMealAllowance: true, excludeMealAllowance: true },
+    ], "none");
+    expect([...selected]).toEqual([]);
+  });
 });

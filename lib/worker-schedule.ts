@@ -160,7 +160,7 @@ export async function getWorkerMonthSchedule(
       }
 
       if (mealAllowanceAssignmentIds.has(a.id)) {
-        mealAllowance = worker?.mealAllowance ?? 14.0;
+        mealAllowance = (worker?.mealAllowance && worker.mealAllowance > 0) ? worker.mealAllowance : 14.0;
       }
 
       return {

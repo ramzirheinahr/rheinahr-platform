@@ -1067,16 +1067,45 @@ export async function toggleAssignmentMealAllowance(
     where: { id: assignmentId },
     select: {
       workerId: true,
-      order: { select: { requestGroupId: true, id: true } },
+      order: { select: { requestGroupId: true, id: true, shiftDate: true } },
     },
   });
 
   if (!assignment) return { ok: false, error: "saveError" };
 
-  await prisma.assignment.update({
-    where: { id: assignmentId },
-    data: { addMealAllowance },
-  });
+  if (addMealAllowance) {
+    await prisma.assignment.update({
+      where: { id: assignmentId },
+      data: { addMealAllowance: true, excludeMealAllowance: false },
+    });
+
+    if (assignment.order?.shiftDate) {
+      await prisma.assignment.updateMany({
+        where: {
+          workerId: assignment.workerId,
+          id: { not: assignmentId },
+          order: { shiftDate: assignment.order.shiftDate },
+        },
+        data: { addMealAllowance: false },
+      });
+    }
+  } else {
+    await prisma.assignment.update({
+      where: { id: assignmentId },
+      data: { addMealAllowance: false, excludeMealAllowance: true },
+    });
+
+    if (assignment.order?.shiftDate) {
+      await prisma.assignment.updateMany({
+        where: {
+          workerId: assignment.workerId,
+          id: { not: assignmentId },
+          order: { shiftDate: assignment.order.shiftDate },
+        },
+        data: { addMealAllowance: false, excludeMealAllowance: true },
+      });
+    }
+  }
 
   await audit({
     userId: admin.id,

@@ -837,12 +837,22 @@
     "invalidDateRange": "Invalid date range",
     "requestLeaveEditTitle": "Request leave change",
     "requestLeaveEditDesc": "Please describe how this leave should be changed (e.g. \"Remove last day\").",
-    "requestLeaveEditPlaceholder": "Your message..."
+    "requestLeaveEditPlaceholder": "Your message...",
+    "mealAllowance": "Meal allowance",
+    "noMealAllowance": "No meal allowance"
   },
   "cookies": {
     "message": "We only use technically necessary cookies to enable sign-in and operate the platform.",
     "accept": "Got it",
     "learnMore": "Privacy"
+  },
+  "allowances": {
+    "addMeal": "Add meal allowance (€14)",
+    "removeMeal": "Remove meal allowance",
+    "toggleMeal": "Toggle meal allowance",
+    "addTravel": "Enable travel allowance",
+    "removeTravel": "Exclude travel allowance",
+    "toggleTravel": "Toggle travel allowance"
   },
   "reports": {
     "title": "Reports & Time Tracking",

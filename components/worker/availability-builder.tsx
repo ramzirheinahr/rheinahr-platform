@@ -964,6 +964,7 @@ export function AvailabilityBuilder({
                               <span>{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
                               <ToggleMealAllowanceButton 
                                 assignmentId={a.id} 
+                                active={a.mealAllowance != null && a.mealAllowance > 0}
                                 globalEnabled={mealAllowanceType !== "none"}
                                 addMealAllowance={a.addMealAllowance} 
                                 excludeMealAllowance={a.excludeMealAllowance} 
@@ -1208,10 +1209,11 @@ export function AvailabilityBuilder({
                             {a.mealAllowance != null || isAdmin ? (
                               <span className="flex items-center gap-1">
                                 {(a.distanceKm != null || a.travelCost != null) && !isAdmin ? " • " : ""}
-                                {a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} € Verpflegung` : "Keine Verpflegung"}
+                                {a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} € ${t("mealAllowance")}` : t("noMealAllowance")}
                                 {isAdmin && (
                                   <ToggleMealAllowanceButton 
                                     assignmentId={a.id} 
+                                    active={a.mealAllowance != null && a.mealAllowance > 0}
                                     globalEnabled={mealAllowanceType !== "none"}
                                     addMealAllowance={a.addMealAllowance} 
                                     excludeMealAllowance={a.excludeMealAllowance} 
