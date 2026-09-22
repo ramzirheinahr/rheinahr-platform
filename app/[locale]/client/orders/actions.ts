@@ -106,6 +106,40 @@ export async function updateOrderRequest(
   const changes = updates.length + creates.length + deleteIds.length;
   if (changes === 0) return { ok: true };
 
+  let affectedWorkers: { userId: string; order: any }[] = [];
+  let deletedOrders: any[] = [];
+  if (deleteIds.length > 0) {
+    deletedOrders = await prisma.order.findMany({
+      where: { id: { in: deleteIds } },
+      select: {
+        id: true,
+        shiftDate: true,
+        startTime: true,
+        endTime: true,
+        requiredQualification: true,
+        notes: true,
+        quantity: true,
+      },
+    });
+
+    const assignments = await prisma.assignment.findMany({
+      where: { orderId: { in: deleteIds }, status: { not: "declined" } },
+      include: {
+        worker: { select: { userId: true } },
+        order: {
+          select: {
+            shiftDate: true,
+            startTime: true,
+            endTime: true,
+            requiredQualification: true,
+            notes: true,
+          },
+        },
+      },
+    });
+    affectedWorkers = assignments.map((a) => ({ userId: a.worker.userId, order: a.order }));
+  }
+
   await prisma.$transaction([
     ...(deleteIds.length
       ? [prisma.order.deleteMany({ where: { id: { in: deleteIds } } })]
@@ -144,6 +178,86 @@ export async function updateOrderRequest(
         ]
       : []),
   ]);
+
+  // Alert affected workers that their shift was cancelled and removed
+  for (const item of affectedWorkers) {
+    const label = `${formatDateDE(item.order.shiftDate)} ${item.order.startTime}–${item.order.endTime} · ${client.facilityName}`;
+    await pushToUsers([item.userId], {
+      title: "Einsatz gelöscht",
+      body: label,
+      url: workerShiftLink(),
+      htmlBody: `
+        <p>Der folgende Einsatz wurde storniert und gelöscht:</p>
+        ${buildShiftHtmlTable([{
+          date: item.order.shiftDate,
+          startTime: item.order.startTime,
+          endTime: item.order.endTime,
+          qualification: item.order.requiredQualification,
+          notes: item.order.notes || undefined,
+          facilityName: client.facilityName,
+        }])}
+      `,
+    }).catch(console.error);
+  }
+
+  const facilityUserIds = await getFacilityClientUserIds(client.id);
+
+  // Alert client facility users if shifts were deleted
+  if (facilityUserIds.length > 0 && deletedOrders.length > 0) {
+    const isPlural = deletedOrders.length > 1;
+    const clientTitle = isPlural ? `Schichten storniert (${deletedOrders.length} Schichten)` : "Schicht storniert";
+    const clientBody = isPlural
+      ? `${deletedOrders.length} Schichten wurden storniert und gelöscht.`
+      : `${formatDateDE(deletedOrders[0].shiftDate)} ${deletedOrders[0].startTime}–${deletedOrders[0].endTime} wurde storniert und gelöscht.`;
+    const clientHtml = `
+      <p>${isPlural ? "Die folgenden Schichten wurden storniert und gelöscht:" : "Die folgende Schicht wurde storniert und gelöscht:"}</p>
+      ${buildShiftHtmlTable(deletedOrders.map(s => ({
+        date: s.shiftDate,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        qualification: s.requiredQualification,
+        notes: s.notes || undefined,
+        quantity: s.quantity,
+        facilityName: client.facilityName,
+      })))}
+    `;
+
+    await pushToUsers(facilityUserIds, {
+      title: clientTitle,
+      body: clientBody,
+      url: "/client/orders",
+      htmlBody: clientHtml,
+    }).catch(console.error);
+  }
+
+  // Alert client facility users if new shifts were created
+  if (facilityUserIds.length > 0 && creates.length > 0) {
+    const isPlural = creates.length > 1;
+    const clientTitle = isPlural ? `Neue Schichten erfasst (${creates.length} Schichten) – In Bearbeitung` : "Neue Schicht erfasst – In Bearbeitung";
+    const clientBody = isPlural
+      ? `${creates.length} neue Schichten wurden hinzugefügt und befinden sich in Bearbeitung.`
+      : `Eine neue Schicht wurde hinzugefügt und befindet sich in Bearbeitung.`;
+    const clientHtml = `
+      <p>Guten Tag,</p>
+      <p>für Ihre Anfrage wurden ${isPlural ? `${creates.length} neue Schichten` : "eine neue Schicht"} im System erfasst. Diese befinden sich derzeit in Bearbeitung und Prüfung. Wir setzen alles daran, diese so schnell wie möglich zu besetzen, und werden Sie umgehend über die Bestätigung informieren:</p>
+      ${buildShiftHtmlTable(creates.map(s => ({
+        date: new Date(`${s.date}T00:00:00.000Z`),
+        startTime: s.startTime,
+        endTime: s.endTime,
+        qualification: s.requiredQualification,
+        notes: s.notes || undefined,
+        quantity: s.quantity,
+      })))}
+      <p>Sobald passende Mitarbeiter zugeteilt und bestätigt wurden, erhalten Sie eine verbindliche Bestätigung.</p>
+    `;
+
+    await pushToUsers(facilityUserIds, {
+      title: clientTitle,
+      body: clientBody,
+      url: orderLink("client", requestGroupId),
+      htmlBody: clientHtml,
+    }).catch(console.error);
+  }
 
   const shiftsHtml = `
     <p><strong>${client.facilityName}</strong> hat die Anfrage aktualisiert. Folgende Schichten sind nun Teil der Anfrage:</p>
@@ -258,9 +372,14 @@ export async function cancelOrderRequest(
   ]);
 
   const dateLabel = formatDateDE(existing[0].shiftDate);
+  const isPlural = existing.length > 1;
+  const clientTitle = isPlural ? `Schichten storniert (${existing.length} Schichten)` : "Schicht storniert";
+  const clientBody = isPlural
+    ? `${existing.length} Schichten wurden storniert und gelöscht.`
+    : `${formatDateDE(existing[0].shiftDate)} ${existing[0].startTime}–${existing[0].endTime} wurde storniert und gelöscht.`;
 
   const shiftsHtml = `
-    <p><strong>${client.facilityName}</strong> hat die folgende Anfrage (bzw. Schichten) storniert und gelöscht:</p>
+    <p><strong>${client.facilityName}</strong> hat die folgende${isPlural ? "n Schichten" : " Schicht"} storniert und gelöscht:</p>
     ${buildShiftHtmlTable(existing.map(s => ({
       date: s.shiftDate,
       startTime: s.startTime,
@@ -268,16 +387,51 @@ export async function cancelOrderRequest(
       qualification: s.requiredQualification,
       notes: s.notes || undefined,
       quantity: s.quantity,
+      facilityName: client.facilityName,
     })))}
   `;
 
   if (workerUserIds.length > 0) {
+    const workerHtml = `
+      <p>${isPlural ? "Die folgenden Einsätze wurden storniert und gelöscht:" : "Der folgende Einsatz wurde storniert und gelöscht:"}</p>
+      ${buildShiftHtmlTable(existing.map(s => ({
+        date: s.shiftDate,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        qualification: s.requiredQualification,
+        notes: s.notes || undefined,
+        quantity: s.quantity,
+        facilityName: client.facilityName,
+      })))}
+    `;
     await pushToUsers(workerUserIds, {
-      title: "Einsatz gelöscht",
+      title: isPlural ? "Einsätze gelöscht" : "Einsatz gelöscht",
       body: client.facilityName,
       url: workerShiftLink(),
-      htmlBody: shiftsHtml,
-    });
+      htmlBody: workerHtml,
+    }).catch(console.error);
+  }
+
+  const clientUserIds = await getFacilityClientUserIds(client.id);
+  if (clientUserIds.length > 0) {
+    const clientCancelHtml = `
+      <p>${isPlural ? "Die folgenden Schichten wurden storniert und gelöscht:" : "Die folgende Schicht wurde storniert und gelöscht:"}</p>
+      ${buildShiftHtmlTable(existing.map(s => ({
+        date: s.shiftDate,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        qualification: s.requiredQualification,
+        notes: s.notes || undefined,
+        quantity: s.quantity,
+        facilityName: client.facilityName,
+      })))}
+    `;
+    await pushToUsers(clientUserIds, {
+      title: clientTitle,
+      body: clientBody,
+      url: "/client/orders",
+      htmlBody: clientCancelHtml,
+    }).catch(console.error);
   }
 
   // In-app notification to every admin. The request rows are gone, so the link
@@ -410,8 +564,10 @@ export async function createOrderRequest(
     shiftsHtml
   );
 
+  const shiftCountLabel = shifts.length === 1 ? "1 Schicht" : `${shifts.length} Schichten`;
   const clientHtml = `
-    <p>Vielen Dank für Ihre Anfrage. Wir haben die folgenden Schichten erfolgreich entgegengenommen und werden diese so schnell wie möglich bearbeiten:</p>
+    <p>Guten Tag,</p>
+    <p>vielen Dank für Ihre Anfrage. Wir haben die folgenden Schichten erfolgreich entgegengenommen. Ihre Anfrage befindet sich derzeit in Prüfung und Bearbeitung. Wir setzen alles daran, diese so schnell wie möglich zu besetzen, und werden Sie umgehend über die Bestätigung informieren:</p>
     <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; font-family: sans-serif; font-size: 14px;">
       <thead>
         <tr style="background-color: #f3f4f6; text-align: left;">
@@ -434,15 +590,16 @@ export async function createOrderRequest(
         `).join('')}
       </tbody>
     </table>
+    <p>Sobald passende Mitarbeiter zugeteilt und bestätigt wurden, erhalten Sie eine verbindliche Bestätigung.</p>
   `;
 
-  const allClientUserIds = [client.userId, ...client.subUsers.map(u => u.id)];
+  const allClientUserIds = await getFacilityClientUserIds(client.id);
   
   await sendEmailToUsers(
     allClientUserIds,
     {
-      subject: `Eingangsbestätigung: Ihre Anfrage (${shifts.length} Schicht(en))`,
-      body: `Wir haben Ihre neue Anfrage über ${shifts.length} Schicht(en) erhalten.`,
+      subject: `Eingangsbestätigung: Neue Schichten erfasst (${shiftCountLabel})`,
+      body: `Wir haben Ihre Anfrage über ${shiftCountLabel} erhalten. Diese befindet sich derzeit in Bearbeitung. Wir setzen alles daran, diese so schnell wie möglich zu bearbeiten und informieren Sie umgehend.`,
       html: clientHtml,
       url: orderLink("client", requestGroupId),
     },

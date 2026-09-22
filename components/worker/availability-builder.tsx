@@ -1085,7 +1085,7 @@ export function AvailabilityBuilder({
                         {carryoverHours !== 0 && (
                           <div className="flex justify-between w-52 text-sm">
                             <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
-                            <span className={cn("font-medium", carryoverHours > 0 ? "text-emerald-600" : "text-foreground")}>
+                            <span className={cn("font-medium", carryoverHours > 0 ? "text-emerald-600" : carryoverHours < 0 ? "text-destructive" : "text-foreground")}>
                               {signed(carryoverHours)} {t("hoursUnit")}
                             </span>
                           </div>
@@ -1309,9 +1309,10 @@ export function AvailabilityBuilder({
               )}
             </div>
             {(() => {
-              // Same ledger as the table footer: soll − carryover − worked.
+              // Positive remaining = credit for next month (worker provided more than needed).
+              // Negative remaining = deficit (worker owes hours).
               const worked = totals.acceptedHours + totals.hours;
-              const remaining = (requiredHours ?? 0) - carryoverHours - worked;
+              const remaining = worked + carryoverHours - (requiredHours ?? 0);
               const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
               return (
                 <div className="flex flex-col gap-1 text-sm">
@@ -1329,7 +1330,7 @@ export function AvailabilityBuilder({
                       <span
                         className={cn(
                           "font-medium",
-                          carryoverHours > 0 ? "text-emerald-600" : "text-foreground",
+                          carryoverHours > 0 ? "text-emerald-600" : carryoverHours < 0 ? "text-destructive" : "text-foreground",
                         )}
                       >
                         {signed(carryoverHours)} {t("hoursUnit")}
@@ -1359,8 +1360,8 @@ export function AvailabilityBuilder({
                   {requiredHours !== undefined && (
                     <div className="flex justify-between border-t border-emerald-500/20 pt-1 font-bold">
                       <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
-                      <span className={cn(remaining > 0 ? "text-destructive" : "text-emerald-600")}>
-                        {hoursFmt.format(remaining)} {t("hoursUnit")}
+                      <span className={cn(remaining < 0 ? "text-destructive" : "text-emerald-600")}>
+                        {signed(remaining)} {t("hoursUnit")}
                       </span>
                     </div>
                   )}

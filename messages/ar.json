@@ -115,7 +115,23 @@
   "roles": {
     "admin": "الإدارة",
     "client": "المنشأة",
-    "worker": "كادر رعاية"
+    "worker": "مقدم رعاية"
+  },
+  "dashboard": {
+    "stundenkontoTitle": "رصيد ساعات الموظفين",
+    "searchWorker": "بحث عن موظف…",
+    "filterAll": "الكل",
+    "filterMinus": "ساعات بالسالب (-)",
+    "filterPlus": "ساعات بالموجب (+)",
+    "sortLowestFirst": "الأقل رصيداً أولاً (متصاعد)",
+    "sortHighestFirst": "الأعلى رصيداً أولاً (تنازلي)",
+    "sortAsc": "الأقل رصيداً أولاً (متصاعد)",
+    "sortDesc": "الأعلى رصيداً أولاً (تنازلي)",
+    "noWorkersFound": "لم يتم العثور على موظفين.",
+    "allBalanced": "جميع الحسابات متوازنة.",
+    "topClientsTitle": "أبرز العملاء (هذا الشهر)",
+    "noData": "لا توجد بيانات متاحة.",
+    "shiftsUnit": "ورديات"
   },
   "portal": {
     "adminTitle": "بوابة الإدارة",
@@ -455,6 +471,9 @@
     "selectReplacement": "اختيار بديل",
     "swapSuccess": "تم تبديل الموظف بنجاح",
     "shiftCancelledSubject": "تم إلغاء الوردية",
+    "shiftsCancelledSubject": "تم إلغاء الورديات",
+    "newShiftsProcessingSubject": "تم تسجيل ورديات جديدة – قيد المتابعة والإنجاز",
+    "newShiftsProcessingBody": "طلبكم قيد المتابعة والإنجاز حالياً، وسنوافيكم بالرد في أسرع وقت ممكن.",
     "shiftAssignedSubject": "تعيين وردية جديدة",
     "workerSwappedSubject": "تبديل موظف لورديتك",
     "workerSwappedBody": "تم تبديل موظف لورديتك. إليك تفاصيل الموظف الجديد.",

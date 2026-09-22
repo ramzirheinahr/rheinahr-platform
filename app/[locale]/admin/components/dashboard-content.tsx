@@ -8,6 +8,7 @@ import { TopLists } from "@/app/[locale]/admin/components/top-lists";
 import { DashboardInsights } from "@/app/[locale]/admin/components/dashboard-insights";
 import { getEffectiveSollHours } from "@/lib/worker-soll-hours";
 import { netShiftHours } from "@/lib/pricing";
+import { getMultipleWorkersHoursAccount } from "@/lib/hours-account";
 
 async function getStats(monthStr?: string) {
   try {
@@ -47,7 +48,6 @@ async function getStats(monthStr?: string) {
       invoicesByStatus,
       allTimeInvoices,
       topClientsData,
-      attentionWorkersData,
       previousOrders,
       previousHoursResult,
       unpaidInvoices,
@@ -129,12 +129,6 @@ async function getStats(monthStr?: string) {
         orderBy: { _count: { clientId: "desc" } },
         take: 5,
       }),
-      prisma.worker.findMany({
-        orderBy: { carryoverHours: "asc" },
-        take: 5,
-        select: { id: true, fullName: true, carryoverHours: true },
-        where: { carryoverHours: { not: 0 } },
-      }),
       prisma.order.findMany({
         where: {
           shiftDate: { gte: firstDayOfPreviousMonth, lte: lastDayOfPreviousMonth },
@@ -181,6 +175,7 @@ async function getStats(monthStr?: string) {
         where: { user: { active: true } },
         select: {
           id: true,
+          fullName: true,
           requiredHours: true,
           sollHoursHistory: true,
           employmentStartDate: true,
@@ -369,13 +364,29 @@ async function getStats(monthStr?: string) {
       orderCount: t._count,
     }));
 
-    const attentionWorkers = attentionWorkersData
-      .sort((a, b) => Math.abs(b.carryoverHours) - Math.abs(a.carryoverHours))
-      .map((w) => ({
+    const workerIds = activeWorkers.map((w) => w.id);
+    const hoursAccounts = await getMultipleWorkersHoursAccount(
+      workerIds,
+      "2026-07",
+      monthKey,
+    );
+
+    const attentionWorkers = activeWorkers.map((w) => {
+      const acc = hoursAccounts[w.id];
+      let currentBalance = 0;
+      if (acc?.months && acc.months.length > 0) {
+        currentBalance = acc.months[acc.months.length - 1].cumulativeBalance;
+      } else if (acc) {
+        currentBalance = acc.initialCarryover;
+      }
+      const rounded = Math.round(currentBalance * 10) / 10;
+      return {
         id: w.id,
         name: w.fullName,
-        carryoverHours: w.carryoverHours,
-      }));
+        currentBalance: rounded,
+        carryoverHours: rounded,
+      };
+    });
 
     return {
       kpis: {

@@ -360,22 +360,39 @@ export async function createOpenOrderFromGrid(input: {
     },
   });
 
-  if (client.userId) {
-    const facilityUserIds = await getFacilityClientUserIds(client.userId);
+  const facilityUserIds = await getFacilityClientUserIds(client.id || client.userId);
+  if (facilityUserIds.length > 0) {
+    const shiftHtml = `
+      <p>Guten Tag,</p>
+      <p>für <strong>${client.facilityName}</strong> wurde eine neue Schicht im System erfasst. Die Anfrage befindet sich derzeit in Bearbeitung und Prüfung. Wir setzen alles daran, diese so schnell wie möglich zu besetzen, und werden Sie umgehend über die Bestätigung informieren:</p>
+      ${buildShiftHtmlTable([{
+        date: day,
+        startTime: start,
+        endTime: end,
+        qualification,
+        notes: ward || undefined,
+        quantity: quantity ?? 1,
+        facilityName: client.facilityName,
+      }])}
+      <p>Sobald ein passender Mitarbeiter zugeteilt und bestätigt wurde, erhalten Sie eine verbindliche Bestätigung.</p>
+    `;
+
     await prisma.notification.createMany({
       data: facilityUserIds.map((userId) => ({
         userId,
         type: "new_order",
         channel: "in_app",
-        content: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
+        content: `Neue Schicht erfasst (${formatDateDE(day)} ${start}–${end}) – In Bearbeitung`,
         link: orderLink("client", newRequestGroupId),
       })),
     });
+
     await pushToUsers(facilityUserIds, {
-      title: "Neue Anfrage",
-      body: `${formatDateDE(day)} ${start}–${end} · ${client.facilityName}`,
+      title: "Neue Schicht erfasst – In Bearbeitung",
+      body: `${formatDateDE(day)} ${start}–${end} · Ihre Schicht befindet sich in Bearbeitung. Wir informieren Sie schnellstmöglich.`,
       url: orderLink("client", newRequestGroupId),
-    });
+      htmlBody: shiftHtml,
+    }).catch(console.error);
   }
 
   await audit({
@@ -706,7 +723,7 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
           endTime: true,
           requiredQualification: true,
           notes: true,
-          client: { select: { userId: true, facilityName: true } },
+          client: { select: { id: true, userId: true, facilityName: true } },
         },
       },
     },
@@ -715,6 +732,7 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
   if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
 
   const label = `${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime} · ${assignment.order.client.facilityName}`;
+  const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId);
 
   await prisma.$transaction(async (tx) => {
     if (assignment.order.quantity > 1) {
@@ -736,23 +754,20 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
         link: workerShiftLink(),
       },
     });
-    if (assignment.order.client.userId) {
-      const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.userId);
-      for (const uid of facilityUserIds) {
-        await tx.notification.create({
-          data: {
-            userId: uid,
-            type: "order_status_changed",
-            channel: "in_app",
-            content: `Schicht gelöscht – ${label}`,
-            link: "/client/orders",
-          },
-        });
-      }
+    for (const uid of facilityUserIds) {
+      await tx.notification.create({
+        data: {
+          userId: uid,
+          type: "order_status_changed",
+          channel: "in_app",
+          content: `Schicht storniert – ${label}`,
+          link: "/client/orders",
+        },
+      });
     }
   });
 
-  const deleteHtml = `
+  const workerDeleteHtml = `
     <p>Der folgende Einsatz wurde storniert und gelöscht:</p>
     ${buildShiftHtmlTable([{
       date: assignment.order.shiftDate,
@@ -764,24 +779,32 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
     }])}
   `;
 
-  const facilityUserIds = assignment.order.client.userId
-    ? await getFacilityClientUserIds(assignment.order.client.userId)
-    : [];
+  const clientDeleteHtml = `
+    <p>Die folgende Schicht wurde storniert und gelöscht:</p>
+    ${buildShiftHtmlTable([{
+      date: assignment.order.shiftDate,
+      startTime: assignment.order.startTime,
+      endTime: assignment.order.endTime,
+      qualification: assignment.order.requiredQualification,
+      notes: assignment.order.notes || undefined,
+      facilityName: assignment.order.client.facilityName,
+    }])}
+  `;
 
   await Promise.all([
     pushToUsers([assignment.worker.userId], {
       title: "Einsatz gelöscht",
       body: label,
       url: workerShiftLink(),
-      htmlBody: deleteHtml,
+      htmlBody: workerDeleteHtml,
     }),
     ...(facilityUserIds.length > 0
       ? [
           pushToUsers(facilityUserIds, {
-            title: "Schicht gelöscht",
+            title: "Schicht storniert",
             body: label,
             url: "/client/orders",
-            htmlBody: deleteHtml,
+            htmlBody: clientDeleteHtml,
           }),
         ]
       : []),
@@ -939,7 +962,10 @@ export async function deleteOpenOrderFromGrid(orderId: string): Promise<ActionSt
       shiftDate: true,
       startTime: true,
       endTime: true,
-      client: { select: { userId: true, facilityName: true } },
+      requiredQualification: true,
+      notes: true,
+      quantity: true,
+      client: { select: { id: true, userId: true, facilityName: true } },
     },
   });
   if (!order) return { ok: false, error: "saveError" };
@@ -950,16 +976,37 @@ export async function deleteOpenOrderFromGrid(orderId: string): Promise<ActionSt
   await prisma.order.delete({ where: { id: order.id } });
 
   const label = `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime} · ${order.client.facilityName}`;
-  if (order.client.userId) {
-    await prisma.notification.create({
-      data: {
-        userId: order.client.userId,
+  const facilityUserIds = await getFacilityClientUserIds(order.client.id || order.client.userId);
+  if (facilityUserIds.length > 0) {
+    const deleteHtml = `
+      <p>Die folgende Schicht wurde storniert und gelöscht:</p>
+      ${buildShiftHtmlTable([{
+        date: order.shiftDate,
+        startTime: order.startTime,
+        endTime: order.endTime,
+        qualification: order.requiredQualification,
+        notes: order.notes || undefined,
+        facilityName: order.client.facilityName,
+        quantity: order.quantity,
+      }])}
+    `;
+
+    await prisma.notification.createMany({
+      data: facilityUserIds.map((userId) => ({
+        userId,
         type: "order_status_changed",
         channel: "in_app",
-        content: `Anfrage gelöscht – ${label}`,
+        content: `Schicht storniert – ${label}`,
         link: "/client/orders",
-      },
+      })),
     });
+
+    await pushToUsers(facilityUserIds, {
+      title: "Schicht storniert",
+      body: label,
+      url: "/client/orders",
+      htmlBody: deleteHtml,
+    }).catch(console.error);
   }
 
   await audit({

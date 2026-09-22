@@ -113,9 +113,23 @@
     "footerTagline": "Your partner for qualified care staff."
   },
   "roles": {
-    "admin": "Administration",
-    "client": "Facility",
-    "worker": "Care professional"
+    "admin": "Admin",
+    "client": "Client",
+    "worker": "Worker"
+  },
+  "dashboard": {
+    "stundenkontoTitle": "Employee Hours Account",
+    "searchWorker": "Search workers…",
+    "filterAll": "All",
+    "filterMinus": "Deficit (-)",
+    "filterPlus": "Overtime (+)",
+    "sortAsc": "Deficit first (Ascending)",
+    "sortDesc": "Overtime first (Descending)",
+    "noWorkersFound": "No workers found.",
+    "allBalanced": "All accounts are balanced.",
+    "topClientsTitle": "Top Clients (This Month)",
+    "noData": "No data available.",
+    "shiftsUnit": "Shifts"
   },
   "portal": {
     "adminTitle": "Admin Portal",
@@ -455,6 +469,9 @@
     "selectReplacement": "Select replacement",
     "swapSuccess": "Worker swapped successfully",
     "shiftCancelledSubject": "Shift cancelled",
+    "shiftsCancelledSubject": "Shifts cancelled",
+    "newShiftsProcessingSubject": "New shifts registered – In progress",
+    "newShiftsProcessingBody": "Your request is currently being processed. We will inform you as soon as possible.",
     "shiftAssignedSubject": "New assignment",
     "workerSwappedSubject": "Worker swapped for your shift",
     "workerSwappedBody": "A worker has been swapped for your shift. Here are the details of the new worker.",

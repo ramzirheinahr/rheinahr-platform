@@ -117,6 +117,20 @@
     "client": "Einrichtung",
     "worker": "Pflegekraft"
   },
+  "dashboard": {
+    "stundenkontoTitle": "Mitarbeiter-Stundenkonto",
+    "searchWorker": "Mitarbeiter suchen…",
+    "filterAll": "Alle",
+    "filterMinus": "Minusstunden (-)",
+    "filterPlus": "Plusstunden (+)",
+    "sortAsc": "Minusstunden zuerst (Aufsteigend)",
+    "sortDesc": "Plusstunden zuerst (Absteigend)",
+    "noWorkersFound": "Keine Mitarbeiter gefunden.",
+    "allBalanced": "Alle Konten sind ausgeglichen.",
+    "topClientsTitle": "Top-Kunden (Diesen Monat)",
+    "noData": "Keine Daten verfügbar.",
+    "shiftsUnit": "Schichten"
+  },
   "portal": {
     "adminTitle": "Verwaltungsportal",
     "clientTitle": "Kundenportal",
@@ -455,6 +469,9 @@
     "selectReplacement": "Ersatz wählen",
     "swapSuccess": "Mitarbeiter erfolgreich gewechselt",
     "shiftCancelledSubject": "Schicht storniert",
+    "shiftsCancelledSubject": "Schichten storniert",
+    "newShiftsProcessingSubject": "Neue Schichten erfasst – In Bearbeitung",
+    "newShiftsProcessingBody": "Ihre Anfrage befindet sich in Bearbeitung. Wir werden Sie so schnell wie möglich informieren.",
     "shiftAssignedSubject": "Neuer Einsatz",
     "workerSwappedSubject": "Mitarbeiterwechsel für Ihre Schicht",
     "workerSwappedBody": "Ein Mitarbeiter wurde für Ihre Schicht gewechselt. Hier sind die Details des neuen Mitarbeiters.",
