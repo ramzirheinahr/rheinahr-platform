@@ -11,7 +11,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
   logoContainer: { width: 220 },
   companyDetails: { fontSize: 8, color: "#374151", textAlign: "right" },
-  title: { fontSize: 18, fontFamily: "Helvetica-Bold", textAlign: "center", marginVertical: 12 },
+  title: { fontSize: 18, fontFamily: "Helvetica-Bold", textAlign: "left", marginVertical: 12 },
   metaContainer: { marginBottom: 14, fontSize: 9 },
   metaRow: { flexDirection: "row", marginBottom: 3 },
   metaLabel: { width: 240, fontFamily: "Helvetica-Bold" },
@@ -27,6 +27,8 @@ const styles = StyleSheet.create({
   colTime: { width: "11%", textAlign: "center" },
   colHours: { width: "11%", textAlign: "right" },
   colNetHours: { width: "12%", textAlign: "right", borderRightWidth: 0 },
+  totalRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8, paddingVertical: 4 },
+  totalText: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#111827" },
 });
 
 export type StundennachweisPdfProps = {
@@ -63,6 +65,8 @@ export const StundennachweisTemplate = ({
     const [y, m, d] = dStr.split("-");
     return `${d}.${m}.${y}`;
   };
+
+  const totalHours = rows.reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0);
 
   return (
     <Document>
@@ -139,12 +143,9 @@ export const StundennachweisTemplate = ({
           </View>
 
           {rows.map((r, idx) => (
-            <View key={idx} style={r.isSunday ? styles.tableRowSunday : styles.tableRow}>
+            <View key={idx} wrap={false} style={r.isSunday ? styles.tableRowSunday : styles.tableRow}>
               <Text style={[styles.col, styles.colDate]}>{r.shiftDate}</Text>
-              <Text style={[styles.col, styles.colWorker]}>
-                {r.workerName}
-                {r.workerNumber ? ` (${r.workerNumber})` : ""}
-              </Text>
+              <Text style={[styles.col, styles.colWorker]}>{r.workerName}</Text>
               <Text style={[styles.col, styles.colArea]}>{r.livingArea || "-----"}</Text>
               <Text style={[styles.col, styles.colTime]}>{r.startTime}</Text>
               <Text style={[styles.col, styles.colTime]}>{r.endTime}</Text>
@@ -156,6 +157,13 @@ export const StundennachweisTemplate = ({
               </Text>
             </View>
           ))}
+        </View>
+
+        {/* Total Sum */}
+        <View wrap={false} style={styles.totalRow}>
+          <Text style={styles.totalText}>
+            Gesamtsumme: {totalHours.toFixed(2).replace(".", ",")} Stunden
+          </Text>
         </View>
       </Page>
     </Document>

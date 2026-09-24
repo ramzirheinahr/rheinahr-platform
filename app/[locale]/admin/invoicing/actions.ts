@@ -127,3 +127,11 @@ export async function updateInvoiceAction(params: {
   return { ok: true, invoice: updatedInvoice };
 }
 
+export async function generateInvoiceForShift(assignmentId: string) {
+  const { generateOrderInvoices } = await import("@/app/[locale]/admin/orders/[id]/invoice-actions");
+  const res = await generateOrderInvoices([assignmentId]);
+  revalidatePath("/admin/invoicing");
+  return res;
+}
+
+

@@ -78,6 +78,66 @@ export async function saveAzkNotesAction(params: {
   return await saveAzkNotes(params);
 }
 
+export async function saveAzkInternalDataAction(params: {
+  workerId: string;
+  adjustments: Record<
+    string,
+    { kAusgleich?: string | number; vacation?: string | number; sick?: string | number; sonstige?: string | number }
+  >;
+  notes: Record<string, string>;
+}) {
+  await requireRole("de", "admin");
+  // Strictly internal: no notification sent
+  const { prisma } = await import("@/lib/prisma");
+  const { revalidatePath } = await import("next/cache");
+
+  // 1. Save notes
+  await saveAzkNotes({ workerId: params.workerId, notes: params.notes });
+
+  // 2. Save adjustments
+  for (const [month, values] of Object.entries(params.adjustments)) {
+    const types: Array<{ key: keyof typeof values; type: "k_ausgleich" | "urlaub" | "krank" | "sonstige" }> = [
+      { key: "kAusgleich", type: "k_ausgleich" },
+      { key: "vacation", type: "urlaub" },
+      { key: "sick", type: "krank" },
+      { key: "sonstige", type: "sonstige" },
+    ];
+
+    for (const { key, type } of types) {
+      const rawVal = values[key];
+      if (rawVal !== undefined && rawVal !== null && rawVal !== "") {
+        const numVal = Number(String(rawVal).replace(",", "."));
+        if (!isNaN(numVal)) {
+          const existing = await prisma.workerHoursAdjustment.findFirst({
+            where: { workerId: params.workerId, month, type },
+          });
+
+          if (existing) {
+            await prisma.workerHoursAdjustment.update({
+              where: { id: existing.id },
+              data: { hours: numVal },
+            });
+          } else if (numVal !== 0) {
+            await prisma.workerHoursAdjustment.create({
+              data: {
+                workerId: params.workerId,
+                month,
+                type,
+                hours: numVal,
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
+  revalidatePath(`/admin/reports`);
+  revalidatePath(`/admin/workers/${params.workerId}/schedule`);
+  revalidatePath(`/worker`);
+  return { ok: true };
+}
+
 export async function fetchReisespesenAction(params: {
   year: number;
   month: number;

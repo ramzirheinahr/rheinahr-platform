@@ -200,12 +200,9 @@ export function MonatslisteView({
               <thead>
                 <tr className="bg-muted/80 border-b border-border/80 text-foreground font-bold">
                   <th className="p-2.5 font-bold text-foreground">{t("stundennachweis.shiftDate")}</th>
-                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.comes")} 1</th>
-                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.leaves")} 1</th>
-                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.pause")} 1</th>
-                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.comes")} 2</th>
-                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.leaves")} 2</th>
-                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.pause")} 2</th>
+                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.comes")}</th>
+                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.leaves")}</th>
+                  <th className="p-2.5 text-center font-bold text-foreground">{t("monatsliste.pause")}</th>
                   <th className="p-2.5 text-right font-bold text-foreground">{t("monatsliste.sum")}</th>
                   <th className="p-2.5 font-bold text-foreground">{t("monatsliste.client")}</th>
                   <th className="p-2.5 text-center font-bold text-foreground whitespace-nowrap">{t("monatsliste.signedSheet")}</th>
@@ -214,74 +211,75 @@ export function MonatslisteView({
               <tbody className="divide-y divide-border">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={7} className="p-6 text-center text-muted-foreground">
                       {t("common.noResults")}
                     </td>
                   </tr>
                 ) : (
-                  rows.map((r, i) => (
-                    <tr key={i} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-2.5 whitespace-nowrap font-medium">{r.date}</td>
-                      <td className="p-2.5 text-center">{r.shift1.kommt}</td>
-                      <td className="p-2.5 text-center">{r.shift1.geht}</td>
-                      <td className="p-2.5 text-center">{r.shift1.pause}</td>
-                      <td className="p-2.5 text-center">{r.shift2.kommt}</td>
-                      <td className="p-2.5 text-center">{r.shift2.geht}</td>
-                      <td className="p-2.5 text-center">{r.shift2.pause}</td>
-                      <td className="p-2.5 text-right font-bold text-foreground">
-                        {r.hours.toFixed(2).replace(".", ",")}
-                      </td>
-                      <td className="p-2.5 font-medium">{r.customerName}</td>
-                      <td className="p-2.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {r.hasConfirmation1 && r.assignmentId1 ? (
-                            <a
-                              href={`/api/confirmations/${r.assignmentId1}/pdf`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={buttonVariants({
-                                variant: "outline",
-                                size: "sm",
-                                className:
-                                  "h-7 px-2.5 text-xs font-semibold gap-1.5 border-emerald-500/50 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs",
-                              })}
-                              title={r.signerName1 ? `Unterschrieben von: ${r.signerName1}` : "Unterschriebener Stundenzettel"}
-                            >
-                              <FileCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>{t("monatsliste.signed")}</span>
-                            </a>
-                          ) : r.shift1.kommt !== "-----" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200/80 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              <span>{t("monatsliste.pending")}</span>
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                  rows.map((r, i) => {
+                    const assignId = r.assignmentId || r.assignmentId1;
+                    const hasConf = r.hasConfirmation || r.hasConfirmation1;
+                    const signer = r.signerName || r.signerName1;
+                    const comes = r.kommt || r.shift1?.kommt;
+                    const leaves = r.geht || r.shift1?.geht;
+                    const pause = r.pause || r.shift1?.pause;
 
-                          {r.assignmentId2 && r.hasConfirmation2 && (
-                            <a
-                              href={`/api/confirmations/${r.assignmentId2}/pdf`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={buttonVariants({
-                                variant: "outline",
-                                size: "sm",
-                                className:
-                                  "h-7 px-2 text-xs font-semibold gap-1 border-emerald-500/50 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs",
-                              })}
-                              title={r.signerName2 ? `Schicht 2: ${r.signerName2}` : "Unterschrift Schicht 2"}
-                            >
-                              <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>S2</span>
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                    return (
+                      <tr key={i} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-2.5 whitespace-nowrap font-medium">{r.date}</td>
+                        <td className="p-2.5 text-center">{comes}</td>
+                        <td className="p-2.5 text-center">{leaves}</td>
+                        <td className="p-2.5 text-center">{pause}</td>
+                        <td className="p-2.5 text-right font-bold text-foreground">
+                          {r.hours.toFixed(2).replace(".", ",")}
+                        </td>
+                        <td className="p-2.5 font-medium">{r.customerName}</td>
+                        <td className="p-2.5 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {hasConf && assignId ? (
+                              <a
+                                href={`/api/confirmations/${assignId}/pdf`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={buttonVariants({
+                                  variant: "outline",
+                                  size: "sm",
+                                  className:
+                                    "h-7 px-2.5 text-xs font-semibold gap-1.5 border-emerald-500/50 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs",
+                                })}
+                                title={signer ? `Unterschrieben von: ${signer}` : "Unterschriebener Stundenzettel"}
+                              >
+                                <FileCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>{t("monatsliste.signed")}</span>
+                              </a>
+                            ) : comes !== "-----" ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200/80 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>{t("monatsliste.pending")}</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
+              {rows && rows.length > 0 && (
+                <tfoot className="border-t-2 border-border/80 bg-muted/40 font-bold">
+                  <tr>
+                    <td colSpan={4} className="p-2.5 text-right font-bold text-foreground">
+                      Gesamtsumme:
+                    </td>
+                    <td className="p-2.5 text-right font-bold text-foreground">
+                      {rows.reduce((sum, r) => sum + (r.hours || 0), 0).toFixed(2).replace(".", ",")} Std.
+                    </td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </Card>

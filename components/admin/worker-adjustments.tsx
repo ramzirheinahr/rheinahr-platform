@@ -22,7 +22,7 @@ import {
 export type AdjustmentInfo = {
   id: string;
   month: string;
-  type: "k_ausgleich" | "sonstige";
+  type: "k_ausgleich" | "sonstige" | "urlaub" | "krank";
   hours: number;
   notes: string | null;
 };
@@ -47,7 +47,7 @@ export function WorkerAdjustments({
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
-  const [type, setType] = useState<"k_ausgleich" | "sonstige">("k_ausgleich");
+  const [type, setType] = useState<"k_ausgleich" | "sonstige" | "urlaub" | "krank">("k_ausgleich");
   const [hours, setHours] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -108,7 +108,15 @@ export function WorkerAdjustments({
                   {adjustments.map((a) => (
                     <tr key={a.id} className="border-t">
                       <td className="p-2">{a.month}</td>
-                      <td className="p-2">{a.type === "k_ausgleich" ? t("kAusgleich") : t("sonstige")}</td>
+                      <td className="p-2">
+                        {a.type === "k_ausgleich"
+                          ? t("kAusgleich")
+                          : a.type === "urlaub"
+                          ? "Urlaub"
+                          : a.type === "krank"
+                          ? "Krank"
+                          : t("sonstige")}
+                      </td>
                       <td className="p-2">{a.hours}</td>
                       <td className="p-2">{a.notes}</td>
                       <td className="p-2">
@@ -147,6 +155,8 @@ export function WorkerAdjustments({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="k_ausgleich">{t("kAusgleich")}</SelectItem>
+                  <SelectItem value="urlaub">Urlaub</SelectItem>
+                  <SelectItem value="krank">Krank</SelectItem>
                   <SelectItem value="sonstige">{t("sonstige")}</SelectItem>
                 </SelectContent>
               </Select>

@@ -126,22 +126,30 @@ export async function getWorkerHoursAccount(
         const netMins = diffMins - (a.order.breakMinutes || 0);
         hours = netMins / 60;
       }
-      return sum + hours + (a.bonusHours || 0);
+      return sum + hours;
     }, 0);
+
+    const bonusHoursTotal = monthAssignments.reduce((sum, a) => sum + (a.bonusHours || 0), 0);
 
     // leave hours
     const monthLeaves = leaveDays.filter(l => {
       const d = l.date;
       return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
     });
-    const vacationHours = monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0);
-    const sickHours = monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0);
+    const vacationHoursFromLeaves = monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0);
+    const sickHoursFromLeaves = monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0);
     const otherLeaveHours = monthLeaves.filter(l => l.leaveRequest.type === "other").reduce((sum, l) => sum + l.hours, 0);
 
     // adjustments
     const monthAdjustments = adjustments.filter(a => a.month === monthStr);
     const kAusgleichHours = monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0);
-    const sonstigeHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0) + otherLeaveHours; // Add other leaves to sonstige
+    const vacationAdjHours = monthAdjustments.filter(a => a.type === "urlaub").reduce((sum, a) => sum + a.hours, 0);
+    const sickAdjHours = monthAdjustments.filter(a => a.type === "krank").reduce((sum, a) => sum + a.hours, 0);
+    const sonstigeAdjHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0);
+
+    const vacationHours = vacationHoursFromLeaves + vacationAdjHours;
+    const sickHours = sickHoursFromLeaves + sickAdjHours;
+    const sonstigeHours = sonstigeAdjHours + otherLeaveHours + bonusHoursTotal;
 
     // Required hours dynamic based on history and contract dates
     const requiredHours = getEffectiveSollHours(
@@ -288,20 +296,28 @@ export async function getMultipleWorkersHoursAccount(
           const netMins = diffMins - (a.order.breakMinutes || 0);
           hours = netMins / 60;
         }
-        return sum + hours + (a.bonusHours || 0);
+        return sum + hours;
       }, 0);
+
+      const bonusHoursTotal = monthAssignments.reduce((sum, a) => sum + (a.bonusHours || 0), 0);
 
       const monthLeaves = leaveDays.filter(l => {
         const d = l.date;
         return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
       });
-      const vacationHours = monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0);
-      const sickHours = monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0);
+      const vacationHoursFromLeaves = monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0);
+      const sickHoursFromLeaves = monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0);
       const otherLeaveHours = monthLeaves.filter(l => l.leaveRequest.type === "other").reduce((sum, l) => sum + l.hours, 0);
 
       const monthAdjustments = adjustments.filter(a => a.month === monthStr);
       const kAusgleichHours = monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0);
-      const sonstigeHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0) + otherLeaveHours;
+      const vacationAdjHours = monthAdjustments.filter(a => a.type === "urlaub").reduce((sum, a) => sum + a.hours, 0);
+      const sickAdjHours = monthAdjustments.filter(a => a.type === "krank").reduce((sum, a) => sum + a.hours, 0);
+      const sonstigeAdjHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0);
+
+      const vacationHours = vacationHoursFromLeaves + vacationAdjHours;
+      const sickHours = sickHoursFromLeaves + sickAdjHours;
+      const sonstigeHours = sonstigeAdjHours + otherLeaveHours + bonusHoursTotal;
 
       const requiredHours = getEffectiveSollHours(
         monthStr,

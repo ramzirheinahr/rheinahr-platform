@@ -19,11 +19,13 @@ const styles = StyleSheet.create({
   tableHeader: { flexDirection: "row", backgroundColor: "#e5e7eb", fontFamily: "Helvetica-Bold", borderBottomWidth: 1.5, borderBottomColor: "#111827" },
   tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#374151" },
   tableRowEven: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#374151", backgroundColor: "#f9fafb" },
-  col: { padding: 3.5, borderRightWidth: 0.8, borderRightColor: "#4b5563", justifyContent: "center", textAlign: "center" },
-  colDate: { width: "13%" },
-  colShift: { width: "9%" },
-  colHours: { width: "9%" },
-  colClient: { width: "25%", borderRightWidth: 0, textAlign: "left", paddingLeft: 6 },
+  col: { padding: 4, borderRightWidth: 0.8, borderRightColor: "#4b5563", justifyContent: "center", textAlign: "center" },
+  colDate: { width: "16%" },
+  colShift: { width: "12%" },
+  colHours: { width: "14%", textAlign: "right" },
+  colClient: { width: "34%", borderRightWidth: 0, textAlign: "left", paddingLeft: 6 },
+  totalRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8, paddingVertical: 4 },
+  totalText: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#111827" },
 });
 
 export type MonatslistePdfProps = {
@@ -54,6 +56,8 @@ export const MonatslisteTemplate = ({
       }
     }
   }
+
+  const totalHours = rows.reduce((sum, r) => sum + (r.hours || 0), 0);
 
   return (
     <Document>
@@ -90,31 +94,32 @@ export const MonatslisteTemplate = ({
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={[styles.col, styles.colDate]}>Datum</Text>
-            <Text style={[styles.col, styles.colShift]}>Kommt 1</Text>
-            <Text style={[styles.col, styles.colShift]}>Geht 1</Text>
-            <Text style={[styles.col, styles.colShift]}>Pause 1</Text>
-            <Text style={[styles.col, styles.colShift]}>Kommt 2</Text>
-            <Text style={[styles.col, styles.colShift]}>Geht 2</Text>
-            <Text style={[styles.col, styles.colShift]}>Pause 2</Text>
+            <Text style={[styles.col, styles.colShift]}>Kommt</Text>
+            <Text style={[styles.col, styles.colShift]}>Geht</Text>
+            <Text style={[styles.col, styles.colShift]}>Pause</Text>
             <Text style={[styles.col, styles.colHours]}>Stunden</Text>
             <Text style={[styles.col, styles.colClient]}>Auftraggeber</Text>
           </View>
 
           {rows.map((r, idx) => (
-            <View key={idx} style={idx % 2 === 1 ? styles.tableRowEven : styles.tableRow}>
+            <View key={idx} wrap={false} style={idx % 2 === 1 ? styles.tableRowEven : styles.tableRow}>
               <Text style={[styles.col, styles.colDate]}>{r.date}</Text>
-              <Text style={[styles.col, styles.colShift]}>{r.shift1.kommt}</Text>
-              <Text style={[styles.col, styles.colShift]}>{r.shift1.geht}</Text>
-              <Text style={[styles.col, styles.colShift]}>{r.shift1.pause}</Text>
-              <Text style={[styles.col, styles.colShift]}>{r.shift2.kommt}</Text>
-              <Text style={[styles.col, styles.colShift]}>{r.shift2.geht}</Text>
-              <Text style={[styles.col, styles.colShift]}>{r.shift2.pause}</Text>
+              <Text style={[styles.col, styles.colShift]}>{r.kommt || r.shift1?.kommt}</Text>
+              <Text style={[styles.col, styles.colShift]}>{r.geht || r.shift1?.geht}</Text>
+              <Text style={[styles.col, styles.colShift]}>{r.pause || r.shift1?.pause}</Text>
               <Text style={[styles.col, styles.colHours]}>
                 {r.hours.toFixed(2).replace(".", ",")}
               </Text>
               <Text style={[styles.col, styles.colClient]}>{r.customerName}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Total Sum */}
+        <View wrap={false} style={styles.totalRow}>
+          <Text style={styles.totalText}>
+            Gesamtsumme: {totalHours.toFixed(2).replace(".", ",")} Stunden
+          </Text>
         </View>
       </Page>
     </Document>

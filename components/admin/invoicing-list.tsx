@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail, Edit3, Send } from "lucide-react";
+import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail, Edit3, Send, Download } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
 import { deleteInvoice, cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
@@ -23,9 +24,16 @@ import {
 export function InvoicingList({ invoices }: { invoices: any[] }) {
   const t = useTranslations("invoicing");
   const tEmail = useTranslations("emailDialog");
+  const searchParams = useSearchParams();
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
+
+  const from = searchParams.get("from") || "";
+  const to = searchParams.get("to") || "";
+  const q = searchParams.get("q") || "";
+  const bulkPdfUrl = `/api/invoices/bulk-pdf?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&q=${encodeURIComponent(q)}`;
+
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     if (currentStatus === "cancelled") return;
@@ -225,6 +233,21 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+        <span className="text-sm font-medium text-slate-600">
+          {invoices.length} {invoices.length === 1 ? "Rechnung" : "Rechnungen"}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 self-start sm:self-auto shadow-xs"
+          onClick={() => window.open(bulkPdfUrl, "_blank")}
+        >
+          <Download className="size-4 text-emerald-600" />
+          <span>{t("downloadAllPdf")}</span>
+        </Button>
+      </div>
+
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <ResponsiveTable 
           columns={columns} 

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Printer, Search, Save, Loader2, Check, X } from "lucide-react";
-import { fetchArbeitszeitkontoAction, saveAzkNotesAction } from "@/app/[locale]/admin/reports/actions";
+import { fetchArbeitszeitkontoAction, saveAzkInternalDataAction } from "@/app/[locale]/admin/reports/actions";
 import type { MonthlyHoursAccount } from "@/lib/hours-account";
 
 const MONTHS = [
@@ -62,10 +62,13 @@ export function ArbeitszeitkontoView({
   const [selectedWorkersBatch, setSelectedWorkersBatch] = useState<string[]>([]);
   const [batchSearchQuery, setBatchSearchQuery] = useState<string>("");
 
-  // Table rows, initial carryover & editable notes
+  // Table rows, initial carryover & editable notes/adjustments
   const [rows, setRows] = useState<Array<MonthlyHoursAccount & { notes?: string }> | null>(null);
   const [initialCarryover, setInitialCarryover] = useState<number | null>(null);
   const [notesState, setNotesState] = useState<Record<string, string>>({});
+  const [adjustmentsState, setAdjustmentsState] = useState<
+    Record<string, { kAusgleich: string; vacation: string; sick: string; sonstige: string }>
+  >({});
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
 
   const [isPending, startTransition] = useTransition();
@@ -85,10 +88,18 @@ export function ArbeitszeitkontoView({
       setRows(res.months);
       setInitialCarryover(res.initialCarryover);
       const initialNotes: Record<string, string> = {};
+      const initialAdj: Record<string, { kAusgleich: string; vacation: string; sick: string; sonstige: string }> = {};
       for (const m of res.months) {
         initialNotes[m.month] = m.notes || "";
+        initialAdj[m.month] = {
+          kAusgleich: m.kAusgleichHours !== 0 ? String(m.kAusgleichHours) : "",
+          vacation: m.vacationHours !== 0 ? String(m.vacationHours) : "",
+          sick: m.sickHours !== 0 ? String(m.sickHours) : "",
+          sonstige: m.sonstigeHours !== 0 ? String(m.sonstigeHours) : "",
+        };
       }
       setNotesState(initialNotes);
+      setAdjustmentsState(initialAdj);
     });
   };
 
@@ -98,15 +109,31 @@ export function ArbeitszeitkontoView({
     }
   }, [selectedWorkerId, zeiterfassungInsgesamt, withPrevBalance]);
 
+  const updateAdjustment = (
+    month: string,
+    field: "kAusgleich" | "vacation" | "sick" | "sonstige",
+    value: string
+  ) => {
+    setAdjustmentsState((prev) => ({
+      ...prev,
+      [month]: {
+        ...prev[month],
+        [field]: value,
+      },
+    }));
+  };
+
   const handleSaveNotes = () => {
     if (!selectedWorkerId) return;
     startTransition(async () => {
-      await saveAzkNotesAction({
+      await saveAzkInternalDataAction({
         workerId: selectedWorkerId,
+        adjustments: adjustmentsState,
         notes: notesState,
       });
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
+      handleSearch();
     });
   };
 
@@ -449,17 +476,41 @@ export function ArbeitszeitkontoView({
                       </td>
                       <td className="p-2 text-right">{r.requiredHours.toFixed(2)}</td>
                       <td className="p-2 text-right font-medium">{r.workedHours.toFixed(2)}</td>
-                      <td className="p-2 text-right">
-                        {r.kAusgleichHours > 0 ? r.kAusgleichHours.toFixed(2) : ""}
+                      <td className="p-1 w-20">
+                        <Input
+                          type="text"
+                          value={adjustmentsState[r.month]?.kAusgleich ?? (r.kAusgleichHours !== 0 ? String(r.kAusgleichHours) : "")}
+                          onChange={(e) => updateAdjustment(r.month, "kAusgleich", e.target.value)}
+                          className="h-7 text-xs text-right font-medium px-1.5"
+                          placeholder="—"
+                        />
                       </td>
-                      <td className="p-2 text-right">
-                        {r.vacationHours > 0 ? r.vacationHours.toFixed(2) : ""}
+                      <td className="p-1 w-20">
+                        <Input
+                          type="text"
+                          value={adjustmentsState[r.month]?.vacation ?? (r.vacationHours !== 0 ? String(r.vacationHours) : "")}
+                          onChange={(e) => updateAdjustment(r.month, "vacation", e.target.value)}
+                          className="h-7 text-xs text-right font-medium px-1.5"
+                          placeholder="—"
+                        />
                       </td>
-                      <td className="p-2 text-right">
-                        {r.sickHours !== 0 ? r.sickHours.toFixed(2) : ""}
+                      <td className="p-1 w-20">
+                        <Input
+                          type="text"
+                          value={adjustmentsState[r.month]?.sick ?? (r.sickHours !== 0 ? String(r.sickHours) : "")}
+                          onChange={(e) => updateAdjustment(r.month, "sick", e.target.value)}
+                          className="h-7 text-xs text-right font-medium px-1.5"
+                          placeholder="—"
+                        />
                       </td>
-                      <td className="p-2 text-right">
-                        {r.sonstigeHours > 0 ? r.sonstigeHours.toFixed(2) : ""}
+                      <td className="p-1 w-20">
+                        <Input
+                          type="text"
+                          value={adjustmentsState[r.month]?.sonstige ?? (r.sonstigeHours !== 0 ? String(r.sonstigeHours) : "")}
+                          onChange={(e) => updateAdjustment(r.month, "sonstige", e.target.value)}
+                          className="h-7 text-xs text-right font-medium px-1.5"
+                          placeholder="—"
+                        />
                       </td>
                       <td
                         className={`p-2 text-right font-semibold ${

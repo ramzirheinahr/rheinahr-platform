@@ -805,7 +805,10 @@
     "totalRequiredLabel": "Gesamt-Soll",
     "creditLabel": "Guthaben",
     "acceptedTotal": "Bestätigt (offen)",
-    "workedTotal": "Summe",
+    "workedTotal": "Ist",
+    "davonConfirmed": "davon Bestätigt",
+    "nochOffen": "noch offen",
+    "kontostandLabel": "Kontostand",
     "requestCancel": "Abmelden anfragen",
     "requestCancelTitle": "Abmeldung anfragen",
     "requestCancelDesc": "Ihre Anfrage geht zur Freigabe ans Büro.",
@@ -855,7 +858,7 @@
     "toggleTravel": "Fahrtkosten umschalten"
   },
   "reports": {
-    "title": "Berichte & Zeiterfassung",
+    "title": "Berichte",
     "subtitle": "Umfassende Berichte, Stundennachweise, Arbeitszeitkonten und Spesen.",
     "totalOrders": "Aufträge gesamt",
     "activeOrders": "Aktive Aufträge",
@@ -1039,12 +1042,16 @@
     "markedPaid": "Rechnung wurde als bezahlt markiert.",
     "markedUnpaid": "Rechnung wurde wieder als unbezahlt markiert.",
     "statusUpdateError": "Der Rechnungsstatus konnte nicht aktualisiert werden.",
+    "downloadAllPdf": "Alle Rechnungen herunterladen (PDF)",
+    "createInvoice": "Rechnung erstellen",
+    "invoiceCreatedSuccess": "Rechnung erfolgreich erstellt!",
     "tabs": {
       "invoices": "Rechnungen (Offiziell)",
       "sentEmails": "Versendete E-Mails",
       "shiftStatus": "Schicht-Abrechnungsstatus",
       "unbilledClients": "Kunden ohne Rechnung",
-      "readyToBill": "Bereit zur Abrechnung"
+      "readyToBill": "Bereit zur Abrechnung",
+      "openInvoices": "Offene Rechnungen"
     },
     "sentEmails": {
       "title": "Per E-Mail versendete Rechnungen",

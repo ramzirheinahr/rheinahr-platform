@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 export async function addWorkerAdjustment(
   workerId: string,
   month: string,
-  type: "k_ausgleich" | "sonstige",
+  type: "k_ausgleich" | "sonstige" | "urlaub" | "krank",
   hours: number,
   notes: string
 ) {

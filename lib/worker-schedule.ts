@@ -180,7 +180,7 @@ export async function getWorkerMonthSchedule(
         ),
         confirmedHours:
           a.serviceConfirmation?.hoursWorked != null
-            ? Number(a.serviceConfirmation.hoursWorked) + (a.bonusHours ?? 0)
+            ? Number(a.serviceConfirmation.hoursWorked)
             : null,
         cancelRequested: a.cancelRequested,
         cancelNote: a.cancelNote,

@@ -210,11 +210,6 @@ export function StundennachweisView({
                       <td className="p-2.5 whitespace-nowrap">{r.shiftDate}</td>
                       <td className="p-2.5 whitespace-nowrap">
                         <span className="font-semibold">{r.workerName}</span>
-                        {r.workerNumber && (
-                          <span className="text-muted-foreground ml-1.5 font-normal">
-                            ({r.workerNumber})
-                          </span>
-                        )}
                       </td>
                       <td className="p-2.5 text-center">{r.livingArea || "-----"}</td>
                       <td className="p-2.5 text-center">{r.startTime}</td>
@@ -229,6 +224,18 @@ export function StundennachweisView({
                   ))
                 )}
               </tbody>
+              {rows && rows.length > 0 && (
+                <tfoot className="border-t-2 border-border/80 bg-muted/40 font-bold">
+                  <tr>
+                    <td colSpan={6} className="p-2.5 text-right font-bold text-foreground">
+                      Gesamtsumme:
+                    </td>
+                    <td className="p-2.5 text-right font-bold text-foreground">
+                      {rows.reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0).toFixed(2).replace(".", ",")} Std.
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </Card>

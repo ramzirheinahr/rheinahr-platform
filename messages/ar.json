@@ -807,7 +807,10 @@
     "totalRequiredLabel": "إجمالي المطلوب",
     "creditLabel": "رصيد إضافي",
     "acceptedTotal": "مؤكد (بانتظار التوقيع)",
-    "workedTotal": "المجموع",
+    "workedTotal": "Ist",
+    "davonConfirmed": "davon Bestätigt",
+    "nochOffen": "noch offen",
+    "kontostandLabel": "Kontostand",
     "requestCancel": "طلب إلغاء",
     "requestCancelTitle": "طلب إلغاء الوردية",
     "requestCancelDesc": "سيصل طلبك إلى المكتب للموافقة.",
@@ -857,7 +860,7 @@
     "toggleTravel": "تبديل بدل المواصلات"
   },
   "reports": {
-    "title": "التقارير وتسجيل الساعات",
+    "title": "التقارير",
     "subtitle": "تقارير شاملة، كشوفات الساعات، حسابات رصيد ساعات العمل وبدلات السفر.",
     "totalOrders": "إجمالي الطلبات",
     "activeOrders": "الطلبات النشطة",
@@ -1041,12 +1044,16 @@
     "markedPaid": "تم تحديد الفاتورة كمدفوعة.",
     "markedUnpaid": "تمت إعادة الفاتورة إلى حالة غير مدفوعة.",
     "statusUpdateError": "تعذر تحديث حالة الفاتورة.",
+    "downloadAllPdf": "تحميل جميع الفواتير (PDF)",
+    "createInvoice": "إنشاء فاتورة",
+    "invoiceCreatedSuccess": "تم إنشاء الفاتورة بنجاح!",
     "tabs": {
       "invoices": "الفواتير (الرسمية)",
       "sentEmails": "الفواتير المرسلة بالإيميل",
       "shiftStatus": "حالة فوترة الورديات",
       "unbilledClients": "زبائن بدون فواتير",
-      "readyToBill": "جاهزة للفوترة"
+      "readyToBill": "جاهزة للفوترة",
+      "openInvoices": "الفواتير المفتوحة"
     },
     "sentEmails": {
       "title": "الفواتير المرسلة عبر البريد الإلكتروني",

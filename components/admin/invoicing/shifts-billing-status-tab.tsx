@@ -1,13 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { CheckCircle2, Clock, AlertCircle, FileText, ArrowRight, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clock, FileText, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { qualLabel } from "@/lib/invoicing";
+import { cn } from "@/lib/utils";
+import { generateInvoiceForShift } from "@/app/[locale]/admin/invoicing/actions";
+import { toast } from "sonner";
 
 interface ShiftBillingItem {
   id: string;
@@ -33,10 +37,35 @@ interface ShiftsBillingStatusTabProps {
 
 export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) {
   const t = useTranslations("invoicing.shiftStatus");
+  const [filter, setFilter] = useState<"all" | "invoiced" | "ready" | "awaiting">("all");
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   const invoicedCount = shifts.filter((s) => !!s.invoiceId).length;
   const readyCount = shifts.filter((s) => !s.invoiceId && s.isConfirmed).length;
   const awaitingCount = shifts.filter((s) => !s.invoiceId && !s.isConfirmed).length;
+
+  const filteredShifts = shifts.filter((s) => {
+    if (filter === "invoiced") return !!s.invoiceId;
+    if (filter === "ready") return !s.invoiceId && s.isConfirmed;
+    if (filter === "awaiting") return !s.invoiceId && !s.isConfirmed;
+    return true;
+  });
+
+  const handleCreateInvoice = async (shiftId: string) => {
+    setGeneratingId(shiftId);
+    try {
+      const res = await generateInvoiceForShift(shiftId);
+      if (res && res.ok) {
+        toast.success("Rechnung erfolgreich erstellt!");
+      } else {
+        toast.error("Fehler beim Erstellen der Rechnung");
+      }
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Erstellen der Rechnung");
+    } finally {
+      setGeneratingId(null);
+    }
+  };
 
   const columns: Column<ShiftBillingItem>[] = [
     {
@@ -131,19 +160,36 @@ export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) 
             </Button>
           );
         }
-        if (r.isConfirmed && r.requestGroupId) {
+        if (r.isConfirmed) {
           return (
-            <Link
-              href={`/admin/orders/${r.requestGroupId}`}
-              className={buttonVariants({
-                variant: "outline",
-                size: "sm",
-                className: "gap-1 text-xs text-amber-700 border-amber-300 hover:bg-amber-50",
-              })}
-            >
-              Abrechnen
-              <ArrowRight className="size-3 ml-1" />
-            </Link>
+            <div className="flex items-center justify-end gap-1.5">
+              <Button
+                size="sm"
+                className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2.5 shadow-xs"
+                disabled={generatingId === r.id}
+                onClick={() => handleCreateInvoice(r.id)}
+              >
+                {generatingId === r.id ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <FileText className="size-3" />
+                )}
+                <span>Rechnung erstellen</span>
+              </Button>
+              {r.requestGroupId && (
+                <Link
+                  href={`/admin/orders/${r.requestGroupId}`}
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "sm",
+                    className: "text-xs text-slate-600 border-slate-200 hover:bg-slate-50 h-7 px-2",
+                  })}
+                  title="Bestellung ansehen"
+                >
+                  <ArrowRight className="size-3" />
+                </Link>
+              )}
+            </div>
           );
         }
         return <span className="text-slate-300 text-xs">—</span>;
@@ -153,36 +199,75 @@ export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) 
 
   return (
     <div className="space-y-4">
-      {/* KPI Header */}
+      {/* Interactive KPI Filter Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-xl border bg-white shadow-sm flex flex-col">
+        <button
+          type="button"
+          onClick={() => setFilter("all")}
+          className={cn(
+            "p-4 rounded-xl border text-left transition-all hover:shadow-sm flex flex-col cursor-pointer",
+            filter === "all"
+              ? "bg-slate-100 border-slate-400 ring-2 ring-slate-400"
+              : "bg-white border-slate-200 hover:border-slate-300"
+          )}
+        >
           <span className="text-xs font-medium text-slate-500">{t("totalShifts")}</span>
           <span className="text-2xl font-bold text-slate-900 mt-1">{shifts.length}</span>
-        </div>
-        <div className="p-4 rounded-xl border bg-emerald-50/50 border-emerald-200 shadow-sm flex flex-col">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilter(filter === "invoiced" ? "all" : "invoiced")}
+          className={cn(
+            "p-4 rounded-xl border text-left transition-all hover:shadow-sm flex flex-col cursor-pointer",
+            filter === "invoiced"
+              ? "bg-emerald-100 border-emerald-500 ring-2 ring-emerald-500"
+              : "bg-emerald-50/50 border-emerald-200 hover:border-emerald-300"
+          )}
+        >
           <span className="text-xs font-medium text-emerald-700 flex items-center gap-1.5">
             <CheckCircle2 className="size-3.5" />
             {t("invoicedShifts")}
           </span>
           <span className="text-2xl font-bold text-emerald-900 mt-1">{invoicedCount}</span>
-        </div>
-        <div className="p-4 rounded-xl border bg-amber-50/50 border-amber-200 shadow-sm flex flex-col">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilter(filter === "ready" ? "all" : "ready")}
+          className={cn(
+            "p-4 rounded-xl border text-left transition-all hover:shadow-sm flex flex-col cursor-pointer",
+            filter === "ready"
+              ? "bg-amber-100 border-amber-500 ring-2 ring-amber-500"
+              : "bg-amber-50/50 border-amber-200 hover:border-amber-300"
+          )}
+        >
           <span className="text-xs font-medium text-amber-700 flex items-center gap-1.5">
             <ShieldCheck className="size-3.5" />
             {t("readyShifts")}
           </span>
           <span className="text-2xl font-bold text-amber-900 mt-1">{readyCount}</span>
-        </div>
-        <div className="p-4 rounded-xl border bg-slate-50 border-slate-200 shadow-sm flex flex-col">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilter(filter === "awaiting" ? "all" : "awaiting")}
+          className={cn(
+            "p-4 rounded-xl border text-left transition-all hover:shadow-sm flex flex-col cursor-pointer",
+            filter === "awaiting"
+              ? "bg-slate-200 border-slate-500 ring-2 ring-slate-500"
+              : "bg-slate-50 border-slate-200 hover:border-slate-300"
+          )}
+        >
           <span className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
             <Clock className="size-3.5" />
             {t("awaitingConfirmation")}
           </span>
           <span className="text-2xl font-bold text-slate-800 mt-1">{awaitingCount}</span>
-        </div>
+        </button>
       </div>
 
-      {shifts.length === 0 ? (
+      {filteredShifts.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 border rounded-xl border-dashed bg-slate-50 text-slate-500">
           <Clock className="size-10 text-slate-300 mb-3" />
           <p className="font-medium text-slate-700">{t("empty")}</p>
@@ -191,7 +276,7 @@ export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) 
         <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
           <ResponsiveTable
             columns={columns}
-            rows={shifts}
+            rows={filteredShifts}
             getRowKey={(r) => r.id}
             empty={null}
           />
@@ -200,3 +285,4 @@ export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) 
     </div>
   );
 }
+

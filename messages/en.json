@@ -805,7 +805,10 @@
     "totalRequiredLabel": "Total required",
     "creditLabel": "Credit",
     "acceptedTotal": "Confirmed (pending)",
-    "workedTotal": "Total",
+    "workedTotal": "Ist",
+    "davonConfirmed": "davon Bestätigt",
+    "nochOffen": "noch offen",
+    "kontostandLabel": "Kontostand",
     "requestCancel": "Request cancellation",
     "requestCancelTitle": "Request shift cancellation",
     "requestCancelDesc": "Your request goes to the office for approval.",
@@ -855,7 +858,7 @@
     "toggleTravel": "Toggle travel allowance"
   },
   "reports": {
-    "title": "Reports & Time Tracking",
+    "title": "Reports",
     "subtitle": "Comprehensive reports, proof of hours, working time accounts, and expenses.",
     "totalOrders": "Total Orders",
     "activeOrders": "Active Orders",
@@ -1039,12 +1042,16 @@
     "markedPaid": "Invoice marked as paid.",
     "markedUnpaid": "Invoice reset to unpaid.",
     "statusUpdateError": "The invoice status could not be updated.",
+    "downloadAllPdf": "Download all invoices (PDF)",
+    "createInvoice": "Create Invoice",
+    "invoiceCreatedSuccess": "Invoice created successfully!",
     "tabs": {
       "invoices": "Invoices (Official)",
       "sentEmails": "Sent Emails",
       "shiftStatus": "Shift Billing Status",
       "unbilledClients": "Unbilled Clients",
-      "readyToBill": "Ready to Bill"
+      "readyToBill": "Ready to Bill",
+      "openInvoices": "Open Invoices"
     },
     "sentEmails": {
       "title": "Invoices Sent via Email",

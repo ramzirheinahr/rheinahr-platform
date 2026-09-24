@@ -7,8 +7,8 @@ import { InvoicingList } from "@/components/admin/invoicing-list";
 import { SentInvoicesTab } from "./sent-invoices-tab";
 import { ShiftsBillingStatusTab } from "./shifts-billing-status-tab";
 import { UnbilledClientsTab } from "./unbilled-clients-tab";
-import { ReadyToBillTab } from "./ready-to-bill-tab";
-import { FileText, Mail, BarChart3, Users, ShieldCheck } from "lucide-react";
+import { OpenInvoicesTab } from "./open-invoices-tab";
+import { FileText, Mail, BarChart3, Users, Clock } from "lucide-react";
 
 interface InvoicingHubProps {
   invoices: any[];
@@ -29,6 +29,7 @@ export function InvoicingHub({
   const [activeTab, setActiveTab] = useState("invoices");
 
   const sentCount = invoices.filter((i) => !!i.snapshotData?.emailSent?.sentAt).length;
+  const openCount = invoices.filter((i) => i.status === "unpaid").length;
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -83,14 +84,14 @@ export function InvoicingHub({
           </TabsTrigger>
 
           <TabsTrigger
-            value="readyToBill"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-emerald-800 data-[state=active]:shadow-sm whitespace-nowrap"
+            value="openInvoices"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-amber-800 data-[state=active]:shadow-sm whitespace-nowrap"
           >
-            <ShieldCheck className="size-4" />
-            <span>{t("tabs.readyToBill")}</span>
-            {readyShifts.length > 0 && (
-              <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-900 font-semibold">
-                {readyShifts.length}
+            <Clock className="size-4" />
+            <span>{t("tabs.openInvoices")}</span>
+            {openCount > 0 && (
+              <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-900 font-semibold">
+                {openCount}
               </span>
             )}
           </TabsTrigger>
@@ -116,8 +117,8 @@ export function InvoicingHub({
         />
       </TabsContent>
 
-      <TabsContent value="readyToBill" className="m-0 focus-visible:outline-none">
-        <ReadyToBillTab shifts={readyShifts} />
+      <TabsContent value="openInvoices" className="m-0 focus-visible:outline-none">
+        <OpenInvoicesTab invoices={invoices} />
       </TabsContent>
     </Tabs>
   );

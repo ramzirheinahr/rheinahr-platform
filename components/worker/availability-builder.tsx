@@ -184,7 +184,7 @@ export function AvailabilityBuilder({
         confirmed.reduce((sum, a) => sum + (a.confirmedHours ?? 0), 0) +
         leaves.reduce((sum, l) => sum + (l.hours ?? 0), 0),
       shifts: confirmed.length,
-      acceptedHours: accepted.reduce((sum, a) => sum + (a.scheduledHours ?? 0) + (a.bonusHours ?? 0), 0),
+      acceptedHours: accepted.reduce((sum, a) => sum + (a.scheduledHours ?? 0), 0),
       acceptedShifts: accepted.length,
     };
   }, [assignments, leaveDays]);
@@ -1077,38 +1077,34 @@ export function AvailabilityBuilder({
                     const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
                     return (
                       <div className="flex flex-col items-end gap-1">
+                        <div className="flex justify-between w-52 text-sm">
+                          <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
+                          <span className={cn("font-medium", carryoverHours > 0 ? "text-emerald-600" : carryoverHours < 0 ? "text-destructive" : "text-foreground")}>
+                            {signed(carryoverHours)} {t("hoursUnit")}
+                          </span>
+                        </div>
                         {requiredHours !== undefined && (
                           <div className="flex justify-between w-52 text-sm">
                             <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
                             <span className="font-medium text-foreground">{hoursFmt.format(requiredHours)} {t("hoursUnit")}</span>
                           </div>
                         )}
-                        {carryoverHours !== 0 && (
-                          <div className="flex justify-between w-52 text-sm">
-                            <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
-                            <span className={cn("font-medium", carryoverHours > 0 ? "text-emerald-600" : carryoverHours < 0 ? "text-destructive" : "text-foreground")}>
-                              {signed(carryoverHours)} {t("hoursUnit")}
-                            </span>
-                          </div>
-                        )}
-                        {totals.acceptedHours > 0 && (
-                          <div className="flex justify-between w-52 text-sm">
-                            <span className="text-muted-foreground">{t("acceptedTotal")}:</span>
-                            <span className="font-bold text-amber-600">{hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}</span>
-                          </div>
-                        )}
                         <div className="flex justify-between w-52 text-sm">
-                          <span className="text-muted-foreground">{t("confirmedTotal")}:</span>
-                          <span className="font-bold text-emerald-600">{hoursFmt.format(totals.hours)} {t("hoursUnit")}</span>
-                        </div>
-                        <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
                           <span className="text-muted-foreground">{t("workedTotal")}:</span>
                           <span className="font-semibold text-foreground">{hoursFmt.format(worked)} {t("hoursUnit")}</span>
                         </div>
+                        <div className="flex justify-between w-52 text-xs ps-3">
+                          <span className="text-muted-foreground">{t("davonConfirmed")}:</span>
+                          <span className="font-semibold text-emerald-600">{hoursFmt.format(totals.hours)} {t("hoursUnit")}</span>
+                        </div>
+                        <div className="flex justify-between w-52 text-xs ps-3">
+                          <span className="text-muted-foreground">{t("nochOffen")}:</span>
+                          <span className="font-bold text-amber-600">{hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}</span>
+                        </div>
                         {requiredHours !== undefined && (
-                          <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1">
-                            <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
-                            <span className={cn("font-bold", remaining < 0 ? "text-destructive" : "text-emerald-600")}>
+                          <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1 font-bold">
+                            <span className="text-muted-foreground">{t("kontostandLabel")}:</span>
+                            <span className={cn(remaining < 0 ? "text-destructive" : "text-emerald-600")}>
                               {signed(remaining)} {t("hoursUnit")}
                             </span>
                           </div>
@@ -1318,6 +1314,17 @@ export function AvailabilityBuilder({
               const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
               return (
                 <div className="flex flex-col gap-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
+                    <span
+                      className={cn(
+                        "font-medium",
+                        carryoverHours > 0 ? "text-emerald-600" : carryoverHours < 0 ? "text-destructive" : "text-foreground",
+                      )}
+                    >
+                      {signed(carryoverHours)} {t("hoursUnit")}
+                    </span>
+                  </div>
                   {requiredHours !== undefined && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("requiredHoursLabel")}:</span>
@@ -1326,42 +1333,27 @@ export function AvailabilityBuilder({
                       </span>
                     </div>
                   )}
-                  {carryoverHours !== 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t("carryoverLabel")}:</span>
-                      <span
-                        className={cn(
-                          "font-medium",
-                          carryoverHours > 0 ? "text-emerald-600" : carryoverHours < 0 ? "text-destructive" : "text-foreground",
-                        )}
-                      >
-                        {signed(carryoverHours)} {t("hoursUnit")}
-                      </span>
-                    </div>
-                  )}
-                  {totals.acceptedHours > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t("acceptedTotal")}:</span>
-                      <span className="font-bold text-amber-600">
-                        {hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}
-                      </span>
-                    </div>
-                  )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{t("confirmedTotal")}:</span>
-                    <span className="font-bold text-emerald-600">
-                      {hoursFmt.format(totals.hours)} {t("hoursUnit")}
-                    </span>
-                  </div>
-                  <div className="flex justify-between border-t border-emerald-500/20 pt-1">
                     <span className="text-muted-foreground">{t("workedTotal")}:</span>
                     <span className="font-semibold text-foreground">
                       {hoursFmt.format(worked)} {t("hoursUnit")}
                     </span>
                   </div>
+                  <div className="flex justify-between text-xs ps-3">
+                    <span className="text-muted-foreground">{t("davonConfirmed")}:</span>
+                    <span className="font-semibold text-emerald-600">
+                      {hoursFmt.format(totals.hours)} {t("hoursUnit")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs ps-3">
+                    <span className="text-muted-foreground">{t("nochOffen")}:</span>
+                    <span className="font-bold text-amber-600">
+                      {hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}
+                    </span>
+                  </div>
                   {requiredHours !== undefined && (
                     <div className="flex justify-between border-t border-emerald-500/20 pt-1 font-bold">
-                      <span className="text-muted-foreground">{t("remainingHoursLabel")}:</span>
+                      <span className="text-muted-foreground">{t("kontostandLabel")}:</span>
                       <span className={cn(remaining < 0 ? "text-destructive" : "text-emerald-600")}>
                         {signed(remaining)} {t("hoursUnit")}
                       </span>

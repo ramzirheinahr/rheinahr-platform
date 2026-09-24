@@ -195,10 +195,16 @@ export type MonatslisteShift = {
 export type MonatslisteRow = {
   date: string; // DD.MM.YYYY
   dayOfMonth: number;
-  shift1: MonatslisteShift;
-  shift2: MonatslisteShift;
+  kommt: string;
+  geht: string;
+  pause: string;
   hours: number;
   customerName: string;
+  assignmentId?: string;
+  hasConfirmation?: boolean;
+  signerName?: string | null;
+  shift1: MonatslisteShift;
+  shift2: MonatslisteShift;
   assignmentId1?: string;
   hasConfirmation1?: boolean;
   signerName1?: string | null;
@@ -261,75 +267,46 @@ export async function getMonatslisteData(params: {
 
     const formattedDate = `${String(d).padStart(2, "0")}.${String(params.month).padStart(2, "0")}.${params.year}`;
 
-    const assign1 = dayList[0];
-    const assign2 = dayList[1] || null;
-
-    let net1 = 0;
-    if (assign1) {
-      if (assign1.serviceConfirmation?.hoursWorked != null) {
-        net1 = Number(assign1.serviceConfirmation.hoursWorked);
+    for (const assign of dayList) {
+      let net = 0;
+      if (assign.serviceConfirmation?.hoursWorked != null) {
+        net = Number(assign.serviceConfirmation.hoursWorked);
       } else {
-        const st = new Date(`1970-01-01T${assign1.order.startTime}Z`).getTime();
-        const et = new Date(`1970-01-01T${assign1.order.endTime}Z`).getTime();
+        const st = new Date(`1970-01-01T${assign.order.startTime}Z`).getTime();
+        const et = new Date(`1970-01-01T${assign.order.endTime}Z`).getTime();
         let diffMins = (et - st) / 60000;
         if (diffMins < 0) diffMins += 24 * 60;
-        net1 = Math.max(0, (diffMins - assign1.order.breakMinutes) / 60);
+        net = Math.max(0, (diffMins - assign.order.breakMinutes) / 60);
       }
+
+      const totalHours = Math.round(net * 100) / 100;
+      const hasConf = !!(
+        assign.serviceConfirmation?.signatureData ||
+        assign.serviceConfirmation?.documentUrl
+      );
+
+      rows.push({
+        date: formattedDate,
+        dayOfMonth: d,
+        kommt: assign.order.startTime,
+        geht: assign.order.endTime,
+        pause: `${assign.order.breakMinutes},00`,
+        hours: totalHours,
+        customerName: assign.order.client.facilityName || "—",
+        assignmentId: assign.id,
+        hasConfirmation: hasConf,
+        signerName: assign.serviceConfirmation?.signerName || null,
+        shift1: {
+          kommt: assign.order.startTime,
+          geht: assign.order.endTime,
+          pause: `${assign.order.breakMinutes},00`,
+        },
+        shift2: { kommt: "-----", geht: "-----", pause: "0,00" },
+        assignmentId1: assign.id,
+        hasConfirmation1: hasConf,
+        signerName1: assign.serviceConfirmation?.signerName || null,
+      });
     }
-
-    let net2 = 0;
-    if (assign2) {
-      if (assign2.serviceConfirmation?.hoursWorked != null) {
-        net2 = Number(assign2.serviceConfirmation.hoursWorked);
-      } else {
-        const st = new Date(`1970-01-01T${assign2.order.startTime}Z`).getTime();
-        const et = new Date(`1970-01-01T${assign2.order.endTime}Z`).getTime();
-        let diffMins = (et - st) / 60000;
-        if (diffMins < 0) diffMins += 24 * 60;
-        net2 = Math.max(0, (diffMins - assign2.order.breakMinutes) / 60);
-      }
-    }
-
-    const totalHours = Math.round((net1 + net2) * 100) / 100;
-    const clientNames = [assign1?.order.client.facilityName, assign2?.order.client.facilityName]
-      .filter(Boolean)
-      .join(", ");
-
-    const hasConf1 = !!(
-      assign1?.serviceConfirmation?.signatureData ||
-      assign1?.serviceConfirmation?.documentUrl
-    );
-    const hasConf2 = !!(
-      assign2?.serviceConfirmation?.signatureData ||
-      assign2?.serviceConfirmation?.documentUrl
-    );
-
-    rows.push({
-      date: formattedDate,
-      dayOfMonth: d,
-      shift1: assign1
-        ? {
-            kommt: assign1.order.startTime,
-            geht: assign1.order.endTime,
-            pause: `${assign1.order.breakMinutes},00`,
-          }
-        : { kommt: "-----", geht: "-----", pause: "0,00" },
-      shift2: assign2
-        ? {
-            kommt: assign2.order.startTime,
-            geht: assign2.order.endTime,
-            pause: `${assign2.order.breakMinutes},00`,
-          }
-        : { kommt: "-----", geht: "-----", pause: "0,00" },
-      hours: totalHours,
-      customerName: clientNames || "—",
-      assignmentId1: assign1?.id,
-      hasConfirmation1: hasConf1,
-      signerName1: assign1?.serviceConfirmation?.signerName || null,
-      assignmentId2: assign2?.id,
-      hasConfirmation2: hasConf2,
-      signerName2: assign2?.serviceConfirmation?.signerName || null,
-    });
   }
 
   return {
