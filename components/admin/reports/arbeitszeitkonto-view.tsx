@@ -33,6 +33,11 @@ function normalize(s: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function formatInputHour(val: number | undefined): string {
+  if (val === undefined || val === 0 || isNaN(val)) return "";
+  return Number.isInteger(val) ? String(val) : val.toFixed(2);
+}
+
 export function ArbeitszeitkontoView({
   workers,
 }: {
@@ -92,10 +97,10 @@ export function ArbeitszeitkontoView({
       for (const m of res.months) {
         initialNotes[m.month] = m.notes || "";
         initialAdj[m.month] = {
-          kAusgleich: m.kAusgleichHours !== 0 ? String(m.kAusgleichHours) : "",
-          vacation: m.vacationHours !== 0 ? String(m.vacationHours) : "",
-          sick: m.sickHours !== 0 ? String(m.sickHours) : "",
-          sonstige: m.sonstigeHours !== 0 ? String(m.sonstigeHours) : "",
+          kAusgleich: formatInputHour(m.kAusgleichHours),
+          vacation: formatInputHour(m.vacationHours),
+          sick: formatInputHour(m.sickHours),
+          sonstige: formatInputHour(m.sonstigeHours),
         };
       }
       setNotesState(initialNotes);
@@ -136,6 +141,38 @@ export function ArbeitszeitkontoView({
       handleSearch();
     });
   };
+
+  // Compute live balances dynamically as the user types
+  const computedRows = React.useMemo(() => {
+    if (!rows) return null;
+    let runningCum = initialCarryover ?? 0;
+
+    return rows.map((r) => {
+      const getVal = (valStr: string | undefined, defaultVal: number) => {
+        if (valStr === undefined) return defaultVal;
+        if (valStr.trim() === "") return 0;
+        const num = Number(valStr.replace(",", "."));
+        return isNaN(num) ? 0 : num;
+      };
+
+      const kAusgleich = getVal(adjustmentsState[r.month]?.kAusgleich, r.kAusgleichHours);
+      const vacation = getVal(adjustmentsState[r.month]?.vacation, r.vacationHours);
+      const sick = getVal(adjustmentsState[r.month]?.sick, r.sickHours);
+      const sonstige = getVal(adjustmentsState[r.month]?.sonstige, r.sonstigeHours);
+
+      const monthBalance =
+        Math.round(
+          (r.workedHours + vacation + sick + sonstige - (r.requiredHours + kAusgleich)) * 100
+        ) / 100;
+      runningCum = Math.round((runningCum + monthBalance) * 100) / 100;
+
+      return {
+        ...r,
+        liveMonthBalance: monthBalance,
+        liveCumulativeBalance: runningCum,
+      };
+    });
+  }, [rows, adjustmentsState, initialCarryover]);
 
   const handlePrint = (workerIdToPrint: string) => {
     const params = new URLSearchParams({
@@ -468,7 +505,10 @@ export function ArbeitszeitkontoView({
                         </td>
                       </tr>
                     )}
-                    {rows.map((r, i) => (
+                    {(computedRows || rows).map((r, i) => {
+                      const monthBal = (r as any).liveMonthBalance ?? r.monthBalance;
+                      const cumBal = (r as any).liveCumulativeBalance ?? r.cumulativeBalance;
+                      return (
                       <tr key={i} className="hover:bg-muted/30 transition-colors">
                       <td className="p-2 text-center text-muted-foreground">{i + 1}</td>
                       <td className="p-2 font-semibold whitespace-nowrap bg-muted/10">
@@ -479,8 +519,14 @@ export function ArbeitszeitkontoView({
                       <td className="p-1 w-20">
                         <Input
                           type="text"
-                          value={adjustmentsState[r.month]?.kAusgleich ?? (r.kAusgleichHours !== 0 ? String(r.kAusgleichHours) : "")}
+                          value={adjustmentsState[r.month]?.kAusgleich ?? formatInputHour(r.kAusgleichHours)}
                           onChange={(e) => updateAdjustment(r.month, "kAusgleich", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSaveNotes();
+                            }
+                          }}
                           className="h-7 text-xs text-right font-medium px-1.5"
                           placeholder="—"
                         />
@@ -488,8 +534,14 @@ export function ArbeitszeitkontoView({
                       <td className="p-1 w-20">
                         <Input
                           type="text"
-                          value={adjustmentsState[r.month]?.vacation ?? (r.vacationHours !== 0 ? String(r.vacationHours) : "")}
+                          value={adjustmentsState[r.month]?.vacation ?? formatInputHour(r.vacationHours)}
                           onChange={(e) => updateAdjustment(r.month, "vacation", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSaveNotes();
+                            }
+                          }}
                           className="h-7 text-xs text-right font-medium px-1.5"
                           placeholder="—"
                         />
@@ -497,8 +549,14 @@ export function ArbeitszeitkontoView({
                       <td className="p-1 w-20">
                         <Input
                           type="text"
-                          value={adjustmentsState[r.month]?.sick ?? (r.sickHours !== 0 ? String(r.sickHours) : "")}
+                          value={adjustmentsState[r.month]?.sick ?? formatInputHour(r.sickHours)}
                           onChange={(e) => updateAdjustment(r.month, "sick", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSaveNotes();
+                            }
+                          }}
                           className="h-7 text-xs text-right font-medium px-1.5"
                           placeholder="—"
                         />
@@ -506,25 +564,31 @@ export function ArbeitszeitkontoView({
                       <td className="p-1 w-20">
                         <Input
                           type="text"
-                          value={adjustmentsState[r.month]?.sonstige ?? (r.sonstigeHours !== 0 ? String(r.sonstigeHours) : "")}
+                          value={adjustmentsState[r.month]?.sonstige ?? formatInputHour(r.sonstigeHours)}
                           onChange={(e) => updateAdjustment(r.month, "sonstige", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSaveNotes();
+                            }
+                          }}
                           className="h-7 text-xs text-right font-medium px-1.5"
                           placeholder="—"
                         />
                       </td>
                       <td
                         className={`p-2 text-right font-semibold ${
-                          r.monthBalance >= 0 ? "text-emerald-600" : "text-rose-600"
+                          monthBal >= 0 ? "text-emerald-600" : "text-rose-600"
                         }`}
                       >
-                        {r.monthBalance.toFixed(2)}
+                        {monthBal.toFixed(2)}
                       </td>
                       <td
                         className={`p-2 text-right font-bold ${
-                          r.cumulativeBalance >= 0 ? "text-emerald-700" : "text-rose-700"
+                          cumBal >= 0 ? "text-emerald-700" : "text-rose-700"
                         }`}
                       >
-                        {r.cumulativeBalance.toFixed(2)}
+                        {cumBal.toFixed(2)}
                       </td>
                       <td className="p-1.5">
                         <Input
@@ -536,12 +600,19 @@ export function ArbeitszeitkontoView({
                               [r.month]: e.target.value,
                             })
                           }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSaveNotes();
+                            }
+                          }}
                           placeholder="Notiz hinzufügen..."
                           className="h-7 text-xs"
                         />
                       </td>
                     </tr>
-                  ))}
+                      );
+                    })}
                 </>
               )}
             </tbody>

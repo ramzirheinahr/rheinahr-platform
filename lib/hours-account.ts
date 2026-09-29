@@ -8,6 +8,12 @@ export type MonthlyHoursAccount = {
   sickHours: number; // Krank
   kAusgleichHours: number; // K.Ausgleich
   sonstigeHours: number; // Sonstige
+  vacationBaseHours?: number;
+  vacationAdjHours?: number;
+  sickBaseHours?: number;
+  sickAdjHours?: number;
+  sonstigeBaseHours?: number;
+  sonstigeAdjHours?: number;
   monthBalance: number; // Summe
   cumulativeBalance: number; // Cumulative Sum
 };
@@ -136,20 +142,20 @@ export async function getWorkerHoursAccount(
       const d = l.date;
       return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
     });
-    const vacationHoursFromLeaves = monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0);
-    const sickHoursFromLeaves = monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0);
-    const otherLeaveHours = monthLeaves.filter(l => l.leaveRequest.type === "other").reduce((sum, l) => sum + l.hours, 0);
+    const vacationHoursFromLeaves = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
+    const sickHoursFromLeaves = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
+    const otherLeaveHours = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "other").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
 
     // adjustments
     const monthAdjustments = adjustments.filter(a => a.month === monthStr);
-    const kAusgleichHours = monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0);
-    const vacationAdjHours = monthAdjustments.filter(a => a.type === "urlaub").reduce((sum, a) => sum + a.hours, 0);
-    const sickAdjHours = monthAdjustments.filter(a => a.type === "krank").reduce((sum, a) => sum + a.hours, 0);
-    const sonstigeAdjHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0);
+    const kAusgleichHours = Math.round(monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0) * 100) / 100;
+    const vacationAdjHours = Math.round(monthAdjustments.filter(a => a.type === "urlaub").reduce((sum, a) => sum + a.hours, 0) * 100) / 100;
+    const sickAdjHours = Math.round(monthAdjustments.filter(a => a.type === "krank").reduce((sum, a) => sum + a.hours, 0) * 100) / 100;
+    const sonstigeAdjHours = Math.round(monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0) * 100) / 100;
 
-    const vacationHours = vacationHoursFromLeaves + vacationAdjHours;
-    const sickHours = sickHoursFromLeaves + sickAdjHours;
-    const sonstigeHours = sonstigeAdjHours + otherLeaveHours + bonusHoursTotal;
+    const vacationHours = Math.round((vacationHoursFromLeaves + vacationAdjHours) * 100) / 100;
+    const sickHours = Math.round((sickHoursFromLeaves + sickAdjHours) * 100) / 100;
+    const sonstigeHours = Math.round((sonstigeAdjHours + otherLeaveHours + bonusHoursTotal) * 100) / 100;
 
     // Required hours dynamic based on history and contract dates
     const requiredHours = getEffectiveSollHours(
@@ -176,6 +182,12 @@ export async function getWorkerHoursAccount(
         sickHours,
         kAusgleichHours,
         sonstigeHours,
+        vacationBaseHours: vacationHoursFromLeaves,
+        vacationAdjHours,
+        sickBaseHours: sickHoursFromLeaves,
+        sickAdjHours,
+        sonstigeBaseHours: Math.round((otherLeaveHours + bonusHoursTotal) * 100) / 100,
+        sonstigeAdjHours,
         monthBalance,
         cumulativeBalance,
       });
@@ -305,19 +317,19 @@ export async function getMultipleWorkersHoursAccount(
         const d = l.date;
         return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
       });
-      const vacationHoursFromLeaves = monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0);
-      const sickHoursFromLeaves = monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0);
-      const otherLeaveHours = monthLeaves.filter(l => l.leaveRequest.type === "other").reduce((sum, l) => sum + l.hours, 0);
+      const vacationHoursFromLeaves = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
+      const sickHoursFromLeaves = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
+      const otherLeaveHours = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "other").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
 
       const monthAdjustments = adjustments.filter(a => a.month === monthStr);
-      const kAusgleichHours = monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0);
-      const vacationAdjHours = monthAdjustments.filter(a => a.type === "urlaub").reduce((sum, a) => sum + a.hours, 0);
-      const sickAdjHours = monthAdjustments.filter(a => a.type === "krank").reduce((sum, a) => sum + a.hours, 0);
-      const sonstigeAdjHours = monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0);
+      const kAusgleichHours = Math.round(monthAdjustments.filter(a => a.type === "k_ausgleich").reduce((sum, a) => sum + a.hours, 0) * 100) / 100;
+      const vacationAdjHours = Math.round(monthAdjustments.filter(a => a.type === "urlaub").reduce((sum, a) => sum + a.hours, 0) * 100) / 100;
+      const sickAdjHours = Math.round(monthAdjustments.filter(a => a.type === "krank").reduce((sum, a) => sum + a.hours, 0) * 100) / 100;
+      const sonstigeAdjHours = Math.round(monthAdjustments.filter(a => a.type === "sonstige").reduce((sum, a) => sum + a.hours, 0) * 100) / 100;
 
-      const vacationHours = vacationHoursFromLeaves + vacationAdjHours;
-      const sickHours = sickHoursFromLeaves + sickAdjHours;
-      const sonstigeHours = sonstigeAdjHours + otherLeaveHours + bonusHoursTotal;
+      const vacationHours = Math.round((vacationHoursFromLeaves + vacationAdjHours) * 100) / 100;
+      const sickHours = Math.round((sickHoursFromLeaves + sickAdjHours) * 100) / 100;
+      const sonstigeHours = Math.round((sonstigeAdjHours + otherLeaveHours + bonusHoursTotal) * 100) / 100;
 
       const requiredHours = getEffectiveSollHours(
         monthStr,
@@ -342,6 +354,12 @@ export async function getMultipleWorkersHoursAccount(
           sickHours,
           kAusgleichHours,
           sonstigeHours,
+          vacationBaseHours: vacationHoursFromLeaves,
+          vacationAdjHours,
+          sickBaseHours: sickHoursFromLeaves,
+          sickAdjHours,
+          sonstigeBaseHours: Math.round((otherLeaveHours + bonusHoursTotal) * 100) / 100,
+          sonstigeAdjHours,
           monthBalance,
           cumulativeBalance,
         });

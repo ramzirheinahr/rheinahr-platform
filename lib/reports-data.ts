@@ -339,18 +339,51 @@ export async function getAuegData(params: {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
 }) {
-  const startD = new Date(`${params.startDate}T00:00:00Z`);
-  const endD = new Date(`${params.endDate}T23:59:59Z`);
+  const startD = new Date(`${params.startDate}T00:00:00.000Z`);
+  const endD = new Date(`${params.endDate}T23:59:59.999Z`);
 
   const workers = await prisma.worker.findMany({
     where: {
-      OR: [
-        { employmentStartDate: { lte: endD } },
-        { employedSince: { lte: endD } },
-        { createdAt: { lte: endD } },
+      AND: [
+        // 1. Must have started on or before period end
+        {
+          OR: [
+            { employmentStartDate: { lte: endD } },
+            {
+              AND: [
+                { employmentStartDate: null },
+                {
+                  OR: [
+                    { employedSince: { lte: endD } },
+                    {
+                      AND: [
+                        { employedSince: null },
+                        { createdAt: { lte: endD } },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        // 2. If exit date is recorded: must be on or after startD.
+        // If no exit date: worker user must be active.
+        {
+          OR: [
+            { employmentEndDate: { gte: startD } },
+            {
+              AND: [
+                { employmentEndDate: null },
+                { user: { active: true } },
+              ],
+            },
+          ],
+        },
       ],
     },
     include: {
+      user: { select: { active: true } },
       assignments: {
         where: {
           status: "confirmed",
@@ -368,9 +401,15 @@ export async function getAuegData(params: {
   const rows: AuegRow[] = [];
 
   for (const w of workers) {
-    const { firstName, lastName } = splitName(w.fullName);
     const entry = w.employmentStartDate || w.employedSince || w.createdAt;
     const exit = w.employmentEndDate;
+
+    // Strict boundary checks
+    if (entry && entry > endD) continue;
+    if (exit && exit < startD) continue;
+    if (!exit && !w.user?.active) continue;
+
+    const { firstName, lastName } = splitName(w.fullName);
 
     const formattedBirth = w.birthDate
       ? `${String(w.birthDate.getUTCDate()).padStart(2, "0")}.${String(
@@ -823,6 +862,7 @@ export async function getAzkStandData(year: number, month: number) {
       employedSince: true,
       employmentStartDate: true,
       employmentEndDate: true,
+      user: { select: { active: true } },
     },
     orderBy: { fullName: "asc" },
   });
@@ -837,6 +877,8 @@ export async function getAzkStandData(year: number, month: number) {
       ? w.employmentEndDate.toISOString().slice(0, 7)
       : null;
     if (endM && endM < monthStr) return false;
+
+    if (!w.employmentEndDate && !w.user?.active) return false;
 
     return true;
   });
