@@ -109,8 +109,17 @@ export async function getStundennachweisData(params: {
       assignments: {
         where: { status: "confirmed" },
         include: {
-          worker: true,
-          serviceConfirmation: true,
+          worker: {
+            select: {
+              fullName: true,
+              internalNumber: true,
+            },
+          },
+          serviceConfirmation: {
+            select: {
+              hoursWorked: true,
+            },
+          },
         },
       },
     },
@@ -242,7 +251,14 @@ export async function getMonatslisteData(params: {
     where: whereClause,
     include: {
       order: { include: { client: true } },
-      serviceConfirmation: true,
+      serviceConfirmation: {
+        select: {
+          id: true,
+          hoursWorked: true,
+          signerName: true,
+          documentUrl: true,
+        },
+      },
     },
     orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
   });
@@ -281,7 +297,7 @@ export async function getMonatslisteData(params: {
 
       const totalHours = Math.round(net * 100) / 100;
       const hasConf = !!(
-        assign.serviceConfirmation?.signatureData ||
+        assign.serviceConfirmation?.id ||
         assign.serviceConfirmation?.documentUrl
       );
 
@@ -954,7 +970,6 @@ export async function transferOrCopyShifts(params: {
     },
     include: {
       order: true,
-      serviceConfirmation: true,
     },
   });
 

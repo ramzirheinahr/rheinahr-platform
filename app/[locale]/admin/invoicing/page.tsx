@@ -70,15 +70,45 @@ export default async function InvoicingPage({
       },
       status: { not: "declined" },
     },
-    include: {
+    select: {
+      id: true,
+      invoiceId: true,
       order: {
-        include: {
-          client: true,
+        select: {
+          id: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          breakMinutes: true,
+          clientId: true,
+          requiredQualification: true,
+          requestGroupId: true,
+          client: {
+            select: {
+              facilityName: true,
+              shortCode: true,
+              internalNumber: true,
+            },
+          },
         },
       },
-      worker: true,
-      serviceConfirmation: true,
-      invoice: true,
+      worker: {
+        select: {
+          fullName: true,
+        },
+      },
+      serviceConfirmation: {
+        select: {
+          id: true,
+          hoursWorked: true,
+          confirmedAt: true,
+        },
+      },
+      invoice: {
+        select: {
+          invoiceNumber: true,
+        },
+      },
     },
     orderBy: { order: { shiftDate: "desc" } },
   });

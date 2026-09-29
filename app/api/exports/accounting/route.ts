@@ -46,7 +46,11 @@ export async function GET(req: Request) {
       include: {
         order: true,
         worker: true,
-        serviceConfirmation: true,
+        serviceConfirmation: {
+          select: {
+            hoursWorked: true,
+          },
+        },
       },
       orderBy: [
         { worker: { internalNumber: "asc" } },
