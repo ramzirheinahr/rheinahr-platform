@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
@@ -20,8 +20,59 @@ export function SentInvoicesTab({ invoices }: SentInvoicesTabProps) {
   const tEmail = useTranslations("emailDialog");
   const [resendInvoiceId, setResendInvoiceId] = useState<string | null>(null);
 
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  } | null>({ key: "sentAt", direction: "desc" });
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (prev?.key === key) {
+        return {
+          key,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      }
+      return { key, direction: "asc" };
+    });
+  };
+
   // Filter invoices that have been sent by email
   const sentInvoices = invoices.filter((inv) => inv.snapshotData?.emailSent?.sentAt);
+
+  const sortedSentInvoices = useMemo(() => {
+    if (!sortConfig) return sentInvoices;
+    return [...sentInvoices].sort((a, b) => {
+      let aVal: any = "";
+      let bVal: any = "";
+
+      switch (sortConfig.key) {
+        case "invoiceNumber":
+          aVal = a.invoiceNumber || "";
+          bVal = b.invoiceNumber || "";
+          return sortConfig.direction === "asc"
+            ? aVal.localeCompare(bVal, undefined, { numeric: true })
+            : bVal.localeCompare(aVal, undefined, { numeric: true });
+        case "client":
+          aVal = (a.client?.facilityName || a.snapshotData?.facilityName || "").toLowerCase();
+          bVal = (b.client?.facilityName || b.snapshotData?.facilityName || "").toLowerCase();
+          return sortConfig.direction === "asc"
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        case "sentAt":
+          aVal = new Date(a.snapshotData?.emailSent?.sentAt || 0).getTime();
+          bVal = new Date(b.snapshotData?.emailSent?.sentAt || 0).getTime();
+          return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+        case "grossAmount":
+          aVal = Number(a.grossAmount) || 0;
+          bVal = Number(b.grossAmount) || 0;
+          return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+        default:
+          return 0;
+      }
+    });
+  }, [sentInvoices, sortConfig]);
 
   const handleResend = async (recipients: string[], options?: { attachTimesheets?: boolean }) => {
     if (!resendInvoiceId) return;
@@ -40,6 +91,8 @@ export function SentInvoicesTab({ invoices }: SentInvoicesTabProps) {
 
   const columns: Column<any>[] = [
     {
+      id: "invoiceNumber",
+      sortable: true,
       header: "Rechnungsnr.",
       cell: (r) => (
         <div className="flex items-center gap-2">
@@ -49,7 +102,9 @@ export function SentInvoicesTab({ invoices }: SentInvoicesTabProps) {
       ),
     },
     {
-      header: "Kunde",
+      id: "client",
+      sortable: true,
+      header: "Kunde / Einrichtung",
       cell: (r) => (
         <span className="font-medium text-slate-900">
           {r.client?.facilityName || r.snapshotData?.facilityName || "—"}
@@ -57,6 +112,8 @@ export function SentInvoicesTab({ invoices }: SentInvoicesTabProps) {
       ),
     },
     {
+      id: "sentAt",
+      sortable: true,
       header: t("sentAt"),
       cell: (r) => {
         const sentAt = r.snapshotData?.emailSent?.sentAt;
@@ -84,6 +141,8 @@ export function SentInvoicesTab({ invoices }: SentInvoicesTabProps) {
       },
     },
     {
+      id: "grossAmount",
+      sortable: true,
       header: "Betrag (Brutto)",
       cell: (r) => (
         <span className="font-semibold text-slate-900">
@@ -135,8 +194,10 @@ export function SentInvoicesTab({ invoices }: SentInvoicesTabProps) {
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
         <ResponsiveTable
           columns={columns}
-          rows={sentInvoices}
+          rows={sortedSentInvoices}
           getRowKey={(r) => r.id}
+          sortConfig={sortConfig}
+          onSort={handleSort}
           empty={null}
         />
       </div>

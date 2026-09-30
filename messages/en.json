@@ -984,7 +984,20 @@
       "totalCost": "Total Cost (€)",
       "home": "Home",
       "totalDistance": "Total Distance",
-      "totalAmount": "Total Reimbursement"
+      "totalAmount": "Total Reimbursement",
+      "monthlyOverviewTitle": "Monthly Overview of All Workers (Travel & Meals)",
+      "monthlyOverviewSubtitle": "Overview of travel expenses and meal allowances for all workers in the selected month",
+      "personalNumber": "Staff No.",
+      "workerName": "Worker",
+      "shiftsCount": "Trips",
+      "fahrtTotal": "Travel (€)",
+      "verpflegungTotal": "Meals (€)",
+      "totalSpesen": "Total (€)",
+      "filterPlaceholder": "Filter worker or staff number...",
+      "onlyWithAmounts": "Only workers with shifts/amounts",
+      "exportExcelOverview": "Excel Export (Overview)",
+      "loadOverview": "Load Overview",
+      "totalSum": "Grand Total"
     },
     "urlaubBerechnung": {
       "title": "Vacation Calculation",

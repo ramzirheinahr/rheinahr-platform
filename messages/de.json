@@ -984,7 +984,20 @@
       "totalCost": "Gesamtkosten (€)",
       "home": "Wohnort",
       "totalDistance": "Gesamtkilometer",
-      "totalAmount": "Gesamterstattungsbetrag"
+      "totalAmount": "Gesamterstattungsbetrag",
+      "monthlyOverviewTitle": "Monatsübersicht aller Mitarbeiter (Fahrt & Verpflegung)",
+      "monthlyOverviewSubtitle": "Übersicht über Fahrtkosten und Verpflegungsmehraufwand für alle Mitarbeiter im ausgewählten Monat",
+      "personalNumber": "Personal-Nr.",
+      "workerName": "Mitarbeiter",
+      "shiftsCount": "Fahrten",
+      "fahrtTotal": "Fahrt (€)",
+      "verpflegungTotal": "Verpflegung (€)",
+      "totalSpesen": "Gesamt (€)",
+      "filterPlaceholder": "Mitarbeiter oder Personal-Nr. filtern...",
+      "onlyWithAmounts": "Nur Mitarbeiter mit Einsätzen/Beträgen",
+      "exportExcelOverview": "Excel-Export (Übersicht)",
+      "loadOverview": "Übersicht laden",
+      "totalSum": "Gesamtsumme"
     },
     "urlaubBerechnung": {
       "title": "Urlaub Berechnung",

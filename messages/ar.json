@@ -986,7 +986,20 @@
       "totalCost": "التكلفة الإجمالية (€)",
       "home": "السكن (Home)",
       "totalDistance": "إجمالي المسافة",
-      "totalAmount": "إجمالي التعويض"
+      "totalAmount": "إجمالي التعويض",
+      "monthlyOverviewTitle": "الملخص الشهري لجميع العمال (Fahrt و Verpflegung)",
+      "monthlyOverviewSubtitle": "عرض إجمالي مصاريف السفر وبدل الوجبات لجميع العمال في الشهر المحدد",
+      "personalNumber": "رقم العامل",
+      "workerName": "اسم العامل",
+      "shiftsCount": "عدد الورديات/الرحلات",
+      "fahrtTotal": "مجموع Fahrt (€)",
+      "verpflegungTotal": "مجموع Verpflegung (€)",
+      "totalSpesen": "المجموع الكلي (€)",
+      "filterPlaceholder": "تصفية حسب الاسم أو رقم العامل...",
+      "onlyWithAmounts": "العمال الذين لديهم ورديات/مبالغ فقط",
+      "exportExcelOverview": "تصدير كملف إكسل (الملخص)",
+      "loadOverview": "تحميل القائمة",
+      "totalSum": "المجموع الإجمالي"
     },
     "urlaubBerechnung": {
       "title": "حساب استحقاق الإجازة Urlaub Berechnung",

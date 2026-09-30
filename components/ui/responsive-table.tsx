@@ -64,21 +64,24 @@ export function ResponsiveTable<T>({
                 <TableHead key={c.id || i} className={c.className}>
                   {c.sortable && c.id && onSort ? (
                     <button
+                      type="button"
                       onClick={() => onSort(c.id!)}
                       className={cn(
-                        "flex items-center gap-1 hover:text-foreground transition-colors",
-                        sortConfig?.key === c.id ? "text-foreground font-medium" : "text-muted-foreground"
+                        "inline-flex items-center gap-1.5 py-1 px-2 -ml-2 rounded-md hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer select-none font-semibold",
+                        sortConfig?.key === c.id
+                          ? "text-primary dark:text-primary font-bold bg-slate-100 dark:bg-slate-800/80"
+                          : "text-slate-700 dark:text-slate-300 hover:text-foreground"
                       )}
                     >
-                      {c.header}
+                      <span>{c.header}</span>
                       {sortConfig?.key === c.id ? (
                         sortConfig.direction === "asc" ? (
-                          <ArrowUp className="size-3.5" />
+                          <ArrowUp className="size-3.5 text-primary shrink-0 stroke-[2.5]" />
                         ) : (
-                          <ArrowDown className="size-3.5" />
+                          <ArrowDown className="size-3.5 text-primary shrink-0 stroke-[2.5]" />
                         )
                       ) : (
-                        <ArrowUpDown className="size-3.5 opacity-50" />
+                        <ArrowUpDown className="size-3.5 opacity-40 hover:opacity-100 shrink-0" />
                       )}
                     </button>
                   ) : (

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { getWorkerHoursAccount, getMultipleWorkersHoursAccount } from "@/lib/hours-account";
 import { getDrivingDistanceKm } from "@/lib/geocoding";
+import { dailyMealAllowanceAssignmentIds, normalizeMealAllowancePolicy } from "@/lib/meal-allowance";
 
 // Helper to format Date to YYYY-MM-DD
 export function formatDate(d: Date | null | undefined): string {
@@ -1029,4 +1030,197 @@ export async function transferOrCopyShifts(params: {
   }
 
   return { success: true, count };
+}
+
+// 10. Monatsübersicht Reisespesen (Fahrt & Verpflegung aller Mitarbeiter)
+export type MonthlySpesenWorkerRow = {
+  workerId: string;
+  internalNumber: string | null;
+  fullName: string;
+  travelAllowanceEnabled: boolean;
+  shiftCount: number;
+  totalDistanceKm: number;
+  totalFahrtCost: number;
+  totalMealAllowance: number;
+  totalAmount: number;
+};
+
+export type MonthlySpesenOverviewData = {
+  year: number;
+  month: number;
+  rows: MonthlySpesenWorkerRow[];
+  totals: {
+    totalShifts: number;
+    totalDistanceKm: number;
+    totalFahrtCost: number;
+    totalMealAllowance: number;
+    totalAmount: number;
+  };
+};
+
+export async function getMonthlySpesenOverviewData(params: {
+  year: number;
+  month: number;
+  onlyWithAmounts?: boolean;
+}): Promise<MonthlySpesenOverviewData> {
+  const startD = new Date(Date.UTC(params.year, params.month - 1, 1));
+  const endD = new Date(Date.UTC(params.year, params.month, 0, 23, 59, 59));
+
+  const [workers, assignments] = await Promise.all([
+    prisma.worker.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        internalNumber: true,
+        address: true,
+        travelAllowanceEnabled: true,
+        travelAllowancePerKm: true,
+        mealAllowanceType: true,
+        mealAllowance: true,
+      },
+      orderBy: { fullName: "asc" },
+    }),
+    prisma.assignment.findMany({
+      where: {
+        status: "confirmed",
+        order: { shiftDate: { gte: startD, lte: endD } },
+      },
+      include: {
+        order: {
+          select: {
+            shiftDate: true,
+            startTime: true,
+            endTime: true,
+            clientId: true,
+            client: {
+              select: {
+                id: true,
+                facilityName: true,
+                address: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [
+        { order: { shiftDate: "asc" } },
+        { order: { startTime: "asc" } },
+      ],
+    }),
+  ]);
+
+  const assignmentsByWorker = new Map<string, typeof assignments>();
+  for (const a of assignments) {
+    const list = assignmentsByWorker.get(a.workerId) || [];
+    list.push(a);
+    assignmentsByWorker.set(a.workerId, list);
+  }
+
+  const rows: MonthlySpesenWorkerRow[] = [];
+
+  for (const worker of workers) {
+    const workerAssignments = assignmentsByWorker.get(worker.id) || [];
+    if (workerAssignments.length === 0 && params.onlyWithAmounts !== false) {
+      continue;
+    }
+
+    const ratePerKm = worker.travelAllowancePerKm ?? 0.3;
+    let workerDistance = 0;
+    let workerFahrtCost = 0;
+
+    for (let i = 0; i < workerAssignments.length; i++) {
+      const a = workerAssignments[i];
+      const prevA = i > 0 ? workerAssignments[i - 1] : null;
+
+      const isSameDayAsPrev =
+        prevA &&
+        prevA.order.shiftDate.toISOString().slice(0, 10) ===
+          a.order.shiftDate.toISOString().slice(0, 10);
+
+      let distance = 0;
+      if (isSameDayAsPrev && prevA.order.clientId === a.order.clientId) {
+        distance = 0;
+      } else {
+        const clientAddr = a.order.client.address || a.order.client.facilityName;
+        if (worker.address && clientAddr) {
+          const d = await getDrivingDistanceKm(worker.address, clientAddr, { fast: true });
+          distance = d ?? 25.0;
+        } else {
+          distance = 20.0;
+        }
+      }
+
+      if (!a.excludeTravelAllowance) {
+        const cost = Math.round(distance * ratePerKm * 100) / 100;
+        workerDistance += distance;
+        workerFahrtCost += cost;
+      }
+    }
+
+    // Meal allowance
+    const policy = normalizeMealAllowancePolicy(worker.mealAllowanceType);
+    const mealCandidate = workerAssignments.map((a) => ({
+      id: a.id,
+      date: a.order.shiftDate.toISOString().slice(0, 10),
+      status: a.status,
+      addMealAllowance: a.addMealAllowance,
+      excludeMealAllowance: a.excludeMealAllowance,
+    }));
+    const mealIds = dailyMealAllowanceAssignmentIds(mealCandidate, policy);
+    const dailyMealRate = (worker.mealAllowance && worker.mealAllowance > 0) ? worker.mealAllowance : 14.0;
+    const workerMealAllowance = Math.round(mealIds.size * dailyMealRate * 100) / 100;
+
+    const roundedFahrtCost = Math.round(workerFahrtCost * 100) / 100;
+    const roundedDistance = Math.round(workerDistance * 100) / 100;
+    const totalAmount = Math.round((roundedFahrtCost + workerMealAllowance) * 100) / 100;
+
+    if (params.onlyWithAmounts && totalAmount === 0 && workerAssignments.length === 0) {
+      continue;
+    }
+
+    rows.push({
+      workerId: worker.id,
+      internalNumber: worker.internalNumber,
+      fullName: worker.fullName,
+      travelAllowanceEnabled: worker.travelAllowanceEnabled,
+      shiftCount: workerAssignments.length,
+      totalDistanceKm: roundedDistance,
+      totalFahrtCost: roundedFahrtCost,
+      totalMealAllowance: workerMealAllowance,
+      totalAmount,
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (a.internalNumber && b.internalNumber) {
+      return a.internalNumber.localeCompare(b.internalNumber, undefined, { numeric: true });
+    }
+    if (a.internalNumber) return -1;
+    if (b.internalNumber) return 1;
+    return a.fullName.localeCompare(b.fullName);
+  });
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      totalShifts: acc.totalShifts + r.shiftCount,
+      totalDistanceKm: Math.round((acc.totalDistanceKm + r.totalDistanceKm) * 100) / 100,
+      totalFahrtCost: Math.round((acc.totalFahrtCost + r.totalFahrtCost) * 100) / 100,
+      totalMealAllowance: Math.round((acc.totalMealAllowance + r.totalMealAllowance) * 100) / 100,
+      totalAmount: Math.round((acc.totalAmount + r.totalAmount) * 100) / 100,
+    }),
+    {
+      totalShifts: 0,
+      totalDistanceKm: 0,
+      totalFahrtCost: 0,
+      totalMealAllowance: 0,
+      totalAmount: 0,
+    }
+  );
+
+  return {
+    year: params.year,
+    month: params.month,
+    rows,
+    totals,
+  };
 }

@@ -8,10 +8,10 @@ const styles = StyleSheet.create({
   page: { padding: 24, fontSize: 7.5, color: "#1f2937", fontFamily: "Helvetica", lineHeight: 1.3 },
   banner: { backgroundColor: "#dc2626", color: "#ffffff", padding: 4, textAlign: "center", fontFamily: "Helvetica-Bold", fontSize: 9, marginBottom: 8, textTransform: "lowercase" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8, fontSize: 8.5 },
-  table: { width: "100%", borderStyle: "solid", borderWidth: 1, borderColor: "#000" },
-  tableHeader: { flexDirection: "row", backgroundColor: "#f9fafb", fontFamily: "Helvetica-Bold", borderBottomWidth: 1, borderBottomColor: "#000" },
-  tableRow: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#9ca3af" },
-  col: { padding: 3, borderRightWidth: 0.5, borderRightColor: "#9ca3af", justifyContent: "center" },
+  table: { width: "100%", borderStyle: "solid", borderWidth: 1.5, borderColor: "#000000" },
+  tableHeader: { flexDirection: "row", backgroundColor: "#f3f4f6", fontFamily: "Helvetica-Bold", borderBottomWidth: 1.5, borderBottomColor: "#000000" },
+  tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#000000" },
+  col: { padding: 3, borderRightWidth: 1, borderRightColor: "#000000", justifyContent: "center" },
   colNr: { width: "5%", textAlign: "center" },
   colName: { width: "15%" },
   colDate: { width: "8%", textAlign: "center" },
@@ -62,7 +62,7 @@ export const AuegTemplate = ({ companyConfig, rows }: AuegPdfProps) => {
           </View>
 
           {rows.map((r, idx) => (
-            <View key={idx} style={styles.tableRow}>
+            <View key={idx} style={[styles.tableRow, idx === rows.length - 1 ? { borderBottomWidth: 0 } : {}]}>
               <Text style={[styles.col, styles.colNr]}>{r.internalNumber}</Text>
               <Text style={[styles.col, styles.colName]}>
                 {r.lastName}, {r.firstName}
@@ -76,7 +76,7 @@ export const AuegTemplate = ({ companyConfig, rows }: AuegPdfProps) => {
               {/* Deployments */}
               <View style={[styles.col, styles.colPeriod, { padding: 0 }]}>
                 {r.deployments.map((d, dIdx) => (
-                  <Text key={dIdx} style={{ padding: 2, borderBottomWidth: dIdx < r.deployments.length - 1 ? 0.5 : 0, borderBottomColor: "#e5e7eb" }}>
+                  <Text key={dIdx} style={{ padding: 2, borderBottomWidth: dIdx < r.deployments.length - 1 ? 1 : 0, borderBottomColor: "#000000" }}>
                     {d.period}
                   </Text>
                 ))}
@@ -84,7 +84,7 @@ export const AuegTemplate = ({ companyConfig, rows }: AuegPdfProps) => {
 
               <View style={[styles.col, styles.colHirer, { padding: 0 }]}>
                 {r.deployments.map((d, dIdx) => (
-                  <Text key={dIdx} style={{ padding: 2, borderBottomWidth: dIdx < r.deployments.length - 1 ? 0.5 : 0, borderBottomColor: "#e5e7eb" }}>
+                  <Text key={dIdx} style={{ padding: 2, borderBottomWidth: dIdx < r.deployments.length - 1 ? 1 : 0, borderBottomColor: "#000000" }}>
                     {d.clientName}
                   </Text>
                 ))}
@@ -92,7 +92,7 @@ export const AuegTemplate = ({ companyConfig, rows }: AuegPdfProps) => {
 
               <View style={[styles.col, styles.colBranch, { padding: 0 }]}>
                 {r.deployments.map((d, dIdx) => (
-                  <Text key={dIdx} style={{ padding: 2, borderBottomWidth: dIdx < r.deployments.length - 1 ? 0.5 : 0, borderBottomColor: "#e5e7eb" }}>
+                  <Text key={dIdx} style={{ padding: 2, borderBottomWidth: dIdx < r.deployments.length - 1 ? 1 : 0, borderBottomColor: "#000000" }}>
                     {d.industry}
                   </Text>
                 ))}

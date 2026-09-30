@@ -82,14 +82,56 @@ async function geocode(address: string): Promise<{ lat: number; lon: number } | 
 
 const inFlightDistance = new Map<string, Promise<number | null>>();
 
+export function extractGermanZip(address: string | null): string | null {
+  if (!address) return null;
+  const match = address.match(/\b(\d{5})\b/);
+  return match ? match[1] : null;
+}
+
+export function estimateGermanDistanceKm(originAddress: string | null, destAddress: string | null): number {
+  const originZip = extractGermanZip(originAddress);
+  const destZip = extractGermanZip(destAddress);
+
+  if (!originZip || !destZip) return 25.0;
+  if (originZip === destZip) return 5.0;
+
+  const originPrefix2 = originZip.slice(0, 2);
+  const destPrefix2 = destZip.slice(0, 2);
+  if (originPrefix2 === destPrefix2) {
+    const diff = Math.abs(parseInt(originZip, 10) - parseInt(destZip, 10));
+    return Math.round(Math.min(35, Math.max(10, 15 + diff * 0.02)) * 10) / 10;
+  }
+
+  const originPrefix1 = originZip.slice(0, 1);
+  const destPrefix1 = destZip.slice(0, 1);
+  if (originPrefix1 === destPrefix1) {
+    return 35.0;
+  }
+
+  const diffDigit = Math.abs(parseInt(originPrefix1, 10) - parseInt(destPrefix1, 10));
+  return 55.0 + diffDigit * 35;
+}
+
 /**
  * Calculates driving distance in kilometers between two addresses using OSRM.
  */
-export async function getDrivingDistanceKm(originAddress: string | null, destAddress: string | null): Promise<number | null> {
+export async function getDrivingDistanceKm(
+  originAddress: string | null,
+  destAddress: string | null,
+  options?: { fast?: boolean }
+): Promise<number | null> {
   if (!originAddress || !destAddress) return null;
   
   const cacheKey = `${originAddress.trim().toLowerCase()}|${destAddress.trim().toLowerCase()}`;
-  if (distanceCache.has(cacheKey)) return distanceCache.get(cacheKey)!;
+  if (distanceCache.has(cacheKey)) {
+    const cached = distanceCache.get(cacheKey);
+    return cached ?? estimateGermanDistanceKm(originAddress, destAddress);
+  }
+
+  if (options?.fast) {
+    return estimateGermanDistanceKm(originAddress, destAddress);
+  }
+
   if (inFlightDistance.has(cacheKey)) return inFlightDistance.get(cacheKey)!;
 
   const promise = (async () => {
@@ -98,7 +140,7 @@ export async function getDrivingDistanceKm(originAddress: string | null, destAdd
 
     if (!origin || !dest) {
       distanceCache.set(cacheKey, null);
-      return null;
+      return estimateGermanDistanceKm(originAddress, destAddress);
     }
 
     try {
@@ -110,16 +152,16 @@ export async function getDrivingDistanceKm(originAddress: string | null, destAdd
       const data = await res.json();
       if (data.routes && data.routes.length > 0) {
         // Distance is in meters, convert to km
-        const distanceKm = data.routes[0].distance / 1000;
+        const distanceKm = Math.round((data.routes[0].distance / 1000) * 100) / 100;
         distanceCache.set(cacheKey, distanceKm);
         return distanceKm;
       }
       
       distanceCache.set(cacheKey, null);
-      return null;
+      return estimateGermanDistanceKm(originAddress, destAddress);
     } catch (error) {
       console.error("Distance calculation failed", error);
-      return null;
+      return estimateGermanDistanceKm(originAddress, destAddress);
     }
   })();
 

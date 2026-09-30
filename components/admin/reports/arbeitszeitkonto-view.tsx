@@ -183,6 +183,34 @@ export function ArbeitszeitkontoView({
     window.open(`/api/workers/${workerIdToPrint}/arbeitszeitkonto?${params.toString()}`, "_blank");
   };
 
+  const handleBatchPrint = () => {
+    if (selectedWorkersBatch.length === 0) return;
+
+    if (selectedWorkersBatch.length === 1) {
+      handlePrint(selectedWorkersBatch[0]);
+      return;
+    }
+
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/reports/arbeitszeitkonto/batch-pdf";
+    form.target = "_blank";
+
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "payload";
+    input.value = JSON.stringify({
+      workerIds: selectedWorkersBatch,
+      start: zeiterfassungInsgesamt ? "2026-07" : `${startYear}-${startMonth}`,
+      end: `${endYear}-${endMonth}`,
+      withPrevBalance,
+    });
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  };
+
   const handleSelectAllWorkers = () => {
     if (selectedWorkersBatch.length === workers.length) {
       setSelectedWorkersBatch([]);
@@ -434,15 +462,11 @@ export function ArbeitszeitkontoView({
                 size="sm"
                 variant="outline"
                 disabled={selectedWorkersBatch.length === 0}
-                onClick={() => {
-                  for (const id of selectedWorkersBatch) {
-                    handlePrint(id);
-                  }
-                }}
+                onClick={handleBatchPrint}
                 className="gap-1.5 h-7 text-xs"
               >
                 <Printer className="w-3 h-3" />
-                Drucken ({selectedWorkersBatch.length})
+                {t("common.print")} ({selectedWorkersBatch.length})
               </Button>
             </div>
           </CardContent>

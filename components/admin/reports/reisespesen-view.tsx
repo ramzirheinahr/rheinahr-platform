@@ -7,9 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Printer, Calculator, FileSpreadsheet, Loader2 } from "lucide-react";
-import { fetchReisespesenAction } from "@/app/[locale]/admin/reports/actions";
-import type { ReisespesenRow } from "@/lib/reports-data";
+import { Printer, Calculator, FileSpreadsheet, Loader2, Search, X, Users } from "lucide-react";
+import { fetchReisespesenAction, fetchMonthlySpesenOverviewAction } from "@/app/[locale]/admin/reports/actions";
+import type { ReisespesenRow, MonthlySpesenOverviewData } from "@/lib/reports-data";
 
 const MONTHS = [
   { value: 1, label: "Januar" },
@@ -46,6 +46,14 @@ export function ReisespesenView({
 
   const [isPending, startTransition] = useTransition();
 
+  // Monthly Overview State (Fahrt & Verpflegung aller Mitarbeiter)
+  const [overviewYear, setOverviewYear] = useState<number>(now.getFullYear());
+  const [overviewMonth, setOverviewMonth] = useState<number>(now.getMonth() + 1);
+  const [onlyWithAmounts, setOnlyWithAmounts] = useState<boolean>(true);
+  const [overviewSearchQuery, setOverviewSearchQuery] = useState<string>("");
+  const [overviewData, setOverviewData] = useState<MonthlySpesenOverviewData | null>(null);
+  const [isOverviewPending, startOverviewTransition] = useTransition();
+
   const handleCalculate = () => {
     if (!workerId) return;
     startTransition(async () => {
@@ -74,12 +82,62 @@ export function ReisespesenView({
     window.open(`/api/reports/reisespesen/excel?${params.toString()}`, "_blank");
   };
 
-  const selectedWorker = workers.find((w) => w.id === workerId);
+  const handleCalculateOverview = () => {
+    startOverviewTransition(async () => {
+      const res = await fetchMonthlySpesenOverviewAction({
+        year: overviewYear,
+        month: overviewMonth,
+        onlyWithAmounts,
+      });
+      setOverviewData(res);
+    });
+  };
+
+  const handleExcelExportOverview = () => {
+    const params = new URLSearchParams({
+      year: String(overviewYear),
+      month: String(overviewMonth),
+      onlyWithAmounts: String(onlyWithAmounts),
+    });
+    window.open(`/api/reports/reisespesen/overview-excel?${params.toString()}`, "_blank");
+  };
+
+  const filteredOverviewRows = React.useMemo(() => {
+    if (!overviewData) return [];
+    if (!overviewSearchQuery.trim()) return overviewData.rows;
+    const query = overviewSearchQuery.toLowerCase().trim();
+    return overviewData.rows.filter(
+      (r) =>
+        r.fullName.toLowerCase().includes(query) ||
+        (r.internalNumber && r.internalNumber.toLowerCase().includes(query))
+    );
+  }, [overviewData, overviewSearchQuery]);
+
+  const filteredTotals = React.useMemo(() => {
+    return filteredOverviewRows.reduce(
+      (acc, r) => ({
+        totalShifts: acc.totalShifts + r.shiftCount,
+        totalDistanceKm: Math.round((acc.totalDistanceKm + r.totalDistanceKm) * 100) / 100,
+        totalFahrtCost: Math.round((acc.totalFahrtCost + r.totalFahrtCost) * 100) / 100,
+        totalMealAllowance: Math.round((acc.totalMealAllowance + r.totalMealAllowance) * 100) / 100,
+        totalAmount: Math.round((acc.totalAmount + r.totalAmount) * 100) / 100,
+      }),
+      {
+        totalShifts: 0,
+        totalDistanceKm: 0,
+        totalFahrtCost: 0,
+        totalMealAllowance: 0,
+        totalAmount: 0,
+      }
+    );
+  }, [filteredOverviewRows]);
+
   const selectedMonth = MONTHS.find((m) => m.value === month);
+  const selectedOverviewMonth = MONTHS.find((m) => m.value === overviewMonth);
 
   return (
     <div className="w-full space-y-6">
-      {/* Control Card */}
+      {/* 1. Control Card: Single Worker Reisespesen */}
       <Card className="w-full border-border/80 shadow-xs">
         <CardHeader className="bg-muted/30 pb-3.5 border-b border-border/60">
           <CardTitle className="text-sm sm:text-base font-semibold text-foreground">
@@ -169,7 +227,7 @@ export function ReisespesenView({
         </CardContent>
       </Card>
 
-      {/* Results Table */}
+      {/* Single Worker Results Table */}
       {data && (
         <Card className="w-full border-border/80 shadow-xs overflow-hidden">
           <CardHeader className="bg-muted/30 pb-3 border-b flex flex-row items-center justify-between">
@@ -263,6 +321,232 @@ export function ReisespesenView({
           </div>
         </Card>
       )}
+
+      {/* 2. Monthly Overview: All Workers (Fahrt & Verpflegung) with Excel Export */}
+      <Card className="w-full border-border/80 shadow-xs">
+        <CardHeader className="bg-muted/30 pb-3.5 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <CardTitle className="text-sm sm:text-base font-semibold text-foreground flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              {t("reisespesen.monthlyOverviewTitle")}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t("reisespesen.monthlyOverviewSubtitle")}
+            </p>
+          </div>
+          {overviewData && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExcelExportOverview}
+              className="gap-1.5 h-8 text-xs rounded-lg border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              {t("common.excelExport")}
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="pt-5 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 items-end">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">{t("common.year")}:</label>
+              <Input
+                type="number"
+                value={overviewYear}
+                onChange={(e) => setOverviewYear(parseInt(e.target.value, 10) || overviewYear)}
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">{t("common.month")}:</label>
+              <Select
+                value={String(overviewMonth)}
+                onValueChange={(v) => { if (v) setOverviewMonth(parseInt(v, 10)); }}
+              >
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder={t("common.month")}>
+                    {selectedOverviewMonth?.label}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m) => (
+                    <SelectItem key={m.value} value={String(m.value)}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center space-x-2 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs">
+                <input
+                  type="checkbox"
+                  checked={onlyWithAmounts}
+                  onChange={(e) => setOnlyWithAmounts(e.target.checked)}
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-primary/40"
+                />
+                <span className="text-muted-foreground">{t("reisespesen.onlyWithAmounts")}</span>
+              </label>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCalculateOverview}
+                disabled={isOverviewPending}
+                className="gap-1.5 h-9 rounded-lg"
+              >
+                {isOverviewPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
+                {t("common.calculate")}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExcelExportOverview}
+                disabled={isOverviewPending}
+                className="gap-1.5 h-9 rounded-lg border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {t("common.excelExport")}
+              </Button>
+            </div>
+          </div>
+
+          {/* Overview Results Table */}
+          {overviewData && (
+            <div className="space-y-3 pt-3 border-t border-border/60">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="size-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder={t("reisespesen.filterPlaceholder")}
+                    value={overviewSearchQuery}
+                    onChange={(e) => setOverviewSearchQuery(e.target.value)}
+                    className="h-8 text-xs pl-8 pr-7"
+                  />
+                  {overviewSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setOverviewSearchQuery("")}
+                      className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-3">
+                  <span>
+                    {filteredOverviewRows.length} {t("reisespesen.workerName")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-border/70">
+                <table className="w-full text-xs text-start border-collapse">
+                  <thead>
+                    <tr className="bg-muted/80 border-b border-border/80 text-foreground font-bold">
+                      <th className="p-2.5 text-center w-10">#</th>
+                      <th className="p-2.5 font-bold text-foreground text-start w-28">
+                        {t("reisespesen.personalNumber")}
+                      </th>
+                      <th className="p-2.5 font-bold text-foreground text-start">
+                        {t("reisespesen.workerName")}
+                      </th>
+                      <th className="p-2.5 font-bold text-foreground text-center w-24">
+                        {t("reisespesen.shiftsCount")}
+                      </th>
+                      <th className="p-2.5 font-bold text-foreground text-right w-28">
+                        km
+                      </th>
+                      <th className="p-2.5 font-bold text-foreground text-right w-28">
+                        {t("reisespesen.fahrtTotal")}
+                      </th>
+                      <th className="p-2.5 font-bold text-foreground text-right w-28">
+                        {t("reisespesen.verpflegungTotal")}
+                      </th>
+                      <th className="p-2.5 font-bold text-foreground text-right w-32">
+                        {t("reisespesen.totalSpesen")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredOverviewRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                          {t("common.noResults")}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOverviewRows.map((r, index) => (
+                        <tr
+                          key={r.workerId}
+                          onClick={() => {
+                            setWorkerId(r.workerId);
+                            setYear(overviewYear);
+                            setMonth(overviewMonth);
+                          }}
+                          className="hover:bg-muted/40 transition-colors cursor-pointer"
+                          title="Klicken zum Laden der Einzelfahrten oben"
+                        >
+                          <td className="p-2 text-center text-muted-foreground">{index + 1}</td>
+                          <td className="p-2 font-mono font-medium text-muted-foreground whitespace-nowrap">
+                            {r.internalNumber || "-"}
+                          </td>
+                          <td className="p-2 font-medium text-foreground">
+                            {r.fullName}
+                          </td>
+                          <td className="p-2 text-center">{r.shiftCount}</td>
+                          <td className="p-2 text-right text-muted-foreground">
+                            {r.totalDistanceKm.toFixed(2).replace(".", ",")}
+                          </td>
+                          <td className="p-2 text-right font-medium text-blue-700 dark:text-blue-400">
+                            {r.totalFahrtCost.toFixed(2).replace(".", ",")} €
+                          </td>
+                          <td className="p-2 text-right font-medium text-amber-700 dark:text-amber-400">
+                            {r.totalMealAllowance.toFixed(2).replace(".", ",")} €
+                          </td>
+                          <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
+                            {r.totalAmount.toFixed(2).replace(".", ",")} €
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {filteredOverviewRows.length > 0 && (
+                    <tfoot>
+                      <tr className="bg-muted/80 font-bold border-t border-border">
+                        <td colSpan={3} className="p-2.5 text-right font-semibold">
+                          {t("reisespesen.totalSum")}:
+                        </td>
+                        <td className="p-2.5 text-center font-bold">
+                          {filteredTotals.totalShifts}
+                        </td>
+                        <td className="p-2.5 text-right font-semibold text-muted-foreground">
+                          {filteredTotals.totalDistanceKm.toFixed(2).replace(".", ",")} km
+                        </td>
+                        <td className="p-2.5 text-right text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20">
+                          {filteredTotals.totalFahrtCost.toFixed(2).replace(".", ",")} €
+                        </td>
+                        <td className="p-2.5 text-right text-amber-700 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20">
+                          {filteredTotals.totalMealAllowance.toFixed(2).replace(".", ",")} €
+                        </td>
+                        <td className="p-2.5 text-right text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
+                          {filteredTotals.totalAmount.toFixed(2).replace(".", ",")} €
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

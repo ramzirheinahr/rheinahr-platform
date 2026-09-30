@@ -10,6 +10,7 @@ import {
   getArbeitszeitkontoData,
   saveAzkNotes,
   getReisespesenData,
+  getMonthlySpesenOverviewData,
   calculateUrlaubEntitlement,
   getAzkStandData,
   transferOrCopyShifts,
@@ -239,6 +240,15 @@ export async function fetchReisespesenAction(params: {
 }) {
   await requireRole("de", "admin");
   return await getReisespesenData(params);
+}
+
+export async function fetchMonthlySpesenOverviewAction(params: {
+  year: number;
+  month: number;
+  onlyWithAmounts?: boolean;
+}) {
+  await requireRole("de", "admin");
+  return await getMonthlySpesenOverviewData(params);
 }
 
 export async function calculateUrlaubAction(params: {

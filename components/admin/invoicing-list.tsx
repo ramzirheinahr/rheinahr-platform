@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { format } from "@/lib/date-utils";
@@ -28,6 +28,63 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  } | null>({ key: "date", direction: "desc" });
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (prev?.key === key) {
+        return {
+          key,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      }
+      return { key, direction: "asc" };
+    });
+  };
+
+  const sortedInvoices = useMemo(() => {
+    if (!sortConfig) return invoices;
+    return [...invoices].sort((a, b) => {
+      let aVal: any = "";
+      let bVal: any = "";
+
+      switch (sortConfig.key) {
+        case "invoiceNumber":
+          aVal = a.invoiceNumber || "";
+          bVal = b.invoiceNumber || "";
+          return sortConfig.direction === "asc"
+            ? aVal.localeCompare(bVal, undefined, { numeric: true })
+            : bVal.localeCompare(aVal, undefined, { numeric: true });
+        case "client":
+          aVal = (a.client?.facilityName || a.snapshotData?.facilityName || "").toLowerCase();
+          bVal = (b.client?.facilityName || b.snapshotData?.facilityName || "").toLowerCase();
+          return sortConfig.direction === "asc"
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        case "date":
+          aVal = new Date(a.date).getTime();
+          bVal = new Date(b.date).getTime();
+          return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+        case "grossAmount":
+          aVal = Number(a.grossAmount) || 0;
+          bVal = Number(b.grossAmount) || 0;
+          return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+        case "status":
+          aVal = a.status || "";
+          bVal = b.status || "";
+          return sortConfig.direction === "asc"
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        default:
+          return 0;
+      }
+    });
+  }, [invoices, sortConfig]);
 
   const from = searchParams.get("from") || "";
   const to = searchParams.get("to") || "";
@@ -98,6 +155,8 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const columns: Column<any>[] = [
     {
+      id: "invoiceNumber",
+      sortable: true,
       header: "Rechnungsnr.",
       cell: (r) => (
         <div className="flex items-center gap-2">
@@ -107,7 +166,9 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
       ),
     },
     {
-      header: "Kunde",
+      id: "client",
+      sortable: true,
+      header: "Kunde / Einrichtung",
       cell: (r) => (
         <span className="font-medium text-slate-900">
           {r.client?.facilityName || r.snapshotData?.facilityName || "—"}
@@ -115,10 +176,14 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
       ),
     },
     {
-      header: "Datum",
+      id: "date",
+      sortable: true,
+      header: "Rechnungsdatum",
       cell: (r) => format(new Date(r.date), "dd.MM.yyyy"),
     },
     {
+      id: "grossAmount",
+      sortable: true,
       header: "Betrag (Brutto)",
       cell: (r) => (
         <span className="font-semibold">
@@ -127,6 +192,8 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
       ),
     },
     {
+      id: "status",
+      sortable: true,
       header: "Status",
       cell: (r) => {
         const emailSent = r.snapshotData?.emailSent;
@@ -251,8 +318,10 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <ResponsiveTable 
           columns={columns} 
-          rows={invoices} 
+          rows={sortedInvoices} 
           getRowKey={(r) => r.id}
+          sortConfig={sortConfig}
+          onSort={handleSort}
           empty={null}
         />
       </div>

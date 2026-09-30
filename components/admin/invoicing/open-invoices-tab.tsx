@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
@@ -22,8 +22,65 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
 
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  } | null>({ key: "date", direction: "desc" });
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (prev?.key === key) {
+        return {
+          key,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      }
+      return { key, direction: "asc" };
+    });
+  };
+
   // Filter only unpaid invoices
   const openInvoices = invoices.filter((inv) => inv.status === "unpaid");
+
+  const sortedOpenInvoices = useMemo(() => {
+    if (!sortConfig) return openInvoices;
+    return [...openInvoices].sort((a, b) => {
+      let aVal: any = "";
+      let bVal: any = "";
+
+      switch (sortConfig.key) {
+        case "invoiceNumber":
+          aVal = a.invoiceNumber || "";
+          bVal = b.invoiceNumber || "";
+          return sortConfig.direction === "asc"
+            ? aVal.localeCompare(bVal, undefined, { numeric: true })
+            : bVal.localeCompare(aVal, undefined, { numeric: true });
+        case "client":
+          aVal = (a.client?.facilityName || a.snapshotData?.facilityName || "").toLowerCase();
+          bVal = (b.client?.facilityName || b.snapshotData?.facilityName || "").toLowerCase();
+          return sortConfig.direction === "asc"
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        case "date":
+          aVal = new Date(a.date).getTime();
+          bVal = new Date(b.date).getTime();
+          return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+        case "grossAmount":
+          aVal = Number(a.grossAmount) || 0;
+          bVal = Number(b.grossAmount) || 0;
+          return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+        case "status":
+          aVal = a.status || "";
+          bVal = b.status || "";
+          return sortConfig.direction === "asc"
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        default:
+          return 0;
+      }
+    });
+  }, [openInvoices, sortConfig]);
 
   const handleMarkPaid = async (id: string) => {
     setLoadingId(id);
@@ -60,6 +117,8 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
 
   const columns: Column<any>[] = [
     {
+      id: "invoiceNumber",
+      sortable: true,
       header: "Rechnungsnr.",
       cell: (r) => (
         <div className="flex items-center gap-2">
@@ -69,6 +128,8 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       ),
     },
     {
+      id: "client",
+      sortable: true,
       header: "Kunde / Einrichtung",
       cell: (r) => (
         <span className="font-medium text-slate-900">
@@ -77,6 +138,8 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       ),
     },
     {
+      id: "date",
+      sortable: true,
       header: "Rechnungsdatum",
       cell: (r) => (
         <span className="text-slate-600 text-xs">
@@ -85,6 +148,8 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       ),
     },
     {
+      id: "grossAmount",
+      sortable: true,
       header: "Betrag (Brutto)",
       cell: (r) => (
         <span className="font-bold text-slate-900">
@@ -96,6 +161,8 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       ),
     },
     {
+      id: "status",
+      sortable: true,
       header: "Status",
       cell: () => (
         <Badge
@@ -164,8 +231,10 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
         <ResponsiveTable
           columns={columns}
-          rows={openInvoices}
+          rows={sortedOpenInvoices}
           getRowKey={(r) => r.id}
+          sortConfig={sortConfig}
+          onSort={handleSort}
           empty={null}
         />
       </div>
