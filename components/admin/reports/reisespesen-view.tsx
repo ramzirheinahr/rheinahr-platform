@@ -116,15 +116,11 @@ export function ReisespesenView({
   const filteredTotals = React.useMemo(() => {
     return filteredOverviewRows.reduce(
       (acc, r) => ({
-        totalShifts: acc.totalShifts + r.shiftCount,
-        totalDistanceKm: Math.round((acc.totalDistanceKm + r.totalDistanceKm) * 100) / 100,
         totalFahrtCost: Math.round((acc.totalFahrtCost + r.totalFahrtCost) * 100) / 100,
         totalMealAllowance: Math.round((acc.totalMealAllowance + r.totalMealAllowance) * 100) / 100,
         totalAmount: Math.round((acc.totalAmount + r.totalAmount) * 100) / 100,
       }),
       {
-        totalShifts: 0,
-        totalDistanceKm: 0,
         totalFahrtCost: 0,
         totalMealAllowance: 0,
         totalAmount: 0,
@@ -450,26 +446,19 @@ export function ReisespesenView({
                 <table className="w-full text-xs text-start border-collapse">
                   <thead>
                     <tr className="bg-muted/80 border-b border-border/80 text-foreground font-bold">
-                      <th className="p-2.5 text-center w-10">#</th>
-                      <th className="p-2.5 font-bold text-foreground text-start w-28">
+                      <th className="p-2.5 font-bold text-foreground text-start w-36">
                         {t("reisespesen.personalNumber")}
                       </th>
                       <th className="p-2.5 font-bold text-foreground text-start">
                         {t("reisespesen.workerName")}
                       </th>
-                      <th className="p-2.5 font-bold text-foreground text-center w-24">
-                        {t("reisespesen.shiftsCount")}
-                      </th>
-                      <th className="p-2.5 font-bold text-foreground text-right w-28">
-                        km
-                      </th>
-                      <th className="p-2.5 font-bold text-foreground text-right w-28">
+                      <th className="p-2.5 font-bold text-foreground text-right w-36">
                         {t("reisespesen.fahrtTotal")}
                       </th>
-                      <th className="p-2.5 font-bold text-foreground text-right w-28">
+                      <th className="p-2.5 font-bold text-foreground text-right w-40">
                         {t("reisespesen.verpflegungTotal")}
                       </th>
-                      <th className="p-2.5 font-bold text-foreground text-right w-32">
+                      <th className="p-2.5 font-bold text-foreground text-right w-40">
                         {t("reisespesen.totalSpesen")}
                       </th>
                     </tr>
@@ -477,12 +466,12 @@ export function ReisespesenView({
                   <tbody className="divide-y divide-border">
                     {filteredOverviewRows.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                        <td colSpan={5} className="p-6 text-center text-muted-foreground">
                           {t("common.noResults")}
                         </td>
                       </tr>
                     ) : (
-                      filteredOverviewRows.map((r, index) => (
+                      filteredOverviewRows.map((r) => (
                         <tr
                           key={r.workerId}
                           onClick={() => {
@@ -493,16 +482,11 @@ export function ReisespesenView({
                           className="hover:bg-muted/40 transition-colors cursor-pointer"
                           title="Klicken zum Laden der Einzelfahrten oben"
                         >
-                          <td className="p-2 text-center text-muted-foreground">{index + 1}</td>
                           <td className="p-2 font-mono font-medium text-muted-foreground whitespace-nowrap">
                             {r.internalNumber || "-"}
                           </td>
                           <td className="p-2 font-medium text-foreground">
                             {r.fullName}
-                          </td>
-                          <td className="p-2 text-center">{r.shiftCount}</td>
-                          <td className="p-2 text-right text-muted-foreground">
-                            {r.totalDistanceKm.toFixed(2).replace(".", ",")}
                           </td>
                           <td className="p-2 text-right font-medium text-blue-700 dark:text-blue-400">
                             {r.totalFahrtCost.toFixed(2).replace(".", ",")} €
@@ -520,14 +504,8 @@ export function ReisespesenView({
                   {filteredOverviewRows.length > 0 && (
                     <tfoot>
                       <tr className="bg-muted/80 font-bold border-t border-border">
-                        <td colSpan={3} className="p-2.5 text-right font-semibold">
+                        <td colSpan={2} className="p-2.5 text-right font-semibold">
                           {t("reisespesen.totalSum")}:
-                        </td>
-                        <td className="p-2.5 text-center font-bold">
-                          {filteredTotals.totalShifts}
-                        </td>
-                        <td className="p-2.5 text-right font-semibold text-muted-foreground">
-                          {filteredTotals.totalDistanceKm.toFixed(2).replace(".", ",")} km
                         </td>
                         <td className="p-2.5 text-right text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20">
                           {filteredTotals.totalFahrtCost.toFixed(2).replace(".", ",")} €

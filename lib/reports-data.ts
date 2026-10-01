@@ -739,6 +739,7 @@ export async function getReisespesenData(params: {
       fullName: true,
       internalNumber: true,
       address: true,
+      travelAllowanceEnabled: true,
       travelAllowancePerKm: true,
     },
   });
@@ -760,6 +761,7 @@ export async function getReisespesenData(params: {
     orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
   });
 
+  const hasTravelAllowance = Boolean(worker.travelAllowanceEnabled);
   const ratePerKm = worker.travelAllowancePerKm ?? 0.3; // standard 0.30 €/km
 
   const rows: ReisespesenRow[] = [];
@@ -799,9 +801,13 @@ export async function getReisespesenData(params: {
       }
     }
 
-    const cost = Math.round(distance * ratePerKm * 100) / 100;
-    totalDistance += distance;
-    totalCost += cost;
+    const isEligible = hasTravelAllowance && !a.excludeTravelAllowance;
+    const cost = isEligible ? Math.round(distance * ratePerKm * 100) / 100 : 0;
+
+    if (isEligible) {
+      totalDistance += distance;
+      totalCost += cost;
+    }
 
     rows.push({
       id: a.id,
@@ -1120,37 +1126,42 @@ export async function getMonthlySpesenOverviewData(params: {
 
   for (const worker of workers) {
     const workerAssignments = assignmentsByWorker.get(worker.id) || [];
-    if (workerAssignments.length === 0 && params.onlyWithAmounts !== false) {
+    if (workerAssignments.length === 0) {
       continue;
     }
 
+    const hasTravelAllowance = Boolean(worker.travelAllowanceEnabled);
     const ratePerKm = worker.travelAllowancePerKm ?? 0.3;
     let workerDistance = 0;
     let workerFahrtCost = 0;
 
-    for (let i = 0; i < workerAssignments.length; i++) {
-      const a = workerAssignments[i];
-      const prevA = i > 0 ? workerAssignments[i - 1] : null;
-
-      const isSameDayAsPrev =
-        prevA &&
-        prevA.order.shiftDate.toISOString().slice(0, 10) ===
-          a.order.shiftDate.toISOString().slice(0, 10);
-
-      let distance = 0;
-      if (isSameDayAsPrev && prevA.order.clientId === a.order.clientId) {
-        distance = 0;
-      } else {
-        const clientAddr = a.order.client.address || a.order.client.facilityName;
-        if (worker.address && clientAddr) {
-          const d = await getDrivingDistanceKm(worker.address, clientAddr, { fast: true });
-          distance = d ?? 25.0;
-        } else {
-          distance = 20.0;
+    if (hasTravelAllowance) {
+      for (let i = 0; i < workerAssignments.length; i++) {
+        const a = workerAssignments[i];
+        if (a.excludeTravelAllowance) {
+          continue;
         }
-      }
 
-      if (!a.excludeTravelAllowance) {
+        const prevA = i > 0 ? workerAssignments[i - 1] : null;
+
+        const isSameDayAsPrev =
+          prevA &&
+          prevA.order.shiftDate.toISOString().slice(0, 10) ===
+            a.order.shiftDate.toISOString().slice(0, 10);
+
+        let distance = 0;
+        if (isSameDayAsPrev && prevA.order.clientId === a.order.clientId) {
+          distance = 0;
+        } else {
+          const clientAddr = a.order.client.address || a.order.client.facilityName;
+          if (worker.address && clientAddr) {
+            const d = await getDrivingDistanceKm(worker.address, clientAddr, { fast: true });
+            distance = d ?? 25.0;
+          } else {
+            distance = 20.0;
+          }
+        }
+
         const cost = Math.round(distance * ratePerKm * 100) / 100;
         workerDistance += distance;
         workerFahrtCost += cost;
@@ -1174,7 +1185,7 @@ export async function getMonthlySpesenOverviewData(params: {
     const roundedDistance = Math.round(workerDistance * 100) / 100;
     const totalAmount = Math.round((roundedFahrtCost + workerMealAllowance) * 100) / 100;
 
-    if (params.onlyWithAmounts && totalAmount === 0 && workerAssignments.length === 0) {
+    if (params.onlyWithAmounts !== false && totalAmount <= 0) {
       continue;
     }
 

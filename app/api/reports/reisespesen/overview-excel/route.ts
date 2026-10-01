@@ -17,12 +17,9 @@ export async function GET(req: Request) {
   try {
     const data = await getMonthlySpesenOverviewData({ year, month, onlyWithAmounts });
 
-    const rows = data.rows.map((r, index) => ({
-      "#": index + 1,
+    const rows = data.rows.map((r) => ({
       "Personal-Nr.": r.internalNumber || "-",
       Mitarbeiter: r.fullName,
-      "Anzahl Fahrten": r.shiftCount,
-      "Fahrtstrecke (km)": r.totalDistanceKm,
       "Fahrtkosten (€)": r.totalFahrtCost,
       "Verpflegungsmehraufwand (€)": r.totalMealAllowance,
       "Gesamterstattung (€)": r.totalAmount,
@@ -30,11 +27,8 @@ export async function GET(req: Request) {
 
     // Add total summary row
     rows.push({
-      "#": "" as any,
       "Personal-Nr.": "",
       Mitarbeiter: "Gesamtsumme",
-      "Anzahl Fahrten": data.totals.totalShifts as any,
-      "Fahrtstrecke (km)": data.totals.totalDistanceKm as any,
       "Fahrtkosten (€)": data.totals.totalFahrtCost as any,
       "Verpflegungsmehraufwand (€)": data.totals.totalMealAllowance as any,
       "Gesamterstattung (€)": data.totals.totalAmount as any,
