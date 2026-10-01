@@ -146,6 +146,7 @@ export async function setAccountActive(
 
   revalidatePath("/admin/workers");
   revalidatePath("/admin/clients");
+  revalidatePath("/admin/schedule");
   return { ok: true };
 }
 

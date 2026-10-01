@@ -22,6 +22,7 @@ export type OrderGroupSummary = {
   isPartiallyConfirmed?: boolean;
   timestamp?: number;
   createdAt?: number;
+  updatedAt?: number;
   creatorName?: string;
 };
 
@@ -102,18 +103,20 @@ export function OrdersList({
     }
 
     return result.sort((a, b) => {
-      if (sortBy === "date_asc" || sortBy === "date_desc") {
-        const aIsNew = !!a.creatorName;
-        const bIsNew = !!b.creatorName;
+      if (sortBy === "date_desc" || sortBy === "date_asc") {
+        const timeA = a.updatedAt ?? a.createdAt ?? a.timestamp ?? 0;
+        const timeB = b.updatedAt ?? b.createdAt ?? b.timestamp ?? 0;
 
-        if (aIsNew && bIsNew) {
-          // Both new: sort by createdAt newest first
-          return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+        if (timeA !== timeB) {
+          return sortBy === "date_desc" ? timeB - timeA : timeA - timeB;
         }
-        if (aIsNew && !bIsNew) return -1;
-        if (!aIsNew && bIsNew) return 1;
 
-        // Both old: sort by shiftDate (timestamp)
+        const ca = a.createdAt ?? 0;
+        const cb = b.createdAt ?? 0;
+        if (ca !== cb) {
+          return sortBy === "date_desc" ? cb - ca : ca - cb;
+        }
+
         const ta = a.timestamp ?? 0;
         const tb = b.timestamp ?? 0;
         return sortBy === "date_desc" ? tb - ta : ta - tb;
@@ -277,10 +280,23 @@ export function OrdersList({
                 <div className="text-sm text-muted-foreground">
                   {g.range} · {g.shiftsCount} {t("shiftsCount")} · {g.netLabel} {t("net")}
                 </div>
-                {(g.createdAt && g.creatorName) && (
-                  <div className="text-xs text-muted-foreground/80 mt-1">
-                    Eingegangen {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.createdAt))} ({new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(new Date(g.createdAt))})
-                    {` · von ${g.creatorName}`}
+                {Boolean(g.createdAt || g.updatedAt) && (
+                  <div className="text-xs text-muted-foreground/80 mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    {g.createdAt ? (
+                      <span>
+                        {t("received")} {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.createdAt))} ({new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(new Date(g.createdAt))})
+                      </span>
+                    ) : null}
+                    {Boolean(g.updatedAt && g.createdAt && g.updatedAt - g.createdAt > 1000) ? (
+                      <span>
+                        · {t("edited")} {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.updatedAt!))} ({new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(new Date(g.updatedAt!))})
+                      </span>
+                    ) : null}
+                    {g.creatorName ? (
+                      <span>
+                        · {t("by")} {g.creatorName}
+                      </span>
+                    ) : null}
                   </div>
                 )}
               </div>

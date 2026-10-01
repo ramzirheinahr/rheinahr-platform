@@ -9,6 +9,7 @@ import { CancelRequestButton } from "@/components/orders/cancel-request-button";
 import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft, Pencil, Download } from "lucide-react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
+import { SendOrderEmailButton } from "@/components/admin/send-order-email-button";
 import { ScheduleSkeleton } from "@/components/admin/skeletons/schedule-skeleton";
 import { OrderDetailContent } from "./components/order-detail-content";
 
@@ -94,6 +95,10 @@ export default async function AdminRequestDetail({
             <Download className="size-4" />
             PDF
           </Button>
+          <SendOrderEmailButton
+            requestGroupId={id}
+            facilityName={facility}
+          />
           <CopyPublicLinkButton 
             requestGroupId={id} 
             type="confirm" 

@@ -376,6 +376,9 @@
     "lastActive": "Zuletzt aktiv"
   },
   "orders": {
+    "received": "Eingegangen",
+    "edited": "Bearbeitet",
+    "by": "von",
     "sortDateDesc": "Datum (Neueste zuerst)",
     "sortDateAsc": "Datum (Älteste zuerst)",
     "sortFacilityAsc": "Einrichtung (A-Z)",
@@ -431,8 +434,8 @@
     "messageSend": "Senden",
     "messageSent": "Nachricht gesendet.",
     "cancelRequest": "Anfrage löschen",
-    "cancelConfirmTitle": "Anfrage endgültig löschen?",
-    "cancelConfirmDesc": "Die Anfrage und alle ihre Schichten werden endgültig gelöscht – das kann nicht rückgängig gemacht werden. Büro und betroffene Mitarbeiter werden benachrichtigt.",
+    "cancelConfirmTitle": "Sind Sie sicher, dass Sie diese Anfrage löschen möchten?",
+    "cancelConfirmDesc": "Die Anfrage und alle zugehörigen Schichten werden endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
     "cancelledToast": "Anfrage wurde endgültig gelöscht.",
     "cancelLocked": "Löschen nicht möglich – eine Schicht ist bereits bestätigt, läuft oder wurde unterschrieben.",
     "selectShift": "Schicht auswählen",
@@ -462,7 +465,7 @@
     "invitationCancelled": "Einladung zurückgezogen.",
     "cannotRemoveSigned": "Bereits unterschriebene Einsätze können nicht entfernt werden.",
     "searchPlaceholder": "Anfragen durchsuchen…",
-    "whatsappConfirmNotice": "Du kannst die Schicht über das System bestätigen.",
+    "whatsappConfirmNotice": "Nach Schichtende kannst du die Schicht über das System von einem Mitarbeiter oder Verantwortlichen der Einrichtung bestätigen lassen.",
     "swapWorker": "Mitarbeiter wechseln",
     "swapWorkerTitle": "Mitarbeiter wechseln",
     "swapWorkerConfirm": "Möchten Sie {oldWorker} durch einen anderen Mitarbeiter ersetzen?",
@@ -505,6 +508,7 @@
     "presetNone": "—",
     "year": "Jahr",
     "month": "Monat",
+    "monthYearLockedOnEdit": "Monat und Jahr können bei bestehenden Aufträgen nicht geändert werden.",
     "date": "Datum",
     "shift1": "Schicht 1",
     "shift2": "Schicht 2",
@@ -1408,7 +1412,10 @@
     "noRecipientsSelected": "Bitte wählen Sie mindestens einen Empfänger aus.",
     "invalidEmail": "Ungültige E-Mail-Adresse.",
     "attachTimesheetsLabel": "Leistungsnachweise (Stundenzettel) beifügen",
-    "attachTimesheetsHint": "Alle zu dieser Rechnung gehörenden Schichtbestätigungen (auch unbestätigte/hochgeladene Nachweise) gesammelt als PDF anhängen."
+    "attachTimesheetsHint": "Alle zu dieser Rechnung gehörenden Schichtbestätigungen (auch unbestätigte/hochgeladene Nachweise) gesammelt als PDF anhängen.",
+    "orderScheduleTitle": "Dienstplan / Einsatzübersicht per E-Mail senden",
+    "monthScheduleTitle": "Monatsübersicht per E-Mail senden",
+    "sendEmailButton": "Per E-Mail senden"
   },
   "emails": {
     "title": "E-Mail-Ausgang",

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { ScheduleMonthPicker } from "@/app/[locale]/admin/components/schedule-month-picker";
 import { ScheduleSkeleton } from "@/components/admin/skeletons/schedule-skeleton";
+import { SendClientScheduleEmailButton } from "@/components/admin/send-client-schedule-email-button";
 import { ClientScheduleContent } from "./components/client-schedule-content";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +72,12 @@ export default async function AdminClientSchedulePage({
             <FileDown className="size-4" />
             {cs("downloadPdf")}
           </Button>
+          <SendClientScheduleEmailButton
+            clientId={client.id}
+            year={year}
+            month={month}
+            facilityName={client.facilityName}
+          />
           <Button
             variant="outline"
             size="sm"

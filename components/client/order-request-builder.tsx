@@ -170,6 +170,8 @@ export function OrderRequestBuilder({
   const [pending, startTransition] = useTransition();
   const isAdmin = Boolean(clients);
   const ro = readOnly;
+  const isExistingOrder = Boolean(initial?.requestGroupId || initial);
+  const lockDateSelection = ro || isExistingOrder;
   // Admins may enter/edit shifts on past days (e.g. fixing a request after the
   // fact); clients are locked to today onward.
   const allowPast = isAdmin || adminEdit;
@@ -888,11 +890,26 @@ export function OrderRequestBuilder({
         ) : null}
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("year")}
-          <input type="number" min={allowPast ? thisYear - 1 : thisYear} max={thisYear + 2} value={year} onChange={(e) => setYear(Number(e.target.value) || thisYear)} className={cn(field, "w-24")} />
+          <input
+            type="number"
+            disabled={lockDateSelection}
+            min={allowPast ? thisYear - 1 : thisYear}
+            max={thisYear + 2}
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value) || thisYear)}
+            className={cn(field, "w-24")}
+            title={isExistingOrder ? t("monthYearLockedOnEdit") : undefined}
+          />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("month")}
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className={cn(field, "w-40")}>
+          <select
+            disabled={lockDateSelection}
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+            className={cn(field, "w-40")}
+            title={isExistingOrder ? t("monthYearLockedOnEdit") : undefined}
+          >
             {monthNames.map((name, i) => (
               <option key={i} value={i + 1}>{name}</option>
             ))}

@@ -23,6 +23,7 @@ type Row = {
   requiredQualification: Qualification;
   status: OrderStatus;
   createdAt: Date;
+  updatedAt: Date;
   createdBy: { fullName: string | null; email: string; role: string } | null;
   assignments: {
     contractId: string | null;
@@ -69,6 +70,7 @@ async function getOrders(year: number, month: number): Promise<Row[]> {
         requiredQualification: true,
         status: true,
         createdAt: true,
+        updatedAt: true,
         createdBy: {
           select: { fullName: true, email: true, role: true },
         },
@@ -150,6 +152,9 @@ export async function OrdersListContent({
     const hasUnconfirmed = g.shifts.some(s => s.status !== "confirmed" && s.status !== "cancelled");
     const isPartiallyConfirmed = hasConfirmed && hasUnconfirmed;
 
+    const minCreatedAt = Math.min(...g.shifts.map((s) => s.createdAt.getTime()));
+    const maxUpdatedAt = Math.max(...g.shifts.map((s) => s.updatedAt.getTime()));
+
     return {
       key: g.key,
       facilityName: first.client.facilityName,
@@ -162,7 +167,8 @@ export async function OrdersListContent({
       isFullyCompleted,
       isPartiallyConfirmed,
       timestamp: first.shiftDate.getTime(),
-      createdAt: first.createdAt.getTime(),
+      createdAt: minCreatedAt,
+      updatedAt: maxUpdatedAt,
       creatorName: first.createdBy
         ? first.createdBy.fullName || first.createdBy.email
         : undefined,

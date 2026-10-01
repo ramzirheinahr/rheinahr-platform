@@ -827,7 +827,7 @@ export async function bulkAssignWorkers(
   if (advanceIds.length) {
     await prisma.order.updateMany({
       where: { id: { in: advanceIds } },
-      data: { status: "assigned" },
+      data: { status: "assigned", updatedAt: new Date() },
     });
   }
   const created = notify.length;

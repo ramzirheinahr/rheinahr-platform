@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { cancelOrderRequest } from "@/app/[locale]/client/orders/actions";
 import { cancelOrderRequestAsAdmin } from "@/app/[locale]/admin/orders/actions";
-import { Ban } from "lucide-react";
+import { Ban, Trash2, TriangleAlert } from "lucide-react";
 
 // Permanently delete the whole request (all its shifts) after an explicit
 // confirmation — the rows leave the database on the owner's instruction; only
@@ -58,12 +58,23 @@ export function CancelRequestButton({
         <Ban className="size-4" />
         {o("cancelRequest")}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{o("cancelConfirmTitle")}</DialogTitle>
-          <DialogDescription>{o("cancelConfirmDesc")}</DialogDescription>
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <TriangleAlert className="size-5" />
+            </div>
+            <div className="space-y-1">
+              <DialogTitle className="text-base font-semibold leading-snug">
+                {o("cancelConfirmTitle")}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                {o("cancelConfirmDesc")}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter className="mt-4 gap-2">
           <DialogClose render={<Button variant="outline" />}>{c("cancel")}</DialogClose>
           <Button
             variant="destructive"
@@ -71,7 +82,7 @@ export function CancelRequestButton({
             disabled={pending}
             className="gap-2"
           >
-            <Ban className="size-4" />
+            <Trash2 className="size-4" />
             {pending ? c("loading") : o("cancelRequest")}
           </Button>
         </DialogFooter>

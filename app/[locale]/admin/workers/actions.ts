@@ -214,6 +214,7 @@ export async function createWorker(formData: FormData): Promise<ActionState> {
   });
 
   revalidatePath("/admin/workers");
+  revalidatePath("/admin/schedule");
   return { ok: true };
 }
 
@@ -262,6 +263,7 @@ export async function updateWorker(
 
   revalidatePath("/admin/workers");
   revalidatePath(`/admin/workers/${id}/edit`);
+  revalidatePath("/admin/schedule");
   return { ok: true };
 }
 
@@ -290,5 +292,6 @@ export async function deleteWorker(id: string): Promise<ActionState> {
   });
 
   revalidatePath("/admin/workers");
+  revalidatePath("/admin/schedule");
   return { ok: true };
 }

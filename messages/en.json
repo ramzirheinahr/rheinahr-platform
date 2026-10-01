@@ -376,6 +376,9 @@
     "numberInUse": "This client number is already in use."
   },
   "orders": {
+    "received": "Received",
+    "edited": "Edited",
+    "by": "by",
     "sortDateDesc": "Date (Newest first)",
     "sortDateAsc": "Date (Oldest first)",
     "sortFacilityAsc": "Facility (A-Z)",
@@ -431,8 +434,8 @@
     "messageSend": "Send",
     "messageSent": "Message sent.",
     "cancelRequest": "Delete request",
-    "cancelConfirmTitle": "Delete this request permanently?",
-    "cancelConfirmDesc": "The request and all its shifts will be permanently deleted – this cannot be undone. The office and affected workers will be notified.",
+    "cancelConfirmTitle": "Are you sure you want to delete this request?",
+    "cancelConfirmDesc": "The request and all associated shifts will be permanently deleted. This action cannot be undone.",
     "cancelledToast": "Request permanently deleted.",
     "cancelLocked": "Cannot delete – a shift is already confirmed, running, or signed.",
     "selectShift": "Select shift",
@@ -462,7 +465,7 @@
     "invitationCancelled": "Invitation withdrawn.",
     "cannotRemoveSigned": "Signed shifts cannot be removed.",
     "searchPlaceholder": "Search orders…",
-    "whatsappConfirmNotice": "You can confirm the shift via the system.",
+    "whatsappConfirmNotice": "After your shift ends, you can have the shift confirmed via the system by a staff member or manager of the facility.",
     "swapWorker": "Swap worker",
     "swapWorkerTitle": "Swap worker",
     "swapWorkerConfirm": "Do you want to replace {oldWorker} with another worker?",
@@ -505,6 +508,7 @@
     "presetNone": "—",
     "year": "Year",
     "month": "Month",
+    "monthYearLockedOnEdit": "Month and year cannot be changed on existing orders.",
     "date": "Date",
     "shift1": "Shift 1",
     "shift2": "Shift 2",
@@ -1408,7 +1412,10 @@
     "noRecipientsSelected": "Please select at least one recipient.",
     "invalidEmail": "Invalid email address.",
     "attachTimesheetsLabel": "Attach shift confirmations (timesheets)",
-    "attachTimesheetsHint": "Attach all shift confirmation sheets for this invoice (including unconfirmed/uploaded records) as a PDF."
+    "attachTimesheetsHint": "Attach all shift confirmation sheets for this invoice (including unconfirmed/uploaded records) as a PDF.",
+    "orderScheduleTitle": "Send schedule / shift overview by email",
+    "monthScheduleTitle": "Send monthly overview by email",
+    "sendEmailButton": "Send via Email"
   },
   "emails": {
     "title": "Outgoing Emails",

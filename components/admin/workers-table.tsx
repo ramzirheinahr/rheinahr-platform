@@ -125,7 +125,7 @@ export function WorkersTable({
     }
     
     return result;
-  }, [rows, query, sortConfig]);
+  }, [rows, query, sortConfig, showInactive]);
 
   const handleSort = (key: string) => {
     setSortConfig((current) => {
