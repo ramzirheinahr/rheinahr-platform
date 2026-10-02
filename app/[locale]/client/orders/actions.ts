@@ -140,6 +140,7 @@ export async function updateOrderRequest(
     affectedWorkers = assignments.map((a) => ({ userId: a.worker.userId, order: a.order }));
   }
 
+  const now = new Date();
   await prisma.$transaction([
     ...(deleteIds.length
       ? [prisma.order.deleteMany({ where: { id: { in: deleteIds } } })]
@@ -154,7 +155,9 @@ export async function updateOrderRequest(
           shiftDate: new Date(`${u.date}T00:00:00.000Z`),
           startTime: u.startTime,
           endTime: u.endTime,
-          requiredQualification: u.requiredQualification as Qualification
+          requiredQualification: u.requiredQualification as Qualification,
+          editedAt: now,
+          editedById: user.id,
         },
       }),
     ),
@@ -173,11 +176,21 @@ export async function updateOrderRequest(
               notes: s.notes,
               status: "pending" as const,
               createdById: user.id,
+              editedAt: now,
+              editedById: user.id,
             })),
           }),
         ]
       : []),
   ]);
+
+  await prisma.order.updateMany({
+    where: { requestGroupId },
+    data: {
+      editedAt: now,
+      editedById: user.id,
+    },
+  });
 
   // Alert affected workers that their shift was cancelled and removed
   for (const item of affectedWorkers) {

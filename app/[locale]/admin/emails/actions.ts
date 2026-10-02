@@ -110,3 +110,32 @@ export async function deleteOutgoingEmail(emailId: string): Promise<ActionState>
     return { ok: false, error: "deleteFailed" };
   }
 }
+
+export async function getOutgoingEmailContent(emailId: string): Promise<{
+  ok: boolean;
+  html?: string | null;
+  body?: string;
+  error?: string;
+}> {
+  try {
+    await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  if (!z.string().uuid().safeParse(emailId).success) {
+    return { ok: false, error: "invalidId" };
+  }
+
+  try {
+    const record = await prisma.outgoingEmail.findUnique({
+      where: { id: emailId },
+      select: { html: true, body: true },
+    });
+
+    if (!record) return { ok: false, error: "notFound" };
+    return { ok: true, html: record.html, body: record.body };
+  } catch {
+    return { ok: false, error: "fetchFailed" };
+  }
+}

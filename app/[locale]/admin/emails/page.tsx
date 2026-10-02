@@ -21,15 +21,33 @@ export default async function AdminEmailsPage({
   const user = await requireRole(locale as Locale, "admin");
   const t = await getTranslations("emails");
 
-  const emails = await prisma.outgoingEmail.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 300,
-  });
+  const [counts, emails] = await Promise.all([
+    prisma.outgoingEmail.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    }),
+    prisma.outgoingEmail.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        to: true,
+        recipientName: true,
+        userId: true,
+        subject: true,
+        body: true,
+        status: true,
+        error: true,
+        attachments: true,
+        sentAt: true,
+        createdAt: true,
+      },
+    }),
+  ]);
 
-  const total = emails.length;
-  const sentCount = emails.filter((e) => e.status === "sent").length;
-  const failedCount = emails.filter((e) => e.status === "failed").length;
-  const skippedCount = emails.filter((e) => e.status === "skipped_preference").length;
+  const sentCount = counts.find((c) => c.status === "sent")?._count._all ?? 0;
+  const failedCount = counts.find((c) => c.status === "failed")?._count._all ?? 0;
+  const skippedCount = counts.find((c) => c.status === "skipped_preference")?._count._all ?? 0;
+  const total = sentCount + failedCount + skippedCount;
 
   const rows: OutgoingEmailItem[] = emails.map((e) => ({
     id: e.id,
@@ -38,7 +56,6 @@ export default async function AdminEmailsPage({
     userId: e.userId,
     subject: e.subject,
     body: e.body,
-    html: e.html,
     status: e.status as "sent" | "failed" | "skipped_preference",
     error: e.error,
     attachments: e.attachments as any,
@@ -80,7 +97,7 @@ export default async function AdminEmailsPage({
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">{t("kpiTotal")}</p>
-              <p className="text-2xl font-bold">{total}</p>
+              <p className="text-2xl font-bold">{total.toLocaleString(locale)}</p>
             </div>
           </CardContent>
         </Card>
@@ -92,7 +109,7 @@ export default async function AdminEmailsPage({
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">{t("statusSent")}</p>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{sentCount}</p>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{sentCount.toLocaleString(locale)}</p>
             </div>
           </CardContent>
         </Card>
@@ -104,7 +121,7 @@ export default async function AdminEmailsPage({
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">{t("statusFailed")}</p>
-              <p className="text-2xl font-bold text-destructive">{failedCount}</p>
+              <p className="text-2xl font-bold text-destructive">{failedCount.toLocaleString(locale)}</p>
             </div>
           </CardContent>
         </Card>
@@ -116,7 +133,7 @@ export default async function AdminEmailsPage({
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">{t("statusSkipped")}</p>
-              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{skippedCount}</p>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{skippedCount.toLocaleString(locale)}</p>
             </div>
           </CardContent>
         </Card>

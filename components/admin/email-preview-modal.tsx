@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import {
   Dialog,
@@ -24,9 +24,10 @@ import {
   User,
   Copy,
   Check,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { resendOutgoingEmail } from "@/app/[locale]/admin/emails/actions";
+import { resendOutgoingEmail, getOutgoingEmailContent } from "@/app/[locale]/admin/emails/actions";
 
 export type OutgoingEmailItem = {
   id: string;
@@ -35,7 +36,7 @@ export type OutgoingEmailItem = {
   userId: string | null;
   subject: string;
   body: string;
-  html: string | null;
+  html?: string | null;
   status: "sent" | "failed" | "skipped_preference";
   error: string | null;
   attachments: { filename: string; contentType?: string; size?: number }[] | null;
@@ -56,6 +57,27 @@ export function EmailPreviewModal({
   const c = useTranslations("common");
   const [resending, startResend] = useTransition();
   const [copied, setCopied] = useState(false);
+  const [fetchedContent, setFetchedContent] = useState<{ html: string | null; body: string } | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
+
+  useEffect(() => {
+    if (open && email) {
+      if (email.html !== undefined) {
+        setFetchedContent({ html: email.html, body: email.body });
+      } else {
+        setLoadingContent(true);
+        getOutgoingEmailContent(email.id)
+          .then((res) => {
+            if (res.ok) {
+              setFetchedContent({ html: res.html ?? null, body: res.body ?? email.body });
+            }
+          })
+          .finally(() => setLoadingContent(false));
+      }
+    } else {
+      setFetchedContent(null);
+    }
+  }, [open, email]);
 
   if (!email) return null;
 
@@ -114,8 +136,11 @@ export function EmailPreviewModal({
     minute: "2-digit",
   });
 
-  const previewHtml = email.html
-    ? email.html
+  const currentHtml = fetchedContent ? fetchedContent.html : email.html;
+  const currentBody = fetchedContent?.body ?? email.body;
+
+  const previewHtml = currentHtml
+    ? currentHtml
     : `
       <!DOCTYPE html>
       <html>
@@ -133,7 +158,7 @@ export function EmailPreviewModal({
         </style>
       </head>
       <body>
-        ${email.body.replace(/\n/g, "<br>")}
+        ${(currentBody || "").replace(/\n/g, "<br>")}
       </body>
       </html>
     `;
@@ -248,19 +273,33 @@ export function EmailPreviewModal({
             </div>
 
             <TabsContent value="html" className="flex-1 min-h-0 m-0 overflow-hidden">
-              <div className="w-full h-full rounded-xl border border-border/70 bg-white overflow-hidden shadow-xs">
-                <iframe
-                  title="Email Preview"
-                  srcDoc={previewHtml}
-                  className="w-full h-full border-0 bg-white"
-                  sandbox="allow-same-origin"
-                />
+              <div className="w-full h-full rounded-xl border border-border/70 bg-white overflow-hidden shadow-xs flex items-center justify-center">
+                {loadingContent ? (
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Loader2 className="size-6 animate-spin text-primary" />
+                    <span className="text-xs">{c("loading")}</span>
+                  </div>
+                ) : (
+                  <iframe
+                    title="Email Preview"
+                    srcDoc={previewHtml}
+                    className="w-full h-full border-0 bg-white"
+                    sandbox="allow-same-origin"
+                  />
+                )}
               </div>
             </TabsContent>
 
             <TabsContent value="text" className="flex-1 min-h-0 m-0 overflow-hidden">
-              <div className="w-full h-full p-4 rounded-xl border bg-muted/30 font-mono text-sm whitespace-pre-wrap overflow-y-auto leading-relaxed">
-                {email.body}
+              <div className="w-full h-full p-4 rounded-xl border bg-muted/30 font-mono text-sm whitespace-pre-wrap overflow-y-auto leading-relaxed flex items-center justify-center">
+                {loadingContent ? (
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Loader2 className="size-6 animate-spin text-primary" />
+                    <span className="text-xs">{c("loading")}</span>
+                  </div>
+                ) : (
+                  <div className="w-full h-full text-foreground">{currentBody}</div>
+                )}
               </div>
             </TabsContent>
           </Tabs>

@@ -230,6 +230,7 @@ export async function updateOrderRequestAsAdmin(
     affectedWorkers = assignments.map((a) => ({ userId: a.worker.userId, order: a.order }));
   }
 
+  const now = new Date();
   if (updates.length + creates.length + deleteIds.length > 0) {
     await prisma.$transaction([
       ...(deleteIds.length
@@ -245,7 +246,9 @@ export async function updateOrderRequestAsAdmin(
             shiftDate: new Date(`${u.date}T00:00:00.000Z`),
             startTime: u.startTime,
             endTime: u.endTime,
-            requiredQualification: u.requiredQualification as Qualification
+            requiredQualification: u.requiredQualification as Qualification,
+            editedAt: now,
+            editedById: admin.id,
           },
         }),
       ),
@@ -264,11 +267,21 @@ export async function updateOrderRequestAsAdmin(
                 notes: s.notes,
                 status: "pending" as const,
                 createdById: admin.id,
+                editedAt: now,
+                editedById: admin.id,
               })),
             }),
           ]
         : []),
     ]);
+
+    await prisma.order.updateMany({
+      where: { requestGroupId },
+      data: {
+        editedAt: now,
+        editedById: admin.id,
+      },
+    });
 
     // Alert affected workers that their shift was cancelled and removed
     for (const item of affectedWorkers) {
@@ -827,7 +840,7 @@ export async function bulkAssignWorkers(
   if (advanceIds.length) {
     await prisma.order.updateMany({
       where: { id: { in: advanceIds } },
-      data: { status: "assigned", updatedAt: new Date() },
+      data: { status: "assigned" },
     });
   }
   const created = notify.length;

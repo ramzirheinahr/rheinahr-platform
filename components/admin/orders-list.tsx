@@ -22,8 +22,9 @@ export type OrderGroupSummary = {
   isPartiallyConfirmed?: boolean;
   timestamp?: number;
   createdAt?: number;
-  updatedAt?: number;
+  editedAt?: number;
   creatorName?: string;
+  editorName?: string;
 };
 
 function normalize(s: string): string {
@@ -104,8 +105,8 @@ export function OrdersList({
 
     return result.sort((a, b) => {
       if (sortBy === "date_desc" || sortBy === "date_asc") {
-        const timeA = a.updatedAt ?? a.createdAt ?? a.timestamp ?? 0;
-        const timeB = b.updatedAt ?? b.createdAt ?? b.timestamp ?? 0;
+        const timeA = a.editedAt ?? a.createdAt ?? a.timestamp ?? 0;
+        const timeB = b.editedAt ?? b.createdAt ?? b.timestamp ?? 0;
 
         if (timeA !== timeB) {
           return sortBy === "date_desc" ? timeB - timeA : timeA - timeB;
@@ -280,21 +281,22 @@ export function OrdersList({
                 <div className="text-sm text-muted-foreground">
                   {g.range} · {g.shiftsCount} {t("shiftsCount")} · {g.netLabel} {t("net")}
                 </div>
-                {Boolean(g.createdAt || g.updatedAt) && (
+                {Boolean(g.createdAt || g.editedAt) && (
                   <div className="text-xs text-muted-foreground/80 mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     {g.createdAt ? (
                       <span>
                         {t("received")} {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.createdAt))} ({new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(new Date(g.createdAt))})
                       </span>
                     ) : null}
-                    {Boolean(g.updatedAt && g.createdAt && g.updatedAt - g.createdAt > 1000) ? (
-                      <span>
-                        · {t("edited")} {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.updatedAt!))} ({new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(new Date(g.updatedAt!))})
-                      </span>
-                    ) : null}
                     {g.creatorName ? (
                       <span>
                         · {t("by")} {g.creatorName}
+                      </span>
+                    ) : null}
+                    {g.editedAt ? (
+                      <span>
+                        · {t("edited")} {new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(g.editedAt))} ({new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(new Date(g.editedAt))})
+                        {g.editorName ? ` · ${t("by")} ${g.editorName}` : ""}
                       </span>
                     ) : null}
                   </div>

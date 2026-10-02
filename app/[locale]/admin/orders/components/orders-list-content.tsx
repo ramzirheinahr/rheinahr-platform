@@ -24,7 +24,9 @@ type Row = {
   status: OrderStatus;
   createdAt: Date;
   updatedAt: Date;
+  editedAt: Date | null;
   createdBy: { fullName: string | null; email: string; role: string } | null;
+  editedBy: { fullName: string | null; email: string; role: string } | null;
   assignments: {
     contractId: string | null;
     invoiceId: string | null;
@@ -71,7 +73,11 @@ async function getOrders(year: number, month: number): Promise<Row[]> {
         status: true,
         createdAt: true,
         updatedAt: true,
+        editedAt: true,
         createdBy: {
+          select: { fullName: true, email: true, role: true },
+        },
+        editedBy: {
           select: { fullName: true, email: true, role: true },
         },
         assignments: {
@@ -153,7 +159,14 @@ export async function OrdersListContent({
     const isPartiallyConfirmed = hasConfirmed && hasUnconfirmed;
 
     const minCreatedAt = Math.min(...g.shifts.map((s) => s.createdAt.getTime()));
-    const maxUpdatedAt = Math.max(...g.shifts.map((s) => s.updatedAt.getTime()));
+    const editedTimes = g.shifts
+      .map((s) => (s.editedAt ? s.editedAt.getTime() : null))
+      .filter((t): t is number => t !== null);
+    const maxEditedAt = editedTimes.length > 0 ? Math.max(...editedTimes) : undefined;
+    const editorShift = g.shifts.find((s) => s.editedBy && s.editedAt && s.editedAt.getTime() === maxEditedAt);
+    const editorName = editorShift?.editedBy
+      ? editorShift.editedBy.fullName || editorShift.editedBy.email
+      : undefined;
 
     return {
       key: g.key,
@@ -168,10 +181,11 @@ export async function OrdersListContent({
       isPartiallyConfirmed,
       timestamp: first.shiftDate.getTime(),
       createdAt: minCreatedAt,
-      updatedAt: maxUpdatedAt,
+      editedAt: maxEditedAt,
       creatorName: first.createdBy
         ? first.createdBy.fullName || first.createdBy.email
         : undefined,
+      editorName,
     };
   });
 

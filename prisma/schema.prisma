@@ -200,6 +200,7 @@ model User {
   createdBy     User?   @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers  User[]  @relation("UserCreatedBy")
   createdOrders Order[] @relation("OrderCreatedBy")
+  editedOrders  Order[] @relation("OrderEditedBy")
   outgoingEmails OutgoingEmail[]
 
   @@map("users")
@@ -410,10 +411,13 @@ model Order {
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
   createdById           String?     @map("created_by")
+  editedAt              DateTime?   @map("edited_at")
+  editedById            String?     @map("edited_by")
 
   client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   assignments Assignment[]
   createdBy   User?        @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  editedBy    User?        @relation("OrderEditedBy", fields: [editedById], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([shiftDate])

@@ -14,6 +14,8 @@ import {
   Paperclip,
   Eye,
   RotateCw,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   EmailPreviewModal,
@@ -33,6 +35,8 @@ export function EmailLogTable({ rows }: { rows: OutgoingEmailItem[] }) {
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [selectedEmail, setSelectedEmail] = useState<OutgoingEmailItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -50,6 +54,15 @@ export function EmailLogTable({ rows }: { rows: OutgoingEmailItem[] }) {
       return hay.includes(q);
     });
   }, [rows, query, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / (pageSize || filtered.length || 1)));
+  const effectivePage = Math.min(currentPage, totalPages);
+
+  const paginatedRows = useMemo(() => {
+    if (pageSize === 0) return filtered;
+    const start = (effectivePage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, effectivePage, pageSize]);
 
   function handleOpenPreview(email: OutgoingEmailItem) {
     setSelectedEmail(email);
@@ -191,7 +204,10 @@ export function EmailLogTable({ rows }: { rows: OutgoingEmailItem[] }) {
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder={t("searchPlaceholder")}
             className="ps-9"
           />
@@ -209,7 +225,10 @@ export function EmailLogTable({ rows }: { rows: OutgoingEmailItem[] }) {
               type="button"
               size="sm"
               variant={statusFilter === f.id ? "default" : "outline"}
-              onClick={() => setStatusFilter(f.id)}
+              onClick={() => {
+                setStatusFilter(f.id);
+                setCurrentPage(1);
+              }}
               className="text-xs h-8"
             >
               {f.label}
@@ -221,10 +240,73 @@ export function EmailLogTable({ rows }: { rows: OutgoingEmailItem[] }) {
       {/* Table */}
       <ResponsiveTable
         columns={columns}
-        rows={filtered}
+        rows={paginatedRows}
         getRowKey={(r) => r.id}
         empty={t("emptyState")}
       />
+
+      {/* Pagination & Results Count */}
+      {filtered.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span>
+              {t("showingResults", {
+                from: pageSize === 0 ? 1 : (effectivePage - 1) * pageSize + 1,
+                to: pageSize === 0 ? filtered.length : Math.min(effectivePage * pageSize, filtered.length),
+                total: filtered.length,
+              })}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span>{t("perPage")}:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+                <option value={500}>500</option>
+                <option value={0}>{t("all")}</option>
+              </select>
+            </div>
+
+            {pageSize > 0 && totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={effectivePage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="h-8 px-2 gap-1"
+                >
+                  <ChevronLeft className="size-3.5 rtl:rotate-180" />
+                  <span className="hidden sm:inline">{t("prev")}</span>
+                </Button>
+                <span className="px-2 font-medium text-foreground">
+                  {effectivePage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={effectivePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="h-8 px-2 gap-1"
+                >
+                  <span className="hidden sm:inline">{t("next")}</span>
+                  <ChevronRight className="size-3.5 rtl:rotate-180" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Preview Modal */}
       <EmailPreviewModal

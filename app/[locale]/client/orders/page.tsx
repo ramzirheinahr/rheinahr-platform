@@ -32,7 +32,9 @@ type Row = {
   requiredQualification: Qualification;
   status: OrderStatus;
   createdAt: Date;
+  editedAt: Date | null;
   createdBy: { fullName: string | null; email: string; role: string } | null;
+  editedBy: { fullName: string | null; email: string; role: string } | null;
 };
 
 async function getOrders(): Promise<{
@@ -83,7 +85,11 @@ async function getOrders(): Promise<{
         requiredQualification: true,
         status: true,
         createdAt: true,
+        editedAt: true,
         createdBy: {
+          select: { fullName: true, email: true, role: true },
+        },
+        editedBy: {
           select: { fullName: true, email: true, role: true },
         },
       },
@@ -136,6 +142,16 @@ export default async function ClientOrdersPage() {
     const hasUnconfirmed = g.shifts.some(s => s.status !== "confirmed" && s.status !== "cancelled");
     const isPartiallyConfirmed = hasConfirmed && hasUnconfirmed;
 
+    const minCreatedAt = Math.min(...g.shifts.map((s) => s.createdAt.getTime()));
+    const editedTimes = g.shifts
+      .map((s) => (s.editedAt ? s.editedAt.getTime() : null))
+      .filter((t): t is number => t !== null);
+    const maxEditedAt = editedTimes.length > 0 ? Math.max(...editedTimes) : undefined;
+    const editorShift = g.shifts.find((s) => s.editedBy && s.editedAt && s.editedAt.getTime() === maxEditedAt);
+    const editorName = editorShift?.editedBy
+      ? editorShift.editedBy.fullName || editorShift.editedBy.email
+      : undefined;
+
     return {
       key: g.key,
       facilityName: facilityName ?? "Client",
@@ -146,10 +162,13 @@ export default async function ClientOrdersPage() {
       qualification: first.requiredQualification,
       cancelled: g.shifts.every((s) => s.status === "cancelled"),
       isPartiallyConfirmed,
-      createdAt: first.createdAt.getTime(),
+      timestamp: first.shiftDate.getTime(),
+      createdAt: minCreatedAt,
+      editedAt: maxEditedAt,
       creatorName: first.createdBy
         ? first.createdBy.fullName || first.createdBy.email
         : undefined,
+      editorName,
     };
   });
 
