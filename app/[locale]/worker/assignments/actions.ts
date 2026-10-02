@@ -261,19 +261,19 @@ export async function respondAssignmentsBulk(
     // Wait for all promises in parallel
     const pushPromises: Promise<any>[] = [];
 
-    // Push to admins
+    // Push to admins (in-app only, no email)
     pushPromises.push(
       pushToUsers(
         admins.map((a) => a.id),
-        { title: "Einsätze bestätigt", body: `${workerName} hat ${acceptedShifts.length} Einsätze bestätigt.`, url: "/admin/orders", htmlBody: adminHtml },
+        { title: "Einsätze bestätigt", body: `${workerName} hat ${acceptedShifts.length} Einsätze bestätigt.`, url: "/admin/orders", htmlBody: adminHtml, skipEmail: true },
       )
     );
 
-    // Push to worker
+    // Push to worker (in-app only, no email to self)
     pushPromises.push(
       pushToUsers(
         [workerUserId],
-        { title: "Einsätze bestätigt", body: `Sie haben ${acceptedShifts.length} Einsätze bestätigt.`, url: workerShiftLink(), htmlBody: workerHtml },
+        { title: "Einsätze bestätigt", body: `Sie haben ${acceptedShifts.length} Einsätze bestätigt.`, url: workerShiftLink(), htmlBody: workerHtml, skipEmail: true },
       )
     );
 
@@ -568,11 +568,11 @@ export async function respondAssignment(
         : Promise.resolve(),
       pushToUsers(
         admins.map((a) => a.id),
-        { title: "Einsatz bestätigt", body, url: orderLink("admin", reqGroup), htmlBody: adminHtml },
+        { title: "Einsatz bestätigt", body, url: orderLink("admin", reqGroup), htmlBody: adminHtml, skipEmail: true },
       ),
       pushToUsers(
         [assignment.worker.userId],
-        { title: "Einsatz bestätigt", body, url: workerShiftLink(), htmlBody: workerHtml },
+        { title: "Einsatz bestätigt", body, url: workerShiftLink(), htmlBody: workerHtml, skipEmail: true },
       ),
       // Tell the workers who lost the offer that it's been filled.
       withdrawnUserIds.length
