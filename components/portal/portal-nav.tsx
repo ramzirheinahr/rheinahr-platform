@@ -18,6 +18,7 @@ import {
   CalendarCheck,
   Settings,
   Mail,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -55,6 +56,8 @@ const ICONS: Record<string, LucideIcon> = {
   appointments: CalendarCheck,
   settings: Settings,
   emails: Mail,
+  notebook: BookOpen,
+  book: BookOpen,
 };
 
 export function PortalNav({

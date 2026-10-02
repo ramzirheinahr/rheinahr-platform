@@ -5,7 +5,7 @@ import { MasterScheduleGrid } from "@/components/admin/master-schedule-grid";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { FileDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileDown, ChevronLeft, ChevronRight, BookOpen } from "lucide-react";
 import type { Qualification } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,7 @@ export default async function AdminMasterSchedulePage({
   const oq = await getTranslations("orderRequest");
   const cs = await getTranslations("clientSchedule");
   const eq = await getTranslations("enums.qualification");
+  const tb = await getTranslations("dailyNotebook");
 
   const now = new Date();
   let year = Number(sp.year) || now.getUTCFullYear();
@@ -68,6 +69,15 @@ export default async function AdminMasterSchedulePage({
           <p className="mt-0.5 text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            render={<Link href="/admin/schedule/book" />}
+          >
+            <BookOpen className="size-4" />
+            {tb("bookView")}
+          </Button>
           <Button
             variant="outline"
             size="sm"
