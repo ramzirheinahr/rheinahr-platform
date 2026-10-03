@@ -217,6 +217,29 @@
     "copyPin": "نسخ رمز PIN",
     "pinCopied": "تم نسخ رمز PIN."
   },
+  "pwa": {
+    "bannerTitle": "تثبيت التطبيق على الشاشة الرئيسية",
+    "bannerSubtitle": "وصول سريع وفوري للورديات والجداول والمستندات – تماماً كتطبيق حقيقي على هاتفك.",
+    "installButton": "تثبيت الآن",
+    "howToInstall": "طريقة التثبيت",
+    "dismiss": "لاحقاً",
+    "instructionsTitle": "كيفية تثبيت التطبيق على الهاتف",
+    "instructionsSubtitle": "اختر نظام هاتفك للحصول على خطوات سهلة ومباشرة.",
+    "iosTab": "آيفون / آيباد (سفاري)",
+    "androidTab": "أندرويد (كروم)",
+    "iosStep1": "اضغط على زر المشاركة أسفل الشاشة",
+    "iosStep2": "مرر لأسفل واضغط على",
+    "iosStep2Highlight": "«إضافة إلى الشاشة الرئيسية» (Add to Home Screen)",
+    "iosStep3": "اضغط في الزاوية العلوية على",
+    "iosStep3Highlight": "«إضافة» (Add)",
+    "androidStep1": "اضغط على القائمة (الثلاث نقاط) أعلى الشاشة",
+    "androidStep2": "اختر",
+    "androidStep2Highlight": "«تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»",
+    "androidStep3": "أكّد بالضغط على",
+    "androidStep3Highlight": "«تثبيت» (Install)",
+    "alreadyInstalled": "التطبيق مثبت بالفعل",
+    "gotIt": "حسناً، فهمت"
+  },
   "footer": {
     "imprint": "بيانات النشر",
     "privacy": "الخصوصية",
@@ -646,7 +669,9 @@
       "pflegefachkraft": "مؤهل رعاية",
       "pflegehelfer": "مساعد تمريض",
       "betreuungskraft": "مساعد/ة رعاية تمريضية (Pflegefachassistent*in)",
-      "pflegedienstleitung": "إدارة خدمة التمريض"
+      "pflegedienstleitung": "إدارة خدمة التمريض",
+      "kuechenhilfe": "مساعد مطبخ",
+      "hausmeister": "مشرف صيانة / خدمات عامة"
     },
     "contractType": {
       "unbefristet": "مفتوح (دائم)",
@@ -1350,7 +1375,22 @@
     "statusPending": "قيد الانتظار",
     "statusAccepted": "مؤكد",
     "statusDone": "منجز",
-    "statusSigned": "موقّع"
+    "statusSigned": "موقّع",
+    "availableWorkersTitle": "الكوادر المتاحة",
+    "availableShiftsLabel": "الورديات الممكنة",
+    "noAvailableWorkers": "لا توجد كوادر أخرى متاحة مسجلة لهذا اليوم.",
+    "onlyUnassignedFilter": "الكوادر غير المرتبطة فقط",
+    "allStaffFilter": "جميع الكوادر",
+    "acceptOnBehalf": "قبول الوردية نيابة عن الموظف",
+    "acceptOnBehalfSuccess": "تم تأكيد قبول الوردية نيابة عن الموظف بنجاح.",
+    "changeWorker": "تبديل الموظف",
+    "selectNewWorker": "اختر موظفاً بديلاً",
+    "workerReplaced": "تم استبدال الموظف بنجاح.",
+    "sendWhatsApp": "إرسال عبر الواتساب",
+    "freeAvailable": "متاح وغير مرتبط",
+    "alreadyAssigned": "مرتبط بوردية اليوم",
+    "contactWorker": "مراسلة",
+    "assignToShift": "إسناد وردية"
   },
   "contracts": {
     "title": "العقود",

@@ -54,6 +54,8 @@ const getQualificationText = (q: string) => {
     pflegehelfer: "Pflegehelfer/in",
     betreuungskraft: "Betreuungskraft / Pflegehilfskraft",
     pflegedienstleitung: "Pflegedienstleitung",
+    kuechenhilfe: "Küchenhilfe",
+    hausmeister: "Hausmeister",
   };
   return map[q] || q;
 };

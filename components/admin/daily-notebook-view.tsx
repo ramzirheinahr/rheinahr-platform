@@ -38,16 +38,24 @@ import {
   AlertCircle,
   HelpCircle,
   FileText,
+  MessageCircle,
+  RefreshCw,
+  UserCheck,
 } from "lucide-react";
 import {
   MORNING_SLOTS,
   AFTERNOON_SLOTS,
   type DailyNotebookData,
   type DailyNotebookShift,
+  type AvailableWorker,
   type MiniCalendarDay,
 } from "@/lib/daily-notebook";
 import { qualifications, type Qualification } from "@/lib/validations";
-import { saveDailyNote } from "@/app/[locale]/admin/schedule/book/actions";
+import {
+  saveDailyNote,
+  acceptAssignmentOnBehalfOfWorker,
+  replaceWorkerOnAssignment,
+} from "@/app/[locale]/admin/schedule/book/actions";
 import {
   candidatesForOrder,
   assignWorkerToOrder,
@@ -57,6 +65,36 @@ import {
 } from "@/app/[locale]/admin/schedule/actions";
 import { shiftLetterForStart, type ShiftKey } from "@/lib/master-schedule-core";
 import type { Candidate } from "@/lib/orders";
+
+function getShiftWhatsAppUrl(shift: DailyNotebookShift, dateStr: string) {
+  if (!shift.workerPhone) return "";
+  const cleanPhone = shift.workerPhone.replace(/[^\d+]/g, "").replace(/^\+/, "");
+  const [y, m, d] = dateStr.split("-");
+  const text =
+    `Hallo ${shift.workerName},\n\n` +
+    `Hier sind deine Einsatzdetails für den Dienst am ${d}.${m}.${y}:\n\n` +
+    `Einrichtung: ${shift.facilityName}\n` +
+    (shift.facilityAddress
+      ? `Adresse: ${shift.facilityAddress}\nKarte: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          shift.facilityAddress
+        )}\n`
+      : "") +
+    (shift.ward ? `Wohnbereich: ${shift.ward}\n` : "") +
+    `Uhrzeit: ${shift.startTime} - ${shift.endTime}` +
+    (shift.breakMinutes ? `\nPause: ${shift.breakMinutes} Min.` : "") +
+    `\n\nBitte bestätige kurz deinen Einsatz. Vielen Dank!\nRheinAhr Dienstleistungen GmbH`;
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+}
+
+function getWorkerWhatsAppUrl(w: { fullName: string; phone: string | null }, dateStr: string) {
+  if (!w.phone) return "";
+  const cleanPhone = w.phone.replace(/[^\d+]/g, "").replace(/^\+/, "");
+  const [y, m, d] = dateStr.split("-");
+  const text =
+    `Hallo ${w.fullName},\n\n` +
+    `Bist du heute am ${d}.${m}.${y} verfügbar für einen Einsatz?\n\nRheinAhr Dienstleistungen GmbH`;
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+}
 
 export function DailyNotebookView({
   data,
@@ -81,8 +119,23 @@ export function DailyNotebookView({
   const [noteContent, setNoteContent] = useState(data.dailyNote);
   const [isSavingNote, setIsSavingNote] = useState(false);
 
+  // Available workers filter toggle ("free" = only unassigned, "all" = all)
+  const [workerFilter, setWorkerFilter] = useState<"free" | "all">("free");
+
   // Selected shift for details modal
   const [selectedShift, setSelectedShift] = useState<DailyNotebookShift | null>(null);
+
+  // Accept on behalf of worker state
+  const [isAcceptingOnBehalf, setIsAcceptingOnBehalf] = useState(false);
+
+  // Change worker mode inside Shift Details modal
+  const [isChangingWorker, setIsChangingWorker] = useState(false);
+  const [changeCandidates, setChangeCandidates] = useState<Candidate[] | null>(null);
+  const [loadingChangeCandidates, setLoadingChangeCandidates] = useState(false);
+  const [replacingWorkerId, setReplacingWorkerId] = useState<string | null>(null);
+
+  // Assign available worker from right box to an open shift
+  const [workerToAssign, setWorkerToAssign] = useState<AvailableWorker | null>(null);
 
   // Unassigned shift selected for worker assignment modal
   const [assigningShift, setAssigningShift] = useState<DailyNotebookShift | null>(null);
@@ -133,6 +186,20 @@ export function DailyNotebookView({
     });
   }, [filteredShifts]);
 
+  // Unassigned shifts on this day
+  const unassignedShiftsList = useMemo(() => {
+    return data.shifts.filter((s) => s.isUnassigned);
+  }, [data.shifts]);
+
+  // Filter available workers for the right column box
+  const filteredAvailableWorkers = useMemo(() => {
+    const list = data.availableWorkers || [];
+    if (workerFilter === "free") {
+      return list.filter((w) => w.status === "free");
+    }
+    return list;
+  }, [data.availableWorkers, workerFilter]);
+
   // Handle open candidate modal
   async function handleOpenCandidateModal(shift: DailyNotebookShift) {
     setAssigningShift(shift);
@@ -167,10 +234,49 @@ export function DailyNotebookView({
           router.refresh();
         });
       } else {
-        if (res.error === "busy") {
-          toast.warning(tm("busyWarning"));
-        } else if (res.error === "unavailable") {
-          toast.warning(tm("unavailableWarning"));
+        if (res.error === "busy" || res.error === "unavailable") {
+          toast.warning(
+            res.error === "busy" ? tm("busyWarning") : tm("unavailableWarning"),
+            {
+              action: {
+                label: tm("forceAssign"),
+                onClick: () => handleAssignWorker(workerId, true),
+              },
+            }
+          );
+        } else {
+          toast.error(tm("saveError"));
+        }
+      }
+    } catch {
+      toast.error(tm("saveError"));
+    } finally {
+      setAssigningWorkerId(null);
+    }
+  }
+
+  // Handle assign available worker to an open shift
+  async function handleAssignWorkerToOpenShift(workerId: string, orderId: string, force = true) {
+    setAssigningWorkerId(workerId);
+    try {
+      const res = await assignWorkerToOrder(orderId, workerId, force);
+      if (res.ok) {
+        toast.success(tm("assigned"));
+        setWorkerToAssign(null);
+        startTransition(() => {
+          router.refresh();
+        });
+      } else {
+        if (res.error === "busy" || res.error === "unavailable") {
+          toast.warning(
+            res.error === "busy" ? tm("busyWarning") : tm("unavailableWarning"),
+            {
+              action: {
+                label: tm("forceAssign"),
+                onClick: () => handleAssignWorkerToOpenShift(workerId, orderId, true),
+              },
+            }
+          );
         } else {
           toast.error(tm("saveError"));
         }
@@ -197,6 +303,83 @@ export function DailyNotebookView({
       }
     } catch {
       toast.error(tm("saveError"));
+    }
+  }
+
+  // Handle accept assignment on behalf of worker immediately
+  async function handleAcceptOnBehalf() {
+    if (!selectedShift?.assignmentId) return;
+    setIsAcceptingOnBehalf(true);
+    try {
+      const res = await acceptAssignmentOnBehalfOfWorker(selectedShift.assignmentId);
+      if (res.ok) {
+        toast.success(t("acceptOnBehalfSuccess"));
+        setSelectedShift((prev) => (prev ? { ...prev, status: "confirmed" } : null));
+        startTransition(() => {
+          router.refresh();
+        });
+      } else {
+        toast.error(tm("saveError"));
+      }
+    } catch {
+      toast.error(tm("saveError"));
+    } finally {
+      setIsAcceptingOnBehalf(false);
+    }
+  }
+
+  // Handle opening change worker mode
+  async function openChangeWorkerMode() {
+    if (!selectedShift) return;
+    setIsChangingWorker(true);
+    setChangeCandidates(null);
+    setLoadingChangeCandidates(true);
+    try {
+      const res = await candidatesForOrder(selectedShift.orderId);
+      if (res.ok) {
+        setChangeCandidates(res.candidates.filter((c) => c.workerId !== selectedShift.workerId));
+      } else {
+        setChangeCandidates([]);
+      }
+    } catch {
+      setChangeCandidates([]);
+    } finally {
+      setLoadingChangeCandidates(false);
+    }
+  }
+
+  // Handle replacing worker on existing assignment
+  async function handleReplaceWorker(newWorkerId: string, force = false) {
+    if (!selectedShift?.assignmentId) return;
+    setReplacingWorkerId(newWorkerId);
+    try {
+      const res = await replaceWorkerOnAssignment(selectedShift.assignmentId, newWorkerId, force);
+      if (res.ok) {
+        toast.success(t("workerReplaced"));
+        setIsChangingWorker(false);
+        setSelectedShift(null);
+        startTransition(() => {
+          router.refresh();
+        });
+      } else {
+        if (res.error === "busy" || res.error === "unavailable") {
+          toast.warning(
+            res.error === "busy" ? tm("busyWarning") : tm("unavailableWarning"),
+            {
+              action: {
+                label: tm("forceAssign"),
+                onClick: () => handleReplaceWorker(newWorkerId, true),
+              },
+            }
+          );
+        } else {
+          toast.error(tm("saveError"));
+        }
+      }
+    } catch {
+      toast.error(tm("saveError"));
+    } finally {
+      setReplacingWorkerId(null);
     }
   }
 
@@ -273,7 +456,6 @@ export function DailyNotebookView({
   function openAddShiftAtSlot(slot: string) {
     setNewShiftSlot(slot);
     setNewShiftStartTime(slot);
-    // default 8 hours later
     const [h, m] = slot.split(":").map(Number);
     const endH = (h + 8) % 24;
     setNewShiftEndTime(`${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
@@ -552,7 +734,10 @@ export function DailyNotebookView({
                     key={slot}
                     slot={slot}
                     shifts={shifts}
-                    onShiftClick={(shift) => setSelectedShift(shift)}
+                    onShiftClick={(shift) => {
+                      setSelectedShift(shift);
+                      setIsChangingWorker(false);
+                    }}
                     onAssignClick={(shift) => handleOpenCandidateModal(shift)}
                     onAddSlotClick={() => openAddShiftAtSlot(slot)}
                     assignLabel={t("assignWorker")}
@@ -562,23 +747,176 @@ export function DailyNotebookView({
               })}
             </div>
 
-            {/* RIGHT COLUMN: Afternoon to Evening (13:00 to 19:45) */}
-            <div className="divide-y divide-slate-200/90 md:ps-2">
-              {AFTERNOON_SLOTS.map((slot) => {
-                const shifts = shiftsBySlot[slot] || [];
-                return (
-                  <NotebookSlotRow
-                    key={slot}
-                    slot={slot}
-                    shifts={shifts}
-                    onShiftClick={(shift) => setSelectedShift(shift)}
-                    onAssignClick={(shift) => handleOpenCandidateModal(shift)}
-                    onAddSlotClick={() => openAddShiftAtSlot(slot)}
-                    assignLabel={t("assignWorker")}
-                    unassignedLabel={t("unassignedBadge")}
-                  />
-                );
-              })}
+            {/* RIGHT COLUMN: Afternoon to Evening (13:00 to 19:45) + AVAILABLE WORKERS BOX */}
+            <div className="flex flex-col justify-between divide-y divide-slate-200/90 md:ps-2">
+              <div className="divide-y divide-slate-200/90">
+                {AFTERNOON_SLOTS.map((slot) => {
+                  const shifts = shiftsBySlot[slot] || [];
+                  return (
+                    <NotebookSlotRow
+                      key={slot}
+                      slot={slot}
+                      shifts={shifts}
+                      onShiftClick={(shift) => {
+                        setSelectedShift(shift);
+                        setIsChangingWorker(false);
+                      }}
+                      onAssignClick={(shift) => handleOpenCandidateModal(shift)}
+                      onAddSlotClick={() => openAddShiftAtSlot(slot)}
+                      assignLabel={t("assignWorker")}
+                      unassignedLabel={t("unassignedBadge")}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* ─────────────────────────────────────────────────────────
+                  AVAILABLE WORKERS SECTION (Verfügbare Mitarbeiter)
+                  Matches the user request & red-circled area in image 1!
+                 ───────────────────────────────────────────────────────── */}
+              <div className="mt-4 rounded-xl border border-slate-300/80 bg-white/80 p-3 shadow-xs">
+                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-1 border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <User className="size-4 text-slate-700" />
+                    <span className="font-sans text-xs font-bold text-slate-800">
+                      {t("availableWorkersTitle")}
+                    </span>
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {filteredAvailableWorkers.length}
+                    </Badge>
+                  </div>
+
+                  {/* Filter toggle */}
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setWorkerFilter("free")}
+                      className={cn(
+                        "rounded px-2 py-0.5 font-semibold transition-colors",
+                        workerFilter === "free"
+                          ? "bg-slate-800 text-white shadow-xs"
+                          : "text-slate-600 hover:bg-slate-100"
+                      )}
+                    >
+                      {t("onlyUnassignedFilter")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkerFilter("all")}
+                      className={cn(
+                        "rounded px-2 py-0.5 font-semibold transition-colors",
+                        workerFilter === "all"
+                          ? "bg-slate-800 text-white shadow-xs"
+                          : "text-slate-600 hover:bg-slate-100"
+                      )}
+                    >
+                      {t("allStaffFilter")}
+                    </button>
+                  </div>
+                </div>
+
+                {filteredAvailableWorkers.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-slate-400">
+                    {t("noAvailableWorkers")}
+                  </p>
+                ) : (
+                  <div className="max-h-72 space-y-1.5 overflow-y-auto pe-1">
+                    {filteredAvailableWorkers.map((w) => {
+                      const isFree = w.status === "free";
+                      const waUrl = getWorkerWhatsAppUrl(w, data.dateStr);
+
+                      return (
+                        <div
+                          key={w.id}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-slate-200/90 bg-white p-2 text-xs transition-colors hover:bg-slate-50"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-serif font-bold text-slate-900 truncate">
+                                {w.fullName}
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-500">
+                                [{w.qualification === "pflegefachkraft" ? "PFK" : w.qualification === "pflegehelfer" ? "PH" : w.qualification === "kuechenhilfe" ? "KH" : w.qualification === "hausmeister" ? "HM" : "BK"}]
+                              </span>
+                            </div>
+
+                            {/* Possible Shift Badges (F / S / N) */}
+                            <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                              <span className="text-slate-500 font-medium">
+                                {t("availableShiftsLabel")}:
+                              </span>
+                              {w.availLetters === "Urlaub" ? (
+                                <Badge variant="outline" className="text-[10px] text-amber-700 bg-amber-50">
+                                  Urlaub
+                                </Badge>
+                              ) : w.availLetters === "OFF" ? (
+                                <Badge variant="outline" className="text-[10px] text-slate-500 bg-slate-50">
+                                  OFF
+                                </Badge>
+                              ) : (
+                                <>
+                                  {w.availLetters.includes("F") && (
+                                    <span className="rounded bg-blue-100 px-1 py-0.2 font-mono font-bold text-blue-900 border border-blue-300">
+                                      F
+                                    </span>
+                                  )}
+                                  {w.availLetters.includes("S") && (
+                                    <span className="rounded bg-amber-100 px-1 py-0.2 font-mono font-bold text-amber-900 border border-amber-300">
+                                      S
+                                    </span>
+                                  )}
+                                  {w.availLetters.includes("N") && (
+                                    <span className="rounded bg-indigo-100 px-1 py-0.2 font-mono font-bold text-indigo-900 border border-indigo-300">
+                                      N
+                                    </span>
+                                  )}
+                                  {!w.availLetters && (
+                                    <span className="text-slate-400 font-sans">
+                                      (Keine Angabe)
+                                    </span>
+                                  )}
+                                </>
+                              )}
+
+                              {!isFree && w.currentShiftLabel && (
+                                <span className="ms-1 text-slate-500 italic truncate max-w-[150px]">
+                                  • {w.currentShiftLabel}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Actions: WhatsApp icon & Quick assign */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {waUrl && (
+                              <a
+                                href={waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex size-7 items-center justify-center rounded-md bg-[#25D366] text-white shadow-xs hover:bg-[#20b858]"
+                                title={t("sendWhatsApp")}
+                              >
+                                <MessageCircle className="size-3.5" />
+                              </a>
+                            )}
+
+                            {isFree && unassignedShiftsList.length > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px] px-2 font-medium"
+                                onClick={() => setWorkerToAssign(w)}
+                              >
+                                + {t("assignToShift")}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -657,7 +995,10 @@ export function DailyNotebookView({
                           size="sm"
                           variant="ghost"
                           className="h-6 text-[11px]"
-                          onClick={() => setSelectedShift(shift)}
+                          onClick={() => {
+                            setSelectedShift(shift);
+                            setIsChangingWorker(false);
+                          }}
                         >
                           {t("shiftDetails")}
                         </Button>
@@ -787,16 +1128,24 @@ export function DailyNotebookView({
                         </div>
                       </div>
 
-                      <Button
-                        size="sm"
-                        variant={isBusy ? "outline" : "default"}
-                        className="h-7 shrink-0 text-xs gap-1"
-                        disabled={assigningWorkerId === cand.workerId}
-                        onClick={() => handleAssignWorker(cand.workerId, isBusy)}
-                      >
-                        {isBusy && <AlertCircle className="size-3 text-amber-600" />}
-                        {isBusy ? tm("forceAssign") : tm("assign")}
-                      </Button>
+                      {(() => {
+                        const needsOverride = cand.status !== "available";
+                        return (
+                          <Button
+                            size="sm"
+                            variant={needsOverride ? "outline" : "default"}
+                            className={cn(
+                              "h-7 shrink-0 text-xs gap-1",
+                              needsOverride && "border-amber-400 text-amber-800 hover:bg-amber-50"
+                            )}
+                            disabled={assigningWorkerId === cand.workerId}
+                            onClick={() => handleAssignWorker(cand.workerId, needsOverride)}
+                          >
+                            {needsOverride && <AlertCircle className="size-3 text-amber-600" />}
+                            {needsOverride ? tm("forceAssign") : tm("assign")}
+                          </Button>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -808,10 +1157,19 @@ export function DailyNotebookView({
 
       {/* ─────────────────────────────────────────────────────────────
           DIALOG 2: SHIFT DETAILS (ASSIGNED SHIFT)
+          Includes:
+          - WhatsApp button with WhatsApp icon
+          - Accept on behalf of worker immediately
+          - Replace / swap worker
          ───────────────────────────────────────────────────────────── */}
       <Dialog
         open={selectedShift !== null}
-        onOpenChange={(open) => !open && setSelectedShift(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedShift(null);
+            setIsChangingWorker(false);
+          }
+        }}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -828,7 +1186,7 @@ export function DailyNotebookView({
 
           {selectedShift && (
             <div className="space-y-3 py-2 text-xs">
-              <div className="rounded-lg border bg-muted/30 p-2.5 space-y-1.5">
+              <div className="rounded-lg border bg-muted/30 p-2.5 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{t("facility")}:</span>
                   <span className="font-semibold text-foreground text-end">{selectedShift.facilityName}</span>
@@ -852,22 +1210,50 @@ export function DailyNotebookView({
                   </span>
                 </div>
                 {selectedShift.workerPhone && (
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Telefon:</span>
-                    <a href={`tel:${selectedShift.workerPhone}`} className="text-primary hover:underline">
-                      {selectedShift.workerPhone}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a href={`tel:${selectedShift.workerPhone}`} className="text-primary hover:underline">
+                        {selectedShift.workerPhone}
+                      </a>
+                      {/* WhatsApp Button next to phone number */}
+                      <a
+                        href={getShiftWhatsAppUrl(selectedShift, data.dateStr)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded bg-[#25D366] px-2 py-0.5 text-[11px] font-semibold text-white shadow-xs hover:bg-[#20b858]"
+                        title={t("sendWhatsApp")}
+                      >
+                        <MessageCircle className="size-3.5" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
                   </div>
                 )}
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Status:</span>
-                  <Badge variant="outline" className="text-[10px]">
-                    {selectedShift.clientConfirmed
-                      ? t("statusSigned")
-                      : selectedShift.status === "confirmed"
-                      ? t("statusAccepted")
-                      : t("statusPending")}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px]">
+                      {selectedShift.clientConfirmed
+                        ? t("statusSigned")
+                        : selectedShift.status === "confirmed"
+                        ? t("statusAccepted")
+                        : t("statusPending")}
+                    </Badge>
+
+                    {/* Accept on behalf of worker immediately if pending */}
+                    {!selectedShift.clientConfirmed && selectedShift.status === "pending" && (
+                      <Button
+                        size="sm"
+                        className="h-6 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] gap-1 px-2"
+                        disabled={isAcceptingOnBehalf}
+                        onClick={handleAcceptOnBehalf}
+                      >
+                        <CheckCircle2 className="size-3" />
+                        {t("acceptOnBehalf")}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -879,45 +1265,199 @@ export function DailyNotebookView({
                   )}
                 </div>
               )}
+
+              {/* ─────────────────────────────────────────────────────
+                  CHANGE / SWAP WORKER MODE
+                 ───────────────────────────────────────────────────── */}
+              {isChangingWorker && (
+                <div className="rounded-lg border border-primary/40 bg-card p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-foreground">
+                      {t("selectNewWorker")}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 px-1.5 text-[10px]"
+                      onClick={() => setIsChangingWorker(false)}
+                    >
+                      Abbrechen
+                    </Button>
+                  </div>
+
+                  {loadingChangeCandidates ? (
+                    <p className="py-2 text-center text-xs text-muted-foreground">
+                      {tm("candAvailable")}...
+                    </p>
+                  ) : !changeCandidates || changeCandidates.length === 0 ? (
+                    <p className="py-2 text-center text-xs text-muted-foreground">
+                      {tm("noCandidates")}
+                    </p>
+                  ) : (
+                    <div className="max-h-48 space-y-1 overflow-y-auto">
+                      {changeCandidates.map((cand) => {
+                        const badge = candidateStatusBadge[cand.status];
+                        const needsOverride = cand.status !== "available";
+                        return (
+                          <div
+                            key={cand.workerId}
+                            className="flex items-center justify-between gap-2 rounded border p-1.5 text-xs"
+                          >
+                            <div className="min-w-0">
+                              <span className="font-medium truncate block">{cand.fullName}</span>
+                              <Badge className={cn("text-[9px] px-1 py-0", badge.cls)}>
+                                {badge.label}
+                              </Badge>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={needsOverride ? "outline" : "default"}
+                              className={cn(
+                                "h-6 text-[10px] px-2 gap-1",
+                                needsOverride && "border-amber-400 text-amber-800 hover:bg-amber-50"
+                              )}
+                              disabled={replacingWorkerId === cand.workerId}
+                              onClick={() => handleReplaceWorker(cand.workerId, needsOverride)}
+                            >
+                              {needsOverride && <AlertCircle className="size-3 text-amber-600 me-0.5" />}
+                              {needsOverride ? tm("forceAssign") : tm("assign")}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            {selectedShift?.assignmentId && !selectedShift.clientConfirmed && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs text-amber-700 hover:text-amber-800"
-                onClick={() => handleUnassign(selectedShift.assignmentId!)}
-              >
-                <UserMinus className="size-3.5" />
-                {t("unassignWorker")}
-              </Button>
-            )}
-            {selectedShift?.assignmentId && (
-              <Button
-                variant="destructive"
-                size="sm"
-                className="gap-1.5 text-xs"
-                onClick={() => handleDeleteShift(selectedShift.assignmentId!)}
-              >
-                <Trash2 className="size-3.5" />
-                {t("deleteShift")}
-              </Button>
-            )}
+          <DialogFooter className="flex-wrap gap-2 justify-between">
+            <div className="flex items-center gap-1.5">
+              {/* WhatsApp Button */}
+              {selectedShift?.workerPhone && (
+                <a
+                  href={getShiftWhatsAppUrl(selectedShift, data.dateStr)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#20b858]"
+                >
+                  <MessageCircle className="size-4" />
+                  <span>{t("sendWhatsApp")}</span>
+                </a>
+              )}
+
+              {/* Swap Worker Button */}
+              {selectedShift?.assignmentId && !selectedShift.clientConfirmed && !isChangingWorker && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  onClick={openChangeWorkerMode}
+                >
+                  <RefreshCw className="size-3.5" />
+                  {t("changeWorker")}
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {selectedShift?.assignmentId && !selectedShift.clientConfirmed && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs text-amber-700 hover:text-amber-800"
+                  onClick={() => handleUnassign(selectedShift.assignmentId!)}
+                >
+                  <UserMinus className="size-3.5" />
+                  {t("unassignWorker")}
+                </Button>
+              )}
+              {selectedShift?.assignmentId && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  onClick={() => handleDeleteShift(selectedShift.assignmentId!)}
+                >
+                  <Trash2 className="size-3.5" />
+                  {t("deleteShift")}
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ─────────────────────────────────────────────────────────────
-          DIALOG 3: ADD NEW SHIFT / OPEN ORDER
+          DIALOG 3: ASSIGN AVAILABLE WORKER TO AN OPEN SHIFT
+         ───────────────────────────────────────────────────────────── */}
+      <Dialog
+        open={workerToAssign !== null}
+        onOpenChange={(open) => !open && setWorkerToAssign(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="size-4" />
+              <span>
+                {t("assignToShift")}: {workerToAssign?.fullName}
+              </span>
+            </DialogTitle>
+            <DialogDescription>
+              Wählen Sie den offenen Dienst, dem dieser Mitarbeiter zugewiesen werden soll.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            {unassignedShiftsList.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{t("noShiftsForDay")}</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {unassignedShiftsList.map((shift) => (
+                  <div
+                    key={shift.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border p-2.5 text-xs"
+                  >
+                    <div>
+                      <div className="font-semibold text-foreground">
+                        {shift.facilityName}
+                        {shift.ward ? ` (${shift.ward})` : ""}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {shift.startTime}–{shift.endTime} · {eq(shift.requiredQualification)}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={assigningWorkerId === workerToAssign?.id}
+                      onClick={() =>
+                        workerToAssign &&
+                        handleAssignWorkerToOpenShift(workerToAssign.id, shift.orderId)
+                      }
+                    >
+                      {tm("assign")}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─────────────────────────────────────────────────────────────
+          DIALOG 4: ADD NEW SHIFT / OPEN ORDER
          ───────────────────────────────────────────────────────────── */}
       <Dialog open={isAddingShift} onOpenChange={setIsAddingShift}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plus className="size-4" />
-              <span>{t("addShift")} ({newShiftSlot})</span>
+              <span>
+                {t("addShift")} ({newShiftSlot})
+              </span>
             </DialogTitle>
             <DialogDescription>
               {t("quickAddSlot", { time: newShiftSlot })} · {data.dateStr}
@@ -961,7 +1501,9 @@ export function DailyNotebookView({
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block font-medium text-foreground">{t("breakTime")} (Min.)</label>
+                <label className="mb-1 block font-medium text-foreground">
+                  {t("breakTime")} (Min.)
+                </label>
                 <Input
                   type="number"
                   min="0"
@@ -1105,7 +1647,7 @@ function NotebookSlotRow({
                   {/* Qualification Tag */}
                   {shift.workerQualification && (
                     <span className="font-mono text-[10px] text-blue-800">
-                      [{shift.workerQualification === "pflegefachkraft" ? "PFK" : "PH"}]
+                      [{shift.workerQualification === "pflegefachkraft" ? "PFK" : shift.workerQualification === "pflegehelfer" ? "PH" : shift.workerQualification === "kuechenhilfe" ? "KH" : shift.workerQualification === "hausmeister" ? "HM" : "BK"}]
                     </span>
                   )}
 

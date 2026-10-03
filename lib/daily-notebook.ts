@@ -1,6 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import type { Qualification } from "@/lib/validations";
-import { shiftLetterForStart } from "@/lib/master-schedule-core";
+import { shiftLetterForStart, availabilityLetters } from "@/lib/master-schedule-core";
+
+export type AvailableWorker = {
+  id: string;
+  fullName: string;
+  internalNumber: string | null;
+  qualification: string;
+  phone: string | null;
+  availLetters: string; // e.g. "F", "S", "N", "FSN", "OFF", "Urlaub"
+  hasBlocks: boolean;
+  status: "free" | "busy" | "leave" | "off";
+  currentShiftLabel?: string;
+};
 
 export type DailyNotebookShift = {
   id: string; // assignmentId or orderId-index for unassigned
@@ -73,6 +85,7 @@ export type DailyNotebookData = {
   dailyNote: string;
   miniCalendars: [MiniCalendarMonth, MiniCalendarMonth, MiniCalendarMonth];
   facilities: { id: string; shortCode: string | null; facilityName: string; address: string | null }[];
+  availableWorkers: AvailableWorker[];
 };
 
 // Standard German 15-minute time slots as seen in the physical diary
@@ -240,7 +253,7 @@ export async function getDailyNotebook(
   // Qualification filter condition
   const qualificationWhere = qualificationFilter && qualificationFilter !== "all"
     ? qualificationFilter === "betreuungskraft"
-      ? { requiredQualification: { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung"] } }
+      ? { requiredQualification: { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung", "kuechenhilfe", "hausmeister"] } }
       : { requiredQualification: qualificationFilter }
     : {};
 
@@ -248,7 +261,8 @@ export async function getDailyNotebook(
   // 1. Orders on that day (including client and assignments)
   // 2. Active facilities
   // 3. Saved daily note in SystemSetting
-  const [orders, facilities, noteSetting] = await Promise.all([
+  // 4. Workers and their availability on that day
+  const [orders, facilities, noteSetting, workersList] = await Promise.all([
     prisma.order.findMany({
       where: {
         shiftDate: { gte: dayDate, lt: nextDayDate },
@@ -300,6 +314,54 @@ export async function getDailyNotebook(
     prisma.systemSetting.findUnique({
       where: { key: `daily_note_${validDateStr}` },
       select: { value: true },
+    }),
+    prisma.worker.findMany({
+      where: {
+        user: { active: true },
+        ...(qualificationFilter && qualificationFilter !== "all"
+          ? qualificationFilter === "betreuungskraft"
+            ? { qualification: { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung", "kuechenhilfe", "hausmeister"] } }
+            : { qualification: qualificationFilter }
+          : {}),
+      },
+      orderBy: { fullName: "asc" },
+      select: {
+        id: true,
+        internalNumber: true,
+        fullName: true,
+        phone: true,
+        qualification: true,
+        availability: {
+          where: { date: { gte: dayDate, lt: nextDayDate } },
+          select: { startTime: true, endTime: true, status: true },
+        },
+        assignments: {
+          where: {
+            status: { not: "declined" },
+            order: {
+              shiftDate: { gte: dayDate, lt: nextDayDate },
+              status: { not: "cancelled" },
+            },
+          },
+          select: {
+            id: true,
+            status: true,
+            order: {
+              select: {
+                startTime: true,
+                endTime: true,
+                client: { select: { facilityName: true } },
+              },
+            },
+          },
+        },
+        leaveRequests: {
+          where: {
+            days: { some: { date: { gte: dayDate, lt: nextDayDate }, status: "approved" } },
+          },
+          select: { id: true },
+        },
+      },
     }),
   ]);
 
@@ -392,6 +454,40 @@ export async function getDailyNotebook(
   const assignedCount = shifts.filter((s) => !s.isUnassigned).length;
   const unassignedCount = shifts.filter((s) => s.isUnassigned).length;
 
+  const availableWorkers: AvailableWorker[] = workersList.map((w) => {
+    let availLetters = "";
+    let status: "free" | "busy" | "leave" | "off" = "free";
+    let currentShiftLabel: string | undefined = undefined;
+
+    if (w.leaveRequests.length > 0) {
+      status = "leave";
+      availLetters = "Urlaub";
+    } else if (w.availability.some((b) => b.status === "unavailable")) {
+      status = "off";
+      availLetters = "OFF";
+    } else if (w.availability.length > 0) {
+      availLetters = availabilityLetters(w.availability);
+    }
+
+    if (w.assignments.length > 0) {
+      status = "busy";
+      const a = w.assignments[0];
+      currentShiftLabel = `${a.order.startTime}–${a.order.endTime} (${a.order.client.facilityName})`;
+    }
+
+    return {
+      id: w.id,
+      fullName: w.fullName,
+      internalNumber: w.internalNumber,
+      qualification: w.qualification,
+      phone: w.phone,
+      availLetters,
+      hasBlocks: w.availability.length > 0,
+      status,
+      currentShiftLabel,
+    };
+  });
+
   // Mini calendars: Month - 1, Month, Month + 1
   const prevMonthDate = new Date(Date.UTC(year, month - 2, 1));
   const nextMonthDate = new Date(Date.UTC(year, month, 1));
@@ -426,5 +522,6 @@ export async function getDailyNotebook(
     dailyNote: noteSetting?.value || "",
     miniCalendars,
     facilities,
+    availableWorkers,
   };
 }

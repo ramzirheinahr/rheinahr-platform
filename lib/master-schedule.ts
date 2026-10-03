@@ -39,7 +39,7 @@ export async function getMasterSchedule(
       where: {
         qualification:
           qualification === "betreuungskraft"
-            ? { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung"] }
+            ? { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung", "kuechenhilfe", "hausmeister"] }
             : qualification,
         user: { active: true },
       },
@@ -112,7 +112,7 @@ export async function getMasterSchedule(
       where: {
         requiredQualification:
           qualification === "betreuungskraft"
-            ? { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung"] }
+            ? { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung", "kuechenhilfe", "hausmeister"] }
             : qualification,
         shiftDate: { gte: monthStart, lt: monthEnd },
         status: { notIn: ["cancelled", "completed", "confirmed"] },

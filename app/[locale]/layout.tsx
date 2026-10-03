@@ -8,6 +8,7 @@ import NextTopLoader from "nextjs-toploader";
 import { Toaster } from "@/components/ui/sonner";
 import { CookieConsent } from "@/components/cookie-consent";
 import { PwaRegister } from "@/components/pwa-register";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { routing, localeDirection, type Locale } from "@/i18n/routing";
 import { getCompanyConfig } from "@/lib/config/company";
 
@@ -66,6 +67,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider>
           {children}
           <CookieConsent />
+          <PwaInstallPrompt />
         </NextIntlClientProvider>
         <Toaster richColors position={dir === "rtl" ? "bottom-left" : "bottom-right"} />
         <PwaRegister />

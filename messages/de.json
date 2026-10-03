@@ -215,6 +215,29 @@
     "copyPin": "PIN kopieren",
     "pinCopied": "PIN kopiert."
   },
+  "pwa": {
+    "bannerTitle": "App auf dem Startbildschirm installieren",
+    "bannerSubtitle": "Schneller Zugriff auf Einsätze, Dienstpläne und Dokumente – wie eine echte App.",
+    "installButton": "Jetzt installieren",
+    "howToInstall": "Anleitung anzeigen",
+    "dismiss": "Später",
+    "instructionsTitle": "So installieren Sie die App",
+    "instructionsSubtitle": "Wählen Sie Ihr Smartphone-System für eine einfache Schritt-für-Schritt-Anleitung.",
+    "iosTab": "iPhone / iPad (Safari)",
+    "androidTab": "Android (Chrome)",
+    "iosStep1": "Tippen Sie unten in der Leiste auf das Teilen-Symbol",
+    "iosStep2": "Scrollen Sie nach unten und tippen Sie auf",
+    "iosStep2Highlight": "„Zum Home-Bildschirm“",
+    "iosStep3": "Tippen Sie oben rechts auf",
+    "iosStep3Highlight": "„Hinzufügen“",
+    "androidStep1": "Tippen Sie oben rechts auf das Dreipunkt-Menü",
+    "androidStep2": "Wählen Sie",
+    "androidStep2Highlight": "„App installieren“ oder „Zum Startbildschirm hinzufügen“",
+    "androidStep3": "Bestätigen Sie mit",
+    "androidStep3Highlight": "„Installieren“",
+    "alreadyInstalled": "App ist bereits installiert",
+    "gotIt": "Verstanden"
+  },
   "footer": {
     "imprint": "Impressum",
     "privacy": "Datenschutz",
@@ -644,7 +667,9 @@
       "pflegefachkraft": "Pflegefachkraft",
       "pflegehelfer": "Pflegehilfskraft",
       "betreuungskraft": "Pflegefachassistent*in",
-      "pflegedienstleitung": "Pflegedienstleitung (PDL)"
+      "pflegedienstleitung": "Pflegedienstleitung (PDL)",
+      "kuechenhilfe": "Küchenhilfe",
+      "hausmeister": "Hausmeister"
     },
     "contractType": {
       "unbefristet": "Unbefristet",
@@ -1348,7 +1373,22 @@
     "statusPending": "Ausstehend",
     "statusAccepted": "Bestätigt",
     "statusDone": "Geleistet",
-    "statusSigned": "Unterschrieben"
+    "statusSigned": "Unterschrieben",
+    "availableWorkersTitle": "Verfügbare Mitarbeiter",
+    "availableShiftsLabel": "Mögliche Schichten",
+    "noAvailableWorkers": "Keine weiteren verfügbaren Mitarbeiter für diesen Tag eingetragen.",
+    "onlyUnassignedFilter": "Nur freie Kräfte",
+    "allStaffFilter": "Alle Mitarbeiter",
+    "acceptOnBehalf": "Als Mitarbeiter annehmen",
+    "acceptOnBehalfSuccess": "Dienst wurde erfolgreich als angenommen bestätigt.",
+    "changeWorker": "Mitarbeiter wechseln",
+    "selectNewWorker": "Neuen Mitarbeiter auswählen",
+    "workerReplaced": "Mitarbeiter wurde erfolgreich gewechselt.",
+    "sendWhatsApp": "Per WhatsApp senden",
+    "freeAvailable": "Frei & verfügbar",
+    "alreadyAssigned": "Bereits im Dienst",
+    "contactWorker": "Kontaktieren",
+    "assignToShift": "Dienst zuweisen"
   },
   "contracts": {
     "title": "Verträge",

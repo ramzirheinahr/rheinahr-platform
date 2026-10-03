@@ -553,6 +553,28 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   defaultValue={initialWorker.hourlyRates?.pflegedienstleitung}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="rateKuechenhilfe">Küchenhilfe (€)</Label>
+                <Input
+                  id="rateKuechenhilfe"
+                  name="rateKuechenhilfe"
+                  type="number"
+                  step="0.01"
+                  placeholder="17.00"
+                  defaultValue={initialWorker.hourlyRates?.kuechenhilfe}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rateHausmeister">Hausmeister (€)</Label>
+                <Input
+                  id="rateHausmeister"
+                  name="rateHausmeister"
+                  type="number"
+                  step="0.01"
+                  placeholder="17.00"
+                  defaultValue={initialWorker.hourlyRates?.hausmeister}
+                />
+              </div>
             </div>
           </div>
         </CardContent>

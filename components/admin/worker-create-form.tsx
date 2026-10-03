@@ -321,6 +321,14 @@ export function WorkerCreateForm({
                 <Label htmlFor="ratePflegedienstleitung">PDL (€)</Label>
                 <Input id="ratePflegedienstleitung" name="ratePflegedienstleitung" type="number" step="0.01" placeholder="32.00" />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="rateKuechenhilfe">Küchenhilfe (€)</Label>
+                <Input id="rateKuechenhilfe" name="rateKuechenhilfe" type="number" step="0.01" placeholder="17.00" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rateHausmeister">Hausmeister (€)</Label>
+                <Input id="rateHausmeister" name="rateHausmeister" type="number" step="0.01" placeholder="17.00" />
+              </div>
             </div>
           </div>
         </CardContent>

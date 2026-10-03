@@ -38,6 +38,8 @@ describe("resolveRates", () => {
     expect(HOURLY_RATES.pflegehelfer).toBe(36.9);
     expect(HOURLY_RATES.betreuungskraft).toBe(39.9);
     expect(HOURLY_RATES.pflegedienstleitung).toBe(64.9);
+    expect(HOURLY_RATES.kuechenhilfe).toBe(36.9);
+    expect(HOURLY_RATES.hausmeister).toBe(36.9);
   });
 
   it("applies only the overridden qualifications", () => {

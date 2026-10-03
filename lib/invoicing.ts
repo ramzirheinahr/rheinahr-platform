@@ -22,6 +22,8 @@ export const qualLabel: Record<Qualification, string> = {
   pflegehelfer: "Pflegehilfskraft",
   betreuungskraft: "Pflegefachassistent*in",
   pflegedienstleitung: "Pflegedienstleitung",
+  kuechenhilfe: "Küchenhilfe",
+  hausmeister: "Hausmeister",
 };
 export const methodLabel: Record<ConfirmationMethod, string> = {
   electronic: "Elektronische Unterschrift",

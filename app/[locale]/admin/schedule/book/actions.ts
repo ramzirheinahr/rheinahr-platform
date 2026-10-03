@@ -59,3 +59,92 @@ export async function saveDailyNote(
     return { ok: false, error: "save_failed" };
   }
 }
+
+export async function acceptAssignmentOnBehalfOfWorker(
+  assignmentId: string
+): Promise<{ ok: boolean; error?: string }> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: { order: true, worker: true },
+  });
+  if (!assignment) return { ok: false, error: "not_found" };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.assignment.update({
+        where: { id: assignmentId },
+        data: {
+          status: "confirmed",
+          confirmedAt: new Date(),
+          cancelRequested: false,
+          cancelNote: null,
+        },
+      });
+
+      if (["pending", "review", "availability_check", "assigned"].includes(assignment.order.status)) {
+        await tx.order.update({
+          where: { id: assignment.orderId },
+          data: { status: "accepted" },
+        });
+      }
+    });
+
+    await audit({
+      userId: admin.id,
+      action: "assignment.accept_on_behalf",
+      entity: "Assignment",
+      entityId: assignmentId,
+      metadata: {
+        workerId: assignment.workerId,
+        workerName: assignment.worker.fullName,
+        orderId: assignment.orderId,
+      },
+    });
+
+    revalidatePath("/admin/schedule");
+    revalidatePath("/admin/schedule/book");
+    revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
+    revalidatePath("/worker");
+
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to accept assignment on behalf of worker:", err);
+    return { ok: false, error: "save_failed" };
+  }
+}
+
+export async function replaceWorkerOnAssignment(
+  assignmentId: string,
+  newWorkerId: string,
+  force = false
+): Promise<{ ok: boolean; error?: string }> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const existing = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: { order: true },
+  });
+  if (!existing) return { ok: false, error: "not_found" };
+
+  const { unassignFromGrid, assignWorkerToOrder } = await import(
+    "@/app/[locale]/admin/schedule/actions"
+  );
+
+  const unassignRes = await unassignFromGrid(assignmentId);
+  if (!unassignRes.ok) return unassignRes;
+
+  const assignRes = await assignWorkerToOrder(existing.orderId, newWorkerId, force);
+  return assignRes;
+}

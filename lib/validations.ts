@@ -8,6 +8,8 @@ export const qualifications = [
   "pflegehelfer",
   "betreuungskraft",
   "pflegedienstleitung",
+  "kuechenhilfe",
+  "hausmeister",
 ] as const;
 
 export type Qualification = string;
@@ -183,6 +185,8 @@ export const workerSchema = z.object({
   ratePflegehelfer: optionalRate,
   rateBetreuungskraft: optionalRate,
   ratePflegedienstleitung: optionalRate,
+  rateKuechenhilfe: optionalRate,
+  rateHausmeister: optionalRate,
 
   // Employment Contract (Arbeitsvertrag)
   employmentStartDate: optionalDate,
@@ -222,6 +226,8 @@ export const clientSchema = z.object({
   ratePflegehelfer: optionalRate,
   rateBetreuungskraft: optionalRate,
   ratePflegedienstleitung: optionalRate,
+  rateKuechenhilfe: optionalRate,
+  rateHausmeister: optionalRate,
 });
 
 // ── Account provisioning (super_admin) ──

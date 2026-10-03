@@ -215,6 +215,29 @@
     "copyPin": "Copy PIN",
     "pinCopied": "PIN copied."
   },
+  "pwa": {
+    "bannerTitle": "Install app on your home screen",
+    "bannerSubtitle": "Fast access to shifts, schedules, and documents – just like a native app.",
+    "installButton": "Install now",
+    "howToInstall": "View instructions",
+    "dismiss": "Later",
+    "instructionsTitle": "How to install the app",
+    "instructionsSubtitle": "Choose your smartphone platform for a simple step-by-step guide.",
+    "iosTab": "iPhone / iPad (Safari)",
+    "androidTab": "Android (Chrome)",
+    "iosStep1": "Tap the Share button at the bottom of the screen",
+    "iosStep2": "Scroll down and tap",
+    "iosStep2Highlight": "“Add to Home Screen”",
+    "iosStep3": "Tap at the top right",
+    "iosStep3Highlight": "“Add”",
+    "androidStep1": "Tap the three-dot menu at the top right",
+    "androidStep2": "Select",
+    "androidStep2Highlight": "“Install app” or “Add to Home screen”",
+    "androidStep3": "Confirm by tapping",
+    "androidStep3Highlight": "“Install”",
+    "alreadyInstalled": "App is already installed",
+    "gotIt": "Got it"
+  },
   "footer": {
     "imprint": "Imprint",
     "privacy": "Privacy",
@@ -644,7 +667,9 @@
       "pflegefachkraft": "Qualified care professional",
       "pflegehelfer": "Nursing assistant",
       "betreuungskraft": "Nursing care assistant (Pflegefachassistent*in)",
-      "pflegedienstleitung": "Nursing service manager"
+      "pflegedienstleitung": "Nursing service manager",
+      "kuechenhilfe": "Kitchen Help",
+      "hausmeister": "Caretaker / Janitor"
     },
     "contractType": {
       "unbefristet": "Permanent",
@@ -1348,7 +1373,22 @@
     "statusPending": "Pending",
     "statusAccepted": "Confirmed",
     "statusDone": "Completed",
-    "statusSigned": "Signed"
+    "statusSigned": "Signed",
+    "availableWorkersTitle": "Available Staff",
+    "availableShiftsLabel": "Possible Shifts",
+    "noAvailableWorkers": "No other available staff recorded for this day.",
+    "onlyUnassignedFilter": "Only unassigned staff",
+    "allStaffFilter": "All staff",
+    "acceptOnBehalf": "Accept as Worker",
+    "acceptOnBehalfSuccess": "Shift successfully marked as accepted on behalf of worker.",
+    "changeWorker": "Change Worker",
+    "selectNewWorker": "Select new worker",
+    "workerReplaced": "Worker replaced successfully.",
+    "sendWhatsApp": "Send via WhatsApp",
+    "freeAvailable": "Free & available",
+    "alreadyAssigned": "Already on duty",
+    "contactWorker": "Contact",
+    "assignToShift": "Assign shift"
   },
   "contracts": {
     "title": "Contracts",

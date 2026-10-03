@@ -15,6 +15,8 @@ const FIELD: Record<(typeof qualifications)[number], string> = {
   pflegehelfer: "ratePflegehelfer",
   betreuungskraft: "rateBetreuungskraft",
   pflegedienstleitung: "ratePflegedienstleitung",
+  kuechenhilfe: "rateKuechenhilfe",
+  hausmeister: "rateHausmeister",
 };
 
 export function HourlyRatesFieldset({

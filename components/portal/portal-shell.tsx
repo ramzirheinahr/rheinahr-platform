@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Download } from "lucide-react";
+import { PwaInstallHeaderButton } from "@/components/pwa-install-header-button";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { portalPath } from "@/lib/auth";
@@ -100,6 +101,7 @@ export async function PortalShell({
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
+          <PwaInstallHeaderButton />
           <NotificationsBell
             items={notifications}
             inboxHref={inboxHref}

@@ -21,7 +21,14 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   if (!worker) return new NextResponse("Not found", { status: 404 });
 
   // Compute the hourly rate based on qualification and custom rates
-  const baseRates = { pflegefachkraft: 28, pflegehelfer: 17, betreuungskraft: 19, pflegedienstleitung: 32 };
+  const baseRates = {
+    pflegefachkraft: 28,
+    pflegehelfer: 17,
+    betreuungskraft: 19,
+    pflegedienstleitung: 32,
+    kuechenhilfe: 17,
+    hausmeister: 17,
+  };
   const customRates = (worker.hourlyRates as Record<string, number> | null) || {};
   const hourlyRate = customRates[worker.qualification] || baseRates[worker.qualification as keyof typeof baseRates] || 17;
 

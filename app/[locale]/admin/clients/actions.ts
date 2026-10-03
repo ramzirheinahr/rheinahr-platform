@@ -47,13 +47,15 @@ function parseProfile(formData: FormData) {
     ratePflegehelfer: formData.get("ratePflegehelfer") || undefined,
     rateBetreuungskraft: formData.get("rateBetreuungskraft") || undefined,
     ratePflegedienstleitung: formData.get("ratePflegedienstleitung") || undefined,
+    rateKuechenhilfe: formData.get("rateKuechenhilfe") || undefined,
+    rateHausmeister: formData.get("rateHausmeister") || undefined,
   });
 }
 
 // Empty field → null (fall back to platform default); percent → fraction.
 const pctToFrac = (v: number | undefined) => (v === undefined ? null : v / 100);
 
-// The four per-qualification rate fields → the JSON override map stored on the
+// The per-qualification rate fields → the JSON override map stored on the
 // client. Only fields the admin actually filled are kept; all blank → null so
 // the facility falls back to the platform defaults for everything.
 function ratesJson(data: {
@@ -61,6 +63,8 @@ function ratesJson(data: {
   ratePflegehelfer?: number;
   rateBetreuungskraft?: number;
   ratePflegedienstleitung?: number;
+  rateKuechenhilfe?: number;
+  rateHausmeister?: number;
 }): Record<string, number> | null {
   const map: Record<string, number> = {};
   if (data.ratePflegefachkraft !== undefined) map.pflegefachkraft = data.ratePflegefachkraft;
@@ -68,6 +72,8 @@ function ratesJson(data: {
   if (data.rateBetreuungskraft !== undefined) map.betreuungskraft = data.rateBetreuungskraft;
   if (data.ratePflegedienstleitung !== undefined)
     map.pflegedienstleitung = data.ratePflegedienstleitung;
+  if (data.rateKuechenhilfe !== undefined) map.kuechenhilfe = data.rateKuechenhilfe;
+  if (data.rateHausmeister !== undefined) map.hausmeister = data.rateHausmeister;
   return Object.keys(map).length ? map : null;
 }
 

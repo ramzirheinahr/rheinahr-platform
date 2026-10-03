@@ -11,13 +11,17 @@ export const HOURLY_RATES: Record<Qualification, number> = {
   pflegehelfer: 36.9,
   betreuungskraft: 39.9,
   pflegedienstleitung: 64.9,
+  kuechenhilfe: 36.9,
+  hausmeister: 36.9,
 };
 
 export const WORKER_HOURLY_RATES: Record<Qualification, number> = {
-  pflegefachkraft: 28.00,
-  pflegehelfer: 17.00,
-  betreuungskraft: 19.00,
-  pflegedienstleitung: 32.00,
+  pflegefachkraft: 28.0,
+  pflegehelfer: 17.0,
+  betreuungskraft: 19.0,
+  pflegedienstleitung: 32.0,
+  kuechenhilfe: 17.0,
+  hausmeister: 17.0,
 };
 
 export type Rates = Record<Qualification, number>;

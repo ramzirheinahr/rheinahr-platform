@@ -77,6 +77,8 @@ function parseProfile(formData: FormData) {
     ratePflegehelfer: parseGermanNumber(formData.get("ratePflegehelfer")) || undefined,
     rateBetreuungskraft: parseGermanNumber(formData.get("rateBetreuungskraft")) || undefined,
     ratePflegedienstleitung: parseGermanNumber(formData.get("ratePflegedienstleitung")) || undefined,
+    rateKuechenhilfe: parseGermanNumber(formData.get("rateKuechenhilfe")) || undefined,
+    rateHausmeister: parseGermanNumber(formData.get("rateHausmeister")) || undefined,
     employmentStartDate: formData.get("employmentStartDate") || undefined,
     employmentEndDate: formData.get("employmentEndDate") || undefined,
     weeklyHours: parseGermanNumber(formData.get("weeklyHours")) || undefined,
@@ -95,6 +97,8 @@ function toWorkerColumns(d: ProfileInput) {
   if (d.ratePflegehelfer != null) rates.pflegehelfer = d.ratePflegehelfer;
   if (d.rateBetreuungskraft != null) rates.betreuungskraft = d.rateBetreuungskraft;
   if (d.ratePflegedienstleitung != null) rates.pflegedienstleitung = d.ratePflegedienstleitung;
+  if (d.rateKuechenhilfe != null) rates.kuechenhilfe = d.rateKuechenhilfe;
+  if (d.rateHausmeister != null) rates.hausmeister = d.rateHausmeister;
   const hourlyRates = Object.keys(rates).length > 0 ? rates : null;
 
   return {
