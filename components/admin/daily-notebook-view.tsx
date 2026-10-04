@@ -194,10 +194,27 @@ export function DailyNotebookView({
   // Filter available workers for the right column box
   const filteredAvailableWorkers = useMemo(() => {
     const list = data.availableWorkers || [];
-    if (workerFilter === "free") {
-      return list.filter((w) => w.status === "free");
-    }
-    return list;
+    const filtered = workerFilter === "free" ? list.filter((w) => w.status === "free") : list;
+
+    const statusPriority: Record<string, number> = {
+      freeWithShifts: 0,
+      free: 1,
+      busy: 2,
+      off: 3,
+      leave: 4,
+    };
+
+    return [...filtered].sort((a, b) => {
+      const aKey = a.status === "free" && a.availLetters && a.availLetters !== "Urlaub" && a.availLetters !== "OFF" ? "freeWithShifts" : a.status;
+      const bKey = b.status === "free" && b.availLetters && b.availLetters !== "Urlaub" && b.availLetters !== "OFF" ? "freeWithShifts" : b.status;
+      const aPrio = statusPriority[aKey] ?? 99;
+      const bPrio = statusPriority[bKey] ?? 99;
+
+      if (aPrio !== bPrio) {
+        return aPrio - bPrio;
+      }
+      return a.fullName.localeCompare(b.fullName, "de");
+    });
   }, [data.availableWorkers, workerFilter]);
 
   // Handle open candidate modal

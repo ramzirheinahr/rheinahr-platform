@@ -488,6 +488,32 @@ export async function getDailyNotebook(
     };
   });
 
+  // Sort available workers:
+  // 1. Free workers with declared available shift windows (e.g. F, S, N, FS, SN, etc.) first
+  // 2. Free workers without declared availability
+  // 3. Busy workers (already assigned)
+  // 4. Off / Leave (Urlaub / OFF)
+  // Inside the same priority group, sort alphabetically by fullName
+  const statusPriority: Record<string, number> = {
+    freeWithShifts: 0,
+    free: 1,
+    busy: 2,
+    off: 3,
+    leave: 4,
+  };
+
+  availableWorkers.sort((a, b) => {
+    const aKey = a.status === "free" && a.availLetters && a.availLetters !== "Urlaub" && a.availLetters !== "OFF" ? "freeWithShifts" : a.status;
+    const bKey = b.status === "free" && b.availLetters && b.availLetters !== "Urlaub" && b.availLetters !== "OFF" ? "freeWithShifts" : b.status;
+    const aPrio = statusPriority[aKey] ?? 99;
+    const bPrio = statusPriority[bKey] ?? 99;
+
+    if (aPrio !== bPrio) {
+      return aPrio - bPrio;
+    }
+    return a.fullName.localeCompare(b.fullName, "de");
+  });
+
   // Mini calendars: Month - 1, Month, Month + 1
   const prevMonthDate = new Date(Date.UTC(year, month - 2, 1));
   const nextMonthDate = new Date(Date.UTC(year, month, 1));
