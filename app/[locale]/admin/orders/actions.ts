@@ -13,6 +13,7 @@ import {
   diffRequestShifts,
   isRequestCancelable,
   candidatesForOrders,
+  findMatchingMonthlyRequestGroupId,
   type BulkCandidate,
   type BulkShift,
 } from "@/lib/orders";
@@ -59,12 +60,37 @@ export async function createOrderRequestForClient(
   }
   const { notes, shifts } = parsed.data;
 
-  const requestGroupId = crypto.randomUUID();
+  // Group shifts by month and qualification to merge with existing open requestGroupIds if present
+  const shiftGroupKeys = new Map<string, string>();
+  for (const s of shifts) {
+    const d = new Date(`${s.date}T00:00:00.000Z`);
+    const monthKey = `${s.requiredQualification}_${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    if (!shiftGroupKeys.has(monthKey)) {
+      const existingGroupId = await findMatchingMonthlyRequestGroupId({
+        clientId: client.id,
+        shiftDate: d,
+        requiredQualification: s.requiredQualification,
+      });
+      shiftGroupKeys.set(monthKey, existingGroupId || crypto.randomUUID());
+    }
+  }
+
+  const shiftsWithGroups = shifts.map((s) => {
+    const d = new Date(`${s.date}T00:00:00.000Z`);
+    const monthKey = `${s.requiredQualification}_${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const targetGroupId = shiftGroupKeys.get(monthKey)!;
+    return {
+      shift: s,
+      targetGroupId,
+    };
+  });
+
+  const requestGroupId = shiftsWithGroups[0]?.targetGroupId || crypto.randomUUID();
 
   await prisma.order.createMany({
-    data: shifts.map((s) => ({
+    data: shiftsWithGroups.map(({ shift: s, targetGroupId }) => ({
       clientId: client.id,
-      requestGroupId,
+      requestGroupId: targetGroupId,
       requiredQualification: s.requiredQualification,
       shiftDate: new Date(`${s.date}T00:00:00.000Z`),
       startTime: s.startTime,

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { lettersToBlocks, SHIFT_PRESETS, type ShiftKey, type GridOperation } from "@/lib/master-schedule-core";
-import { candidatesForShift, type Candidate } from "@/lib/orders";
+import { candidatesForShift, type Candidate, findMatchingMonthlyRequestGroupId } from "@/lib/orders";
 import { offerAssignment } from "@/lib/assignments";
 import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
@@ -223,10 +223,16 @@ export async function assignFromGrid(input: {
           await tx.order.update({ where: { id: open.id }, data: { status: "assigned" } });
         }
       } else {
+        const matchingGroupId = await findMatchingMonthlyRequestGroupId({
+          clientId,
+          shiftDate: day,
+          requiredQualification: worker.qualification,
+          tx,
+        });
         const created = await tx.order.create({
           data: {
             clientId,
-            requestGroupId: crypto.randomUUID(),
+            requestGroupId: matchingGroupId || crypto.randomUUID(),
             requiredQualification: worker.qualification,
             shiftDate: day,
             startTime: start,
@@ -343,11 +349,17 @@ export async function createOpenOrderFromGrid(input: {
   if (start === end) return { ok: false, error: "saveError" };
   const day = new Date(`${date}T00:00:00.000Z`);
 
-  const newRequestGroupId = crypto.randomUUID();
+  const matchingGroupId = await findMatchingMonthlyRequestGroupId({
+    clientId,
+    shiftDate: day,
+    requiredQualification: qualification,
+  });
+  const targetRequestGroupId = matchingGroupId || crypto.randomUUID();
+
   await prisma.order.create({
     data: {
       clientId,
-      requestGroupId: newRequestGroupId,
+      requestGroupId: targetRequestGroupId,
       requiredQualification: qualification,
       shiftDate: day,
       startTime: start,
@@ -383,14 +395,14 @@ export async function createOpenOrderFromGrid(input: {
         type: "new_order",
         channel: "in_app",
         content: `Neue Schicht erfasst (${formatDateDE(day)} ${start}–${end}) – In Bearbeitung`,
-        link: orderLink("client", newRequestGroupId),
+        link: orderLink("client", targetRequestGroupId),
       })),
     });
 
     await pushToUsers(facilityUserIds, {
       title: "Neue Schicht erfasst – In Bearbeitung",
       body: `${formatDateDE(day)} ${start}–${end} · Ihre Schicht befindet sich in Bearbeitung. Wir informieren Sie schnellstmöglich.`,
-      url: orderLink("client", newRequestGroupId),
+      url: orderLink("client", targetRequestGroupId),
       htmlBody: shiftHtml,
     }).catch(console.error);
   }

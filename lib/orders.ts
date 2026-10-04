@@ -340,3 +340,42 @@ export async function candidatesForOrders(orderIds: string[]): Promise<{
   );
   return { shifts, candidates };
 }
+
+/**
+ * Finds an existing open requestGroupId for the same client, month (from shiftDate), and qualification.
+ * This satisfies the business rule:
+ * "One monthly order per client and qualification. If an order/shift is added for the same month,
+ * client, and qualification and there is an open order (not cancelled/completed), merge into it."
+ */
+export async function findMatchingMonthlyRequestGroupId(opts: {
+  clientId: string;
+  shiftDate: Date; // any day within the target month
+  requiredQualification: string;
+  tx?: any; // optional Prisma transaction client
+}): Promise<string | null> {
+  const db = opts.tx ?? prisma;
+  const d = new Date(opts.shiftDate);
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth(); // 0-indexed
+
+  const monthStart = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+  const monthEnd = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0));
+
+  const existingOrder = await db.order.findFirst({
+    where: {
+      clientId: opts.clientId,
+      requiredQualification: opts.requiredQualification,
+      shiftDate: {
+        gte: monthStart,
+        lt: monthEnd,
+      },
+      requestGroupId: { not: null },
+      status: { notIn: ["cancelled", "completed"] },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { requestGroupId: true },
+  });
+
+  return existingOrder?.requestGroupId ?? null;
+}
+
