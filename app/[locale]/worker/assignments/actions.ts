@@ -6,13 +6,13 @@ import { prisma } from "@/lib/prisma";
 import { runSerializable } from "@/lib/assignments";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable } from "@/lib/notify";
+import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { formatDateDE } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 
-async function getCertificatesForWorkers(workerIds: string[]) {
+export async function getCertificatesForWorkers(workerIds: string[]) {
   if (workerIds.length === 0) return undefined;
   const uniqueWorkerIds = [...new Set(workerIds)];
   const docs = await prisma.workerDocument.findMany({
@@ -56,7 +56,7 @@ export async function respondAssignmentsBulk(
   // Track successful updates to build bulk notifications
   const acceptedShifts: any[] = [];
   const declinedShifts: any[] = [];
-  const clientNotifications = new Map<string, { userId: string, shifts: any[] }>();
+  const clientNotifications = new Map<string, { clientId: string; facilityName: string; shifts: any[] }>();
 
   // We process them one by one serially so one shift being full doesn't crash the whole batch.
   for (const { id, accept } of responses) {
@@ -67,13 +67,14 @@ export async function respondAssignmentsBulk(
         order: {
           select: {
             id: true,
+            clientId: true,
             requestGroupId: true,
             shiftDate: true,
             startTime: true,
             endTime: true,
             requiredQualification: true,
             notes: true,
-            client: { select: { userId: true, facilityName: true } },
+            client: { select: { id: true, userId: true, facilityName: true } },
           },
         },
       },
@@ -206,10 +207,14 @@ export async function respondAssignmentsBulk(
         acceptedShifts.push(shiftData);
         
         // Group by client
-        const clientId = assignment.order.client.userId;
+        const clientId = assignment.order.client.id || assignment.order.clientId;
         if (clientId) {
           if (!clientNotifications.has(clientId)) {
-            clientNotifications.set(clientId, { userId: clientId, shifts: [] });
+            clientNotifications.set(clientId, {
+              clientId,
+              facilityName: assignment.order.client.facilityName,
+              shifts: [],
+            });
           }
           clientNotifications.get(clientId)!.shifts.push(shiftData);
         }
@@ -247,7 +252,7 @@ export async function respondAssignmentsBulk(
     const acceptedTableHtml = buildShiftHtmlTable(acceptedShifts);
 
     const adminHtml = `
-      <p>Der Mitarbeiter <strong>${workerName}</strong> hat die folgenden Einsätze bestätigt:</p>
+      <p>Folgende Einsätze wurden bestätigt:</p>
       ${acceptedTableHtml}
     `;
 
@@ -265,7 +270,7 @@ export async function respondAssignmentsBulk(
     pushPromises.push(
       pushToUsers(
         admins.map((a) => a.id),
-        { title: "Einsätze bestätigt", body: `${workerName} hat ${acceptedShifts.length} Einsätze bestätigt.`, url: "/admin/orders", htmlBody: adminHtml, skipEmail: true },
+        { title: "Einsätze bestätigt", body: `${acceptedShifts.length} Einsätze bestätigt.`, url: "/admin/orders", htmlBody: adminHtml, skipEmail: true },
       )
     );
 
@@ -279,24 +284,34 @@ export async function respondAssignmentsBulk(
 
     // Push to clients (grouped)
     for (const clientGroup of clientNotifications.values()) {
+      const workerNames = [...new Set(clientGroup.shifts.map((s: any) => s.workerName).filter(Boolean))];
+      const workerNamesLabel = workerNames.length > 1
+        ? `unseren Mitarbeitern (<strong>${workerNames.join(", ")}</strong>)`
+        : `unserem Mitarbeiter <strong>${workerNames[0] || ""}</strong>`;
+      const workerNamesSummary = workerNames.join(", ");
+
       const clientHtml = `
         <p>Sehr geehrte Damen und Herren,</p>
-        <p>wir freuen uns, Ihnen mitteilen zu können, dass die folgenden Einsätze von unserem Mitarbeiter <strong>${workerName}</strong> bestätigt wurden:</p>
+        <p>wir freuen uns, Ihnen mitteilen zu können, dass die folgenden Einsätze von ${workerNamesLabel} bestätigt wurden:</p>
         ${buildShiftHtmlTable(clientGroup.shifts)}
-        <p>Unser Mitarbeiter wird pünktlich zum Dienstbeginn bei Ihnen vor Ort sein.</p>
+        <p>Unsere Mitarbeiter werden pünktlich zum Dienstbeginn bei Ihnen vor Ort sein.</p>
       `;
       const workerIds = clientGroup.shifts.map((s: any) => s.workerId).filter(Boolean);
       const attachments = await getCertificatesForWorkers(workerIds);
+      const clientUserIds = await getFacilityClientUserIds(clientGroup.clientId);
       
-      pushPromises.push(
-        pushToUsers([clientGroup.userId], {
-          title: "Einsätze bestätigt",
-          body: `${workerName} hat ${clientGroup.shifts.length} Einsätze bestätigt.`,
-          url: "/client/orders",
-          htmlBody: clientHtml,
-          attachments,
-        })
-      );
+      if (clientUserIds.length > 0) {
+        pushPromises.push(
+          pushToUsers(clientUserIds, {
+            title: "Einsätze bestätigt",
+            body: `${workerNamesSummary}: ${clientGroup.shifts.length} Einsatz/Einsätze bestätigt.`,
+            url: "/client/orders",
+            htmlBody: clientHtml,
+            attachments,
+            forceEmail: true,
+          })
+        );
+      }
     }
 
     await Promise.all(pushPromises);
@@ -359,7 +374,7 @@ export async function respondAssignment(
           endTime: true,
           requiredQualification: true,
           notes: true,
-          client: { select: { userId: true, facilityName: true } },
+          client: { select: { id: true, userId: true, facilityName: true } },
         },
       },
     },
@@ -555,15 +570,17 @@ export async function respondAssignment(
     `;
 
     const attachments = await getCertificatesForWorkers([assignment.worker.id]);
-    
+    const clientUserIds = await getFacilityClientUserIds(assignment.order.client.id);
+
     await Promise.all([
-      clientUserId
-        ? pushToUsers([clientUserId], {
+      clientUserIds.length > 0
+        ? pushToUsers(clientUserIds, {
             title: "Einsatz bestätigt",
             body,
             url: orderLink("client", reqGroup),
             htmlBody: clientHtml,
             attachments,
+            forceEmail: true,
           })
         : Promise.resolve(),
       pushToUsers(

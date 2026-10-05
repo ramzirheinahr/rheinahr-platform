@@ -64,6 +64,7 @@ import {
   rejectShiftCancellation,
   saveMasterScheduleGridBatch,
 } from "@/app/[locale]/admin/schedule/actions";
+import { acceptAssignmentOnBehalfOfWorker } from "@/app/[locale]/admin/schedule/book/actions";
 import { cancelLeaveEntirely } from "@/app/[locale]/admin/leave/actions";
 
 // The company's Excel Dienstplan, digital: one line per worker per day showing
@@ -1167,6 +1168,7 @@ function CellEditor({
   const c = useTranslations("common");
   const av = useTranslations("availability");
   const tOrders = useTranslations("orders");
+  const tb = useTranslations("dailyNotebook");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -1442,6 +1444,29 @@ function CellEditor({
                       >
                         <MessageCircle className="size-3.5" />
                       </a>
+                    ) : null}
+                    {j.status === "pending" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs gap-1 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-medium shrink-0 shadow-sm"
+                        disabled={pending}
+                        onClick={() => {
+                          startTransition(async () => {
+                            const res = await acceptAssignmentOnBehalfOfWorker(j.assignmentId);
+                            if (res.ok) {
+                              toast.success(tb("acceptOnBehalfSuccess"));
+                              router.refresh();
+                            } else {
+                              toast.error(tOrders("saveError"));
+                            }
+                          });
+                        }}
+                        title={tb("acceptOnBehalf")}
+                      >
+                        <CheckCircle2 className="size-3.5 text-emerald-600" />
+                        <span>{tb("acceptOnBehalf")}</span>
+                      </Button>
                     ) : null}
                     {j.clientConfirmed ? (
                       <div className="flex items-center gap-1.5 shrink-0 ml-1 border-l pl-2">

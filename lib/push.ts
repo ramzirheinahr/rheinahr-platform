@@ -23,6 +23,7 @@ export type PushPayload = {
   tag?: string; // coalesce repeats (e.g. one per conversation)
   htmlBody?: string;
   skipEmail?: boolean;
+  forceEmail?: boolean;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
 };
 
@@ -37,13 +38,17 @@ export async function pushToUsers(
 ): Promise<void> {
   // Fire and forget email notification
   if (!payload.skipEmail) {
-    sendEmailToUsers(userIds, {
-      subject: payload.title,
-      body: payload.body,
-      html: payload.htmlBody,
-      url: payload.url,
-      attachments: payload.attachments,
-    }).catch((err) => console.error("Failed to send email notification", err));
+    sendEmailToUsers(
+      userIds,
+      {
+        subject: payload.title,
+        body: payload.body,
+        html: payload.htmlBody,
+        url: payload.url,
+        attachments: payload.attachments,
+      },
+      { force: payload.forceEmail }
+    ).catch((err) => console.error("Failed to send email notification", err));
   }
 
   if (!ensureConfigured() || userIds.length === 0) return;
