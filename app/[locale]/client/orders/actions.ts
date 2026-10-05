@@ -551,6 +551,7 @@ export async function createOrderRequest(
   });
 
   const requestGroupId = shiftsWithGroups[0]?.targetGroupId || crypto.randomUUID();
+  const now = new Date();
 
   await prisma.order.createMany({
     data: shiftsWithGroups.map(({ shift: s, targetGroupId }) => ({
@@ -565,7 +566,19 @@ export async function createOrderRequest(
       notes: s.bereich ?? notes ?? null, // per-shift Wohnbereich, else request note
       status: "pending" as const,
       createdById: user.id,
+      editedAt: now,
+      editedById: user.id,
     })),
+  });
+
+  // Touch all orders in the target requestGroupIds so the merged order surfaces at the top
+  const targetGroupIds = [...new Set(shiftsWithGroups.map(s => s.targetGroupId))];
+  await prisma.order.updateMany({
+    where: { requestGroupId: { in: targetGroupIds } },
+    data: {
+      editedAt: now,
+      editedById: user.id,
+    },
   });
 
   const shiftsHtml = `

@@ -229,10 +229,12 @@ export async function assignFromGrid(input: {
           requiredQualification: worker.qualification,
           tx,
         });
+        const targetGroupId = matchingGroupId || crypto.randomUUID();
+        const now = new Date();
         const created = await tx.order.create({
           data: {
             clientId,
-            requestGroupId: matchingGroupId || crypto.randomUUID(),
+            requestGroupId: targetGroupId,
             requiredQualification: worker.qualification,
             shiftDate: day,
             startTime: start,
@@ -241,10 +243,23 @@ export async function assignFromGrid(input: {
             quantity: 1,
             notes: ward || null,
             status: "assigned",
+            createdById: admin.id,
+            editedAt: now,
+            editedById: admin.id,
           },
           select: { id: true },
         });
         orderId = created.id;
+
+        if (matchingGroupId) {
+          await tx.order.updateMany({
+            where: { requestGroupId: matchingGroupId },
+            data: {
+              editedAt: now,
+              editedById: admin.id,
+            },
+          });
+        }
       }
 
       // Resurrects a prior decline instead of failing on the unique key.
@@ -355,6 +370,7 @@ export async function createOpenOrderFromGrid(input: {
     requiredQualification: qualification,
   });
   const targetRequestGroupId = matchingGroupId || crypto.randomUUID();
+  const now = new Date();
 
   await prisma.order.create({
     data: {
@@ -369,8 +385,20 @@ export async function createOpenOrderFromGrid(input: {
       notes: ward || null,
       status: "pending",
       createdById: admin.id,
+      editedAt: now,
+      editedById: admin.id,
     },
   });
+
+  if (matchingGroupId) {
+    await prisma.order.updateMany({
+      where: { requestGroupId: matchingGroupId },
+      data: {
+        editedAt: now,
+        editedById: admin.id,
+      },
+    });
+  }
 
   const facilityUserIds = await getFacilityClientUserIds(client.id || client.userId);
   if (facilityUserIds.length > 0) {
