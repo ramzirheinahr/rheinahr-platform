@@ -1394,7 +1394,14 @@
     "freeAvailable": "متاح وغير مرتبط",
     "alreadyAssigned": "مرتبط بوردية اليوم",
     "contactWorker": "مراسلة",
-    "assignToShift": "إسناد وردية"
+    "assignToShift": "إسناد وردية",
+    "groupByClient": "حسب الزبائن (المنشآت)",
+    "sortByTime": "حسب الوقت (الجدول الزمني)",
+    "sortMode": "طريقة الترتيب",
+    "morningShift": "وردية الصباح (Früh)",
+    "lateShift": "وردية الظهر / المساء (Spät)",
+    "nightShift": "وردية الليل (Nacht)",
+    "noShiftsForClient": "لا توجد ورديات مسجلة لهذا الزبون."
   },
   "contracts": {
     "title": "العقود",

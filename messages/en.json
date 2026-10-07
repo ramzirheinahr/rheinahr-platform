@@ -1392,7 +1392,14 @@
     "freeAvailable": "Free & available",
     "alreadyAssigned": "Already on duty",
     "contactWorker": "Contact",
-    "assignToShift": "Assign shift"
+    "assignToShift": "Assign shift",
+    "groupByClient": "Group by Clients",
+    "sortByTime": "By Time (Timeline)",
+    "sortMode": "Sort by",
+    "morningShift": "Morning Shift (F)",
+    "lateShift": "Late Shift (S)",
+    "nightShift": "Night Shift (N)",
+    "noShiftsForClient": "No shifts recorded for this client."
   },
   "contracts": {
     "title": "Contracts",

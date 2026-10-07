@@ -41,6 +41,8 @@ import {
   MessageCircle,
   RefreshCw,
   UserCheck,
+  Building,
+  LayoutList,
 } from "lucide-react";
 import {
   MORNING_SLOTS,
@@ -155,6 +157,9 @@ export function DailyNotebookView({
   const [newShiftQuantity, setNewShiftQuantity] = useState<number>(1);
   const [newShiftQual, setNewShiftQual] = useState<Qualification>("pflegefachkraft");
 
+  // View grouping mode: "client" (group by client: F, S, N) or "time" (classic timeline slots)
+  const [sortMode, setSortMode] = useState<"client" | "time">("client");
+
   // Filter shifts based on query
   const filteredShifts = useMemo(() => {
     if (!searchQuery.trim()) return data.shifts;
@@ -166,6 +171,60 @@ export function DailyNotebookView({
         (s.ward && s.ward.toLowerCase().includes(q))
     );
   }, [data.shifts, searchQuery]);
+
+  // Group shifts by Client (Facility), then under each client: Morning (F), Afternoon/Late (S), Night (N)
+  const clientGroupedShifts = useMemo(() => {
+    type ClientGroup = {
+      facilityId: string;
+      facilityName: string;
+      facilityShortCode?: string | null;
+      facilityAddress?: string | null;
+      morning: DailyNotebookShift[];   // F (Frühdienst)
+      late: DailyNotebookShift[];      // S (Spätdienst)
+      night: DailyNotebookShift[];     // N (Nachtdienst)
+      totalCount: number;
+    };
+
+    const map = new Map<string, ClientGroup>();
+
+    for (const shift of filteredShifts) {
+      let group = map.get(shift.facilityId);
+      if (!group) {
+        group = {
+          facilityId: shift.facilityId,
+          facilityName: shift.facilityName,
+          facilityShortCode: shift.facilityShortCode,
+          facilityAddress: shift.facilityAddress,
+          morning: [],
+          late: [],
+          night: [],
+          totalCount: 0,
+        };
+        map.set(shift.facilityId, group);
+      }
+
+      group.totalCount++;
+      if (shift.shiftLetter === "F") {
+        group.morning.push(shift);
+      } else if (shift.shiftLetter === "S") {
+        group.late.push(shift);
+      } else {
+        group.night.push(shift);
+      }
+    }
+
+    // Sort shifts inside each subgroup by startTime
+    for (const g of map.values()) {
+      g.morning.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      g.late.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      g.night.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
+
+    // Sort clients alphabetically by facilityName
+    return Array.from(map.values()).sort((a, b) =>
+      a.facilityName.localeCompare(b.facilityName, "de")
+    );
+  }, [filteredShifts]);
 
   // Lookup shift list by slot
   const shiftsBySlot = useMemo(() => {
@@ -648,6 +707,38 @@ export function DailyNotebookView({
           ))}
         </div>
 
+        {/* Sort Mode Toggle: By Client (Default) vs By Time */}
+        <div className="flex items-center rounded-lg border bg-muted/50 p-0.5">
+          <button
+            type="button"
+            onClick={() => setSortMode("client")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              sortMode === "client"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            title={t("groupByClient")}
+          >
+            <Building className="size-3.5" />
+            <span>{t("groupByClient")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSortMode("time")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              sortMode === "time"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            title={t("sortByTime")}
+          >
+            <Clock className="size-3.5" />
+            <span>{t("sortByTime")}</span>
+          </button>
+        </div>
+
         {/* Search Input */}
         <div className="relative w-full sm:w-56">
           <Search className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -739,59 +830,157 @@ export function DailyNotebookView({
           </div>
 
           {/* ─────────────────────────────────────────────────────────
-              TWO VERTICAL TIMELINE COLUMNS (06:00 - 12:45 / 13:00 - 19:45)
+              MAIN CONTENT: SORT BY CLIENT (Default) OR BY TIME (Timeline)
              ───────────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 divide-y divide-slate-300 md:grid-cols-2 md:divide-x md:divide-y-0 md:divide-slate-300">
-            {/* LEFT COLUMN: Morning to Noon (06:00 to 12:45) */}
-            <div className="divide-y divide-slate-200/90">
-              {MORNING_SLOTS.map((slot) => {
-                const shifts = shiftsBySlot[slot] || [];
-                return (
-                  <NotebookSlotRow
-                    key={slot}
-                    slot={slot}
-                    shifts={shifts}
-                    onShiftClick={(shift) => {
-                      setSelectedShift(shift);
-                      setIsChangingWorker(false);
-                    }}
-                    onAssignClick={(shift) => handleOpenCandidateModal(shift)}
-                    onAddSlotClick={() => openAddShiftAtSlot(slot)}
-                    assignLabel={t("assignWorker")}
-                    unassignedLabel={t("unassignedBadge")}
-                  />
-                );
-              })}
-            </div>
+          {sortMode === "client" ? (
+            /* ─────────────────────────────────────────────────────────
+                CLIENT-FIRST GROUPING VIEW
+                Each Client as a section, with:
+                  - Frühdienst (F) / Morning Shift
+                  - Spätdienst (S) / Afternoon / Late Shift
+                  - Nachtdienst (N) / Night Shift
+               ───────────────────────────────────────────────────────── */
+            <div className="space-y-4 pt-3">
+              {clientGroupedShifts.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white/60 py-12 text-center text-sm text-slate-500">
+                  <Building className="mx-auto mb-2 size-8 text-slate-400" />
+                  <p>{t("noShiftsForDay")}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {clientGroupedShifts.map((group) => (
+                    <div
+                      key={group.facilityId}
+                      className="rounded-xl border border-slate-300/90 bg-white/90 p-3.5 shadow-xs transition-shadow hover:shadow-md"
+                    >
+                      {/* Client Header */}
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-200 pb-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Building className="size-4 shrink-0 text-slate-700" />
+                            <h3 className="truncate font-sans text-sm font-bold text-slate-900">
+                              {group.facilityName}
+                            </h3>
+                          </div>
+                          {group.facilityAddress && (
+                            <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                              {group.facilityAddress}
+                            </p>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+                          {group.totalCount} {group.totalCount === 1 ? "Dienst" : "Dienste"}
+                        </Badge>
+                      </div>
 
-            {/* RIGHT COLUMN: Afternoon to Evening (13:00 to 19:45) + AVAILABLE WORKERS BOX */}
-            <div className="flex flex-col justify-between divide-y divide-slate-200/90 md:ps-2">
-              <div className="divide-y divide-slate-200/90">
-                {AFTERNOON_SLOTS.map((slot) => {
-                  const shifts = shiftsBySlot[slot] || [];
-                  return (
-                    <NotebookSlotRow
-                      key={slot}
-                      slot={slot}
-                      shifts={shifts}
-                      onShiftClick={(shift) => {
-                        setSelectedShift(shift);
-                        setIsChangingWorker(false);
-                      }}
-                      onAssignClick={(shift) => handleOpenCandidateModal(shift)}
-                      onAddSlotClick={() => openAddShiftAtSlot(slot)}
-                      assignLabel={t("assignWorker")}
-                      unassignedLabel={t("unassignedBadge")}
-                    />
-                  );
-                })}
-              </div>
+                      {/* Client Shifts: Frühdienst, Spätdienst, Nachtdienst */}
+                      <div className="mt-3 space-y-3">
+                        {/* 1. Frühdienst (F) / وردية الصباح */}
+                        <div>
+                          <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[11px] font-bold text-blue-900">
+                            <span className="flex size-4 items-center justify-center rounded bg-blue-100 text-[10px] text-blue-900 border border-blue-300">
+                              F
+                            </span>
+                            <span>{t("morningShift")}</span>
+                            <span className="text-[10px] font-normal text-slate-400">
+                              ({group.morning.length})
+                            </span>
+                          </div>
+                          {group.morning.length > 0 ? (
+                            <div className="space-y-1 ps-1">
+                              {group.morning.map((shift) => (
+                                <ShiftEntryRow
+                                  key={shift.id}
+                                  shift={shift}
+                                  onShiftClick={(s) => {
+                                    setSelectedShift(s);
+                                    setIsChangingWorker(false);
+                                  }}
+                                  onAssignClick={(s) => handleOpenCandidateModal(s)}
+                                  assignLabel={t("assignWorker")}
+                                  unassignedLabel={t("unassignedBadge")}
+                                  shiftDetailsLabel={t("shiftDetails")}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="ps-5 text-[11px] italic text-slate-400">—</p>
+                          )}
+                        </div>
 
-              {/* ─────────────────────────────────────────────────────────
-                  AVAILABLE WORKERS SECTION (Verfügbare Mitarbeiter)
-                  Matches the user request & red-circled area in image 1!
-                 ───────────────────────────────────────────────────────── */}
-              <div className="mt-4 rounded-xl border border-slate-300/80 bg-white/80 p-3 shadow-xs">
+                        {/* 2. Spätdienst (S) / وردية الظهر والمساء */}
+                        <div className="border-t border-slate-100 pt-2">
+                          <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[11px] font-bold text-amber-900">
+                            <span className="flex size-4 items-center justify-center rounded bg-amber-100 text-[10px] text-amber-900 border border-amber-300">
+                              S
+                            </span>
+                            <span>{t("lateShift")}</span>
+                            <span className="text-[10px] font-normal text-slate-400">
+                              ({group.late.length})
+                            </span>
+                          </div>
+                          {group.late.length > 0 ? (
+                            <div className="space-y-1 ps-1">
+                              {group.late.map((shift) => (
+                                <ShiftEntryRow
+                                  key={shift.id}
+                                  shift={shift}
+                                  onShiftClick={(s) => {
+                                    setSelectedShift(s);
+                                    setIsChangingWorker(false);
+                                  }}
+                                  onAssignClick={(s) => handleOpenCandidateModal(s)}
+                                  assignLabel={t("assignWorker")}
+                                  unassignedLabel={t("unassignedBadge")}
+                                  shiftDetailsLabel={t("shiftDetails")}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="ps-5 text-[11px] italic text-slate-400">—</p>
+                          )}
+                        </div>
+
+                        {/* 3. Nachtdienst (N) / وردية الليل */}
+                        <div className="border-t border-slate-100 pt-2">
+                          <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[11px] font-bold text-indigo-900">
+                            <span className="flex size-4 items-center justify-center rounded bg-indigo-100 text-[10px] text-indigo-900 border border-indigo-300">
+                              N
+                            </span>
+                            <span>{t("nightShift")}</span>
+                            <span className="text-[10px] font-normal text-slate-400">
+                              ({group.night.length})
+                            </span>
+                          </div>
+                          {group.night.length > 0 ? (
+                            <div className="space-y-1 ps-1">
+                              {group.night.map((shift) => (
+                                <ShiftEntryRow
+                                  key={shift.id}
+                                  shift={shift}
+                                  onShiftClick={(s) => {
+                                    setSelectedShift(s);
+                                    setIsChangingWorker(false);
+                                  }}
+                                  onAssignClick={(s) => handleOpenCandidateModal(s)}
+                                  assignLabel={t("assignWorker")}
+                                  unassignedLabel={t("unassignedBadge")}
+                                  shiftDetailsLabel={t("shiftDetails")}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="ps-5 text-[11px] italic text-slate-400">—</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Available Workers Section (shown cleanly beneath clients) */}
+              <div className="mt-6 rounded-xl border border-slate-300/80 bg-white/80 p-3 shadow-xs">
                 <div className="mb-2.5 flex flex-wrap items-center justify-between gap-1 border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-1.5">
                     <User className="size-4 text-slate-700" />
@@ -837,7 +1026,7 @@ export function DailyNotebookView({
                     {t("noAvailableWorkers")}
                   </p>
                 ) : (
-                  <div className="max-h-72 space-y-1.5 overflow-y-auto pe-1">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 max-h-72 overflow-y-auto pe-1">
                     {filteredAvailableWorkers.map((w) => {
                       const isFree = w.status === "free";
                       const waUrl = getWorkerWhatsAppUrl(w, data.dateStr);
@@ -935,13 +1124,208 @@ export function DailyNotebookView({
                 )}
               </div>
             </div>
+          ) : (
+            /* ─────────────────────────────────────────────────────────
+                TWO VERTICAL TIMELINE COLUMNS (06:00 - 12:45 / 13:00 - 19:45)
+               ───────────────────────────────────────────────────────── */
+            <div className="grid grid-cols-1 divide-y divide-slate-300 md:grid-cols-2 md:divide-x md:divide-y-0 md:divide-slate-300">
+              {/* LEFT COLUMN: Morning to Noon (06:00 to 12:45) */}
+              <div className="divide-y divide-slate-200/90">
+                {MORNING_SLOTS.map((slot) => {
+                  const shifts = shiftsBySlot[slot] || [];
+                  return (
+                    <NotebookSlotRow
+                      key={slot}
+                      slot={slot}
+                      shifts={shifts}
+                      onShiftClick={(shift) => {
+                        setSelectedShift(shift);
+                        setIsChangingWorker(false);
+                      }}
+                      onAssignClick={(shift) => handleOpenCandidateModal(shift)}
+                      onAddSlotClick={() => openAddShiftAtSlot(slot)}
+                      assignLabel={t("assignWorker")}
+                      unassignedLabel={t("unassignedBadge")}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* RIGHT COLUMN: Afternoon to Evening (13:00 to 19:45) + AVAILABLE WORKERS BOX */}
+              <div className="flex flex-col justify-between divide-y divide-slate-200/90 md:ps-2">
+                <div className="divide-y divide-slate-200/90">
+                  {AFTERNOON_SLOTS.map((slot) => {
+                    const shifts = shiftsBySlot[slot] || [];
+                    return (
+                      <NotebookSlotRow
+                        key={slot}
+                        slot={slot}
+                        shifts={shifts}
+                        onShiftClick={(shift) => {
+                          setSelectedShift(shift);
+                          setIsChangingWorker(false);
+                        }}
+                        onAssignClick={(shift) => handleOpenCandidateModal(shift)}
+                        onAddSlotClick={() => openAddShiftAtSlot(slot)}
+                        assignLabel={t("assignWorker")}
+                        unassignedLabel={t("unassignedBadge")}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* AVAILABLE WORKERS SECTION (Verfügbare Mitarbeiter) */}
+                <div className="mt-4 rounded-xl border border-slate-300/80 bg-white/80 p-3 shadow-xs">
+                  <div className="mb-2.5 flex flex-wrap items-center justify-between gap-1 border-b border-slate-200 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <User className="size-4 text-slate-700" />
+                      <span className="font-sans text-xs font-bold text-slate-800">
+                        {t("availableWorkersTitle")}
+                      </span>
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {filteredAvailableWorkers.length}
+                      </Badge>
+                    </div>
+
+                    {/* Filter toggle */}
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setWorkerFilter("free")}
+                        className={cn(
+                          "rounded px-2 py-0.5 font-semibold transition-colors",
+                          workerFilter === "free"
+                            ? "bg-slate-800 text-white shadow-xs"
+                            : "text-slate-600 hover:bg-slate-100"
+                        )}
+                      >
+                        {t("onlyUnassignedFilter")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWorkerFilter("all")}
+                        className={cn(
+                          "rounded px-2 py-0.5 font-semibold transition-colors",
+                          workerFilter === "all"
+                            ? "bg-slate-800 text-white shadow-xs"
+                            : "text-slate-600 hover:bg-slate-100"
+                        )}
+                      >
+                        {t("allStaffFilter")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {filteredAvailableWorkers.length === 0 ? (
+                    <p className="py-4 text-center text-xs text-slate-400">
+                      {t("noAvailableWorkers")}
+                    </p>
+                  ) : (
+                    <div className="max-h-72 space-y-1.5 overflow-y-auto pe-1">
+                      {filteredAvailableWorkers.map((w) => {
+                        const isFree = w.status === "free";
+                        const waUrl = getWorkerWhatsAppUrl(w, data.dateStr);
+
+                        return (
+                          <div
+                            key={w.id}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-slate-200/90 bg-white p-2 text-xs transition-colors hover:bg-slate-50"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-serif font-bold text-slate-900 truncate">
+                                  {w.fullName}
+                                </span>
+                                <span className="font-mono text-[10px] text-slate-500">
+                                  [{w.qualification === "pflegefachkraft" ? "PFK" : w.qualification === "pflegehelfer" ? "PH" : w.qualification === "kuechenhilfe" ? "KH" : w.qualification === "hausmeister" ? "HM" : "BK"}]
+                                </span>
+                              </div>
+
+                              {/* Possible Shift Badges (F / S / N) */}
+                              <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                                <span className="text-slate-500 font-medium">
+                                  {t("availableShiftsLabel")}:
+                                </span>
+                                {w.availLetters === "Urlaub" ? (
+                                  <Badge variant="outline" className="text-[10px] text-amber-700 bg-amber-50">
+                                    Urlaub
+                                  </Badge>
+                                ) : w.availLetters === "OFF" ? (
+                                  <Badge variant="outline" className="text-[10px] text-slate-500 bg-slate-50">
+                                    OFF
+                                  </Badge>
+                                ) : (
+                                <>
+                                  {w.availLetters.includes("F") && (
+                                    <span className="rounded bg-blue-100 px-1 py-0.2 font-mono font-bold text-blue-900 border border-blue-300">
+                                      F
+                                    </span>
+                                  )}
+                                  {w.availLetters.includes("S") && (
+                                    <span className="rounded bg-amber-100 px-1 py-0.2 font-mono font-bold text-amber-900 border border-amber-300">
+                                      S
+                                    </span>
+                                  )}
+                                  {w.availLetters.includes("N") && (
+                                    <span className="rounded bg-indigo-100 px-1 py-0.2 font-mono font-bold text-indigo-900 border border-indigo-300">
+                                      N
+                                    </span>
+                                  )}
+                                  {!w.availLetters && (
+                                    <span className="text-slate-400 font-sans">
+                                      (Keine Angabe)
+                                    </span>
+                                  )}
+                                </>
+                              )}
+
+                              {!isFree && w.currentShiftLabel && (
+                                <span className="ms-1 text-slate-500 italic truncate max-w-[150px]">
+                                  • {w.currentShiftLabel}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Actions: WhatsApp icon & Quick assign */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {waUrl && (
+                              <a
+                                href={waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex size-7 items-center justify-center rounded-md bg-[#25D366] text-white shadow-xs hover:bg-[#20b858]"
+                                title={t("sendWhatsApp")}
+                              >
+                                <MessageCircle className="size-3.5" />
+                              </a>
+                            )}
+
+                            {isFree && unassignedShiftsList.length > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px] px-2 font-medium"
+                                onClick={() => setWorkerToAssign(w)}
+                              >
+                                + {t("assignToShift")}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+          )}
 
           {/* ─────────────────────────────────────────────────────────
-              NIGHT & LATE SHIFTS (Nachtdienst & Spätschichten)
-              Displays shifts starting at 20:00 or later, or before 06:00
+              NIGHT & LATE SHIFTS (Only displayed in Time/Timeline mode)
              ───────────────────────────────────────────────────────── */}
-          {nightShifts.length > 0 && (
+          {sortMode === "time" && nightShifts.length > 0 && (
             <div className="mt-4 border-t-2 border-slate-700/80 pt-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -1775,3 +2159,104 @@ function MiniCalendarCard({
     </div>
   );
 }
+
+// ───────────────────────────────────────────────────────────────────
+// COMPONENT: SHIFT ENTRY ROW (Used in Client-grouped view)
+// ───────────────────────────────────────────────────────────────────
+function ShiftEntryRow({
+  shift,
+  onShiftClick,
+  onAssignClick,
+  assignLabel,
+  unassignedLabel,
+  shiftDetailsLabel,
+}: {
+  shift: DailyNotebookShift;
+  onShiftClick: (shift: DailyNotebookShift) => void;
+  onAssignClick: (shift: DailyNotebookShift) => void;
+  assignLabel: string;
+  unassignedLabel: string;
+  shiftDetailsLabel: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200/80 bg-slate-50/50 p-1.5 transition-colors hover:bg-blue-50/60">
+      <div className="min-w-0 flex-1">
+        {shift.isUnassigned ? (
+          <button
+            type="button"
+            onClick={() => onAssignClick(shift)}
+            className="flex flex-wrap items-center gap-1.5 text-start"
+          >
+            <span className="font-mono text-xs font-bold text-slate-600">
+              {shift.startTime}–{shift.endTime}
+            </span>
+            <span className="rounded bg-amber-100 px-1 py-0.2 font-mono text-[10px] font-bold text-amber-900 border border-amber-300">
+              {shift.shiftLetter}
+            </span>
+            <span className="font-serif text-xs font-semibold text-amber-900">
+              [{unassignedLabel}]
+            </span>
+            {shift.ward && (
+              <span className="text-[11px] text-slate-500">
+                ({shift.ward})
+              </span>
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onShiftClick(shift)}
+            className="flex flex-wrap items-center gap-1.5 text-start"
+          >
+            <span className="text-[11px] font-bold text-blue-700">✓</span>
+            <span className="font-mono text-xs font-semibold text-slate-600">
+              {shift.startTime}–{shift.endTime}
+            </span>
+            <span className="font-mono text-[11px] font-bold text-blue-900">
+              {shift.shiftLetter}
+            </span>
+            <span className="font-serif text-xs font-bold text-blue-950 underline-offset-2 hover:underline">
+              {shift.workerName}
+            </span>
+            {shift.workerQualification && (
+              <span className="font-mono text-[10px] text-blue-800">
+                [{shift.workerQualification === "pflegefachkraft" ? "PFK" : shift.workerQualification === "pflegehelfer" ? "PH" : shift.workerQualification === "kuechenhilfe" ? "KH" : shift.workerQualification === "hausmeister" ? "HM" : "BK"}]
+              </span>
+            )}
+            {shift.ward && (
+              <span className="text-[11px] text-slate-500">
+                ({shift.ward})
+              </span>
+            )}
+            {shift.clientConfirmed && (
+              <span className="size-2 rounded-full bg-emerald-600 inline-block" title="Bestätigt" />
+            )}
+          </button>
+        )}
+      </div>
+
+      <div className="shrink-0">
+        {shift.isUnassigned ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-[10px] font-semibold text-amber-900 border-amber-300 hover:bg-amber-100"
+            onClick={() => onAssignClick(shift)}
+          >
+            + {assignLabel}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-1.5 text-[10px] text-slate-600"
+            onClick={() => onShiftClick(shift)}
+          >
+            {shiftDetailsLabel}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+

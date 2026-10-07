@@ -1392,7 +1392,14 @@
     "freeAvailable": "Frei & verfügbar",
     "alreadyAssigned": "Bereits im Dienst",
     "contactWorker": "Kontaktieren",
-    "assignToShift": "Dienst zuweisen"
+    "assignToShift": "Dienst zuweisen",
+    "groupByClient": "Nach Kunden sortieren",
+    "sortByTime": "Nach Uhrzeit (Timeline)",
+    "sortMode": "Sortierung",
+    "morningShift": "Frühdienst (F)",
+    "lateShift": "Spätdienst (S)",
+    "nightShift": "Nachtdienst (N)",
+    "noShiftsForClient": "Keine Dienste für diesen Kunden eingetragen."
   },
   "contracts": {
     "title": "Verträge",
