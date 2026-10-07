@@ -4,7 +4,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Mail } from "lucide-react";
+import { Plus, Trash2, Mail, Info } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +113,11 @@ export function SubUsersSection({ users, isMainUser, clientId }: { users: SubUse
             {t("new")}
           </Button>
         )}
+      </div>
+
+      <div className="flex items-start gap-3 p-3.5 text-xs bg-blue-50/70 text-blue-900 border border-blue-200/80 rounded-lg shadow-2xs">
+        <Info className="size-4 shrink-0 text-blue-600 mt-0.5" />
+        <p className="leading-relaxed">{t("accountingNotice")}</p>
       </div>
 
       <div className="rounded-lg border bg-card overflow-hidden">

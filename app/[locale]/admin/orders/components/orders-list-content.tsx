@@ -50,15 +50,10 @@ async function getOrders(year: number, month: number): Promise<Row[]> {
 
     return await prisma.order.findMany({
       where: {
-        OR: [
-          {
-            shiftDate: {
-              gte: startDate,
-              lt: endDate,
-            },
-          },
-          { status: "pending" },
-        ],
+        shiftDate: {
+          gte: startDate,
+          lt: endDate,
+        },
       },
       orderBy: [{ shiftDate: "asc" }],
       select: {

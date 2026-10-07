@@ -23,6 +23,7 @@ type ClientData = {
   address: string | null;
 
   contactPerson: string | null;
+  billingEmail?: string | null;
   billingInfo: string | null;
   paymentTermsDays: number;
   // Surcharge overrides stored as fractions (0.25) — shown here as percent.
@@ -124,9 +125,21 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
         </div>
       </fieldset>
 
-      <fieldset className="space-y-3 rounded-lg border p-4">
+      <fieldset className="space-y-4 rounded-lg border p-4">
         <legend className="px-1 text-sm font-medium">{t("billingInfo")}</legend>
-        <div className="space-y-2 mt-2">
+        <div className="space-y-2">
+          <Label htmlFor="billingEmail">{t("billingEmail")}</Label>
+          <Input
+            id="billingEmail"
+            name="billingEmail"
+            type="text"
+            defaultValue={initialClient.billingEmail ?? ""}
+            placeholder={t("billingEmailPlaceholder")}
+          />
+          <p className="text-xs text-muted-foreground">{t("billingEmailHint")}</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="billingInfo">{t("billingAddressDetails")}</Label>
           <Textarea
             id="billingInfo"
             name="billingInfo"

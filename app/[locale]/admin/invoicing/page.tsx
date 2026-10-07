@@ -34,15 +34,29 @@ export default async function InvoicingPage({
   const words = q.split(/\s+/).filter(Boolean);
 
   const invoiceWhere: any = {
-    date: { gte: from, lte: to }
+    OR: [
+      {
+        assignments: {
+          some: {
+            order: {
+              shiftDate: { gte: from, lte: to },
+            },
+          },
+        },
+      },
+      {
+        assignments: { none: {} },
+        date: { gte: from, lte: to },
+      },
+    ],
   };
 
   if (words.length > 0) {
     invoiceWhere.AND = words.map((w) => ({
       OR: [
         { invoiceNumber: { contains: w, mode: "insensitive" } },
-        { client: { facilityName: { contains: w, mode: "insensitive" } } }
-      ]
+        { client: { facilityName: { contains: w, mode: "insensitive" } } },
+      ],
     }));
   }
 
@@ -117,14 +131,14 @@ export default async function InvoicingPage({
   const shifts = assignments.map((a) => {
     const hours = a.serviceConfirmation?.hoursWorked
       ? Number(a.serviceConfirmation.hoursWorked)
-      : calculateHours(a.order.startTime, a.order.endTime, a.order.breakMinutes || 30);
+      : calculateHours(a.order.startTime, a.order.endTime, a.order.breakMinutes ?? 30);
 
     return {
       id: a.id,
       shiftDate: a.order.shiftDate.toISOString(),
       startTime: a.order.startTime,
       endTime: a.order.endTime,
-      breakMinutes: a.order.breakMinutes || 30,
+      breakMinutes: a.order.breakMinutes ?? 30,
       facilityName: a.order.client.facilityName,
       clientId: a.order.clientId,
       workerName: a.worker.fullName,
@@ -159,7 +173,7 @@ export default async function InvoicingPage({
       const cId = a.order.clientId;
       const hours = a.serviceConfirmation?.hoursWorked
         ? Number(a.serviceConfirmation.hoursWorked)
-        : calculateHours(a.order.startTime, a.order.endTime, a.order.breakMinutes || 30);
+        : calculateHours(a.order.startTime, a.order.endTime, a.order.breakMinutes ?? 30);
 
       const existing = unbilledClientsMap.get(cId);
       if (!existing) {

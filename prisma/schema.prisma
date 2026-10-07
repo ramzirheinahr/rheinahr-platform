@@ -366,6 +366,7 @@ model Client {
   frameworkAgreementUrl      String?   @map("framework_agreement_url")
   frameworkAgreementSignedAt DateTime? @map("framework_agreement_signed_at")
   contactPerson              String?   @map("contact_person")
+  billingEmail               String?   @map("billing_email")
   billingInfo                String?   @map("billing_info")
   paymentTermsDays           Int       @default(14) @map("payment_terms_days")
   // Per-client billing surcharges (fractions, e.g. 0.25 = +25 %). Null falls

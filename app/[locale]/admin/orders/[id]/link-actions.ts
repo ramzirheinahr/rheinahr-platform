@@ -13,6 +13,7 @@ export type FacilityRecipient = {
   jobTitle?: string;
   isPrimary?: boolean;
   receiveEmails?: boolean;
+  isBillingEmail?: boolean;
 };
 
 export async function getFacilityRecipients({
@@ -103,6 +104,24 @@ export async function getFacilityRecipients({
           receiveEmails: sub.receiveEmails,
         });
       }
+    }
+  }
+
+  if (client.billingEmail) {
+    const bEmails = client.billingEmail
+      .split(/[,;\s]+/)
+      .map((e) => e.trim())
+      .filter((e) => e.includes("@"));
+    for (const bEmail of bEmails) {
+      list.push({
+        id: bEmail,
+        email: bEmail,
+        name: `${client.facilityName} (Buchhaltung)`,
+        jobTitle: "Rechnungs-E-Mail",
+        isPrimary: false,
+        isBillingEmail: true,
+        receiveEmails: true,
+      });
     }
   }
 

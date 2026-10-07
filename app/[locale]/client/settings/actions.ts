@@ -430,3 +430,32 @@ export async function updateMyPassword(formData: FormData): Promise<ActionState>
   
   return { ok: true };
 }
+
+export async function updateFacilityBillingEmail(formData: FormData): Promise<ActionState> {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== "client") return { ok: false, error: "forbidden" };
+
+  const actorUser = await prisma.user.findUnique({
+    where: { id: actor.id },
+    include: { client: { select: { id: true } } },
+  });
+  if (!actorUser?.client?.id) return { ok: false, error: "forbidden" };
+
+  const billingEmail = formData.get("billingEmail")?.toString().trim() || null;
+
+  await prisma.client.update({
+    where: { id: actorUser.client.id },
+    data: { billingEmail },
+  });
+
+  await audit({
+    userId: actor.id,
+    action: "client.update_billing_email",
+    entity: "Client",
+    entityId: actorUser.client.id,
+    metadata: { billingEmail },
+  });
+
+  revalidatePath("/client/settings");
+  return { ok: true };
+}

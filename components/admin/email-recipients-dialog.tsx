@@ -79,8 +79,11 @@ export function EmailRecipientsDialog({
 
     if (initialRecipients && initialRecipients.length > 0) {
       setRecipients(initialRecipients);
-      // By default, select all facility recipients with email reception enabled
-      setSelectedIds(new Set(initialRecipients.filter((r) => r.receiveEmails !== false).map((r) => r.id)));
+      if (invoiceId && initialRecipients.some((r) => r.isBillingEmail)) {
+        setSelectedIds(new Set(initialRecipients.filter((r) => r.isBillingEmail).map((r) => r.id)));
+      } else {
+        setSelectedIds(new Set(initialRecipients.filter((r) => r.receiveEmails !== false && !r.isBillingEmail).map((r) => r.id)));
+      }
       return;
     }
 
@@ -98,8 +101,12 @@ export function EmailRecipientsDialog({
         if (res.ok && res.recipients) {
           setRecipients(res.recipients);
           if (res.facilityName) setFacilityName(res.facilityName);
-          // Default select facility recipients with email reception enabled
-          setSelectedIds(new Set(res.recipients.filter((r) => r.receiveEmails !== false).map((r) => r.id)));
+          // When sending an invoice, prefer selecting the billing email by default
+          if (invoiceId && res.recipients.some((r) => r.isBillingEmail)) {
+            setSelectedIds(new Set(res.recipients.filter((r) => r.isBillingEmail).map((r) => r.id)));
+          } else {
+            setSelectedIds(new Set(res.recipients.filter((r) => r.receiveEmails !== false && !r.isBillingEmail).map((r) => r.id)));
+          }
         } else if (res.error) {
           toast.error(res.error);
         }
@@ -292,7 +299,14 @@ export function EmailRecipientsDialog({
                           <span className="text-sm font-medium text-slate-900 truncate">
                             {r.name}
                           </span>
-                          {r.isPrimary ? (
+                          {r.isBillingEmail ? (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200"
+                            >
+                              {t("billingRecipient")}
+                            </Badge>
+                          ) : r.isPrimary ? (
                             <Badge
                               variant="secondary"
                               className="text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200"

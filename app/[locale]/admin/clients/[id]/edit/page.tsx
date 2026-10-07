@@ -85,6 +85,7 @@ export default async function EditClientPage({
           facilityType: client.facilityType,
           address: client.address,
           contactPerson: client.contactPerson,
+          billingEmail: client.billingEmail,
           billingInfo: client.billingInfo,
           paymentTermsDays: client.paymentTermsDays,
           surchargeSat: client.surchargeSat,

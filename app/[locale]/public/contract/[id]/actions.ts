@@ -86,7 +86,7 @@ export async function signContractPublic({
           shiftDate: a.order.shiftDate,
           startTime: a.order.startTime,
           endTime: a.order.endTime,
-          breakMinutes: a.order.breakMinutes || 30,
+          breakMinutes: a.order.breakMinutes ?? 30,
           quantity: 1,
           requiredQualification: a.order.requiredQualification,
         }],

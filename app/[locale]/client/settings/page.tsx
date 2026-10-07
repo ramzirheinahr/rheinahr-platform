@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { ClientProfileForm } from "./profile-form";
 import { SubUsersSection, type SubUser } from "./sub-users-section";
+import { FacilityBillingEmailSection } from "./billing-email-section";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,12 @@ export default async function ClientSettingsPage() {
           <h2 className="text-lg font-medium mb-4">Mein Konto</h2>
           <ClientProfileForm userId={actor.id} email={actor.email} />
         </section>
+
+        {isMainUser && (
+          <section>
+            <FacilityBillingEmailSection billingEmail={facility.billingEmail} />
+          </section>
+        )}
 
         <section>
           <SubUsersSection users={allUsers} isMainUser={isMainUser} />

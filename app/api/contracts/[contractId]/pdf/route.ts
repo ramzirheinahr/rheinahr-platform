@@ -90,7 +90,7 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
           shiftDate: a.order.shiftDate,
           startTime: a.order.startTime,
           endTime: a.order.endTime,
-          breakMinutes: a.order.breakMinutes || 30,
+          breakMinutes: a.order.breakMinutes ?? 30,
           quantity: 1,
           requiredQualification: a.order.requiredQualification,
         }],

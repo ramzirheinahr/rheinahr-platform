@@ -38,7 +38,21 @@ export async function GET(req: Request) {
   const words = q.split(/\s+/).filter(Boolean);
 
   const invoiceWhere: any = {
-    date: { gte: from, lte: to },
+    OR: [
+      {
+        assignments: {
+          some: {
+            order: {
+              shiftDate: { gte: from, lte: to },
+            },
+          },
+        },
+      },
+      {
+        assignments: { none: {} },
+        date: { gte: from, lte: to },
+      },
+    ],
   };
 
   if (words.length > 0) {

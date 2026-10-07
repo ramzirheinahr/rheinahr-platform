@@ -205,6 +205,7 @@ export const clientSchema = z.object({
   address: z.string().max(240).optional(),
 
   contactPerson: z.string().max(120).optional(),
+  billingEmail: z.string().max(255).optional(),
   billingInfo: z.string().max(500).optional(),
   paymentTermsDays: z.coerce.number().int().min(0).max(365).optional().default(14),
   // Surcharges entered as percentages (e.g. 25 = +25 %); stored as fractions.

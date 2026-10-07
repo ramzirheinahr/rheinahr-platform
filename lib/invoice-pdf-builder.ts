@@ -13,7 +13,7 @@ import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client"
 
 export function buildInvoicePdfData(
   invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount">,
-  client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "billingInfo" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
+  client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "billingEmail" | "billingInfo" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
   assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[]
 ): InvoicePdfData {
   // If the invoice has a snapshot of the client data (prices, address, etc.), use it. 
@@ -114,6 +114,22 @@ export function buildInvoicePdfData(
   const periodStart = allAssignments[0] ? format(allAssignments[0].order.shiftDate, "dd.MM.yyyy") : "";
   const periodEnd = allAssignments[allAssignments.length - 1] ? format(allAssignments[allAssignments.length - 1].order.shiftDate, "dd.MM.yyyy") : "";
 
+  // Derive net subtotal directly from calculated line items when items exist,
+  // falling back to invoice.netAmount if no items were generated.
+  const computedNet = items.length > 0
+    ? items.reduce((sum, item) => {
+        // parse amount string e.g. "6.330,36 €" or "100,50 €"
+        const numStr = item.amount.replace(" €", "").replace(/\./g, "").replace(",", ".");
+        const val = parseFloat(numStr);
+        return sum + (isNaN(val) ? 0 : val);
+      }, 0)
+    : Number(invoice.netAmount);
+
+  const roundedNet = Math.round(computedNet * 100) / 100;
+  const net = roundedNet;
+  const vat = Math.round(net * 0.19 * 100) / 100;
+  const gross = Math.round((net + vat) * 100) / 100;
+
   return {
     invoiceNumber: invoice.invoiceNumber,
     date: format(invoice.date || new Date(), "dd.MM.yyyy"),
@@ -124,9 +140,10 @@ export function buildInvoicePdfData(
     periodStart,
     periodEnd,
     items,
-    subtotal: formatAmount(invoice.netAmount),
-    taxAmount: formatAmount(invoice.vatAmount),
-    total: formatAmount(invoice.grossAmount),
+    subtotal: formatAmount(net),
+    taxAmount: formatAmount(vat),
+    total: formatAmount(gross),
     paymentTermsDays: effectiveClient.paymentTermsDays,
   };
 }
+

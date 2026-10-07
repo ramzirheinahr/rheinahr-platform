@@ -89,9 +89,20 @@ export function ClientCreateForm({ customFacilityTypes = [] }: { customFacilityT
         </div>
       </fieldset>
 
-      <fieldset className="space-y-3 rounded-lg border p-4">
+      <fieldset className="space-y-4 rounded-lg border p-4">
         <legend className="px-1 text-sm font-medium">{t("billingInfo")}</legend>
-        <div className="space-y-2 mt-2">
+        <div className="space-y-2">
+          <Label htmlFor="billingEmail">{t("billingEmail")}</Label>
+          <Input
+            id="billingEmail"
+            name="billingEmail"
+            type="text"
+            placeholder={t("billingEmailPlaceholder")}
+          />
+          <p className="text-xs text-muted-foreground">{t("billingEmailHint")}</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="billingInfo">{t("billingAddressDetails")}</Label>
           <Textarea id="billingInfo" name="billingInfo" rows={3} />
         </div>
       </fieldset>

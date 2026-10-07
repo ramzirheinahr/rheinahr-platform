@@ -71,7 +71,10 @@ export async function sendInvoiceEmail({
     }
   }
 
-  const targetRecipients = recipients && recipients.length > 0 ? recipients : [client.userId];
+  const defaultRecipients = client.billingEmail
+    ? client.billingEmail.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => s.includes("@"))
+    : [client.userId];
+  const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
 
   await sendEmailToRecipients(targetRecipients, {
     subject: `Rechnung ${invoice.invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
@@ -173,7 +176,8 @@ export async function generateOrderInvoices(
   assignmentIds: string[],
   customInvoiceNumber?: string,
   recipients?: string[],
-  attachTimesheets: boolean = true
+  attachTimesheets: boolean = true,
+  sendEmail: boolean = false
 ) {
   const user = await requireRole("de", "admin");
   
@@ -228,7 +232,7 @@ export async function generateOrderInvoices(
     shiftDate: a.order.shiftDate,
     startTime: a.order.startTime,
     endTime: a.order.endTime,
-    breakMinutes: a.order.breakMinutes || 30,
+    breakMinutes: a.order.breakMinutes ?? 30,
     quantity: 1,
     requiredQualification: a.order.requiredQualification
   }));
@@ -259,6 +263,7 @@ export async function generateOrderInvoices(
         internalNumber: client.internalNumber,
         facilityName: client.facilityName,
         address: client.address,
+        billingEmail: client.billingEmail,
         billingInfo: client.billingInfo,
         hourlyRates: client.hourlyRates,
         surchargeSat: client.surchargeSat,
@@ -301,57 +306,59 @@ export async function generateOrderInvoices(
     }
   });
 
-  // ----------------------------------------------------
-  // Generate PDF for Email Attachment
-  // ----------------------------------------------------
-  const pdfData = buildInvoicePdfData(invoice, client, assignments);
-  const pdfBuffer = await generateInvoicePdf(pdfData);
+  // Send Email with Attachment only if explicitly requested
+  if (sendEmail) {
+    const pdfData = buildInvoicePdfData(invoice, client, assignments);
+    const pdfBuffer = await generateInvoicePdf(pdfData);
 
-  const attachments: { filename: string; content: Buffer; contentType: string }[] = [
-    {
-      filename: `${invoiceNumber}.pdf`,
-      content: pdfBuffer,
-      contentType: "application/pdf"
-    }
-  ];
-
-  if (attachTimesheets && assignments.length > 0) {
-    const timesheetBuffer = await generateLeistungsnachweisePdf(assignments.map(a => a.id));
-    if (timesheetBuffer) {
-      attachments.push({
-        filename: `Leistungsnachweise_${invoiceNumber}.pdf`,
-        content: timesheetBuffer,
+    const attachments: { filename: string; content: Buffer; contentType: string }[] = [
+      {
+        filename: `${invoiceNumber}.pdf`,
+        content: pdfBuffer,
         contentType: "application/pdf"
-      });
+      }
+    ];
+
+    if (attachTimesheets && assignments.length > 0) {
+      const timesheetBuffer = await generateLeistungsnachweisePdf(assignments.map(a => a.id));
+      if (timesheetBuffer) {
+        attachments.push({
+          filename: `Leistungsnachweise_${invoiceNumber}.pdf`,
+          content: timesheetBuffer,
+          contentType: "application/pdf"
+        });
+      }
     }
-  }
 
-  const targetRecipients = recipients && recipients.length > 0 ? recipients : [client.userId];
+    const defaultRecipients = client.billingEmail
+      ? client.billingEmail.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => s.includes("@"))
+      : [client.userId];
+    const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
 
-  // Send Email with Attachment (non-fatal if SMTP fails)
-  try {
-    await sendEmailToRecipients(targetRecipients, {
-      subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-      body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
-      url: `/client/orders/${requestGroupId}`,
-      attachments
-    });
+    try {
+      await sendEmailToRecipients(targetRecipients, {
+        subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
+        body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+        url: `/client/orders/${requestGroupId}`,
+        attachments
+      });
 
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        snapshotData: {
-          ...(invoice.snapshotData as any),
-          emailSent: {
-            sentAt: new Date().toISOString(),
-            recipients: targetRecipients,
-            attachTimesheets,
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          snapshotData: {
+            ...(invoice.snapshotData as any),
+            emailSent: {
+              sentAt: new Date().toISOString(),
+              recipients: targetRecipients,
+              attachTimesheets,
+            }
           }
         }
-      }
-    });
-  } catch (emailErr) {
-    console.error("Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);
+      });
+    } catch (emailErr) {
+      console.error("Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);
+    }
   }
 
   revalidatePath("/", "layout");
