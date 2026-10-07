@@ -184,5 +184,13 @@ export async function OrdersListContent({
     };
   });
 
-  return <OrdersList groups={summaries} statuses={[...orderStatuses] as OrderStatus[]} />;
+  const currentMonth = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+
+  return (
+    <OrdersList
+      groups={summaries}
+      statuses={[...orderStatuses] as OrderStatus[]}
+      currentMonth={currentMonth}
+    />
+  );
 }

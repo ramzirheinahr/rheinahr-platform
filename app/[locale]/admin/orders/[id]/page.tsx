@@ -17,10 +17,13 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminRequestDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { id } = await params;
+  const search = await searchParams;
   const t = await getTranslations("orders");
   const c = await getTranslations("common");
 
@@ -71,11 +74,23 @@ export default async function AdminRequestDetail({
   const lastDate = formatDateDE(allOrdersInGroup[allOrdersInGroup.length - 1].shiftDate);
   const range = firstDate === lastDate ? firstDate : `${firstDate} – ${lastDate}`;
 
+  const queryMonth = typeof search?.month === "string" && /^\d{4}-\d{2}$/.test(search.month) ? search.month : null;
+  const orderShiftDate = allOrdersInGroup[0]?.shiftDate;
+  const orderMonth = orderShiftDate
+    ? `${orderShiftDate.getUTCFullYear()}-${String(orderShiftDate.getUTCMonth() + 1).padStart(2, "0")}`
+    : `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
+  const returnMonth = queryMonth || orderMonth;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="gap-2" render={<Link href="/admin/orders" />}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            render={<Link href={`/admin/orders?month=${returnMonth}`} />}
+          >
             <ArrowLeft className="size-4" />
             {c("back")}
           </Button>
@@ -109,7 +124,7 @@ export default async function AdminRequestDetail({
           {isRequestCancelable(allOrdersInGroup) ? (
             <CancelRequestButton requestGroupId={id} admin />
           ) : null}
-          <Button className="gap-2" render={<Link href={`/admin/orders/${id}/edit`} />}>
+          <Button className="gap-2" render={<Link href={`/admin/orders/${id}/edit?month=${returnMonth}`} />}>
             <Pencil className="size-4" />
             {c("edit")}
           </Button>

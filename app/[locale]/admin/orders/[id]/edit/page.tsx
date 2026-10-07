@@ -17,10 +17,14 @@ const d = (date: Date) => date.toISOString().slice(0, 10);
 // Admins may edit a request at any time — no cutoff, even after shifts ran.
 export default async function AdminEditRequestPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { id } = await params;
+  const search = await searchParams;
+  const monthParam = typeof search?.month === "string" && /^\d{4}-\d{2}$/.test(search.month) ? search.month : null;
   const t = await getTranslations("orders");
   const c = await getTranslations("common");
 
@@ -130,29 +134,31 @@ export default async function AdminEditRequestPage({
     };
   });
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2"
-          render={<Link href={`/admin/orders/${id}`} />}
-        >
-          <ArrowLeft className="size-4" />
-          {c("back")}
-        </Button>
-        <h1 className="text-2xl font-semibold">{t("detailTitle")}</h1>
-      </div>
-      <OrderRequestBuilder
-        initial={initial}
-        surcharges={resolveSurcharges(orders[0].client)}
-        rates={resolveRates(orders[0].client)}
-        nightWindow={resolveNightWindow(orders[0].client)}
-        adminEdit
-        backHref={`/admin/orders/${id}`}
-        shiftMeta={shiftMeta}
-      />
-    </div>
-  );
+      const backToDetailHref = monthParam ? `/admin/orders/${id}?month=${monthParam}` : `/admin/orders/${id}`;
+
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              render={<Link href={backToDetailHref} />}
+            >
+              <ArrowLeft className="size-4" />
+              {c("back")}
+            </Button>
+            <h1 className="text-2xl font-semibold">{t("detailTitle")}</h1>
+          </div>
+          <OrderRequestBuilder
+            initial={initial}
+            surcharges={resolveSurcharges(orders[0].client)}
+            rates={resolveRates(orders[0].client)}
+            nightWindow={resolveNightWindow(orders[0].client)}
+            adminEdit
+            backHref={backToDetailHref}
+            shiftMeta={shiftMeta}
+          />
+        </div>
+      );
 }

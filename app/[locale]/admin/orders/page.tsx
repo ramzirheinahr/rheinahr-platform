@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -12,7 +13,11 @@ export default async function AdminOrdersPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const searchParams = await props.searchParams;
-  const monthParam = typeof searchParams?.month === "string" ? searchParams.month : null;
+  const cookieStore = await cookies();
+  const savedMonth = cookieStore.get("admin_orders_month")?.value;
+
+  const rawMonth = typeof searchParams?.month === "string" ? searchParams.month : (savedMonth || null);
+  const monthParam = typeof rawMonth === "string" && /^\d{4}-\d{2}$/.test(rawMonth) ? rawMonth : null;
   
   let targetYear = new Date().getUTCFullYear();
   let targetMonth = new Date().getUTCMonth() + 1;

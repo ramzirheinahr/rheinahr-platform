@@ -49,10 +49,12 @@ export function OrdersList({
   groups,
   statuses,
   basePath = "/admin/orders",
+  currentMonth,
 }: {
   groups: OrderGroupSummary[];
   statuses: OrderStatus[];
   basePath?: string;
+  currentMonth?: string;
 }) {
   const t = useTranslations("orders");
   const es = useTranslations("enums.orderStatus");
@@ -72,6 +74,12 @@ export function OrdersList({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  useEffect(() => {
+    if (currentMonth && typeof document !== "undefined") {
+      document.cookie = `admin_orders_month=${currentMonth}; path=/; max-age=86400; SameSite=Lax`;
+    }
+  }, [currentMonth]);
 
   // How many requests carry each status — shown next to the option for context.
   const counts = useMemo(() => {
@@ -259,7 +267,7 @@ export function OrdersList({
           {filteredAndSorted.map((g) => (
             <Link
               key={g.key}
-              href={`${basePath}/${g.key}`}
+              href={`${basePath}/${g.key}${currentMonth ? `?month=${currentMonth}` : ""}`}
               className={cn(
                 "flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-muted/40",
                 g.cancelled && "border-destructive/40 bg-destructive/5",
