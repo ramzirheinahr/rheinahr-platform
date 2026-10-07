@@ -1530,6 +1530,7 @@
     "subject": "الموضوع",
     "status": "الحالة",
     "attachments": "المرفقات",
+    "viewAttachment": "عرض / فتح المرفق",
     "viewAction": "معاينة",
     "searchPlaceholder": "البحث حسب المستلم أو الموضوع أو المحتوى…",
     "filterAll": "الكل",

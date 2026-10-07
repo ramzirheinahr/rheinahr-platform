@@ -1528,6 +1528,7 @@
     "subject": "Betreff",
     "status": "Status",
     "attachments": "Anhänge",
+    "viewAttachment": "Anhang ansehen / öffnen",
     "viewAction": "Vorschau",
     "searchPlaceholder": "Nach Empfänger, Betreff oder Inhalt suchen…",
     "filterAll": "Alle",

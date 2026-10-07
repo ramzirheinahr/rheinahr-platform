@@ -21,12 +21,69 @@ export function buildInvoicePdfData(
   const snapshot = (invoice as any).snapshotData || {};
   const effectiveClient = { ...client, ...snapshot } as typeof client;
 
+  // If the invoice has an immutable frozen snapshot of the items, return them directly.
+  if (Array.isArray(snapshot.items) && snapshot.items.length > 0) {
+    return {
+      invoiceNumber: invoice.invoiceNumber,
+      date: snapshot.date || format(invoice.date || new Date(), "dd.MM.yyyy"),
+      clientId: effectiveClient.internalNumber || effectiveClient.shortCode || effectiveClient.id.substring(0, 8),
+      clientName: effectiveClient.facilityName,
+      billingInfo: effectiveClient.billingInfo || null,
+      clientAddress: buildAddressString(effectiveClient) || "Adresse unbekannt",
+      periodStart: snapshot.periodStart || "",
+      periodEnd: snapshot.periodEnd || "",
+      items: snapshot.items,
+      subtotal: snapshot.subtotal || formatAmount(Number(invoice.netAmount)),
+      taxAmount: snapshot.taxAmount || formatAmount(Number(invoice.vatAmount)),
+      total: snapshot.total || formatAmount(Number(invoice.grossAmount)),
+      paymentTermsDays: effectiveClient.paymentTermsDays,
+    };
+  }
+
   const rates = resolveRates(effectiveClient);
   const surcharges = resolveSurcharges(effectiveClient);
   const nightWindow = resolveNightWindow(effectiveClient);
 
   const getHolidays = (year: number) => Array.from(germanHolidays(year).keys());
   const isHoliday = (dateStr: string) => getHolidays(parseInt(dateStr.slice(0, 4), 10)).includes(dateStr);
+
+  // Determine if this invoice was historically finalized & sent under legacy break rules (breakMinutes || 30)
+  // so the generated PDF matches the exact historical invoice sent to the client.
+  let isLegacySent = false;
+  if (snapshot?.emailSent?.sentAt) {
+    let testLegacySum = 0;
+    let testNewSum = 0;
+    for (const a of assignments) {
+      const dStr = a.order.shiftDate.toISOString().slice(0, 10);
+      const q = a.order.requiredQualification as Qualification;
+      const bRate = rateFor(q, rates);
+      const splitLeg = shiftSurchargeHours(dStr, a.order.startTime, a.order.endTime, a.order.breakMinutes || 30, isHoliday, nightWindow);
+      for (const ch of splitLeg.values()) {
+        let r = bRate;
+        if (ch.components.includes("sat")) r += bRate * surcharges.sat;
+        if (ch.components.includes("sun")) r += bRate * surcharges.sun;
+        if (ch.components.includes("holiday")) r += bRate * surcharges.holiday;
+        if (ch.components.includes("night")) r += bRate * surcharges.night;
+        testLegacySum += ch.hours * r;
+      }
+      const splitN = shiftSurchargeHours(dStr, a.order.startTime, a.order.endTime, a.order.breakMinutes ?? 30, isHoliday, nightWindow);
+      for (const ch of splitN.values()) {
+        let r = bRate;
+        if (ch.components.includes("sat")) r += bRate * surcharges.sat;
+        if (ch.components.includes("sun")) r += bRate * surcharges.sun;
+        if (ch.components.includes("holiday")) r += bRate * surcharges.holiday;
+        if (ch.components.includes("night")) r += bRate * surcharges.night;
+        testNewSum += ch.hours * r;
+      }
+    }
+    const netAdj = typeof snapshot.netAdjustment === "number" ? snapshot.netAdjustment : 0;
+    testLegacySum += netAdj;
+    testNewSum += netAdj;
+    const invNet = Number(invoice.netAmount);
+    if (Math.abs(testLegacySum - invNet) < 0.1 && Math.abs(testNewSum - invNet) >= 0.1) {
+      isLegacySent = true;
+    }
+  }
 
   type GroupData = {
     baseHours: number;
@@ -54,7 +111,8 @@ export function buildInvoicePdfData(
     group.assignments.push(a);
 
     const shiftDateStr = a.order.shiftDate.toISOString().slice(0, 10);
-    const split = shiftSurchargeHours(shiftDateStr, a.order.startTime, a.order.endTime, a.order.breakMinutes ?? 30, isHoliday, nightWindow);
+    const effectiveBreakMinutes = isLegacySent ? (a.order.breakMinutes || 30) : (a.order.breakMinutes ?? 30);
+    const split = shiftSurchargeHours(shiftDateStr, a.order.startTime, a.order.endTime, effectiveBreakMinutes, isHoliday, nightWindow);
     
     for (const chunk of split.values()) {
       group.baseHours += chunk.hours;

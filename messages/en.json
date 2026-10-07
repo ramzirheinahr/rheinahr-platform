@@ -1528,6 +1528,7 @@
     "subject": "Subject",
     "status": "Status",
     "attachments": "Attachments",
+    "viewAttachment": "View / open attachment",
     "viewAction": "Preview",
     "searchPlaceholder": "Search by recipient, subject, or content…",
     "filterAll": "All",

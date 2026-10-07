@@ -116,6 +116,37 @@ export async function generateMonthInvoices(
     }
   });
 
+  // Permanently freeze invoice line items and totals in snapshotData
+  const pdfData = buildInvoicePdfData(invoice, client, assignments);
+  await prisma.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      snapshotData: {
+        shortCode: client.shortCode,
+        internalNumber: client.internalNumber,
+        facilityName: client.facilityName,
+        address: client.address,
+        billingInfo: client.billingInfo,
+        hourlyRates: client.hourlyRates,
+        surchargeSat: client.surchargeSat,
+        surchargeSun: client.surchargeSun,
+        surchargeHoliday: client.surchargeHoliday,
+        surchargeNight: client.surchargeNight,
+        nightStart: client.nightStart,
+        nightEnd: client.nightEnd,
+        paymentTermsDays: client.paymentTermsDays,
+        items: pdfData.items,
+        subtotal: pdfData.subtotal,
+        taxAmount: pdfData.taxAmount,
+        total: pdfData.total,
+        periodStart: pdfData.periodStart,
+        periodEnd: pdfData.periodEnd,
+        isFrozen: true,
+        frozenAt: new Date().toISOString(),
+      } as any
+    }
+  });
+
   await audit({
     userId: user.id,
     action: "invoice.generate",

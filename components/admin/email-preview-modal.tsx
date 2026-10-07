@@ -25,6 +25,7 @@ import {
   Copy,
   Check,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { resendOutgoingEmail, getOutgoingEmailContent } from "@/app/[locale]/admin/emails/actions";
@@ -245,14 +246,23 @@ export function EmailPreviewModal({
                 {t("attachments")}:
               </span>
               {email.attachments.map((att, i) => (
-                <Badge key={i} variant="outline" className="gap-1.5 text-xs py-1 px-2.5 bg-muted/40">
-                  <span className="font-medium">{att.filename}</span>
+                <a
+                  key={i}
+                  href={`/api/emails/${email.id}/attachment?filename=${encodeURIComponent(att.filename)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs py-1 px-2.5 rounded-md border border-border/70 bg-background/80 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all cursor-pointer group shadow-2xs"
+                  title={t("viewAttachment")}
+                >
+                  <Paperclip className="size-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <span className="font-medium underline-offset-2 group-hover:underline">{att.filename}</span>
                   {att.size && (
                     <span className="text-muted-foreground font-mono text-[11px]">
                       ({Math.round(att.size / 1024)} KB)
                     </span>
                   )}
-                </Badge>
+                  <ExternalLink className="size-3 text-muted-foreground opacity-60 group-hover:opacity-100 group-hover:text-primary transition-all ml-0.5" />
+                </a>
               ))}
             </div>
           )}
