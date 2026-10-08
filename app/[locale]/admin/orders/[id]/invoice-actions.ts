@@ -172,6 +172,99 @@ export async function cancelInvoice(invoiceId: string) {
   revalidatePath("/", "layout");
 }
 
+export async function refreshInvoice(invoiceId: string) {
+  const user = await requireRole("de", "admin");
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: {
+      client: true,
+      assignments: {
+        include: {
+          order: true,
+          worker: true,
+        },
+        orderBy: { order: { shiftDate: "asc" } },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new Error("Rechnung nicht gefunden.");
+  }
+
+  if (invoice.status === "cancelled") {
+    throw new Error("Stornierte Rechnungen können nicht aktualisiert werden.");
+  }
+
+  // Recalculate invoice PDF data from current DB shift hours and client rates
+  const pdfData = buildInvoicePdfData(
+    invoice,
+    invoice.client,
+    invoice.assignments,
+    { forceRecalculate: true }
+  );
+
+  const parseAmt = (amtStr: string) => {
+    const clean = amtStr.replace(" €", "").replace(/\./g, "").replace(",", ".");
+    return parseFloat(clean) || 0;
+  };
+  const netAmount = parseAmt(pdfData.subtotal);
+  const vatAmount = parseAmt(pdfData.taxAmount);
+  const grossAmount = parseAmt(pdfData.total);
+
+  const currentSnapshot = (invoice.snapshotData as any) || {};
+
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      netAmount,
+      vatAmount,
+      grossAmount,
+      snapshotData: {
+        ...currentSnapshot,
+        shortCode: invoice.client.shortCode,
+        internalNumber: invoice.client.internalNumber,
+        facilityName: invoice.client.facilityName,
+        address: invoice.client.address,
+        billingEmail: invoice.client.billingEmail,
+        billingInfo: invoice.client.billingInfo,
+        hourlyRates: invoice.client.hourlyRates,
+        surchargeSat: invoice.client.surchargeSat,
+        surchargeSun: invoice.client.surchargeSun,
+        surchargeHoliday: invoice.client.surchargeHoliday,
+        surchargeNight: invoice.client.surchargeNight,
+        nightStart: invoice.client.nightStart,
+        nightEnd: invoice.client.nightEnd,
+        paymentTermsDays: invoice.client.paymentTermsDays,
+        items: pdfData.items,
+        subtotal: pdfData.subtotal,
+        taxAmount: pdfData.taxAmount,
+        total: pdfData.total,
+        periodStart: pdfData.periodStart,
+        periodEnd: pdfData.periodEnd,
+        isFrozen: true,
+        refreshedAt: new Date().toISOString(),
+      },
+    },
+  });
+
+  await audit({
+    userId: user.id,
+    action: "invoice.refresh",
+    entity: "Invoice",
+    entityId: invoiceId,
+    metadata: {
+      netAmount,
+      grossAmount,
+      assignmentCount: invoice.assignments.length,
+    },
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true, netAmount, grossAmount };
+}
+
 export async function generateOrderInvoices(
   assignmentIds: string[],
   customInvoiceNumber?: string,

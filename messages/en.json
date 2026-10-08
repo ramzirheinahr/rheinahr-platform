@@ -1514,7 +1514,12 @@
     "attachTimesheetsHint": "Attach all shift confirmation sheets for this invoice (including unconfirmed/uploaded records) as a PDF.",
     "orderScheduleTitle": "Send schedule / shift overview by email",
     "monthScheduleTitle": "Send monthly overview by email",
-    "sendEmailButton": "Send via Email"
+    "sendEmailButton": "Send via Email",
+    "refreshInvoice": "Update invoice",
+    "refreshSuccess": "Invoice updated successfully!",
+    "showPdf": "View PDF",
+    "cancelInvoice": "Cancel invoice",
+    "deleteInvoice": "Delete invoice"
   },
   "emails": {
     "title": "Outgoing Emails",

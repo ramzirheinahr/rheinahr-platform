@@ -1514,7 +1514,12 @@
     "attachTimesheetsHint": "Alle zu dieser Rechnung gehörenden Schichtbestätigungen (auch unbestätigte/hochgeladene Nachweise) gesammelt als PDF anhängen.",
     "orderScheduleTitle": "Dienstplan / Einsatzübersicht per E-Mail senden",
     "monthScheduleTitle": "Monatsübersicht per E-Mail senden",
-    "sendEmailButton": "Per E-Mail senden"
+    "sendEmailButton": "Per E-Mail senden",
+    "refreshInvoice": "Rechnung aktualisieren",
+    "refreshSuccess": "Rechnung erfolgreich aktualisiert!",
+    "showPdf": "PDF anzeigen",
+    "cancelInvoice": "Rechnung stornieren",
+    "deleteInvoice": "Rechnung löschen"
   },
   "emails": {
     "title": "E-Mail-Ausgang",

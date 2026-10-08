@@ -14,15 +14,16 @@ import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client"
 export function buildInvoicePdfData(
   invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount">,
   client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "billingEmail" | "billingInfo" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
-  assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[]
+  assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[],
+  options?: { forceRecalculate?: boolean }
 ): InvoicePdfData {
   // If the invoice has a snapshot of the client data (prices, address, etc.), use it. 
   // Otherwise fallback to current live client data.
   const snapshot = (invoice as any).snapshotData || {};
   const effectiveClient = { ...client, ...snapshot } as typeof client;
 
-  // If the invoice has an immutable frozen snapshot of the items, return them directly.
-  if (Array.isArray(snapshot.items) && snapshot.items.length > 0) {
+  // If the invoice has an immutable frozen snapshot of the items, return them directly (unless forceRecalculate is requested).
+  if (!options?.forceRecalculate && Array.isArray(snapshot.items) && snapshot.items.length > 0) {
     return {
       invoiceNumber: invoice.invoiceNumber,
       date: snapshot.date || format(invoice.date || new Date(), "dd.MM.yyyy"),
@@ -135,23 +136,68 @@ export function buildInvoicePdfData(
       const sorted = [...group.assignments].sort((a, b) => a.order.shiftDate.getTime() - b.order.shiftDate.getTime());
       const startStr = sorted[0] ? format(sorted[0].order.shiftDate, "dd.MM.yyyy") : "";
       const endStr = sorted[sorted.length - 1] ? format(sorted[sorted.length - 1].order.shiftDate, "dd.MM.yyyy") : "";
-      items.push({ pos: pos++, description: `${wName} (${qName}) vom ${startStr} bis ${endStr}`, hours: formatNumber(group.baseHours), rate: formatNumber(baseRate), amount: formatAmount(group.baseHours * baseRate) });
+      const roundedH = Math.round(group.baseHours * 100) / 100;
+      const roundedR = Math.round(baseRate * 100) / 100;
+      const lineAmt = Math.round(roundedH * roundedR * 100) / 100;
+      items.push({
+        pos: pos++,
+        description: `${wName} (${qName}) vom ${startStr} bis ${endStr}`,
+        hours: formatNumber(roundedH),
+        rate: formatNumber(roundedR),
+        amount: formatAmount(lineAmt),
+      });
     }
     if (group.satHours > 0) {
       const sRate = baseRate * surcharges.sat;
-      items.push({ pos: pos++, description: `Samstagzuschlag (${wName}) ${surcharges.sat * 100}%`, hours: formatNumber(group.satHours), rate: formatNumber(sRate), amount: formatAmount(group.satHours * sRate) });
+      const roundedH = Math.round(group.satHours * 100) / 100;
+      const roundedR = Math.round(sRate * 100) / 100;
+      const lineAmt = Math.round(roundedH * roundedR * 100) / 100;
+      items.push({
+        pos: pos++,
+        description: `Samstagzuschlag (${wName}) ${surcharges.sat * 100}%`,
+        hours: formatNumber(roundedH),
+        rate: formatNumber(roundedR),
+        amount: formatAmount(lineAmt),
+      });
     }
     if (group.nightHours > 0) {
       const sRate = baseRate * surcharges.night;
-      items.push({ pos: pos++, description: `Nachtzuschlag (${nightWindow.start}-${nightWindow.end}) (${wName}) ${surcharges.night * 100}%`, hours: formatNumber(group.nightHours), rate: formatNumber(sRate), amount: formatAmount(group.nightHours * sRate) });
+      const roundedH = Math.round(group.nightHours * 100) / 100;
+      const roundedR = Math.round(sRate * 100) / 100;
+      const lineAmt = Math.round(roundedH * roundedR * 100) / 100;
+      items.push({
+        pos: pos++,
+        description: `Nachtzuschlag (${nightWindow.start}-${nightWindow.end}) (${wName}) ${surcharges.night * 100}%`,
+        hours: formatNumber(roundedH),
+        rate: formatNumber(roundedR),
+        amount: formatAmount(lineAmt),
+      });
     }
     if (group.sunHours > 0) {
       const sRate = baseRate * surcharges.sun;
-      items.push({ pos: pos++, description: `Sonntagzuschlag (${wName}) ${surcharges.sun * 100}%`, hours: formatNumber(group.sunHours), rate: formatNumber(sRate), amount: formatAmount(group.sunHours * sRate) });
+      const roundedH = Math.round(group.sunHours * 100) / 100;
+      const roundedR = Math.round(sRate * 100) / 100;
+      const lineAmt = Math.round(roundedH * roundedR * 100) / 100;
+      items.push({
+        pos: pos++,
+        description: `Sonntagzuschlag (${wName}) ${surcharges.sun * 100}%`,
+        hours: formatNumber(roundedH),
+        rate: formatNumber(roundedR),
+        amount: formatAmount(lineAmt),
+      });
     }
     if (group.holidayHours > 0) {
       const sRate = baseRate * surcharges.holiday;
-      items.push({ pos: pos++, description: `Feiertagszuschlag (${wName}) ${surcharges.holiday * 100}%`, hours: formatNumber(group.holidayHours), rate: formatNumber(sRate), amount: formatAmount(group.holidayHours * sRate) });
+      const roundedH = Math.round(group.holidayHours * 100) / 100;
+      const roundedR = Math.round(sRate * 100) / 100;
+      const lineAmt = Math.round(roundedH * roundedR * 100) / 100;
+      items.push({
+        pos: pos++,
+        description: `Feiertagszuschlag (${wName}) ${surcharges.holiday * 100}%`,
+        hours: formatNumber(roundedH),
+        rate: formatNumber(roundedR),
+        amount: formatAmount(lineAmt),
+      });
     }
   }
 

@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Receipt, Plus, FileText, CheckCircle2, Mail } from "lucide-react";
+import { Receipt, Plus, FileText, CheckCircle2, Mail, Trash2, Ban, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { generateOrderInvoices, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { generateOrderInvoices, sendInvoiceEmail, deleteInvoice, cancelInvoice, refreshInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { useTranslations } from "next-intl";
 
@@ -16,8 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Trash2, Ban } from "lucide-react";
-import { deleteInvoice, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 
 export function OrderInvoicesBanner({ 
   requestGroupId,
@@ -58,10 +56,20 @@ export function OrderInvoicesBanner({
     if (!confirm("Möchten Sie diese Rechnung wirklich löschen? Zugehörige Schichten werden wieder freigegeben.")) return;
     try {
       await deleteInvoice(invoiceId);
-      toast.success("Rechnung erfolgreich gelöscht!");
+      toast.success(t("deleteSuccess") || "Rechnung erfolgreich gelöscht!");
       router.refresh();
     } catch (e: unknown) {
       toast.error((e as Error).message || "Fehler beim Löschen der Rechnung");
+    }
+  };
+
+  const handleRefresh = async (invoiceId: string) => {
+    try {
+      await refreshInvoice(invoiceId);
+      toast.success(t("refreshSuccess"));
+      router.refresh();
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Aktualisieren der Rechnung");
     }
   };
 
@@ -105,8 +113,14 @@ export function OrderInvoicesBanner({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => window.open(`/api/invoices/${inv.id}/pdf`, "_blank")}>
                   <FileText className="size-4 mr-2" />
-                  PDF anzeigen
+                  {t("showPdf")}
                 </DropdownMenuItem>
+                {inv.status !== "cancelled" && (
+                  <DropdownMenuItem onClick={() => handleRefresh(inv.id)}>
+                    <RotateCw className="size-4 mr-2" />
+                    {t("refreshInvoice")}
+                  </DropdownMenuItem>
+                )}
                 {inv.status !== "cancelled" && (
                   <DropdownMenuItem onClick={() => setEmailInvoiceId(inv.id)}>
                     <Mail className="size-4 mr-2" />
@@ -116,12 +130,12 @@ export function OrderInvoicesBanner({
                 {inv.status !== "cancelled" && (
                   <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleCancel(inv.id)}>
                     <Ban className="size-4 mr-2" />
-                    Rechnung stornieren
+                    {t("cancelInvoice")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleDelete(inv.id)}>
                   <Trash2 className="size-4 mr-2" />
-                  Rechnung löschen
+                  {t("deleteInvoice")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

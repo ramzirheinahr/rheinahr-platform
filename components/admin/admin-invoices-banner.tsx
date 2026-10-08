@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Receipt, Plus, FileText, CheckCircle2, Trash2, Ban, Mail } from "lucide-react";
+import { Receipt, Plus, FileText, CheckCircle2, Trash2, Ban, Mail, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { generateMonthInvoices } from "@/app/[locale]/admin/clients/[id]/schedule/invoice-actions";
-import { deleteInvoice, cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { deleteInvoice, cancelInvoice, sendInvoiceEmail, refreshInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { useTranslations } from "next-intl";
 
@@ -75,10 +75,20 @@ export function AdminInvoicesBanner({
     if (!confirm("Möchten Sie diese Rechnung wirklich löschen? Zugehörige Schichten werden wieder freigegeben.")) return;
     try {
       await deleteInvoice(invoiceId);
-      toast.success("Rechnung erfolgreich gelöscht!");
+      toast.success(t("deleteSuccess") || "Rechnung erfolgreich gelöscht!");
       router.refresh();
     } catch (e: unknown) {
       toast.error((e as Error).message || "Fehler beim Löschen der Rechnung");
+    }
+  };
+
+  const handleRefresh = async (invoiceId: string) => {
+    try {
+      await refreshInvoice(invoiceId);
+      toast.success(t("refreshSuccess"));
+      router.refresh();
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Fehler beim Aktualisieren der Rechnung");
     }
   };
 
@@ -122,8 +132,14 @@ export function AdminInvoicesBanner({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => window.open(`/api/invoices/${inv.id}/pdf`, "_blank")}>
                   <FileText className="size-4 mr-2" />
-                  PDF anzeigen
+                  {t("showPdf")}
                 </DropdownMenuItem>
+                {inv.status !== "cancelled" && (
+                  <DropdownMenuItem onClick={() => handleRefresh(inv.id)}>
+                    <RotateCw className="size-4 mr-2" />
+                    {t("refreshInvoice")}
+                  </DropdownMenuItem>
+                )}
                 {inv.status !== "cancelled" && (
                   <DropdownMenuItem onClick={() => setEmailInvoiceId(inv.id)}>
                     <Mail className="size-4 mr-2" />
@@ -133,12 +149,12 @@ export function AdminInvoicesBanner({
                 {inv.status !== "cancelled" && (
                   <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleCancel(inv.id)}>
                     <Ban className="size-4 mr-2" />
-                    Rechnung stornieren
+                    {t("cancelInvoice")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleDelete(inv.id)}>
                   <Trash2 className="size-4 mr-2" />
-                  Rechnung löschen
+                  {t("deleteInvoice")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

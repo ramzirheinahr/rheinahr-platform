@@ -188,7 +188,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData, compan
 
       <View style={styles.subtotalRow}>
         <Text style={styles.subtotalLabel}>Zwischensumme :</Text>
-        <Text style={styles.subtotalValue}>{data.subtotal} €</Text>
+        <Text style={styles.subtotalValue}>{data.subtotal.endsWith("€") ? data.subtotal : `${data.subtotal} €`}</Text>
       </View>
 
       {/* Tax Table */}
