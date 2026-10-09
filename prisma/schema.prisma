@@ -111,6 +111,18 @@ enum ConfirmationMethod {
   upload // signed scanned document
 }
 
+enum ConfirmationDocumentSourceType {
+  electronic_original // Original electronic confirmation (signature pad / signed PDF)
+  manual_upload       // Scanned / physical timesheet upload
+  manual_correction   // Corrective timesheet uploaded after original confirmation
+}
+
+enum HoursCorrectionStatus {
+  proposed // Proposed correction awaiting administrative approval (Phase 3a/3c)
+  approved // Approved correction (Phase 3c)
+  rejected // Rejected correction (Phase 3c)
+}
+
 enum NotificationType {
   new_order
   worker_assigned
@@ -202,6 +214,9 @@ model User {
   createdOrders Order[] @relation("OrderCreatedBy")
   editedOrders  Order[] @relation("OrderEditedBy")
   outgoingEmails OutgoingEmail[]
+  uploadedConfirmationDocuments ConfirmationDocument[]       @relation("DocumentUploadedBy")
+  requestedHoursCorrections    WorkHoursCorrectionRequest[] @relation("CorrectionRequestedBy")
+  decidedHoursCorrections      WorkHoursCorrectionRequest[] @relation("CorrectionDecidedBy")
 
   @@map("users")
 }
@@ -455,6 +470,8 @@ model Assignment {
   clientContract      ClientContract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
   invoice             Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   serviceConfirmation ServiceConfirmation?
+  confirmationDocuments ConfirmationDocument[]
+  hoursCorrections      WorkHoursCorrectionRequest[]
   messages            Message[]
   conversation        Conversation?
 
@@ -620,6 +637,70 @@ model ServiceConfirmation {
   confirmedBy User?      @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
 
   @@map("service_confirmations")
+}
+
+model ConfirmationDocument {
+  id            String                         @id @default(uuid())
+  assignmentId  String                         @map("assignment_id")
+  sourceType    ConfirmationDocumentSourceType @map("source_type")
+  storagePath   String?                        @map("storage_path")
+  fileHash      String?                        @map("file_hash") // SHA-256 fingerprint of the file
+  fileName      String?                        @map("file_name")
+  mimeType      String?                        @map("mime_type")
+  fileSizeBytes Int?                           @map("file_size_bytes")
+  signatureData String?                        @map("signature_data")
+  signerName    String?                        @map("signer_name")
+  signerIp      String?                        @map("signer_ip")
+  uploadedById  String?                        @map("uploaded_by_id")
+  uploaderRole  String?                        @map("uploader_role")
+  metadata      Json?
+  createdAt     DateTime                       @default(now()) @map("created_at")
+
+  assignment       Assignment                    @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  uploadedBy       User?                         @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  hoursCorrections WorkHoursCorrectionRequest[]
+
+  @@unique([assignmentId, fileHash])
+  @@index([assignmentId, createdAt])
+  @@index([fileHash])
+  @@map("confirmation_documents")
+}
+
+model WorkHoursCorrectionRequest {
+  id                   String                @id @default(uuid())
+  assignmentId         String                @map("assignment_id")
+  documentId           String?               @map("document_id")
+  status               HoursCorrectionStatus @default(proposed)
+  previousHoursWorked  Decimal?              @map("previous_hours_worked") @db.Decimal(5, 2)
+  proposedHoursWorked  Decimal               @map("proposed_hours_worked") @db.Decimal(5, 2)
+  proposedStartTime    String?               @map("proposed_start_time")
+  proposedEndTime      String?               @map("proposed_end_time")
+  proposedBreakMinutes Int?                  @map("proposed_break_minutes")
+  reason               String?
+  requestedById        String?               @map("requested_by_id")
+  requestedAt          DateTime              @default(now()) @map("requested_at")
+  decidedById          String?               @map("decided_by_id")
+  decidedAt            DateTime?             @map("decided_at")
+  decisionNote         String?               @map("decision_note")
+
+  assignment  Assignment            @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  document    ConfirmationDocument? @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  requestedBy User?                 @relation("CorrectionRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  decidedBy   User?                 @relation("CorrectionDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([assignmentId, status])
+  @@map("work_hours_correction_requests")
+}
+
+model ConsumedConfirmationTicket {
+  id          String   @id @default(uuid())
+  ticketId    String   @unique @map("ticket_id")
+  storagePath String   @map("storage_path")
+  consumedBy  String   @map("consumed_by")
+  consumedAt  DateTime @default(now()) @map("consumed_at")
+
+  @@index([storagePath])
+  @@map("consumed_confirmation_tickets")
 }
 
 model Notification {

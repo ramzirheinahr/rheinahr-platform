@@ -18,8 +18,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { 
   createConfirmationUploadTicket, 
-  finalizeDirectSignedConfirmation,
-  uploadDirectSignedConfirmation
+  finalizeDirectSignedConfirmation
 } from "@/app/[locale]/admin/orders/[id]/confirmation-actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -115,6 +114,7 @@ export function DirectConfirmationUploadDialog({
         fileName: selectedFile.name,
         fileType: selectedFile.type,
         fileSize: selectedFile.size,
+        assignmentIds: Array.from(selectedIds),
       });
 
       if (!ticket.ok) {
@@ -149,6 +149,7 @@ export function DirectConfirmationUploadDialog({
       const res = await finalizeDirectSignedConfirmation({
         assignmentIds: Array.from(selectedIds),
         path: ticket.path,
+        ticket: ticket.ticket,
         signerName: signerName.trim() || undefined,
         requestGroupId,
       });
@@ -160,9 +161,10 @@ export function DirectConfirmationUploadDialog({
       toast.success(t("uploadSignedSuccess", { count: res.count ?? selectedIds.size }));
       setOpen(false);
       router.refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Confirmation upload error:", err);
-      toast.error(err?.message || t("saveError"));
+      const msg = err instanceof Error ? err.message : t("saveError");
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

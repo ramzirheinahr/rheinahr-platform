@@ -20,8 +20,32 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
       worker: { select: { userId: true } },
     },
   });
-  const path = a?.serviceConfirmation?.documentUrl;
-  if (!path) return new NextResponse("Not found", { status: 404 });
+  if (!a) return new NextResponse("Not found", { status: 404 });
+
+  const url = new URL(_req.url);
+  const documentId = url.searchParams.get("documentId");
+
+  let path: string | null = null;
+  if (documentId) {
+    const doc = await prisma.confirmationDocument.findFirst({
+      where: { id: documentId, assignmentId },
+      select: { storagePath: true },
+    });
+    if (!doc || !doc.storagePath) {
+      return new NextResponse("Dokument nicht gefunden", { status: 404 });
+    }
+    path = doc.storagePath;
+  } else {
+    const latestDoc = await prisma.confirmationDocument.findFirst({
+      where: { assignmentId, storagePath: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { storagePath: true },
+    });
+    path = latestDoc?.storagePath || a?.serviceConfirmation?.documentUrl || null;
+    if (!path) {
+      return new NextResponse("Kein Dokument für diese Schicht hinterlegt", { status: 404 });
+    }
+  }
 
   let allowed = false;
   if (roleSatisfies(user.role, ["admin"])) {
@@ -30,7 +54,7 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
     allowed = true;
   } else if (user.role === "client") {
     const { resolveClientId } = await import("@/lib/auth");
-    const clientId = await resolveClientId(user as any);
+    const clientId = await resolveClientId(user);
     if (a.order.clientId === clientId) allowed = true;
   }
 

@@ -106,8 +106,15 @@ export async function updateOrderRequest(
   const changes = updates.length + creates.length + deleteIds.length;
   if (changes === 0) return { ok: true };
 
-  let affectedWorkers: { userId: string; order: any }[] = [];
-  let deletedOrders: any[] = [];
+  type OrderSnippet = {
+    shiftDate: Date;
+    startTime: string;
+    endTime: string;
+    requiredQualification: Qualification;
+    notes: string | null;
+  };
+  let affectedWorkers: { userId: string; order: OrderSnippet }[] = [];
+  let deletedOrders: (OrderSnippet & { id: string; quantity: number })[] = [];
   if (deleteIds.length > 0) {
     deletedOrders = await prisma.order.findMany({
       where: { id: { in: deleteIds } },
@@ -774,7 +781,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   }
   const data = parsed.data;
 
-  const clientId = isStaff ? null : await resolveClientId(user as any);
+  const clientId = isStaff ? null : await resolveClientId(user);
 
   // The assignment must belong to one of this client's orders, be worker-confirmed,
   // and not already have a service confirmation.
@@ -909,6 +916,22 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
         signerName: data.signerName,
         requestedStart: timeChangeRequested ? data.adjustStart : null,
         requestedEnd: timeChangeRequested ? data.adjustEnd : null,
+      },
+    });
+
+    await tx.confirmationDocument.create({
+      data: {
+        assignmentId: data.assignmentId,
+        sourceType: data.method === "electronic" ? "electronic_original" : "manual_upload",
+        storagePath: documentUrl ?? null,
+        mimeType: documentUrl ? "application/pdf" : null,
+        signatureData: data.method === "electronic" ? data.signatureData : null,
+        signerName: data.signerName,
+        signerIp: ip,
+        uploadedById: user.id,
+        uploaderRole: "client",
+        metadata: { clientNotes: data.clientNotes },
+        createdAt: new Date(),
       },
     });
 
