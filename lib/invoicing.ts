@@ -272,4 +272,3 @@ export function hasReliableInvoiceDocument(invoice: {
   }
   return true;
 }
-

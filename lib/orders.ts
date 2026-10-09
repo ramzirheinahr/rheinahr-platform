@@ -457,4 +457,3 @@ export async function resolveAdminOrderRoute(
     canExecuteGroupActions: isGroupOrder,
   };
 }
-
