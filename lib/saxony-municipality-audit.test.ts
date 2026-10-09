@@ -19,6 +19,7 @@ const verifiedPartialMunicipalities = [
   { name: "Neschwitz", ags: "14625360", positive: "Neschwitz", negative: null },
   { name: "Puschwitz", ags: "14625460", positive: "Puschwitz", negative: null },
   { name: "Radibor", ags: "14625490", positive: "Radibor", negative: null },
+  { name: "Wittichenau", ags: "14625640", positive: "Wittichenau", negative: "Maukendorf" },
 ] as const;
 
 const basePolicy: Omit<FacilitySurchargePolicyRecord, "clientId" | "municipality" | "districtLocality"> = {
@@ -48,11 +49,11 @@ function evaluate(ags: string, locality: string) {
 }
 
 describe("Saxony statutory municipality and Ortsteil audit", () => {
-  it("uses official AGS and matches the delivered registry for all eight partial municipalities", () => {
+  it("uses official AGS and matches the delivered registry for all nine partial municipalities", () => {
     expect(registry.saxony.partialMunicipalities.map((item) => [item.name, item.ags])).toEqual(
       verifiedPartialMunicipalities.map(({ name, ags }) => [name, ags]),
     );
-    expect(new Set(verifiedPartialMunicipalities.map(({ ags }) => ags)).size).toBe(8);
+    expect(new Set(verifiedPartialMunicipalities.map(({ ags }) => ags)).size).toBe(9);
     for (const { ags, positive, negative } of verifiedPartialMunicipalities) {
       expect(isSaxonyCatholicMunicipality(ags, positive)).toBe(true);
       expect(resolveGermanHoliday("2026-06-04", "SN", ags, undefined, positive)).toMatchObject({
@@ -96,5 +97,28 @@ describe("Saxony statutory municipality and Ortsteil audit", () => {
         status: "policy_unresolved", code: "AMBIGUOUS_MUNICIPAL_LOCATION",
       });
     }
+  });
+
+  it("does not extend Wittichenau's 1993 holiday boundary to villages incorporated in 1994", () => {
+    expect(registry.saxony.fullMunicipalities.some((item) => item.ags === "14625640")).toBe(false);
+    expect(registry.saxony.partialMunicipalities.some((item) => item.ags === "14625640")).toBe(true);
+    expect(isSaxonyCatholicMunicipality("14625640")).toBeNull();
+    expect(evaluate("14625640", "Wittichenau")).toMatchObject({
+      status: "resolved", isHoliday: true, rateMultiplier: 2,
+    });
+    for (const namedVillage of ["Dubring", "Hoske", "Kotten", "Sollschwitz", "Spohla"]) {
+      expect(evaluate("14625640", namedVillage)).toMatchObject({ status: "resolved", isHoliday: true });
+    }
+    for (const laterVillage of ["Maukendorf", "Saalau"]) {
+      expect(evaluate("14625640", laterVillage)).toMatchObject({
+        status: "resolved", isHoliday: false, rateMultiplier: 1,
+      });
+    }
+    expect(evaluate("14625640", "Rachlau")).toMatchObject({
+      status: "policy_unresolved", code: "AMBIGUOUS_MUNICIPAL_LOCATION",
+    });
+    expect(resolveGermanHoliday("2026-06-04", "SN", "14625640")).toMatchObject({
+      status: "policy_unresolved", code: "AMBIGUOUS_MUNICIPAL_LOCATION",
+    });
   });
 });

@@ -57,8 +57,7 @@
       { "ags": "14625350", "name": "Nebelschütz", "sorbianName": "Njebjelčicy", "status": "statutory_holiday_entire_municipality" },
       { "ags": "14625440", "name": "Panschwitz-Kuckau", "sorbianName": "Pančicy-Kukow", "status": "statutory_holiday_entire_municipality" },
       { "ags": "14625470", "name": "Räckelwitz", "sorbianName": "Worklecy", "status": "statutory_holiday_entire_municipality" },
-      { "ags": "14625500", "name": "Ralbitz-Rosenthal", "sorbianName": "Ralbicy-Róžant", "status": "statutory_holiday_entire_municipality" },
-      { "ags": "14625640", "name": "Wittichenau", "sorbianName": "Kulow", "status": "statutory_holiday_entire_municipality" }
+      { "ags": "14625500", "name": "Ralbitz-Rosenthal", "sorbianName": "Ralbicy-Róžant", "status": "statutory_holiday_entire_municipality" }
     ],
     "partialMunicipalities": [
       {
@@ -120,6 +119,14 @@
         ],
         "nonQualifyingLocalities": [],
         "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "14625640",
+        "name": "Wittichenau",
+        "qualifyingLocalities": ["Wittichenau", "Brischko", "Keula", "Neudorf-Klösterlich", "Dubring", "Hoske", "Kotten", "Sollschwitz", "Spohla"],
+        "nonQualifyingLocalities": ["Maukendorf", "Saalau"],
+        "unspecifiedLocalityStatus": "policy_unresolved",
+        "territorialNote": "The 1995 VO names Wittichenau, Dubring, Hoske, Kotten, Sollschwitz and Spohla. Maukendorf and Saalau joined Wittichenau only in 1994 and are not named; unverified districts remain unresolved."
       }
     ],
     "explicitNonQualifyingOrDisallowedKeys": [

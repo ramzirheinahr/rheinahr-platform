@@ -269,7 +269,8 @@ export function isBavarianCatholicMunicipality(municipality?: string | null): bo
  *    - Panschwitz-Kuckau (Pančicy-Kukow): 14625440
  *    - Räckelwitz (Worklecy): 14625470
  *    - Ralbitz-Rosenthal (Ralbicy-Róžant): 14625500
- *    - Wittichenau (Kulow): 14625640
+ *    - Wittichenau (Kulow, 14625640): only its 1993 territory and separately listed villages;
+ *      later incorporations require Ortsteil verification (see partial rules below).
  * 2. In Teilgebieten (nur bestimmte Ortsteile):
  *    - Bautzen (14625020): nur Ortsteile Bolbritz und Salzenforst (§ 1 Abs. 1 Nr. 1 FronleichnamsVO).
  *      Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst (policy_unresolved: AMBIGUOUS_MUNICIPAL_LOCATION).
@@ -287,7 +288,6 @@ const KNOWN_SAXONY_FULL_CATHOLIC_MUNICIPALITIES = new Set<string>([
   "panschwitz-kuckau", "pančicy-kukow", "14625440",
   "räckelwitz", "worklecy", "14625470",
   "ralbitz-rosenthal", "ralbicy-róžant", "14625500",
-  "wittichenau", "kulow", "14625640",
 ]);
 
 const KNOWN_SAXONY_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
@@ -375,6 +375,15 @@ const SAXONY_PARTIAL_MUNICIPALITY_RULES: Record<
     ]),
     verifiedNonQualifying: new Set(),
   },
+  // Wittichenau (14625640): the 1993 city and the separately named villages in the VO.
+  // Maukendorf and Saalau became city districts in 1994 but are absent from its annex.
+  wittichenau: {
+    qualifying: new Set([
+      "wittichenau", "kulow", "brischko", "keula", "neudorf-klösterlich",
+      "neudorf-kloesterlich", "dubring", "hoske", "kotten", "sollschwitz", "spohla",
+    ]),
+    verifiedNonQualifying: new Set(["maukendorf", "saalau"]),
+  },
 };
 
 const SAXONY_PARTIAL_MUNICIPALITY_ALIASES: Record<string, string> = {
@@ -390,6 +399,8 @@ const SAXONY_PARTIAL_MUNICIPALITY_ALIASES: Record<string, string> = {
   "14625360": "neschwitz",
   "14625460": "puschwitz",
   "14625490": "radibor",
+  "14625640": "wittichenau",
+  "kulow": "wittichenau",
 };
 
 export function isSaxonyCatholicLocation(
