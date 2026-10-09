@@ -123,6 +123,17 @@ enum HoursCorrectionStatus {
   rejected // Rejected correction (Phase 3c)
 }
 
+enum SurchargeCombinationRule {
+  highest_non_night_plus_night // Default contractual rule: highest non-night surcharge + night surcharge
+  cumulative                   // Cumulative rule: all applicable surcharges are summed together
+}
+
+enum SurchargePolicySourceType {
+  contract        // Explicitly stipulated in signed framework or individual contract
+  setting         // Approved administrative facility setting
+  local_exception // Documented municipal or regional statutory exception
+}
+
 enum NotificationType {
   new_order
   worker_assigned
@@ -217,6 +228,7 @@ model User {
   uploadedConfirmationDocuments ConfirmationDocument[]       @relation("DocumentUploadedBy")
   requestedHoursCorrections    WorkHoursCorrectionRequest[] @relation("CorrectionRequestedBy")
   decidedHoursCorrections      WorkHoursCorrectionRequest[] @relation("CorrectionDecidedBy")
+  verifiedSurchargePolicies    FacilitySurchargePolicy[]    @relation("PolicyVerifiedByUser")
 
   @@map("users")
 }
@@ -405,9 +417,10 @@ model Client {
   user         User             @relation("ClientPrimaryUser", fields: [userId], references: [id], onDelete: Cascade)
   subUsers     User[]           @relation("FacilityUsers")
   orders       Order[]
-  contracts    ClientContract[]
-  invoices     Invoice[]
-  appointments Appointment[]
+  contracts         ClientContract[]
+  invoices          Invoice[]
+  appointments      Appointment[]
+  surchargePolicies FacilitySurchargePolicy[]
 
   @@map("clients")
 }
@@ -600,11 +613,47 @@ model ClientContract {
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
 
-  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  assignments Assignment[]
+  client            Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignments       Assignment[]
+  surchargePolicies FacilitySurchargePolicy[]
 
   @@index([clientId, status])
   @@map("client_contracts")
+}
+
+model FacilitySurchargePolicy {
+  id               String                    @id @default(uuid())
+  clientId         String                    @map("client_id")
+  clientContractId String?                   @map("client_contract_id")
+  policyVersion    Int                       @default(1) @map("policy_version")
+  federalState     String                    @map("federal_state") // ISO 3166-2:DE code e.g. "NW", "BY", "BE", "BW"
+  municipality     String?                   @map("municipality")   // Municipal exception location e.g. "Augsburg"
+  surchargeSat     Float                     @map("surcharge_sat")
+  surchargeSun     Float                     @map("surcharge_sun")
+  surchargeHoliday Float                     @map("surcharge_holiday")
+  surchargeNight   Float                     @map("surcharge_night")
+  nightStart       String                    @default("20:00") @map("night_start")
+  nightEnd         String                    @default("06:00") @map("night_end")
+  combinationRule  SurchargeCombinationRule  @default(highest_non_night_plus_night) @map("combination_rule")
+  sourceType       SurchargePolicySourceType @default(setting) @map("source_type")
+  sourceReference  String                    @map("source_reference")
+  verifiedByUserId String?                   @map("verified_by_user_id")
+  verifiedAt       DateTime?                 @map("verified_at")
+  effectiveFrom    DateTime                  @map("effective_from") @db.Date
+  effectiveTo      DateTime?                 @map("effective_to") @db.Date
+  isFrozen         Boolean                   @default(false) @map("is_frozen")
+  frozenAt         DateTime?                 @map("frozen_at")
+  frozenHash       String?                   @map("frozen_hash")
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
+
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientContract ClientContract? @relation(fields: [clientContractId], references: [id], onDelete: SetNull)
+  verifiedByUser User?           @relation("PolicyVerifiedByUser", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([clientId, effectiveFrom, effectiveTo])
+  @@index([clientId, policyVersion])
+  @@map("facility_surcharge_policies")
 }
 
 model ServiceConfirmation {
