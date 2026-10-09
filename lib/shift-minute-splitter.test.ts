@@ -10,8 +10,11 @@ import {
   splitShiftMinutes,
   splitAssignmentMinutesFromEffective,
   validateMinuteSplittingInvariants,
+  convertPreparedItemsToRawInvoiceLines,
   type ShiftMinuteSplitterInput,
+  type PreparedWorkLineItem,
 } from "./shift-minute-splitter";
+import { calculateExactInvoice } from "./invoice-exact-engine";
 import {
   resolveInvoiceSurchargePolicy,
   type FacilitySurchargePolicyRecord,
@@ -534,6 +537,8 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
       const nightEarlyPolicy = createTestFrozenPolicy({
         nightStart: "20:00",
         nightEnd: "06:00",
+        sourceReference: "Tarifvertrag TVöD-B § 7 Abs. 2",
+        clientContractId: "TVöD-B",
       });
 
       const input: ShiftMinuteSplitterInput = {
@@ -582,6 +587,250 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
         effectiveWorkHoursRef: {
           effectiveHours: 8.0,
           effectiveVersion: "sched:order-11:outside",
+          source: "scheduled",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status).toBe("unresolved");
+      if (result.status === "unresolved") {
+        expect(result.code).toBe("BREAK_WINDOW_OUTSIDE_SHIFT");
+      }
+    });
+
+    it("rejects fractional or non-safe-integer break durations upfront with INVALID_BREAK_DURATION", () => {
+      const fractionalInput: ShiftMinuteSplitterInput = {
+        shiftId: "shift-break-fractional",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        shiftDate: "2026-06-10",
+        startTime: "08:00",
+        endTime: "16:00",
+        breakMinutes: 0.5,
+        effectiveWorkHoursRef: {
+          effectiveHours: 7.99,
+          effectiveVersion: "sched:v1",
+          source: "scheduled",
+        },
+        policy: defaultPolicy,
+      };
+
+      const res1 = splitShiftMinutes(fractionalInput);
+      expect(res1.status).toBe("unresolved");
+      if (res1.status === "unresolved") {
+        expect(res1.code).toBe("INVALID_BREAK_DURATION");
+      }
+
+      const nanInput: ShiftMinuteSplitterInput = {
+        ...fractionalInput,
+        breakMinutes: NaN,
+      };
+      const res2 = splitShiftMinutes(nanInput);
+      expect(res2.status).toBe("unresolved");
+      if (res2.status === "unresolved") {
+        expect(res2.code).toBe("INVALID_BREAK_DURATION");
+      }
+
+      const infInput: ShiftMinuteSplitterInput = {
+        ...fractionalInput,
+        breakMinutes: Infinity,
+      };
+      const res3 = splitShiftMinutes(infInput);
+      expect(res3.status).toBe("unresolved");
+      if (res3.status === "unresolved") {
+        expect(res3.code).toBe("INVALID_BREAK_DURATION");
+      }
+
+      const negInput: ShiftMinuteSplitterInput = {
+        ...fractionalInput,
+        breakMinutes: -10,
+      };
+      const res4 = splitShiftMinutes(negInput);
+      expect(res4.status).toBe("unresolved");
+      if (res4.status === "unresolved") {
+        expect(res4.code).toBe("INVALID_BREAK_DURATION");
+      }
+    });
+
+    it("rejects invalid effective hours with INVALID_EFFECTIVE_HOURS", () => {
+      const nanHoursInput: ShiftMinuteSplitterInput = {
+        shiftId: "shift-invalid-eff-hours",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        shiftDate: "2026-06-10",
+        startTime: "08:00",
+        endTime: "16:00",
+        breakMinutes: 0,
+        effectiveWorkHoursRef: {
+          effectiveHours: NaN,
+          effectiveVersion: "sched:v1",
+          source: "scheduled",
+        },
+        policy: defaultPolicy,
+      };
+
+      const res = splitShiftMinutes(nanHoursInput);
+      expect(res.status).toBe("unresolved");
+      if (res.status === "unresolved") {
+        expect(res.code).toBe("INVALID_EFFECTIVE_HOURS");
+      }
+    });
+
+    it("rejects proportional break allocation with unverified free text or foreign contract references", () => {
+      const nightEarlyPolicy = createTestFrozenPolicy({
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        sourceReference: "Tarifvertrag TVöD-B § 7 Abs. 2",
+        clientContractId: "TVöD-B",
+      });
+
+      // 1. Missing source reference
+      const inputNoRef: ShiftMinuteSplitterInput = {
+        shiftId: "shift-break-prop-no-ref",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        shiftDate: "2026-06-10",
+        startTime: "18:00",
+        endTime: "22:00",
+        breakMinutes: 30,
+        contractualBreakAllocationRule: "proportional",
+        breakAllocationSourceReference: undefined,
+        effectiveWorkHoursRef: {
+          effectiveHours: 3.5,
+          effectiveVersion: "sched:order-10:contractual",
+          source: "scheduled",
+        },
+        policy: nightEarlyPolicy,
+      };
+      const res1 = splitShiftMinutes(inputNoRef);
+      expect(res1.status).toBe("unresolved");
+      if (res1.status === "unresolved") {
+        expect(res1.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
+      }
+
+      // 2. Random unverified free text
+      const inputRandomRef: ShiftMinuteSplitterInput = {
+        ...inputNoRef,
+        breakAllocationSourceReference: "Random unverified verbal agreement",
+      };
+      const res2 = splitShiftMinutes(inputRandomRef);
+      expect(res2.status).toBe("unresolved");
+      if (res2.status === "unresolved") {
+        expect(res2.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
+      }
+
+      // 3. Foreign client contract reference
+      const inputForeignRef: ShiftMinuteSplitterInput = {
+        ...inputNoRef,
+        breakAllocationSourceReference: "contract-different-client-99",
+      };
+      const res3 = splitShiftMinutes(inputForeignRef);
+      expect(res3.status).toBe("unresolved");
+      if (res3.status === "unresolved") {
+        expect(res3.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
+      }
+    });
+
+    it("accepts a physically valid break spanning the autumn repeated hour in UTC", () => {
+      // 2026-10-25: 00:30Z to 02:30Z (120 minutes)
+      // Break: 00:45Z to 01:00Z (15 minutes across 01:00Z which is 02:00 CET/CEST transition)
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "shift-autumn-break-span",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        startDateTime: "2026-10-25T00:30:00Z",
+        endDateTime: "2026-10-25T02:30:00Z",
+        breakWindows: [{ start: "2026-10-25T00:45:00Z", end: "2026-10-25T01:00:00Z" }],
+        effectiveWorkHoursRef: {
+          effectiveHours: 1.75,
+          effectiveVersion: "sched:order-dst-span",
+          source: "scheduled",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status).toBe("resolved");
+      if (result.status === "resolved") {
+        expect(result.grossShiftMinutes).toBe(120);
+        expect(result.breakMinutes).toBe(15);
+        expect(result.netWorkMinutes).toBe(105);
+        expect(result.breakIntervals).toHaveLength(1);
+        expect(result.breakIntervals[0].durationMinutes).toBe(15);
+      }
+    });
+
+    it("accepts a break strictly inside the second duplicate autumn hour in UTC", () => {
+      // 01:15Z to 01:30Z is strictly within the 2nd duplicate hour (02:15 CET to 02:30 CET)
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "shift-autumn-break-second-hour",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        startDateTime: "2026-10-25T00:30:00Z",
+        endDateTime: "2026-10-25T02:30:00Z",
+        breakWindows: [{ start: "2026-10-25T01:15:00Z", end: "2026-10-25T01:30:00Z" }],
+        effectiveWorkHoursRef: {
+          effectiveHours: 1.75,
+          effectiveVersion: "sched:order-dst-second",
+          source: "scheduled",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status).toBe("resolved");
+      if (result.status === "resolved") {
+        expect(result.grossShiftMinutes).toBe(120);
+        expect(result.breakMinutes).toBe(15);
+        expect(result.netWorkMinutes).toBe(105);
+      }
+    });
+
+    it("rejects overlapping break windows in UTC timestamps", () => {
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "shift-break-overlap-utc",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        startDateTime: "2026-10-25T00:00:00Z",
+        endDateTime: "2026-10-25T04:00:00Z",
+        breakWindows: [
+          { start: "2026-10-25T01:00:00Z", end: "2026-10-25T02:00:00Z" },
+          { start: "2026-10-25T01:30:00Z", end: "2026-10-25T02:30:00Z" },
+        ],
+        effectiveWorkHoursRef: {
+          effectiveHours: 2.0,
+          effectiveVersion: "sched:overlap",
+          source: "scheduled",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status).toBe("unresolved");
+      if (result.status === "unresolved") {
+        expect(result.code).toBe("OVERLAPPING_BREAK_WINDOWS");
+      }
+    });
+
+    it("rejects break window located outside shift boundaries in UTC timestamps", () => {
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "shift-break-outside-utc",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        startDateTime: "2026-10-25T00:00:00Z",
+        endDateTime: "2026-10-25T03:00:00Z",
+        breakWindows: [{ start: "2026-10-25T03:15:00Z", end: "2026-10-25T03:45:00Z" }],
+        effectiveWorkHoursRef: {
+          effectiveHours: 2.5,
+          effectiveVersion: "sched:outside-utc",
           source: "scheduled",
         },
         policy: defaultPolicy,
@@ -1069,4 +1318,271 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
       }
     });
   });
+
+  describe("14. Integration with Exact Invoice Engine (Pure Adapter Contract)", () => {
+    it("converts 60-minute Saturday shift at 40 EUR/h + 25% surcharge to exactly 50.00 EUR without double-billing base", () => {
+      // 1-hour Saturday daytime shift
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "shift-sat-60min",
+        workerId: "worker-01",
+        workerName: "Max Mustermann",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        shiftDate: "2026-06-13", // Saturday
+        startTime: "10:00",
+        endTime: "11:00",
+        breakMinutes: 0,
+        effectiveWorkHoursRef: {
+          effectiveHours: 1.0,
+          effectiveVersion: "conf:order-sat-60",
+          source: "service_confirmation",
+        },
+        policy: defaultPolicy, // surchargeSat: 0.25
+      };
+
+      const splitResult = splitShiftMinutes(input);
+      expect(splitResult.status).toBe("resolved");
+      if (splitResult.status !== "resolved") return;
+
+      expect(splitResult.netWorkMinutes).toBe(60);
+      expect(splitResult.preparedLineItems).toHaveLength(2);
+
+      // Verify that PreparedWorkLineItem does not contain priceVersionId
+      for (const item of splitResult.preparedLineItems) {
+        expect((item as unknown as { priceVersionId?: unknown }).priceVersionId).toBeUndefined();
+      }
+
+      // Convert using pure adapter supplying the actual price record version ID and rate (40.00 EUR = 4000 cents)
+      const rawLines = convertPreparedItemsToRawInvoiceLines({
+        preparedItems: splitResult.preparedLineItems,
+        priceVersionId: "price-ver-2026-pfk",
+        baseHourlyRateInCents: 4000, // 40.00 EUR/h
+      });
+
+      expect(rawLines).toHaveLength(2);
+      // Line 1: Base 60 minutes at 4000 cents/h
+      expect(rawLines[0].itemCategory).toBe("base");
+      expect(rawLines[0].minutes).toBe(60);
+      expect((rawLines[0].hourlyRate as { cents: number })?.cents).toBe(4000);
+
+      // Line 2: Surcharge Saturday 60 minutes with baseHourlyRate 4000 and surchargeRatio 0.25
+      expect(rawLines[1].itemCategory).toBe("surcharge_saturday");
+      expect(rawLines[1].minutes).toBe(60);
+      expect((rawLines[1].baseHourlyRate as { cents: number })?.cents).toBe(4000);
+      expect(rawLines[1].surchargeRatio).toBe(0.25);
+      expect(rawLines[1].deriveSurchargeRate).toBe(true);
+
+      // Run exact calculation engine
+      const exactResult = calculateExactInvoice(rawLines, {
+        taxRate: 0.19, // 19% VAT
+      });
+
+      // Verification of Strict Financial Contract:
+      // Base: 1.00 h * 40.00 EUR = 40.00 EUR (4000 cents)
+      // Surcharge: 1.00 h * 10.00 EUR (40 * 0.25) = 10.00 EUR (1000 cents)
+      // Net Subtotal: exactly 50.00 EUR (5000 cents)
+      // If base had been double-counted (40 EUR base + 50 EUR surcharge), total would be 90 EUR.
+      expect(exactResult.totals.subtotalCents).toBe(5000);
+      expect(exactResult.totals.subtotalDecimal).toBe("50.00");
+      expect(exactResult.totals.subtotalDisplay).toBe("50,00 €");
+
+      // 19% VAT on 50.00 EUR = 9.50 EUR (950 cents)
+      expect(exactResult.totals.taxAmountCents).toBe(950);
+      expect(exactResult.totals.totalCents).toBe(5950);
+      expect(exactResult.totals.totalDecimal).toBe("59.50");
+      expect(exactResult.totals.totalDisplay).toBe("59,50 €");
+    });
+
+    it("rejects convertPreparedItemsToRawInvoiceLines with missing priceVersionId or invalid base rate", () => {
+      const mockItems: PreparedWorkLineItem[] = [
+        {
+          workerId: "w1",
+          qualification: "pflegefachkraft",
+          itemCategory: "base",
+          surchargePolicyId: "pol-1",
+          surchargePolicyVersion: 1,
+          combinationRule: "highest_non_night_plus_night",
+          minutes: 60,
+          surchargeFraction: 0,
+          descriptionDE: "Grundarbeitszeit",
+        },
+      ];
+
+      expect(() =>
+        convertPreparedItemsToRawInvoiceLines({
+          preparedItems: mockItems,
+          priceVersionId: "",
+          baseHourlyRateInCents: 4000,
+        })
+      ).toThrow("priceVersionId");
+
+      expect(() =>
+        convertPreparedItemsToRawInvoiceLines({
+          preparedItems: mockItems,
+          priceVersionId: "   ",
+          baseHourlyRateInCents: 4000,
+        })
+      ).toThrow("priceVersionId");
+
+      expect(() =>
+        convertPreparedItemsToRawInvoiceLines({
+          preparedItems: mockItems,
+          priceVersionId: "pv-1",
+          baseHourlyRateInCents: -500,
+        })
+      ).toThrow("baseHourlyRateInCents");
+
+      expect(() =>
+        convertPreparedItemsToRawInvoiceLines({
+          preparedItems: mockItems,
+          priceVersionId: "pv-1",
+          baseHourlyRateInCents: 4000.5,
+        })
+      ).toThrow("baseHourlyRateInCents");
+    });
+  });
+
+  describe("15. Independent Codex Countertests & Follow-up Probes", () => {
+    it("rejects a confirmed hour amount inconsistent with the billable minute span", () => {
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "s1",
+        workerId: "w1",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        shiftDate: "2026-06-10",
+        startTime: "08:00",
+        endTime: "16:00",
+        breakMinutes: 0,
+        effectiveWorkHoursRef: {
+          effectiveHours: 6, // 6h != 8h
+          effectiveVersion: "v1",
+          source: "service_confirmation",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status).toBe("unresolved");
+      if (result.status === "unresolved") {
+        expect(result.code).toBe("EFFECTIVE_HOURS_MISMATCH");
+      }
+    });
+
+    it("does not bill 120 minutes for a 60-minute explicit spring DST shift", () => {
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "s1",
+        workerId: "w1",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        startDateTime: "2026-03-29T00:30:00Z",
+        endDateTime: "2026-03-29T01:30:00Z",
+        effectiveWorkHoursRef: {
+          effectiveHours: 1,
+          effectiveVersion: "v1",
+          source: "service_confirmation",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status === "unresolved" || result.grossShiftMinutes === 60).toBe(true);
+      if (result.status === "resolved") {
+        expect(result.grossShiftMinutes).toBe(60);
+      }
+    });
+
+    it("does not bill 120 minutes for a 180-minute explicit autumn DST shift", () => {
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "s1",
+        workerId: "w1",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        startDateTime: "2026-10-24T23:30:00Z",
+        endDateTime: "2026-10-25T02:30:00Z",
+        effectiveWorkHoursRef: {
+          effectiveHours: 3,
+          effectiveVersion: "v1",
+          source: "service_confirmation",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status === "resolved").toBe(true);
+      if (result.status === "resolved") {
+        expect(result.grossShiftMinutes).toBe(180);
+      }
+    });
+
+    it("rejects a modified frozen policy whose terms no longer match the hash", () => {
+      const tamperedPolicy = {
+        ...defaultPolicy,
+        surcharges: {
+          ...defaultPolicy.surcharges,
+          sat: 0.9,
+        },
+      };
+
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "s1",
+        workerId: "w1",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        shiftDate: "2026-06-13",
+        startTime: "08:00",
+        endTime: "16:00",
+        breakMinutes: 0,
+        effectiveWorkHoursRef: {
+          effectiveHours: 8,
+          effectiveVersion: "v1",
+          source: "service_confirmation",
+        },
+        policy: tamperedPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status).toBe("unresolved");
+      if (result.status === "unresolved") {
+        expect(result.code).toBe("POLICY_UNRESOLVED");
+        expect(result.diagnostics).toBeDefined();
+      }
+    });
+
+    it("does not throw or over-allocate breaks across four one-minute profiles", () => {
+      const microPolicy = createTestFrozenPolicy({
+        nightStart: "23:59",
+        nightEnd: "00:01",
+        sourceReference: "Tarifvertrag TVöD-B § 7 Abs. 2",
+        clientContractId: "TVöD-B",
+      });
+
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "s-micro",
+        workerId: "w1",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        shiftDate: "2026-04-30",
+        startTime: "23:58",
+        endTime: "00:02",
+        breakMinutes: 2,
+        contractualBreakAllocationRule: "proportional",
+        breakAllocationSourceReference: "Tarifvertrag TVöD-B § 7 Abs. 2",
+        effectiveWorkHoursRef: {
+          effectiveHours: 0.03,
+          effectiveVersion: "v1",
+          source: "service_confirmation",
+        },
+        policy: microPolicy,
+      };
+
+      expect(() => splitShiftMinutes(input)).not.toThrow();
+      const result = splitShiftMinutes(input);
+      if (result.status === "resolved") {
+        expect(result.grossShiftMinutes).toBe(4);
+        expect(result.breakMinutes).toBe(2);
+        expect(result.netWorkMinutes).toBe(2);
+      }
+    });
+  });
 });
+

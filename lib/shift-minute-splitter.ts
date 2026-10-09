@@ -34,6 +34,7 @@ import {
   isValidTimeString,
   resolveWallTimeToUtc,
 } from "./shift-overlap-engine";
+import type { RawWorkLineInput } from "./invoice-exact-engine";
 
 export type ShiftBreakWindow = {
   start: string | Date; // "HH:mm" or ISO string or Date
@@ -105,6 +106,8 @@ export type ShiftBreakInterval = {
   endMinuteOfDay: number;
   startTime: string;
   endTime: string;
+  startDateTime?: string;
+  endDateTime?: string;
   durationMinutes: number;
 };
 
@@ -120,11 +123,10 @@ export type PreparedWorkLineItem = {
     | "surcharge_night";
   surchargePolicyId: string;
   surchargePolicyVersion: number;
-  priceVersionId: string;
   minutes: number;
-  rateMultiplier: number;     // 1.0 for base, composite multiplier (1 + surchargeFraction) for diagnostics
-  rateFraction: number;       // Surcharge percentage: 0 for base, +0.25 for +25%, etc.
-  surchargeFraction: number;  // Explicit incremental surcharge percentage
+  surchargeFraction: number;  // Explicit incremental surcharge percentage (0 for base, +0.25 for +25%, etc.)
+  rateMultiplier?: number;    // Diagnostic composite (1 + surchargeFraction)
+  rateFraction?: number;      // Deprecated alias for surchargeFraction
   combinationRule: SurchargeCombinationRule;
   descriptionDE: string;
 };
@@ -177,6 +179,8 @@ export type ShiftMinuteSplitUnresolvedCode =
   | "BREAK_EXCEEDS_SHIFT_DURATION"
   | "BREAK_WINDOW_OUTSIDE_SHIFT"
   | "OVERLAPPING_BREAK_WINDOWS"
+  | "INVALID_BREAK_DURATION"
+  | "INVALID_EFFECTIVE_HOURS"
   | "DST_GAP"
   | "DST_AMBIGUOUS"
   | "TIME_AMBIGUOUS_OR_INVALID"
@@ -238,6 +242,7 @@ function advanceCalendarDay(dateIso: string): string {
 
 type InternalMinute = {
   minuteIndex: number;
+  utcMs: number;
   dateIso: string;
   minuteOfDay: number;
   isBreak: boolean;
@@ -332,6 +337,41 @@ export function splitShiftMinutes(
       message: "Einrichtungskennung (clientId) fehlt.",
       diagnostics: { shiftId: input.shiftId, workerId: input.workerId },
     };
+  }
+
+  // Break Minutes validation: must be finite, safe non-negative integer if provided
+  if (input.breakMinutes !== undefined && input.breakMinutes !== null) {
+    if (
+      typeof input.breakMinutes !== "number" ||
+      !Number.isFinite(input.breakMinutes) ||
+      isNaN(input.breakMinutes) ||
+      !Number.isSafeInteger(input.breakMinutes) ||
+      input.breakMinutes < 0
+    ) {
+      return {
+        status: "unresolved",
+        code: "INVALID_BREAK_DURATION",
+        message: `Ungültige Pausendauer ("${input.breakMinutes}"). Pausendauer muss eine endliche, nicht-negative ganze Zahl sein.`,
+        diagnostics: { shiftId: input.shiftId, breakMinutes: input.breakMinutes },
+      };
+    }
+  }
+
+  // Effective Hours validation: must be finite, non-negative number if provided
+  if (
+    input.effectiveWorkHoursRef &&
+    input.effectiveWorkHoursRef.effectiveHours !== undefined &&
+    input.effectiveWorkHoursRef.effectiveHours !== null
+  ) {
+    const eff = input.effectiveWorkHoursRef.effectiveHours;
+    if (typeof eff !== "number" || !Number.isFinite(eff) || isNaN(eff) || eff < 0) {
+      return {
+        status: "unresolved",
+        code: "INVALID_EFFECTIVE_HOURS",
+        message: `Ungültige effektive Arbeitsstunden ("${eff}"). Muss eine endliche, nicht-negative Zahl sein.`,
+        diagnostics: { shiftId: input.shiftId, effectiveHours: eff },
+      };
+    }
   }
 
   // 2. Frozen Policy Validations
@@ -703,6 +743,7 @@ export function splitShiftMinutes(
       const min = Number(curFmt.slice(14, 16));
       minutes.push({
         minuteIndex: i,
+        utcMs: curUtcMs,
         dateIso,
         minuteOfDay: hour * 60 + min,
         isBreak: false,
@@ -720,8 +761,14 @@ export function splitShiftMinutes(
       if (currDateIso === targetEndDateIso && currMinuteOfDay === targetEndMinuteOfDay) {
         break;
       }
+      const [y, m, d] = currDateIso.split("-").map(Number);
+      const h = Math.floor(currMinuteOfDay / 60);
+      const min = currMinuteOfDay % 60;
+      const wallRes = resolveWallTimeToUtc(y, m, d, h, min, tz);
+
       minutes.push({
         minuteIndex: minuteIdx++,
+        utcMs: wallRes.utcMs,
         dateIso: currDateIso,
         minuteOfDay: currMinuteOfDay,
         isBreak: false,
@@ -753,22 +800,25 @@ export function splitShiftMinutes(
     // A. Explicit Break Windows
     for (let bwIdx = 0; bwIdx < input.breakWindows.length; bwIdx++) {
       const bw = input.breakWindows[bwIdx];
-      let bStartIso: string;
-      let bStartMod: number;
-      let bEndIso: string;
-      let bEndMod: number;
 
-      if (typeof bw.start === "string" && isValidTimeString(bw.start) && typeof bw.end === "string" && isValidTimeString(bw.end)) {
-        bStartIso = bw.dateIso || startDayIso;
-        bEndIso = bw.dateIso || startDayIso;
-        const [bh1, bm1] = bw.start.split(":").map(Number);
-        const [bh2, bm2] = bw.end.split(":").map(Number);
-        bStartMod = bh1 * 60 + bm1;
-        bEndMod = bh2 * 60 + bm2;
-        if (bEndMod < bStartMod) {
-          bEndIso = advanceCalendarDay(bStartIso);
+      const isStartExplicit =
+        bw.start instanceof Date ||
+        (typeof bw.start === "string" && /(Z|[+-]\d{2}(:?\d{2})?)$/.test(bw.start.trim()));
+      const isEndExplicit =
+        bw.end instanceof Date ||
+        (typeof bw.end === "string" && /(Z|[+-]\d{2}(:?\d{2})?)$/.test(bw.end.trim()));
+
+      if (isStartExplicit || isEndExplicit || isExplicitTimestampInput) {
+        if (!isStartExplicit || !isEndExplicit) {
+          return {
+            status: "unresolved",
+            code: isExplicitTimestampInput ? "TIME_AMBIGUOUS_OR_INVALID" : "INVALID_TIME_FORMAT",
+            message:
+              "In einer Schicht mit expliziten UTC-Zeitstempeln müssen Pausenfenster für Start und Ende ebenfalls mit expliziter Zeitzone angegeben werden.",
+            diagnostics: { shiftId: input.shiftId, breakWindow: bw },
+          };
         }
-      } else {
+
         const sD = bw.start instanceof Date ? bw.start : new Date(bw.start);
         const eD = bw.end instanceof Date ? bw.end : new Date(bw.end);
         if (isNaN(sD.getTime()) || isNaN(eD.getTime())) {
@@ -779,54 +829,124 @@ export function splitShiftMinutes(
             diagnostics: { shiftId: input.shiftId, breakWindow: bw },
           };
         }
-        const sFmt = formatInTimeZone(sD, tz, "yyyy-MM-dd HH:mm");
-        const eFmt = formatInTimeZone(eD, tz, "yyyy-MM-dd HH:mm");
-        bStartIso = sFmt.slice(0, 10);
-        bStartMod = Number(sFmt.slice(11, 13)) * 60 + Number(sFmt.slice(14, 16));
-        bEndIso = eFmt.slice(0, 10);
-        bEndMod = Number(eFmt.slice(11, 13)) * 60 + Number(eFmt.slice(14, 16));
-      }
 
-      // Check if break window matches any shift minutes
-      let matchedCount = 0;
-      let curBDate = bStartIso;
-      let curBMod = bStartMod;
-
-      while (true) {
-        if (curBDate === bEndIso && curBMod === bEndMod) {
-          break;
-        }
-        const minObj = minutes.find(
-          (m) => m.dateIso === curBDate && m.minuteOfDay === curBMod
-        );
-        if (!minObj) {
+        // Minute precision check (seconds and milliseconds must be 0)
+        if (
+          sD.getUTCSeconds() !== 0 ||
+          sD.getUTCMilliseconds() !== 0 ||
+          eD.getUTCSeconds() !== 0 ||
+          eD.getUTCMilliseconds() !== 0
+        ) {
           return {
             status: "unresolved",
-            code: "BREAK_WINDOW_OUTSIDE_SHIFT",
-            message: `Pausenfenster ${curBDate} ${minuteOfDayToHHMM(curBMod)} liegt außerhalb der Schichtarbeitszeit.`,
+            code: "INVALID_TIME_FORMAT",
+            message:
+              "Pausenzeiten müssen minutengenau angegeben werden (Sekunden und Millisekunden müssen 0 sein).",
             diagnostics: { shiftId: input.shiftId, breakWindow: bw },
           };
         }
-        if (minObj.isBreak) {
+
+        const bwStartUtcMs = sD.getTime();
+        const bwEndUtcMs = eD.getTime();
+
+        if (bwEndUtcMs <= bwStartUtcMs) {
           return {
             status: "unresolved",
-            code: "OVERLAPPING_BREAK_WINDOWS",
-            message: `Pausenfenster überschneiden sich bei ${curBDate} ${minuteOfDayToHHMM(curBMod)}.`,
+            code: "INVALID_TIME_INTERVAL",
+            message: "Pausenende muss nach Pausenbeginn liegen.",
             diagnostics: { shiftId: input.shiftId, breakWindow: bw },
           };
         }
-        minObj.isBreak = true;
-        minObj.breakWindowIndex = bwIdx;
-        matchedCount++;
 
-        curBMod++;
-        if (curBMod === 1440) {
-          curBMod = 0;
-          curBDate = advanceCalendarDay(curBDate);
+        const bPhysicalMinutes = Math.round((bwEndUtcMs - bwStartUtcMs) / 60000);
+        let matchedCount = 0;
+
+        for (let k = 0; k < bPhysicalMinutes; k++) {
+          const curMUtc = bwStartUtcMs + k * 60000;
+          const minObj = minutes.find((m) => m.utcMs === curMUtc);
+          if (!minObj) {
+            return {
+              status: "unresolved",
+              code: "BREAK_WINDOW_OUTSIDE_SHIFT",
+              message: `Pausenfenster Minute ${new Date(curMUtc).toISOString()} liegt außerhalb der Schichtarbeitszeit.`,
+              diagnostics: { shiftId: input.shiftId, breakWindow: bw, curUtc: curMUtc },
+            };
+          }
+          if (minObj.isBreak) {
+            return {
+              status: "unresolved",
+              code: "OVERLAPPING_BREAK_WINDOWS",
+              message: `Pausenfenster überschneiden sich bei ${new Date(curMUtc).toISOString()}.`,
+              diagnostics: { shiftId: input.shiftId, breakWindow: bw, curUtc: curMUtc },
+            };
+          }
+          minObj.isBreak = true;
+          minObj.breakWindowIndex = bwIdx;
+          matchedCount++;
         }
-      }
 
-      totalBreakMinutes += matchedCount;
+        totalBreakMinutes += matchedCount;
+      } else {
+        // Wall clock time strings ("HH:mm")
+        if (typeof bw.start !== "string" || !isValidTimeString(bw.start) || typeof bw.end !== "string" || !isValidTimeString(bw.end)) {
+          return {
+            status: "unresolved",
+            code: "INVALID_TIME_FORMAT",
+            message: `Ungültiges Uhrzeitformat im Pausenfenster Index ${bwIdx}. Erwartet wird "HH:mm".`,
+            diagnostics: { shiftId: input.shiftId, breakWindow: bw },
+          };
+        }
+
+        const bStartIso = bw.dateIso || startDayIso;
+        let bEndIso = bw.dateIso || startDayIso;
+        const [bh1, bm1] = bw.start.split(":").map(Number);
+        const [bh2, bm2] = bw.end.split(":").map(Number);
+        const bStartMod = bh1 * 60 + bm1;
+        const bEndMod = bh2 * 60 + bm2;
+        if (bEndMod < bStartMod) {
+          bEndIso = advanceCalendarDay(bStartIso);
+        }
+
+        let curBDate = bStartIso;
+        let curBMod = bStartMod;
+        let matchedCount = 0;
+
+        while (true) {
+          if (curBDate === bEndIso && curBMod === bEndMod) {
+            break;
+          }
+          const minObj = minutes.find(
+            (m) => m.dateIso === curBDate && m.minuteOfDay === curBMod
+          );
+          if (!minObj) {
+            return {
+              status: "unresolved",
+              code: "BREAK_WINDOW_OUTSIDE_SHIFT",
+              message: `Pausenfenster ${curBDate} ${minuteOfDayToHHMM(curBMod)} liegt außerhalb der Schichtarbeitszeit.`,
+              diagnostics: { shiftId: input.shiftId, breakWindow: bw },
+            };
+          }
+          if (minObj.isBreak) {
+            return {
+              status: "unresolved",
+              code: "OVERLAPPING_BREAK_WINDOWS",
+              message: `Pausenfenster überschneiden sich bei ${curBDate} ${minuteOfDayToHHMM(curBMod)}.`,
+              diagnostics: { shiftId: input.shiftId, breakWindow: bw },
+            };
+          }
+          minObj.isBreak = true;
+          minObj.breakWindowIndex = bwIdx;
+          matchedCount++;
+
+          curBMod++;
+          if (curBMod === 1440) {
+            curBMod = 0;
+            curBDate = advanceCalendarDay(curBDate);
+          }
+        }
+
+        totalBreakMinutes += matchedCount;
+      }
     }
   } else if (input.breakMinutes && input.breakMinutes > 0) {
     // B. Duration-Only Break (no timestamps)
@@ -880,22 +1000,83 @@ export function splitShiftMinutes(
     );
 
     // Contractual proportional break allocation requires explicit documented source reference
-    if (
-      input.contractualBreakAllocationRule === "proportional" &&
-      (!input.breakAllocationSourceReference ||
-        !input.breakAllocationSourceReference.trim())
-    ) {
-      return {
-        status: "unresolved",
-        code: "UNRESOLVED_BREAK_ALLOCATION",
-        message:
-          "Für eine proportionale Pausenaufteilung ist eine dokumentierte Quelle (breakAllocationSourceReference) zwingend erforderlich.",
-        diagnostics: {
-          shiftId: input.shiftId,
-          contractualBreakAllocationRule: input.contractualBreakAllocationRule,
-          breakAllocationSourceReference: input.breakAllocationSourceReference,
-        },
-      };
+    if (input.contractualBreakAllocationRule === "proportional") {
+      if (
+        !input.breakAllocationSourceReference ||
+        !input.breakAllocationSourceReference.trim()
+      ) {
+        return {
+          status: "unresolved",
+          code: "UNRESOLVED_BREAK_ALLOCATION",
+          message:
+            "Für eine proportionale Pausenaufteilung ist eine dokumentierte Quelle (breakAllocationSourceReference) zwingend erforderlich.",
+          diagnostics: {
+            shiftId: input.shiftId,
+            contractualBreakAllocationRule: input.contractualBreakAllocationRule,
+            breakAllocationSourceReference: input.breakAllocationSourceReference,
+          },
+        };
+      }
+
+      // Check 1: Policy must be grounded in an actual contract
+      if (input.policy.sourceType !== "contract") {
+        return {
+          status: "unresolved",
+          code: "UNRESOLVED_BREAK_ALLOCATION",
+          message:
+            "Eine proportionale Pausenaufteilung setzt eine vertragliche Richtlinie (sourceType: 'contract') voraus. Die hinterlegte Richtlinie basiert nicht auf einem Vertrag.",
+          diagnostics: {
+            shiftId: input.shiftId,
+            clientId: input.clientId,
+            policySourceType: input.policy.sourceType,
+            breakAllocationSourceReference: input.breakAllocationSourceReference,
+          },
+        };
+      }
+
+      const refTrim = input.breakAllocationSourceReference.trim();
+      const refLower = refTrim.toLowerCase();
+      const contractIdLower = (input.policy.clientContractId || "").trim().toLowerCase();
+      const policySourceRefLower = (input.policy.sourceReference || "").trim().toLowerCase();
+
+      // Check 2: Reject references to foreign clients
+      const foreignClientRegex = /client[-_]?[0-9a-zA-Z]+/i;
+      const foreignMatch = refTrim.match(foreignClientRegex);
+      if (foreignMatch && foreignMatch[0].toLowerCase() !== input.clientId.toLowerCase()) {
+        return {
+          status: "unresolved",
+          code: "UNRESOLVED_BREAK_ALLOCATION",
+          message: `Der angegebene Pausen-Quellverweis ("${refTrim}") bezieht sich auf einen fremden Mandanten (${foreignMatch[0]}) und nicht auf "${input.clientId}".`,
+          diagnostics: {
+            shiftId: input.shiftId,
+            clientId: input.clientId,
+            breakAllocationSourceReference: refTrim,
+            foreignMatch: foreignMatch[0],
+          },
+        };
+      }
+
+      // Check 3: Must reference the contract ID or policy source reference of this client
+      const matchesContractId = contractIdLower.length > 0 && refLower.includes(contractIdLower);
+      const matchesSourceRef = policySourceRefLower.length > 0 && refLower.includes(policySourceRefLower);
+      const matchesContractPrefix =
+        (contractIdLower.startsWith("contract") || policySourceRefLower.startsWith("contract")) &&
+        refLower.startsWith("contract");
+
+      if (!matchesContractId && !matchesSourceRef && !matchesContractPrefix) {
+        return {
+          status: "unresolved",
+          code: "UNRESOLVED_BREAK_ALLOCATION",
+          message: `Der angegebene Pausen-Quellverweis ("${refTrim}") ist keinem verifizierten Vertrag der Einrichtung zugeordnet. Erwartet wird ein Bezug auf den Mandantenvertrag ("${input.policy.clientContractId || input.policy.sourceReference}").`,
+          diagnostics: {
+            shiftId: input.shiftId,
+            clientId: input.clientId,
+            expectedContractId: input.policy.clientContractId,
+            expectedSourceReference: input.policy.sourceReference,
+            breakAllocationSourceReference: refTrim,
+          },
+        };
+      }
     }
 
     if (distinctProfiles.size > 1) {
@@ -1024,13 +1205,21 @@ export function splitShiftMinutes(
       } else {
         if (curBreakStart) {
           const lastM = minutes[i - 1];
+          const startUtc = new Date(curBreakStart.utcMs).toISOString();
+          const endUtc = new Date(lastM.utcMs + 60000).toISOString();
           breakIntervals.push({
             intervalIndex: breakIntIdx++,
             dateIso: curBreakStart.dateIso,
             startMinuteOfDay: curBreakStart.minuteOfDay,
             endMinuteOfDay: lastM.minuteOfDay + 1,
-            startTime: minuteOfDayToHHMM(curBreakStart.minuteOfDay),
-            endTime: minuteOfDayToHHMM(lastM.minuteOfDay + 1),
+            startTime: isExplicitTimestampInput
+              ? formatInTimeZone(curBreakStart.utcMs, tz, "HH:mmxxx")
+              : minuteOfDayToHHMM(curBreakStart.minuteOfDay),
+            endTime: isExplicitTimestampInput
+              ? formatInTimeZone(lastM.utcMs + 60000, tz, "HH:mmxxx")
+              : minuteOfDayToHHMM(lastM.minuteOfDay + 1),
+            startDateTime: startUtc,
+            endDateTime: endUtc,
             durationMinutes: i - curBreakStart.minuteIndex,
           });
           curBreakStart = null;
@@ -1039,13 +1228,21 @@ export function splitShiftMinutes(
     }
     if (curBreakStart) {
       const lastM = minutes[minutes.length - 1];
+      const startUtc = new Date(curBreakStart.utcMs).toISOString();
+      const endUtc = new Date(lastM.utcMs + 60000).toISOString();
       breakIntervals.push({
         intervalIndex: breakIntIdx++,
         dateIso: curBreakStart.dateIso,
         startMinuteOfDay: curBreakStart.minuteOfDay,
         endMinuteOfDay: lastM.minuteOfDay + 1,
-        startTime: minuteOfDayToHHMM(curBreakStart.minuteOfDay),
-        endTime: minuteOfDayToHHMM(lastM.minuteOfDay + 1),
+        startTime: isExplicitTimestampInput
+          ? formatInTimeZone(curBreakStart.utcMs, tz, "HH:mmxxx")
+          : minuteOfDayToHHMM(curBreakStart.minuteOfDay),
+        endTime: isExplicitTimestampInput
+          ? formatInTimeZone(lastM.utcMs + 60000, tz, "HH:mmxxx")
+          : minuteOfDayToHHMM(lastM.minuteOfDay + 1),
+        startDateTime: startUtc,
+        endDateTime: endUtc,
         durationMinutes: minutes.length - curBreakStart.minuteIndex,
       });
     }
@@ -1269,7 +1466,6 @@ function getEffectiveSurchargeComponents(
     itemCategory: "base",
     surchargePolicyId: input.policy.policyId,
     surchargePolicyVersion: input.policy.policyVersion,
-    priceVersionId: input.policy.policyId,
     minutes: netWorkMinutes,
     rateMultiplier: 1.0,
     rateFraction: 0,
@@ -1287,7 +1483,6 @@ function getEffectiveSurchargeComponents(
       itemCategory: "surcharge_saturday",
       surchargePolicyId: input.policy.policyId,
       surchargePolicyVersion: input.policy.policyVersion,
-      priceVersionId: input.policy.policyId,
       minutes: saturdayMinutes,
       rateMultiplier: 1 + input.policy.surcharges.sat,
       rateFraction: input.policy.surcharges.sat,
@@ -1306,7 +1501,6 @@ function getEffectiveSurchargeComponents(
       itemCategory: "surcharge_sunday",
       surchargePolicyId: input.policy.policyId,
       surchargePolicyVersion: input.policy.policyVersion,
-      priceVersionId: input.policy.policyId,
       minutes: sundayMinutes,
       rateMultiplier: 1 + input.policy.surcharges.sun,
       rateFraction: input.policy.surcharges.sun,
@@ -1325,7 +1519,6 @@ function getEffectiveSurchargeComponents(
       itemCategory: "surcharge_holiday",
       surchargePolicyId: input.policy.policyId,
       surchargePolicyVersion: input.policy.policyVersion,
-      priceVersionId: input.policy.policyId,
       minutes: holidayMinutes,
       rateMultiplier: 1 + input.policy.surcharges.holiday,
       rateFraction: input.policy.surcharges.holiday,
@@ -1344,7 +1537,6 @@ function getEffectiveSurchargeComponents(
       itemCategory: "surcharge_night",
       surchargePolicyId: input.policy.policyId,
       surchargePolicyVersion: input.policy.policyVersion,
-      priceVersionId: input.policy.policyId,
       minutes: nightMinutes,
       rateMultiplier: 1 + input.policy.surcharges.night,
       rateFraction: input.policy.surcharges.night,
@@ -1478,4 +1670,60 @@ export async function splitAssignmentMinutesFromEffective(params: {
   };
 
   return splitShiftMinutes(input);
+}
+
+/**
+ * Pure Transformation Adapter:
+ * Converts Phase 4b PreparedWorkLineItems into Phase 2 RawWorkLineInputs for exact billing.
+ *
+ * Strict Financial Contract:
+ * - Base work hours are billed 100% exactly ONCE for net work minutes.
+ * - Surcharge line items bill ONLY the incremental surcharge portion (surchargeFraction),
+ *   never double-billing the base hourly rate.
+ * - priceVersionId must be supplied by the caller from the actual Price/Contract record (Phase 5).
+ */
+export function convertPreparedItemsToRawInvoiceLines(params: {
+  preparedItems: PreparedWorkLineItem[];
+  priceVersionId: string;
+  baseHourlyRateInCents: number;
+}): RawWorkLineInput[] {
+  if (!params.priceVersionId || !params.priceVersionId.trim()) {
+    throw new Error(
+      "priceVersionId ist zwingend erforderlich für die Rechnungszeilen-Generierung."
+    );
+  }
+  if (
+    !Number.isSafeInteger(params.baseHourlyRateInCents) ||
+    params.baseHourlyRateInCents < 0
+  ) {
+    throw new Error("baseHourlyRateInCents muss eine nicht-negative ganze Zahl sein.");
+  }
+
+  return params.preparedItems.map((item) => {
+    if (item.itemCategory === "base") {
+      return {
+        workerId: item.workerId,
+        workerName: item.workerName,
+        qualification: item.qualification,
+        itemCategory: "base",
+        priceVersionId: params.priceVersionId,
+        minutes: item.minutes,
+        hourlyRate: { cents: params.baseHourlyRateInCents },
+        description: item.descriptionDE,
+      };
+    } else {
+      return {
+        workerId: item.workerId,
+        workerName: item.workerName,
+        qualification: item.qualification,
+        itemCategory: item.itemCategory,
+        priceVersionId: params.priceVersionId,
+        minutes: item.minutes,
+        baseHourlyRate: { cents: params.baseHourlyRateInCents },
+        surchargeRatio: item.surchargeFraction,
+        deriveSurchargeRate: true,
+        description: item.descriptionDE,
+      };
+    }
+  });
 }
