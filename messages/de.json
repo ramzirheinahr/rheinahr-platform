@@ -1174,7 +1174,7 @@
       "viewShift": "Schicht öffnen",
       "filterWorkerPlaceholder": "Nach Mitarbeiter oder Personal-Nr. filtern...",
       "filterClientPlaceholder": "Nach Kunde / Einrichtung filtern...",
-      "internalNotice": "Hinweis: Dieser Prüfbericht dient ausschließlich Informationszwecken. Er blockiert weder das Erstellen noch das Bearbeiten von Schichten und verändert keine Rechnungen oder Buchungsdaten.",
+      "internalNotice": "Hinweis: Dieser Prüfbericht dient ausschließlich Informationszwecken. Er basiert auf den im Dienstplan geplanten Schichtzeiten, blockiert weder das Erstellen noch das Bearbeiten von Schichten und verändert keine Rechnungen oder Buchungsdaten.",
       "dataWarningsTitle": "Daten- und Zeitumstellungshinweise (nicht in den Summen enthalten)",
       "dataWarningsDesc": "Für die folgenden Schichten liegen ungültige Zeitangaben oder Zeiten im Übergangsbereich der Sommer-/Winterzeit vor. Diese werden zur Vermeidung von Fehlberechnungen gesondert aufgeführt und nicht in die verbindlichen Überschneidungsminuten eingerechnet.",
       "reasonInvalidFormat": "Ungültiges Zeitformat",

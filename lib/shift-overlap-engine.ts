@@ -498,3 +498,36 @@ export function detectShiftOverlaps(
     uncertainWarnings,
   };
 }
+
+/**
+ * Constructs the canonical deep-link URL to an order/shift in admin orders view.
+ * Handles both grouped orders (navigates to requestGroupId) and standalone shifts (navigates to orderId).
+ * Preserves target month query and adds hash anchor `#shift-${orderId}` for auto-focus/scrolling.
+ */
+export function buildShiftOrderLink(shift: {
+  requestGroupId?: string | null;
+  orderId: string;
+  clientId?: string;
+  shiftDate?: string | Date;
+}): string {
+  const targetGroup = shift.requestGroupId || shift.orderId;
+  let monthQuery = "";
+  if (shift.shiftDate) {
+    if (shift.shiftDate instanceof Date) {
+      const y = shift.shiftDate.getUTCFullYear();
+      const m = String(shift.shiftDate.getUTCMonth() + 1).padStart(2, "0");
+      monthQuery = `?month=${y}-${m}`;
+    } else if (typeof shift.shiftDate === "string") {
+      const partsDot = shift.shiftDate.split(".");
+      if (partsDot.length === 3) {
+        monthQuery = `?month=${partsDot[2]}-${partsDot[1]}`;
+      } else {
+        const partsDash = shift.shiftDate.split("-");
+        if (partsDash.length >= 2) {
+          monthQuery = `?month=${partsDash[0]}-${partsDash[1]}`;
+        }
+      }
+    }
+  }
+  return `/admin/orders/${targetGroup}${monthQuery}#shift-${shift.orderId}`;
+}

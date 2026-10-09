@@ -1174,7 +1174,7 @@
       "viewShift": "Open Shift",
       "filterWorkerPlaceholder": "Filter by employee or employee no....",
       "filterClientPlaceholder": "Filter by client / facility...",
-      "internalNotice": "Note: This audit report is strictly for informational purposes. It does not prevent creating or editing shifts and does not alter invoices or booking records.",
+      "internalNotice": "Note: This audit report is strictly for informational purposes. It is based on scheduled shift times in the roster, does not prevent creating or editing shifts, and does not alter invoices or booking records.",
       "dataWarningsTitle": "Data and DST Transition Warnings (excluded from totals)",
       "dataWarningsDesc": "The following shifts have invalid time formats or times recorded during daylight saving transitions. To avoid fabricated or estimated durations, they are listed separately and excluded from definite overlap totals.",
       "reasonInvalidFormat": "Invalid Time Format",

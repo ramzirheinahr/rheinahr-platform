@@ -20,7 +20,7 @@ import {
   Layers,
 } from "lucide-react";
 import { checkShiftOverlapsAction } from "@/app/[locale]/admin/reports/actions";
-import type { ShiftOverlapReportResult } from "@/lib/shift-overlap-engine";
+import { buildShiftOrderLink, type ShiftOverlapReportResult } from "@/lib/shift-overlap-engine";
 
 export function ShiftOverlapSection() {
   const locale = useLocale();
@@ -63,23 +63,8 @@ export function ShiftOverlapSection() {
     }
   };
 
-  // Safe order link: target the group or order route, with anchor hash to shift if orderId is available
-  const buildOrderLink = (shift: {
-    requestGroupId?: string | null;
-    orderId: string;
-    clientId?: string;
-    shiftDate?: string;
-  }) => {
-    const targetGroup = shift.requestGroupId || shift.orderId;
-    let monthQuery = "";
-    if (shift.shiftDate) {
-      const parts = shift.shiftDate.split(".");
-      if (parts.length === 3) {
-        monthQuery = `?month=${parts[2]}-${parts[1]}`;
-      }
-    }
-    return `/admin/orders/${targetGroup}${monthQuery}#shift-${shift.orderId}`;
-  };
+  // Canonical order link: use shared helper that targets group route or standalone order route
+  const buildOrderLink = buildShiftOrderLink;
 
   // Optional filtering after report is loaded (does not mutate raw report or hide by default)
   const filteredWorkerGroups = React.useMemo(() => {
