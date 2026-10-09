@@ -41,5 +41,5 @@ describe("actual invoice template rendering", () => {
     const buffer = await generateInvoicePdf(data);
     expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
     writeFileSync(new URL("many-workers.pdf", directory), buffer);
-  }, 15000);
+  });
 });

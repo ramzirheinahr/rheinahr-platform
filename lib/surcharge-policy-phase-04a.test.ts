@@ -5,11 +5,15 @@ import {
   calculateEasterSunday,
   calculateBussUndBettag,
   isBavarianCatholicMunicipality,
+  isSaxonyCatholicMunicipality,
+  isThuringianCatholicMunicipality,
+  isValidGregorianCalendarDate,
 } from "./german-holidays";
 import {
   resolveInvoiceSurchargePolicy,
   evaluateMinuteSurcharges,
   computePolicyCanonicalHash,
+  validatePolicyIntervalOverlap,
   type FacilitySurchargePolicyRecord,
   type ResolvedSurchargePolicySuccess,
 } from "./surcharge-policy";
@@ -123,25 +127,31 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
 
       // Daylight minute: 12:00 (minute 720) on 2026-11-01 (Allerheiligen on Sunday)
       const daylightEval = evaluateMinuteSurcharges("2026-11-01", 720, resSuccess);
-      expect(daylightEval.isSunday).toBe(true);
-      expect(daylightEval.isHoliday).toBe(true);
-      expect(daylightEval.holidayRecord?.name).toBe("Allerheiligen");
-      expect(daylightEval.isNight).toBe(false);
+      expect(daylightEval.status).toBe("resolved");
+      if (daylightEval.status === "resolved") {
+        expect(daylightEval.isSunday).toBe(true);
+        expect(daylightEval.isHoliday).toBe(true);
+        expect(daylightEval.holidayRecord?.name).toBe("Allerheiligen");
+        expect(daylightEval.isNight).toBe(false);
 
-      // Under highest_non_night_plus_night: Holiday (100%) wins over Sunday (50%)
-      expect(daylightEval.effectiveSurchargeFraction).toBe(1.0);
-      expect(daylightEval.rateMultiplier).toBe(2.0);
-      expect(daylightEval.breakdownDescriptionDE).toContain("Feiertagszuschlag (Allerheiligen +100%)");
-      expect(daylightEval.breakdownDescriptionDE).not.toContain("Sonntagszuschlag");
+        // Under highest_non_night_plus_night: Holiday (100%) wins over Sunday (50%)
+        expect(daylightEval.effectiveSurchargeFraction).toBe(1.0);
+        expect(daylightEval.rateMultiplier).toBe(2.0);
+        expect(daylightEval.breakdownDescriptionDE).toContain("Feiertagszuschlag (Allerheiligen +100%)");
+        expect(daylightEval.breakdownDescriptionDE).not.toContain("Sonntagszuschlag");
+      }
 
       // Night minute: 22:30 (minute 1350) on 2026-11-01 (Allerheiligen + Sunday + Night)
       const nightEval = evaluateMinuteSurcharges("2026-11-01", 1350, resSuccess);
-      expect(nightEval.isSunday).toBe(true);
-      expect(nightEval.isHoliday).toBe(true);
-      expect(nightEval.isNight).toBe(true);
-      // Under highest_non_night_plus_night: max(Holiday 100%, Sunday 50%) + Night 25% = 125%
-      expect(nightEval.effectiveSurchargeFraction).toBe(1.25);
-      expect(nightEval.rateMultiplier).toBe(2.25);
+      expect(nightEval.status).toBe("resolved");
+      if (nightEval.status === "resolved") {
+        expect(nightEval.isSunday).toBe(true);
+        expect(nightEval.isHoliday).toBe(true);
+        expect(nightEval.isNight).toBe(true);
+        // Under highest_non_night_plus_night: max(Holiday 100%, Sunday 50%) + Night 25% = 125%
+        expect(nightEval.effectiveSurchargeFraction).toBe(1.25);
+        expect(nightEval.rateMultiplier).toBe(2.25);
+      }
     });
 
     it("Brandenburg (BB) explicitly legislates Ostersonntag as statutory holiday", () => {
@@ -208,6 +218,48 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(resAmbiguous.diagnostics.reason).toContain("Mariä Himmelfahrt");
       }
 
+      // Explicit failure in evaluateMinuteSurcharges: ambiguous Bavarian municipality must NOT default to regular day / 1.0x
+      const policyBYAmbiguous: FacilitySurchargePolicyRecord = {
+        clientId: "client-by-ambiguous",
+        policyVersion: 1,
+        federalState: "BY",
+        municipality: "UnbekannteGemeinde",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Vertrag Bayern § 4",
+        effectiveFrom: "2026-01-01",
+      };
+      const resolvedBYAmbiguous = resolveInvoiceSurchargePolicy({
+        policy: policyBYAmbiguous,
+        referenceDate: "2026-08-15",
+      }) as ResolvedSurchargePolicySuccess;
+
+      const evalBYAmbiguous = evaluateMinuteSurcharges("2026-08-15", 720, resolvedBYAmbiguous);
+      expect(evalBYAmbiguous.status).toBe("policy_unresolved");
+      if (evalBYAmbiguous.status === "policy_unresolved") {
+        expect(evalBYAmbiguous.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(evalBYAmbiguous.message).toContain("Mariä Himmelfahrt");
+      }
+
+      // Official Amtlicher Gemeindeschlüssel (AGS) support for Bavaria (Zensus 2022)
+      const resMunichAgs = resolveGermanHoliday("2026-08-15", "BY", "09162000"); // München AGS
+      expect(resMunichAgs.status).toBe("resolved");
+      if (resMunichAgs.status === "resolved") {
+        expect(resMunichAgs.isHoliday).toBe(true);
+      }
+
+      const resNurembergAgs = resolveGermanHoliday("2026-08-15", "BY", "09564000"); // Nürnberg AGS
+      expect(resNurembergAgs.status).toBe("resolved");
+      if (resNurembergAgs.status === "resolved") {
+        expect(resNurembergAgs.isHoliday).toBe(false);
+      }
+
       // In Saarland (SL): Landesweit gesetzlicher Feiertag (no municipality needed)
       const resSL = resolveGermanHoliday("2026-08-15", "SL", null);
       expect(resSL.status).toBe("resolved");
@@ -218,8 +270,84 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
 
       // Verify isBavarianCatholicMunicipality helper directly
       expect(isBavarianCatholicMunicipality("München")).toBe(true);
+      expect(isBavarianCatholicMunicipality("09162000")).toBe(true);
       expect(isBavarianCatholicMunicipality("Nürnberg")).toBe(false);
+      expect(isBavarianCatholicMunicipality("09564000")).toBe(false);
       expect(isBavarianCatholicMunicipality("Unbekannte Gemeinde")).toBeNull();
+    });
+
+    it("evaluates statutory local Fronleichnam exceptions in Saxony (SN) and Thuringia (TH)", () => {
+      // 2026-06-04 is Fronleichnam
+      const fronleichnam2026 = "2026-06-04";
+
+      // Saxony (SN) - SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO:
+      // Statutory holiday in designated Catholic communities of Landkreis Bautzen
+      const resCrostwitz = resolveGermanHoliday(fronleichnam2026, "SN", "Crostwitz");
+      expect(resCrostwitz.status).toBe("resolved");
+      if (resCrostwitz.status === "resolved") {
+        expect(resCrostwitz.isHoliday).toBe(true);
+        expect(resCrostwitz.holiday?.name).toBe("Fronleichnam");
+      }
+
+      const resPanschwitzAgs = resolveGermanHoliday(fronleichnam2026, "SN", "14625390"); // Panschwitz-Kuckau AGS
+      expect(resPanschwitzAgs.status).toBe("resolved");
+      if (resPanschwitzAgs.status === "resolved") {
+        expect(resPanschwitzAgs.isHoliday).toBe(true);
+      }
+
+      // Non-qualifying municipality in Saxony (e.g. Dresden)
+      const resDresden = resolveGermanHoliday(fronleichnam2026, "SN", "Dresden");
+      expect(resDresden.status).toBe("resolved");
+      if (resDresden.status === "resolved") {
+        expect(resDresden.isHoliday).toBe(false);
+      }
+
+      // Ambiguous municipality in Saxony on Fronleichnam must return policy_unresolved rather than regular day!
+      const resSNAmbiguous = resolveGermanHoliday(fronleichnam2026, "SN", null);
+      expect(resSNAmbiguous.status).toBe("policy_unresolved");
+      if (resSNAmbiguous.status === "policy_unresolved") {
+        expect(resSNAmbiguous.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(resSNAmbiguous.message).toContain("Fronleichnam im Freistaat Sachsen");
+      }
+
+      // Thuringia (TH) - ThürFtG § 2 Abs. 2:
+      // Statutory holiday in the entire Landkreis Eichsfeld and designated Catholic communities
+      const resHeiligenstadt = resolveGermanHoliday(fronleichnam2026, "TH", "Heilbad Heiligenstadt");
+      expect(resHeiligenstadt.status).toBe("resolved");
+      if (resHeiligenstadt.status === "resolved") {
+        expect(resHeiligenstadt.isHoliday).toBe(true);
+        expect(resHeiligenstadt.holiday?.name).toBe("Fronleichnam");
+      }
+
+      const resEichsfeld = resolveGermanHoliday(fronleichnam2026, "TH", "Landkreis Eichsfeld");
+      expect(resEichsfeld.status).toBe("resolved");
+      if (resEichsfeld.status === "resolved") {
+        expect(resEichsfeld.isHoliday).toBe(true);
+      }
+
+      // Non-qualifying municipality in Thuringia (e.g. Erfurt)
+      const resErfurt = resolveGermanHoliday(fronleichnam2026, "TH", "Erfurt");
+      expect(resErfurt.status).toBe("resolved");
+      if (resErfurt.status === "resolved") {
+        expect(resErfurt.isHoliday).toBe(false);
+      }
+
+      // Ambiguous municipality in Thuringia on Fronleichnam must return policy_unresolved rather than regular day!
+      const resTHAmbiguous = resolveGermanHoliday(fronleichnam2026, "TH", null);
+      expect(resTHAmbiguous.status).toBe("policy_unresolved");
+      if (resTHAmbiguous.status === "policy_unresolved") {
+        expect(resTHAmbiguous.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(resTHAmbiguous.message).toContain("Fronleichnam im Freistaat Thüringen");
+      }
+
+      // Direct helper assertions
+      expect(isSaxonyCatholicMunicipality("Crostwitz")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("Dresden")).toBe(false);
+      expect(isSaxonyCatholicMunicipality(null)).toBeNull();
+
+      expect(isThuringianCatholicMunicipality("Heilbad Heiligenstadt")).toBe(true);
+      expect(isThuringianCatholicMunicipality("Erfurt")).toBe(false);
+      expect(isThuringianCatholicMunicipality(null)).toBeNull();
     });
 
     it("supports documented custom contract/facility exceptions", () => {
@@ -283,22 +411,27 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       const evalHighest = evaluateMinuteSurcharges("2026-11-01", 1350, resolvedHighest);
       const evalCumulative = evaluateMinuteSurcharges("2026-11-01", 1350, resolvedCumulative);
 
-      // Rule 1: Highest non-night (Holiday 100%) + Night (25%) = 125% -> Multiplier 2.25
-      expect(evalHighest.effectiveSurchargeFraction).toBe(1.25);
-      expect(evalHighest.rateMultiplier).toBe(2.25);
-      expect(evalHighest.breakdownDescriptionDE).toBe(
-        "Feiertagszuschlag (Allerheiligen +100%) + Nachtzuschlag (+25%)"
-      );
+      expect(evalHighest.status).toBe("resolved");
+      expect(evalCumulative.status).toBe("resolved");
 
-      // Rule 2: Cumulative (Holiday 100% + Sunday 50% + Night 25%) = 175% -> Multiplier 2.75
-      expect(evalCumulative.effectiveSurchargeFraction).toBe(1.75);
-      expect(evalCumulative.rateMultiplier).toBe(2.75);
-      expect(evalCumulative.breakdownDescriptionDE).toBe(
-        "Feiertag (+100%) + Sonntag (+50%) + Nacht (+25%)"
-      );
+      if (evalHighest.status === "resolved" && evalCumulative.status === "resolved") {
+        // Rule 1: Highest non-night (Holiday 100%) + Night (25%) = 125% -> Multiplier 2.25
+        expect(evalHighest.effectiveSurchargeFraction).toBe(1.25);
+        expect(evalHighest.rateMultiplier).toBe(2.25);
+        expect(evalHighest.breakdownDescriptionDE).toBe(
+          "Feiertagszuschlag (Allerheiligen +100%) + Nachtzuschlag (+25%)"
+        );
 
-      // Difference is exactly the 50% Sunday surcharge that was superseded under the highest rule!
-      expect(evalCumulative.effectiveSurchargeFraction - evalHighest.effectiveSurchargeFraction).toBe(0.5);
+        // Rule 2: Cumulative (Holiday 100% + Sunday 50% + Night 25%) = 175% -> Multiplier 2.75
+        expect(evalCumulative.effectiveSurchargeFraction).toBe(1.75);
+        expect(evalCumulative.rateMultiplier).toBe(2.75);
+        expect(evalCumulative.breakdownDescriptionDE).toBe(
+          "Feiertag (+100%) + Sonntag (+50%) + Nacht (+25%)"
+        );
+
+        // Difference is exactly the 50% Sunday surcharge that was superseded under the highest rule!
+        expect(evalCumulative.effectiveSurchargeFraction - evalHighest.effectiveSurchargeFraction).toBe(0.5);
+      }
     });
   });
 
@@ -346,15 +479,61 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       }
     });
 
-    it("rejects shifts after effectiveTo with POLICY_EXPIRED", () => {
+    it("rejects inverted date intervals with INVALID_DATE_INTERVAL", () => {
+      const invertedPolicy: FacilitySurchargePolicyRecord = {
+        clientId: "client-inverted",
+        policyVersion: 1,
+        federalState: "NW",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Vertrag",
+        effectiveFrom: "2026-12-31",
+        effectiveTo: "2026-01-01", // Before effectiveFrom!
+      };
+
       const res = resolveInvoiceSurchargePolicy({
-        policy: basePolicy,
-        referenceDate: "2026-07-01",
+        policy: invertedPolicy,
+        referenceDate: "2026-06-01",
       });
       expect(res.status).toBe("policy_unresolved");
       if (res.status === "policy_unresolved") {
-        expect(res.code).toBe("POLICY_EXPIRED");
-        expect(res.message).toContain("abgelaufen");
+        expect(res.code).toBe("INVALID_DATE_INTERVAL");
+        expect(res.message).toContain("darf nicht nach effectiveTo");
+      }
+    });
+
+    it("evaluates minute bounds and expiration during minute evaluation", () => {
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: basePolicy,
+        referenceDate: "2026-06-30",
+      }) as ResolvedSurchargePolicySuccess;
+
+      // Minute out of bounds: -1
+      const evalNeg = evaluateMinuteSurcharges("2026-06-30", -1, resolved);
+      expect(evalNeg.status).toBe("policy_unresolved");
+      if (evalNeg.status === "policy_unresolved") {
+        expect(evalNeg.code).toBe("INVALID_MINUTE_OF_DAY");
+      }
+
+      // Minute out of bounds: 1440
+      const evalOver = evaluateMinuteSurcharges("2026-06-30", 1440, resolved);
+      expect(evalOver.status).toBe("policy_unresolved");
+      if (evalOver.status === "policy_unresolved") {
+        expect(evalOver.code).toBe("INVALID_MINUTE_OF_DAY");
+      }
+
+      // Minute on day crossing after policy expiration (effectiveTo was 2026-06-30)
+      const evalExpired = evaluateMinuteSurcharges("2026-07-01", 30, resolved);
+      expect(evalExpired.status).toBe("policy_unresolved");
+      if (evalExpired.status === "policy_unresolved") {
+        expect(evalExpired.code).toBe("POLICY_EXPIRED");
+        expect(evalExpired.message).toContain("abgelaufen");
       }
     });
   });
@@ -372,14 +551,45 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       }
     });
 
+    it("rejects policy missing mandatory policyVersion with MISSING_POLICY_VERSION", () => {
+      const missingVersionPolicy: FacilitySurchargePolicyRecord = {
+        clientId: "client-no-version",
+        federalState: "NW",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Vertrag",
+        effectiveFrom: "2026-01-01",
+      };
+
+      const res = resolveInvoiceSurchargePolicy({
+        policy: missingVersionPolicy,
+        referenceDate: "2026-05-01",
+      });
+      expect(res.status).toBe("policy_unresolved");
+      if (res.status === "policy_unresolved") {
+        expect(res.code).toBe("MISSING_POLICY_VERSION");
+      }
+    });
+
     it("rejects invalid or unknown federal state with UNKNOWN_FEDERAL_STATE", () => {
       const invalidStatePolicy: FacilitySurchargePolicyRecord = {
         clientId: "client-bad-state",
+        policyVersion: 1,
         federalState: "XX", // Non-existent state
         surchargeSat: 0.25,
         surchargeSun: 0.5,
         surchargeHoliday: 1.0,
         surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
         sourceReference: "Manual entry",
         effectiveFrom: "2026-01-01",
       };
@@ -394,18 +604,36 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       }
     });
 
-    it("rejects invalid night window or invalid surcharge fractions", () => {
-      const badNightPolicy: FacilitySurchargePolicyRecord = {
-        clientId: "client-bad-night",
+    it("rejects missing or invalid night window", () => {
+      // Missing night window (no implicit fallback)
+      const missingNightPolicy: FacilitySurchargePolicyRecord = {
+        clientId: "client-missing-night",
+        policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
         surchargeSun: 0.5,
         surchargeHoliday: 1.0,
         surchargeNight: 0.25,
-        nightStart: "25:99", // Invalid time
-        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
         sourceReference: "Manual entry",
         effectiveFrom: "2026-01-01",
+      };
+
+      const resMissing = resolveInvoiceSurchargePolicy({
+        policy: missingNightPolicy,
+        referenceDate: "2026-05-01",
+      });
+      expect(resMissing.status).toBe("policy_unresolved");
+      if (resMissing.status === "policy_unresolved") {
+        expect(resMissing.code).toBe("INVALID_NIGHT_WINDOW");
+      }
+
+      // Invalid night window format
+      const badNightPolicy: FacilitySurchargePolicyRecord = {
+        ...missingNightPolicy,
+        nightStart: "25:99",
+        nightEnd: "06:00",
       };
 
       const resNight = resolveInvoiceSurchargePolicy({
@@ -416,11 +644,23 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       if (resNight.status === "policy_unresolved") {
         expect(resNight.code).toBe("INVALID_NIGHT_WINDOW");
       }
+    });
 
+    it("rejects invalid surcharge fractions", () => {
       const negativeRatePolicy: FacilitySurchargePolicyRecord = {
-        ...badNightPolicy,
-        nightStart: "20:00",
+        clientId: "client-neg-rate",
+        policyVersion: 1,
+        federalState: "NW",
         surchargeSat: -0.1, // Negative surcharge
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Manual entry",
+        effectiveFrom: "2026-01-01",
       };
 
       const resRate = resolveInvoiceSurchargePolicy({
@@ -433,14 +673,60 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       }
     });
 
-    it("rejects unverified policy without sourceReference", () => {
-      const unverifiedPolicy: FacilitySurchargePolicyRecord = {
-        clientId: "client-unverified",
+    it("rejects missing combinationRule and missing sourceType", () => {
+      const missingRulePolicy: FacilitySurchargePolicyRecord = {
+        clientId: "client-missing-rule",
+        policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
         surchargeSun: 0.5,
         surchargeHoliday: 1.0,
         surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        sourceType: "contract",
+        sourceReference: "Manual entry",
+        effectiveFrom: "2026-01-01",
+      };
+
+      const resRule = resolveInvoiceSurchargePolicy({
+        policy: missingRulePolicy,
+        referenceDate: "2026-05-01",
+      });
+      expect(resRule.status).toBe("policy_unresolved");
+      if (resRule.status === "policy_unresolved") {
+        expect(resRule.code).toBe("INVALID_COMBINATION_RULE");
+      }
+
+      const missingSourcePolicy: FacilitySurchargePolicyRecord = {
+        ...missingRulePolicy,
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: undefined,
+      };
+
+      const resSource = resolveInvoiceSurchargePolicy({
+        policy: missingSourcePolicy,
+        referenceDate: "2026-05-01",
+      });
+      expect(resSource.status).toBe("policy_unresolved");
+      if (resSource.status === "policy_unresolved") {
+        expect(resSource.code).toBe("UNVERIFIED_POLICY_SOURCE");
+      }
+    });
+
+    it("rejects unverified policy without sourceReference", () => {
+      const unverifiedPolicy: FacilitySurchargePolicyRecord = {
+        clientId: "client-unverified",
+        policyVersion: 1,
+        federalState: "NW",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
         sourceReference: "", // Empty source reference
         effectiveFrom: "2026-01-01",
       };
@@ -454,12 +740,112 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(res.code).toBe("UNVERIFIED_POLICY_SOURCE");
       }
     });
+
+    it("strictly rejects tampered frozen policy with TAMPERED_FROZEN_POLICY", () => {
+      const tamperedPolicy: FacilitySurchargePolicyRecord = {
+        clientId: "client-tampered",
+        policyVersion: 1,
+        federalState: "NW",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Vertrag",
+        effectiveFrom: "2026-01-01",
+        isFrozen: true,
+        frozenHash: "tampered_unauthorized_hash_value",
+      };
+
+      const res = resolveInvoiceSurchargePolicy({
+        policy: tamperedPolicy,
+        referenceDate: "2026-05-01",
+      });
+      expect(res.status).toBe("policy_unresolved");
+      if (res.status === "policy_unresolved") {
+        expect(res.code).toBe("TAMPERED_FROZEN_POLICY");
+        expect(res.diagnostics.details).toBe("FROZEN_POLICY_HASH_MISMATCH");
+      }
+    });
+
+    it("safely handles invalid verifiedAt without throwing unhandled exceptions", () => {
+      const invalidVerifiedPolicy: FacilitySurchargePolicyRecord = {
+        clientId: "client-invalid-verified",
+        policyVersion: 1,
+        federalState: "NW",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Vertrag",
+        effectiveFrom: "2026-01-01",
+        verifiedAt: "not-a-valid-timestamp",
+      };
+
+      const res = resolveInvoiceSurchargePolicy({
+        policy: invalidVerifiedPolicy,
+        referenceDate: "2026-05-01",
+      });
+      expect(res.status).toBe("policy_unresolved");
+      if (res.status === "policy_unresolved") {
+        expect(res.code).toBe("INVALID_VERIFICATION_METADATA");
+      }
+    });
+
+    it("validates that client policy intervals do not overlap", () => {
+      const p1: FacilitySurchargePolicyRecord = {
+        clientId: "client-overlap-test",
+        policyVersion: 1,
+        federalState: "NW",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Vertrag 1",
+        effectiveFrom: "2026-01-01",
+        effectiveTo: "2026-06-30",
+      };
+
+      const p2Disjoint: FacilitySurchargePolicyRecord = {
+        ...p1,
+        policyVersion: 2,
+        effectiveFrom: "2026-07-01",
+        effectiveTo: "2026-12-31",
+      };
+
+      const disjointRes = validatePolicyIntervalOverlap([p1, p2Disjoint]);
+      expect(disjointRes.valid).toBe(true);
+      expect(disjointRes.conflict).toBeUndefined();
+
+      const p2Overlapping: FacilitySurchargePolicyRecord = {
+        ...p1,
+        policyVersion: 2,
+        effectiveFrom: "2026-06-15", // Overlaps p1 (which ends 2026-06-30)
+        effectiveTo: "2026-12-31",
+      };
+
+      const overlapRes = validatePolicyIntervalOverlap([p1, p2Overlapping]);
+      expect(overlapRes.valid).toBe(false);
+      expect(overlapRes.conflict?.reason).toContain("überschneiden sich für Mandant");
+    });
   });
 
   describe("7. Year-Boundary Shift Crossing (Dec 31 -> Jan 1)", () => {
     it("evaluates New Year's Eve (Dec 31) vs New Year's Day (Jan 1) minute by minute", () => {
       const policyNW: FacilitySurchargePolicyRecord = {
         clientId: "client-nye",
+        policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
         surchargeSun: 0.5,
@@ -481,20 +867,26 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       // 2026-12-31 was a Thursday (regular workday)
       // Minute 1410 (23:30) on 2026-12-31: Night only (Silvester is not a statutory holiday)
       const nyeMinute = evaluateMinuteSurcharges("2026-12-31", 1410, resolved);
-      expect(nyeMinute.isHoliday).toBe(false);
-      expect(nyeMinute.isNight).toBe(true);
-      expect(nyeMinute.effectiveSurchargeFraction).toBe(0.25);
-      expect(nyeMinute.rateMultiplier).toBe(1.25);
+      expect(nyeMinute.status).toBe("resolved");
+      if (nyeMinute.status === "resolved") {
+        expect(nyeMinute.isHoliday).toBe(false);
+        expect(nyeMinute.isNight).toBe(true);
+        expect(nyeMinute.effectiveSurchargeFraction).toBe(0.25);
+        expect(nyeMinute.rateMultiplier).toBe(1.25);
+      }
 
       // 2026-01-01 is Neujahr (statutory holiday in all 16 states)
       // Minute 30 (00:30) on 2026-01-01: Holiday + Night
       const newYearMinute = evaluateMinuteSurcharges("2026-01-01", 30, resolved);
-      expect(newYearMinute.isHoliday).toBe(true);
-      expect(newYearMinute.holidayRecord?.name).toBe("Neujahr");
-      expect(newYearMinute.isNight).toBe(true);
-      // Under highest_non_night_plus_night: Holiday 100% + Night 25% = 125% -> Multiplier 2.25
-      expect(newYearMinute.effectiveSurchargeFraction).toBe(1.25);
-      expect(newYearMinute.rateMultiplier).toBe(2.25);
+      expect(newYearMinute.status).toBe("resolved");
+      if (newYearMinute.status === "resolved") {
+        expect(newYearMinute.isHoliday).toBe(true);
+        expect(newYearMinute.holidayRecord?.name).toBe("Neujahr");
+        expect(newYearMinute.isNight).toBe(true);
+        // Under highest_non_night_plus_night: Holiday 100% + Night 25% = 125% -> Multiplier 2.25
+        expect(newYearMinute.effectiveSurchargeFraction).toBe(1.25);
+        expect(newYearMinute.rateMultiplier).toBe(2.25);
+      }
     });
   });
 
@@ -574,6 +966,59 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(nrwHolidays.get("2026-11-01")).toBe("Allerheiligen");
       expect(nrwHolidays.get("2026-12-25")).toBe("1. Weihnachtstag");
       expect(nrwHolidays.get("2026-12-26")).toBe("2. Weihnachtstag");
+    });
+  });
+
+  describe("10. Gregorian Calendar Integrity: Rejection of Invalid Dates", () => {
+    it("rejects non-existent Gregorian dates like 2026-02-31 and 2026-04-31 with INVALID_CALENDAR_DATE", () => {
+      // Counter-test: Feb 31 does not exist in any Gregorian year
+      const resFeb31 = resolveGermanHoliday("2026-02-31", "NW");
+      expect(resFeb31.status).toBe("policy_unresolved");
+      if (resFeb31.status === "policy_unresolved") {
+        expect(resFeb31.code).toBe("INVALID_CALENDAR_DATE");
+        expect(resFeb31.message).toContain("existiert nicht im gregorianischen Kalender");
+      }
+
+      // April has only 30 days
+      const resApr31 = resolveGermanHoliday("2026-04-31", "NW");
+      expect(resApr31.status).toBe("policy_unresolved");
+      if (resApr31.status === "policy_unresolved") {
+        expect(resApr31.code).toBe("INVALID_CALENDAR_DATE");
+      }
+
+      // Rejection in resolveInvoiceSurchargePolicy reference date
+      const policyNW: FacilitySurchargePolicyRecord = {
+        clientId: "client-nw-gregorian",
+        policyVersion: 1,
+        federalState: "NW",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Vertrag",
+        effectiveFrom: "2026-01-01",
+      };
+
+      const resRefFeb31 = resolveInvoiceSurchargePolicy({
+        policy: policyNW,
+        referenceDate: "2026-02-31",
+      });
+      expect(resRefFeb31.status).toBe("policy_unresolved");
+      if (resRefFeb31.status === "policy_unresolved") {
+        expect(resRefFeb31.code).toBe("INVALID_CALENDAR_DATE");
+      }
+
+      // Direct helper assertions
+      expect(isValidGregorianCalendarDate(2026, 2, 28)).toBe(true);
+      expect(isValidGregorianCalendarDate(2026, 2, 29)).toBe(false); // 2026 is not a leap year
+      expect(isValidGregorianCalendarDate(2024, 2, 29)).toBe(true); // 2024 is a leap year
+      expect(isValidGregorianCalendarDate(2026, 2, 31)).toBe(false);
+      expect(isValidGregorianCalendarDate(2026, 4, 31)).toBe(false);
+      expect(isValidGregorianCalendarDate(2026, 4, 30)).toBe(true);
     });
   });
 });

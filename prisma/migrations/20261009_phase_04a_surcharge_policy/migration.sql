@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS "facility_surcharge_policies_client_id_effective_from
 ON "facility_surcharge_policies"("client_id", "effective_from", "effective_to");
 
 -- CreateIndex
-CREATE INDEX IF NOT EXISTS "facility_surcharge_policies_client_id_policy_version_idx"
+CREATE UNIQUE INDEX IF NOT EXISTS "facility_surcharge_policies_client_id_policy_version_key"
 ON "facility_surcharge_policies"("client_id", "policy_version");
 
 -- AddForeignKey

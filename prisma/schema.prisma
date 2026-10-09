@@ -651,8 +651,8 @@ model FacilitySurchargePolicy {
   clientContract ClientContract? @relation(fields: [clientContractId], references: [id], onDelete: SetNull)
   verifiedByUser User?           @relation("PolicyVerifiedByUser", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
 
+  @@unique([clientId, policyVersion])
   @@index([clientId, effectiveFrom, effectiveTo])
-  @@index([clientId, policyVersion])
   @@map("facility_surcharge_policies")
 }
 

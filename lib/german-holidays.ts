@@ -106,7 +106,9 @@ export const STATUTORY_LEGAL_BASES: Record<string, string> = {
   SH: "Gesetz über Sonn- und Feiertage (Schleswig-Holstein § 1)",
   TH: "Thüringer Feiertagsgesetz (ThürFtG § 2)",
   AUGSBURG: "Augsburger Hohes Friedensfest (Art. 1 Abs. 2 FTG Bayern - nur Stadtgebiet Augsburg)",
-  MARIA_HIMMELFAHRT_BY: "Mariä Himmelfahrt (Art. 1 Abs. 1 Nr. 2 FTG Bayern - nur katholische Gemeinden)",
+  MARIA_HIMMELFAHRT_BY: "Mariä Himmelfahrt (Art. 1 Abs. 1 Nr. 2 FTG Bayern - nur katholische Gemeinden; Quelle: Bayerisches Landesamt für Statistik, Zensus 2022)",
+  SAXONY_FRONLEICHNAM: "Fronleichnam (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO - nur katholische Gemeinden im Landkreis Bautzen)",
+  THURINGIA_FRONLEICHNAM: "Fronleichnam (ThürFtG § 2 Abs. 2 - Landkreis Eichsfeld und gesetzlich bestimmte katholische Gemeinden)",
 };
 
 export type HolidayRecord = {
@@ -128,6 +130,27 @@ export type HolidayException = {
 
 export function isValidGermanFederalState(state: unknown): state is GermanFederalState {
   return typeof state === "string" && (GERMAN_FEDERAL_STATES as readonly string[]).includes(state);
+}
+
+/**
+ * Strict Gregorian calendar date validation.
+ * Rejects non-existent dates such as 2026-02-31, 2026-04-31, or invalid leap year days.
+ */
+export function isValidGregorianCalendarDate(year: number, month: number, day: number): boolean {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return false;
+  }
+  if (year < 1583 || year > 2200) {
+    return false;
+  }
+  if (month < 1 || month > 12) {
+    return false;
+  }
+  if (day < 1) {
+    return false;
+  }
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= daysInMonth;
 }
 
 function pad(n: number): string {
@@ -184,41 +207,49 @@ export function calculateBussUndBettag(year: number): string {
 }
 
 /**
- * Known predominantly Catholic municipalities in Bavaria (Bayerisches Landesamt für Statistik).
- * When municipality is provided for Mariä Himmelfahrt (15.08.), this allows deterministic resolution.
+ * Bavarian Mariä Himmelfahrt (15.08.) Municipal Resolution.
+ * Statutory Basis: Art. 1 Abs. 1 Nr. 2 FTG Bayern.
+ * Official Census Authority: Bayerisches Landesamt für Statistik, Zensus 2022 (Stand: gültig ab 2025).
+ * According to official census data, 1,708 of 2,056 Bavarian municipalities (approx. 83%) have a
+ * predominantly Roman Catholic population where August 15 is a statutory public holiday.
+ *
+ * NOTE: The sample city and AGS lists below serve as canonical test fixtures and illustrative
+ * mappings. They are NOT exhaustive of all 1,708 municipalities. In production, unlisted Bavarian
+ * municipalities return "policy_unresolved" with AMBIGUOUS_MUNICIPAL_LOCATION unless explicitly
+ * documented with a verified municipal key (AGS) or documented contract exception.
  */
 const KNOWN_BAVARIAN_CATHOLIC_MUNICIPALITIES = new Set<string>([
-  "münchen", "muenchen", "munich",
-  "augsburg",
-  "würzburg", "wuerzburg",
-  "regensburg",
-  "ingolstadt",
-  "passau",
-  "bamberg",
-  "landshut",
-  "aschaffenburg",
-  "schweinfurt",
-  "straubing",
-  "rosenheim",
-  "freising",
-  "dachau",
-  "kaufbeuren",
-  "kempten",
-  "memmingen",
-  "amberg",
-  "weiden",
+  "münchen", "muenchen", "munich", "09162000",
+  "augsburg", "09761000",
+  "würzburg", "wuerzburg", "09663000",
+  "regensburg", "09362000",
+  "ingolstadt", "09161000",
+  "passau", "09262000",
+  "bamberg", "09461000",
+  "landshut", "09261000",
+  "aschaffenburg", "09661000",
+  "schweinfurt", "09662000",
+  "straubing", "09263000",
+  "rosenheim", "09163000",
+  "freising", "09178120",
+  "dachau", "09174115",
+  "kaufbeuren", "09762000",
+  "kempten", "09763000",
+  "memmingen", "09764000",
+  "amberg", "09361000",
+  "weiden", "09363000",
 ]);
 
 const KNOWN_BAVARIAN_PROTESTANT_MUNICIPALITIES = new Set<string>([
-  "nürnberg", "nuernberg", "nuremberg",
-  "ansbach",
-  "bayreuth",
-  "erlangen",
-  "rothenburg ob der tauber", "rothenburg",
-  "schwabach",
-  "hof",
-  "coburg",
-  "fürth", "fuerth",
+  "nürnberg", "nuernberg", "nuremberg", "09564000",
+  "ansbach", "09561000",
+  "bayreuth", "09462000",
+  "erlangen", "09562000",
+  "rothenburg ob der tauber", "rothenburg", "09571193",
+  "schwabach", "09565000",
+  "hof", "09464000",
+  "coburg", "09463000",
+  "fürth", "fuerth", "09563000",
 ]);
 
 export function isBavarianCatholicMunicipality(municipality?: string | null): boolean | null {
@@ -226,6 +257,87 @@ export function isBavarianCatholicMunicipality(municipality?: string | null): bo
   const normalized = municipality.trim().toLowerCase();
   if (KNOWN_BAVARIAN_CATHOLIC_MUNICIPALITIES.has(normalized)) return true;
   if (KNOWN_BAVARIAN_PROTESTANT_MUNICIPALITIES.has(normalized)) return false;
+  return null;
+}
+
+/**
+ * Statutory Catholic Municipalities in Saxony (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO).
+ * Corpus Christi (Fronleichnam) is a statutory public holiday ONLY in designated
+ * municipalities and districts in Landkreis Bautzen.
+ * Canonical sample list and official AGS keys.
+ */
+const KNOWN_SAXONY_CATHOLIC_MUNICIPALITIES = new Set<string>([
+  "crostwitz", "chrósćicy", "14625090",
+  "panschwitz-kuckau", "pančicy-kukow", "14625390",
+  "nebelschütz", "njebjelčicy", "14625340",
+  "räckelwitz", "worklecy", "14625440",
+  "ralbitz-rosenthal", "ralbicy-róžant", "14625460",
+  "wittichenau", "kulow", "14625620",
+  "bautzen", "14625020",
+  "radibor", "14625450",
+  "puschwitz", "14625430",
+  "neschwitz", "14625360",
+]);
+
+const KNOWN_SAXONY_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
+  "dresden", "14612000",
+  "leipzig", "14713000",
+  "chemnitz", "14511000",
+  "zwickau", "14524330",
+  "görlitz", "goerlitz", "14626110",
+  "plauen", "14523320",
+  "freiberg", "14522180",
+  "pirna", "14628270",
+  "meißen", "meissen", "14627140",
+  "riesa", "14627230",
+]);
+
+export function isSaxonyCatholicMunicipality(municipality?: string | null): boolean | null {
+  if (!municipality || !municipality.trim()) return null;
+  const normalized = municipality.trim().toLowerCase();
+  if (KNOWN_SAXONY_CATHOLIC_MUNICIPALITIES.has(normalized)) return true;
+  if (KNOWN_SAXONY_PROTESTANT_OR_GENERAL_MUNICIPALITIES.has(normalized)) return false;
+  return null;
+}
+
+/**
+ * Statutory Catholic Municipalities in Thuringia (ThürFtG § 2 Abs. 2).
+ * Corpus Christi (Fronleichnam) is a statutory public holiday in the entire
+ * Landkreis Eichsfeld and designated communities in Unstrut-Hainich-Kreis and Wartburgkreis.
+ */
+const KNOWN_THURINGIA_CATHOLIC_MUNICIPALITIES = new Set<string>([
+  "landkreis eichsfeld", "eichsfeld",
+  "heilbad heiligenstadt", "heiligenstadt", "16061045",
+  "leinefelde-worbis", "leinefelde", "worbis", "16061061",
+  "dingelstädt", "dingelstaedt", "16061023",
+  "südeichsfeld", "suedeichsfeld", "16064058",
+  "geisa", "16063032",
+  "anrode", "16064003",
+  "dünwald", "duenwald", "16064014",
+  "rodeberg", "16064053",
+  "buttlar", "16063013",
+  "schleid", "16063071",
+]);
+
+const KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
+  "erfurt", "16062000",
+  "jena", "16063000",
+  "weimar", "16064000",
+  "gera", "16065000",
+  "eisenach", "16063022",
+  "suhl", "16070000",
+  "gotha", "16067029",
+  "nordhausen", "16062041",
+  "altenburg", "16077001",
+  "ilmenau", "16070029",
+]);
+
+export function isThuringianCatholicMunicipality(municipality?: string | null): boolean | null {
+  if (!municipality || !municipality.trim()) return null;
+  const normalized = municipality.trim().toLowerCase();
+  if (normalized.includes("eichsfeld")) return true;
+  if (KNOWN_THURINGIA_CATHOLIC_MUNICIPALITIES.has(normalized)) return true;
+  if (KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES.has(normalized)) return false;
   return null;
 }
 
@@ -286,7 +398,8 @@ export function getGermanHolidaysForYear(options: HolidayCalendarOptions): Map<s
     add(addDaysToEaster(year, easter, 49), "Pfingstsonntag", false, stateBasis);
   }
 
-  // Fronleichnam (Easter + 60): BW, BY, HE, NW, RP, SL
+  // Fronleichnam (Easter + 60): BW, BY, HE, NW, RP, SL (landesweit)
+  // Sowie regional in SN (Landkreis Bautzen) und TH (Landkreis Eichsfeld u.a.)
   if (
     federalState === "BW" ||
     federalState === "BY" ||
@@ -296,6 +409,14 @@ export function getGermanHolidaysForYear(options: HolidayCalendarOptions): Map<s
     federalState === "SL"
   ) {
     add(addDaysToEaster(year, easter, 60), "Fronleichnam", false, stateBasis);
+  } else if (federalState === "SN" && municipality) {
+    if (isSaxonyCatholicMunicipality(municipality) === true) {
+      add(addDaysToEaster(year, easter, 60), "Fronleichnam", false, STATUTORY_LEGAL_BASES.SAXONY_FRONLEICHNAM, municipality);
+    }
+  } else if (federalState === "TH" && municipality) {
+    if (isThuringianCatholicMunicipality(municipality) === true) {
+      add(addDaysToEaster(year, easter, 60), "Fronleichnam", false, STATUTORY_LEGAL_BASES.THURINGIA_FRONLEICHNAM, municipality);
+    }
   }
 
   // Augsburger Hohes Friedensfest (08.08.): Nur Stadtgebiet Augsburg (BY, Art. 1 Abs. 2 FTG Bayern)
@@ -387,7 +508,11 @@ export type HolidayResolutionSuccess = {
 
 export type HolidayResolutionUnresolved = {
   status: "policy_unresolved";
-  code: "UNKNOWN_FEDERAL_STATE" | "AMBIGUOUS_MUNICIPAL_LOCATION" | "INVALID_DATE";
+  code:
+    | "UNKNOWN_FEDERAL_STATE"
+    | "AMBIGUOUS_MUNICIPAL_LOCATION"
+    | "INVALID_DATE"
+    | "INVALID_CALENDAR_DATE";
   message: string;
   diagnostics: {
     rawDate?: string;
@@ -401,7 +526,8 @@ export type HolidayResolutionResult = HolidayResolutionSuccess | HolidayResoluti
 
 /**
  * Resolves whether a specific calendar date is a statutory public holiday for a given state & municipality.
- * Returns explicit "policy_unresolved" error when state is invalid or municipal rule is ambiguous.
+ * Returns explicit "policy_unresolved" error when state is invalid, date is invalid/non-existent,
+ * or municipal rule is ambiguous.
  */
 export function resolveGermanHoliday(
   dateInput: Date | string,
@@ -423,6 +549,15 @@ export function resolveGermanHoliday(
     }
     isoDate = dateInput.toISOString().slice(0, 10);
     year = dateInput.getUTCFullYear();
+    const [y, m, d] = isoDate.split("-").map(Number);
+    if (!isValidGregorianCalendarDate(y, m, d)) {
+      return {
+        status: "policy_unresolved",
+        code: "INVALID_CALENDAR_DATE",
+        message: `Ungültiges Kalenderdatum: "${isoDate}" existiert nicht im gregorianischen Kalender.`,
+        diagnostics: { rawDate: isoDate, reason: "Day does not exist in given month/year" },
+      };
+    }
   } else if (typeof dateInput === "string") {
     const trimmed = dateInput.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -433,8 +568,17 @@ export function resolveGermanHoliday(
         diagnostics: { rawDate: dateInput, reason: "Date does not match YYYY-MM-DD" },
       };
     }
+    const [y, m, d] = trimmed.split("-").map(Number);
+    if (!isValidGregorianCalendarDate(y, m, d)) {
+      return {
+        status: "policy_unresolved",
+        code: "INVALID_CALENDAR_DATE",
+        message: `Ungültiges Kalenderdatum: "${trimmed}" existiert nicht im gregorianischen Kalender.`,
+        diagnostics: { rawDate: trimmed, reason: "Day does not exist in given month/year" },
+      };
+    }
     isoDate = trimmed;
-    year = Number(trimmed.slice(0, 4));
+    year = y;
   } else {
     return {
       status: "policy_unresolved",
@@ -459,7 +603,7 @@ export function resolveGermanHoliday(
 
   const federalState = federalStateInput;
 
-  // Check Bavarian August 15 ambiguity (Mariä Himmelfahrt)
+  // 1. Check Bavarian August 15 ambiguity (Mariä Himmelfahrt)
   if (federalState === "BY" && isoDate.endsWith("-08-15")) {
     const isCath = isBavarianCatholicMunicipality(municipalityInput);
     if (isCath === null) {
@@ -467,14 +611,54 @@ export function resolveGermanHoliday(
         status: "policy_unresolved",
         code: "AMBIGUOUS_MUNICIPAL_LOCATION",
         message:
-          "Mariä Himmelfahrt (15. August) in Bayern ist nur in Gemeinden mit überwiegend katholischer Bevölkerung gesetzlicher Feiertag (Art. 1 Abs. 1 Nr. 2 FTG Bayern). Die Gemeinde ist nicht angegeben oder ungelöst.",
+          "Mariä Himmelfahrt (15. August) in Bayern ist nur in Gemeinden mit überwiegend katholischer Bevölkerung gesetzlicher Feiertag (Art. 1 Abs. 1 Nr. 2 FTG Bayern - Quelle: Bayerisches Landesamt für Statistik, Zensus 2022). Die Gemeinde/Dienststelle ist nicht angegeben oder ungelöst.",
         diagnostics: {
           rawDate: isoDate,
           rawFederalState: "BY",
           rawMunicipality: municipalityInput || null,
-          reason: "Mariä Himmelfahrt municipal status ambiguous without verified catholic majority municipality",
+          reason: "Mariä Himmelfahrt municipal status ambiguous without verified catholic majority municipality or official AGS",
         },
       };
+    }
+  }
+
+  // 2. Check Fronleichnam regional statutory ambiguity in Saxony (SN) and Thuringia (TH)
+  const easter = calculateEasterSunday(year);
+  const fronleichnamIso = addDaysToEaster(year, easter, 60);
+
+  if (isoDate === fronleichnamIso) {
+    if (federalState === "SN") {
+      const isCath = isSaxonyCatholicMunicipality(municipalityInput);
+      if (isCath === null) {
+        return {
+          status: "policy_unresolved",
+          code: "AMBIGUOUS_MUNICIPAL_LOCATION",
+          message:
+            "Fronleichnam im Freistaat Sachsen ist nur in bestimmten katholisch geprägten Gemeinden des Landkreises Bautzen gesetzlicher Feiertag (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO). Die Gemeinde/Dienststelle ist nicht angegeben oder ungelöst.",
+          diagnostics: {
+            rawDate: isoDate,
+            rawFederalState: "SN",
+            rawMunicipality: municipalityInput || null,
+            reason: "Fronleichnam municipal status ambiguous in Saxony without verified statutory catholic municipality or official AGS",
+          },
+        };
+      }
+    } else if (federalState === "TH") {
+      const isCath = isThuringianCatholicMunicipality(municipalityInput);
+      if (isCath === null) {
+        return {
+          status: "policy_unresolved",
+          code: "AMBIGUOUS_MUNICIPAL_LOCATION",
+          message:
+            "Fronleichnam im Freistaat Thüringen ist nur im Landkreis Eichsfeld sowie in gesetzlich bestimmten katholisch geprägten Gemeinden gesetzlicher Feiertag (ThürFtG § 2 Abs. 2). Die Gemeinde/Dienststelle ist nicht angegeben oder ungelöst.",
+          diagnostics: {
+            rawDate: isoDate,
+            rawFederalState: "TH",
+            rawMunicipality: municipalityInput || null,
+            reason: "Fronleichnam municipal status ambiguous in Thuringia without verified statutory catholic municipality or official AGS",
+          },
+        };
+      }
     }
   }
 

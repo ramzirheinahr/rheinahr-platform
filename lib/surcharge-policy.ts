@@ -19,6 +19,7 @@ import {
   type GermanFederalState,
   GERMAN_STATE_NAMES_DE,
   isValidGermanFederalState,
+  isValidGregorianCalendarDate,
   resolveGermanHoliday,
   type HolidayRecord,
 } from "./german-holidays";
@@ -53,6 +54,7 @@ export type FacilitySurchargePolicyRecord = {
 
 export type PolicyUnresolvedCode =
   | "MISSING_POLICY_RECORD"
+  | "MISSING_POLICY_VERSION"
   | "UNKNOWN_FEDERAL_STATE"
   | "AMBIGUOUS_MUNICIPAL_LOCATION"
   | "POLICY_NOT_YET_EFFECTIVE"
@@ -61,7 +63,13 @@ export type PolicyUnresolvedCode =
   | "INVALID_NIGHT_WINDOW"
   | "INVALID_COMBINATION_RULE"
   | "UNVERIFIED_POLICY_SOURCE"
-  | "INVALID_REFERENCE_DATE";
+  | "INVALID_REFERENCE_DATE"
+  | "INVALID_DATE_INTERVAL"
+  | "INVALID_CALENDAR_DATE"
+  | "INVALID_MINUTE_OF_DAY"
+  | "INVALID_VERIFICATION_METADATA"
+  | "TAMPERED_FROZEN_POLICY"
+  | "INVALID_DATE";
 
 export type ResolvedSurchargePolicySuccess = {
   status: "resolved";
@@ -101,7 +109,18 @@ export type ResolvedSurchargePolicyError = {
     clientId?: string | null;
     federalState?: string | null;
     referenceDate?: string;
+    policyVersion?: number | null;
+    effectiveFrom?: string | null;
+    effectiveTo?: string | null;
+    nightStart?: string | null;
+    nightEnd?: string | null;
+    combinationRule?: string | null;
+    sourceType?: string | null;
+    verifiedAt?: string | null;
+    expectedHash?: string;
+    actualHash?: string | null;
     details?: unknown;
+    [key: string]: unknown;
   };
 };
 
@@ -176,6 +195,68 @@ export type ResolvePolicyParams = {
  * Resolves and validates a facility surcharge policy against a reference shift/invoice date.
  * Returns an immutable ResolvedSurchargePolicySuccess or explicit diagnostic ResolvedSurchargePolicyError.
  */
+/**
+ * Validates that multiple policies for the same client have non-overlapping effective intervals.
+ * An interval [from, to] (where null to means infinity) overlaps another [from2, to2] if:
+ * from <= (to2 ?? infinity) AND from2 <= (to ?? infinity).
+ */
+export function validatePolicyIntervalOverlap(
+  policies: FacilitySurchargePolicyRecord[]
+): {
+  valid: boolean;
+  conflict?: {
+    policyA: FacilitySurchargePolicyRecord;
+    policyB: FacilitySurchargePolicyRecord;
+    reason: string;
+  };
+} {
+  const byClient = new Map<string, FacilitySurchargePolicyRecord[]>();
+  for (const p of policies) {
+    const list = byClient.get(p.clientId) || [];
+    list.push(p);
+    byClient.set(p.clientId, list);
+  }
+
+  for (const [clientId, list] of byClient.entries()) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i];
+        const b = list[j];
+        const aFrom = toIsoDay(a.effectiveFrom);
+        const aTo = a.effectiveTo ? toIsoDay(a.effectiveTo) : null;
+        const bFrom = toIsoDay(b.effectiveFrom);
+        const bTo = b.effectiveTo ? toIsoDay(b.effectiveTo) : null;
+
+        if (!aFrom || !bFrom) continue;
+
+        const aBeforeBEnd = bTo === null || aFrom <= bTo;
+        const bBeforeAEnd = aTo === null || bFrom <= aTo;
+
+        if (aBeforeBEnd && bBeforeAEnd) {
+          return {
+            valid: false,
+            conflict: {
+              policyA: a,
+              policyB: b,
+              reason: `Gültigkeitszeiträume überschneiden sich für Mandant ${clientId}: [${aFrom}..${aTo ?? "offen"}] und [${bFrom}..${bTo ?? "offen"}].`,
+            },
+          };
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Resolves and validates a facility surcharge policy against a reference shift/invoice date.
+ * Returns an immutable ResolvedSurchargePolicySuccess or explicit diagnostic ResolvedSurchargePolicyError.
+ *
+ * NOTE: Application-level `isFrozen` verification protects integrity against runtime drift.
+ * In a multi-user production environment, true immutability requires database write triggers
+ * or Row-Level Security (RLS) to reject UPDATE/DELETE statements on frozen policies directly.
+ */
 export function resolveInvoiceSurchargePolicy(
   params: ResolvePolicyParams
 ): ResolvedSurchargePolicy {
@@ -194,6 +275,16 @@ export function resolveInvoiceSurchargePolicy(
     };
   }
 
+  const [refY, refM, refD] = refDay.split("-").map(Number);
+  if (!isValidGregorianCalendarDate(refY, refM, refD)) {
+    return {
+      status: "policy_unresolved",
+      code: "INVALID_CALENDAR_DATE",
+      message: `Ungültiges Kalenderdatum für die Zuschlagsauflösung: "${refDay}".`,
+      diagnostics: { referenceDate: refDay },
+    };
+  }
+
   if (!policy) {
     return {
       status: "policy_unresolved",
@@ -207,7 +298,26 @@ export function resolveInvoiceSurchargePolicy(
     };
   }
 
-  // 1. Validate Federal State
+  // 1. Validate Policy Version (mandatory positive integer, no implicit defaults)
+  if (
+    typeof policy.policyVersion !== "number" ||
+    !Number.isInteger(policy.policyVersion) ||
+    policy.policyVersion <= 0
+  ) {
+    return {
+      status: "policy_unresolved",
+      code: "MISSING_POLICY_VERSION",
+      message:
+        "Richtlinien-Version (policyVersion) fehlt oder ist ungültig. Es muss eine positive Ganzzahl angegeben werden (keine stillschweigenden Defaults).",
+      diagnostics: {
+        clientId: policy.clientId,
+        policyVersion: policy.policyVersion,
+      },
+    };
+  }
+  const policyVersion = policy.policyVersion;
+
+  // 2. Validate Federal State
   if (!isValidGermanFederalState(policy.federalState)) {
     return {
       status: "policy_unresolved",
@@ -223,7 +333,7 @@ export function resolveInvoiceSurchargePolicy(
   }
   const federalState = policy.federalState;
 
-  // 2. Validate Effective Dates
+  // 3. Validate Effective Dates & Interval
   const effFrom = toIsoDay(policy.effectiveFrom);
   if (!effFrom) {
     return {
@@ -238,7 +348,36 @@ export function resolveInvoiceSurchargePolicy(
     };
   }
 
+  const [efY, efM, efD] = effFrom.split("-").map(Number);
+  if (!isValidGregorianCalendarDate(efY, efM, efD)) {
+    return {
+      status: "policy_unresolved",
+      code: "INVALID_CALENDAR_DATE",
+      message: `Ungültiges Kalenderdatum in effectiveFrom: "${effFrom}".`,
+      diagnostics: { clientId: policy.clientId, effectiveFrom: effFrom },
+    };
+  }
+
   const effTo = policy.effectiveTo ? toIsoDay(policy.effectiveTo) : null;
+  if (effTo) {
+    const [etY, etM, etD] = effTo.split("-").map(Number);
+    if (!isValidGregorianCalendarDate(etY, etM, etD)) {
+      return {
+        status: "policy_unresolved",
+        code: "INVALID_CALENDAR_DATE",
+        message: `Ungültiges Kalenderdatum in effectiveTo: "${effTo}".`,
+        diagnostics: { clientId: policy.clientId, effectiveTo: effTo },
+      };
+    }
+    if (effFrom > effTo) {
+      return {
+        status: "policy_unresolved",
+        code: "INVALID_DATE_INTERVAL",
+        message: `Ungültiger Gültigkeitszeitraum: effectiveFrom (${effFrom}) darf nicht nach effectiveTo (${effTo}) liegen.`,
+        diagnostics: { clientId: policy.clientId, effectiveFrom: effFrom, effectiveTo: effTo },
+      };
+    }
+  }
 
   if (refDay < effFrom) {
     return {
@@ -266,7 +405,7 @@ export function resolveInvoiceSurchargePolicy(
     };
   }
 
-  // 3. Validate Surcharge Rates
+  // 4. Validate Surcharge Rates
   const { surchargeSat, surchargeSun, surchargeHoliday, surchargeNight } = policy;
   const rates = [surchargeSat, surchargeSun, surchargeHoliday, surchargeNight];
   const allRatesValid = rates.every(
@@ -285,9 +424,22 @@ export function resolveInvoiceSurchargePolicy(
     };
   }
 
-  // 4. Validate Night Window
-  const nightStart = policy.nightStart || "20:00";
-  const nightEnd = policy.nightEnd || "06:00";
+  // 5. Validate Night Window (mandatory, no implicit defaults)
+  if (!policy.nightStart || !policy.nightEnd) {
+    return {
+      status: "policy_unresolved",
+      code: "INVALID_NIGHT_WINDOW",
+      message:
+        "Nachtzeitfenster (nightStart und nightEnd) muss explizit angegeben werden (keine stillschweigenden Defaults).",
+      diagnostics: {
+        clientId: policy.clientId,
+        nightStart: policy.nightStart,
+        nightEnd: policy.nightEnd,
+      },
+    };
+  }
+  const nightStart = policy.nightStart.trim();
+  const nightEnd = policy.nightEnd.trim();
   if (!TIME_REGEX.test(nightStart) || !TIME_REGEX.test(nightEnd)) {
     return {
       status: "policy_unresolved",
@@ -301,32 +453,59 @@ export function resolveInvoiceSurchargePolicy(
     };
   }
 
-  // 5. Validate Combination Rule
-  const combinationRule: SurchargeCombinationRule =
-    policy.combinationRule || "highest_non_night_plus_night";
+  // 6. Validate Combination Rule (mandatory, no implicit defaults)
+  if (!policy.combinationRule) {
+    return {
+      status: "policy_unresolved",
+      code: "INVALID_COMBINATION_RULE",
+      message:
+        "Kombinationsregel (combinationRule) muss explizit angegeben werden (highest_non_night_plus_night oder cumulative).",
+      diagnostics: { clientId: policy.clientId, combinationRule: policy.combinationRule },
+    };
+  }
   if (
-    combinationRule !== "highest_non_night_plus_night" &&
-    combinationRule !== "cumulative"
+    policy.combinationRule !== "highest_non_night_plus_night" &&
+    policy.combinationRule !== "cumulative"
   ) {
     return {
       status: "policy_unresolved",
       code: "INVALID_COMBINATION_RULE",
-      message: `Ungültige Zuschlagskombinationsregel: "${String(combinationRule)}".`,
-      diagnostics: {
-        clientId: policy.clientId,
-        referenceDate: refDay,
-        details: { combinationRule },
-      },
+      message: `Ungültige Zuschlagskombinationsregel: "${String(policy.combinationRule)}".`,
+      diagnostics: { clientId: policy.clientId, combinationRule: policy.combinationRule },
     };
   }
+  const combinationRule = policy.combinationRule;
 
-  // 6. Validate Source & Provenance
-  const sourceType: SurchargePolicySourceType = policy.sourceType || "setting";
+  // 7. Validate Source & Provenance (mandatory, no implicit defaults)
+  if (!policy.sourceType) {
+    return {
+      status: "policy_unresolved",
+      code: "UNVERIFIED_POLICY_SOURCE",
+      message:
+        "Quellentyp (sourceType) muss explizit angegeben werden (contract, setting oder local_exception).",
+      diagnostics: { clientId: policy.clientId, sourceType: policy.sourceType },
+    };
+  }
+  if (
+    policy.sourceType !== "contract" &&
+    policy.sourceType !== "setting" &&
+    policy.sourceType !== "local_exception"
+  ) {
+    return {
+      status: "policy_unresolved",
+      code: "UNVERIFIED_POLICY_SOURCE",
+      message: `Ungültiger Quellentyp: "${String(policy.sourceType)}".`,
+      diagnostics: { clientId: policy.clientId, sourceType: policy.sourceType },
+    };
+  }
+  const sourceType = policy.sourceType;
+
   if (!policy.sourceReference || !policy.sourceReference.trim()) {
     return {
       status: "policy_unresolved",
       code: "UNVERIFIED_POLICY_SOURCE",
-      message: "Zuschlagsrichtlinie besitzt keinen dokumentierten Quellverweis (sourceReference fehlt).",
+      message:
+        "Zuschlagsrichtlinie besitzt keinen dokumentierten Quellverweis (sourceReference fehlt).",
       diagnostics: {
         clientId: policy.clientId,
         referenceDate: refDay,
@@ -335,7 +514,40 @@ export function resolveInvoiceSurchargePolicy(
     };
   }
 
-  const policyVersion = policy.policyVersion ?? 1;
+  // 8. Validate verifiedAt safely without unhandled JS exceptions
+  let verifiedAtIso: string | null = null;
+  if (policy.verifiedAt != null) {
+    if (policy.verifiedAt instanceof Date) {
+      if (isNaN(policy.verifiedAt.getTime())) {
+        return {
+          status: "policy_unresolved",
+          code: "INVALID_VERIFICATION_METADATA",
+          message: "Ungültiges verifiedAt-Datum (NaN).",
+          diagnostics: { clientId: policy.clientId, verifiedAt: String(policy.verifiedAt) },
+        };
+      }
+      verifiedAtIso = policy.verifiedAt.toISOString();
+    } else if (typeof policy.verifiedAt === "string") {
+      const parsed = new Date(policy.verifiedAt);
+      if (isNaN(parsed.getTime())) {
+        return {
+          status: "policy_unresolved",
+          code: "INVALID_VERIFICATION_METADATA",
+          message: `Ungültiger verifiedAt-Zeitstempel: "${policy.verifiedAt}".`,
+          diagnostics: { clientId: policy.clientId, verifiedAt: policy.verifiedAt },
+        };
+      }
+      verifiedAtIso = parsed.toISOString();
+    } else {
+      return {
+        status: "policy_unresolved",
+        code: "INVALID_VERIFICATION_METADATA",
+        message: "verifiedAt muss ein Date-Objekt oder ISO-String sein.",
+        diagnostics: { clientId: policy.clientId },
+      };
+    }
+  }
+
   const policyId = policy.id || `policy-${policy.clientId}-v${policyVersion}`;
   const municipality = policy.municipality?.trim() || null;
 
@@ -360,6 +572,25 @@ export function resolveInvoiceSurchargePolicy(
 
   const calculatedHash = computePolicyCanonicalHash(termsToHash);
 
+  // 9. Tampered Frozen Policy Hash Enforcement:
+  // If policy is frozen, stored hash MUST match calculated terms hash exactly.
+  if (policy.isFrozen === true) {
+    if (!policy.frozenHash || policy.frozenHash !== calculatedHash) {
+      return {
+        status: "policy_unresolved",
+        code: "TAMPERED_FROZEN_POLICY",
+        message: `Eingefrorene Richtlinie (isFrozen = true) besitzt eine ungültige oder manipulierte Prüfsumme. Erwartet: ${calculatedHash}, Hinterlegt: ${policy.frozenHash || "null"}.`,
+        diagnostics: {
+          clientId: policy.clientId,
+          policyVersion,
+          expectedHash: calculatedHash,
+          actualHash: policy.frozenHash || null,
+          details: "FROZEN_POLICY_HASH_MISMATCH",
+        },
+      };
+    }
+  }
+
   return {
     status: "resolved",
     policyId,
@@ -383,7 +614,7 @@ export function resolveInvoiceSurchargePolicy(
     sourceType,
     sourceReference: policy.sourceReference.trim(),
     verifiedByUserId: policy.verifiedByUserId || null,
-    verifiedAt: policy.verifiedAt ? new Date(policy.verifiedAt).toISOString() : null,
+    verifiedAt: verifiedAtIso,
     effectiveFrom: effFrom,
     effectiveTo: effTo,
     isFrozen: Boolean(policy.isFrozen),
@@ -393,7 +624,10 @@ export function resolveInvoiceSurchargePolicy(
 
 export type SurchargeComponent = "sat" | "sun" | "holiday" | "night";
 
-export type MinuteSurchargeEvaluation = {
+export type MinuteSurchargeEvaluationSuccess = {
+  status: "resolved";
+  date: string;
+  minuteOfDay: number;
   isSaturday: boolean;
   isSunday: boolean;
   isHoliday: boolean;
@@ -405,6 +639,28 @@ export type MinuteSurchargeEvaluation = {
   combinationRule: SurchargeCombinationRule;
   breakdownDescriptionDE: string;
 };
+
+export type MinuteSurchargeEvaluationUnresolved = {
+  status: "policy_unresolved";
+  code:
+    | PolicyUnresolvedCode
+    | "INVALID_MINUTE_OF_DAY"
+    | "INVALID_CALENDAR_DATE"
+    | "POLICY_EXPIRED"
+    | "POLICY_NOT_YET_EFFECTIVE";
+  message: string;
+  diagnostics: {
+    dateIso?: string;
+    minuteOfDay?: number;
+    clientId?: string;
+    federalState?: string;
+    details?: unknown;
+  };
+};
+
+export type MinuteSurchargeEvaluation =
+  | MinuteSurchargeEvaluationSuccess
+  | MinuteSurchargeEvaluationUnresolved;
 
 /**
  * Checks if a minute-of-day (0..1439) falls inside an overnight-aware night window.
@@ -428,24 +684,107 @@ export function isMinuteInNightWindow(
 
 /**
  * Pure evaluator of statutory surcharges for a single minute of work on a given calendar day.
+ * Returns an explicit discriminated union:
+ * - { status: "resolved", ... } when all rates and holiday statuses are unambiguously known.
+ * - { status: "policy_unresolved", ... } when holiday resolution fails (e.g. ambiguous Bavarian municipality
+ *   on August 15 or Fronleichnam in Saxony/Thuringia), policy is expired on the minute's day, or minute is invalid.
  */
 export function evaluateMinuteSurcharges(
   dateIso: string, // "YYYY-MM-DD"
   minuteOfDay: number, // 0..1439
   policy: ResolvedSurchargePolicySuccess
 ): MinuteSurchargeEvaluation {
-  // Calendar day properties in UTC
-  const [y, m, d] = dateIso.split("-").map(Number);
+  // 1. Minute of day range check (0..1439)
+  if (
+    typeof minuteOfDay !== "number" ||
+    !Number.isInteger(minuteOfDay) ||
+    minuteOfDay < 0 ||
+    minuteOfDay > 1439
+  ) {
+    return {
+      status: "policy_unresolved",
+      code: "INVALID_MINUTE_OF_DAY",
+      message: `Ungültige Minute des Tages: ${minuteOfDay}. Erwartet wird eine ganze Zahl zwischen 0 und 1439.`,
+      diagnostics: { dateIso, minuteOfDay, clientId: policy.clientId },
+    };
+  }
+
+  // 2. Date string format and Gregorian calendar existence check
+  if (typeof dateIso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso.trim())) {
+    return {
+      status: "policy_unresolved",
+      code: "INVALID_CALENDAR_DATE",
+      message: `Ungültiges Datumsformat für die Minute: "${dateIso}". Erwartet wird YYYY-MM-DD.`,
+      diagnostics: { dateIso, minuteOfDay, clientId: policy.clientId },
+    };
+  }
+
+  const cleanDateIso = dateIso.trim();
+  const [y, m, d] = cleanDateIso.split("-").map(Number);
+  if (!isValidGregorianCalendarDate(y, m, d)) {
+    return {
+      status: "policy_unresolved",
+      code: "INVALID_CALENDAR_DATE",
+      message: `Ungültiges Kalenderdatum für die Minute: "${cleanDateIso}" existiert nicht im gregorianischen Kalender.`,
+      diagnostics: { dateIso: cleanDateIso, minuteOfDay, clientId: policy.clientId },
+    };
+  }
+
+  // 3. Validate policy effective window against the actual minute's calendar date
+  if (cleanDateIso < policy.effectiveFrom) {
+    return {
+      status: "policy_unresolved",
+      code: "POLICY_NOT_YET_EFFECTIVE",
+      message: `Die Richtlinie ist am Datum der Minute (${cleanDateIso}) noch nicht in Kraft (Gültig ab: ${policy.effectiveFrom}).`,
+      diagnostics: {
+        dateIso: cleanDateIso,
+        minuteOfDay,
+        clientId: policy.clientId,
+        details: { effectiveFrom: policy.effectiveFrom, minuteDate: cleanDateIso },
+      },
+    };
+  }
+
+  if (policy.effectiveTo && cleanDateIso > policy.effectiveTo) {
+    return {
+      status: "policy_unresolved",
+      code: "POLICY_EXPIRED",
+      message: `Die Richtlinie ist am Datum der Minute (${cleanDateIso}) abgelaufen (Gültig bis: ${policy.effectiveTo}).`,
+      diagnostics: {
+        dateIso: cleanDateIso,
+        minuteOfDay,
+        clientId: policy.clientId,
+        details: { effectiveTo: policy.effectiveTo, minuteDate: cleanDateIso },
+      },
+    };
+  }
+
+  // 4. Resolve statutory holiday and explicitly fail if unresolved (no silent fallback to regular day)
+  const holidayRes = resolveGermanHoliday(cleanDateIso, policy.federalState, policy.municipality);
+  if (holidayRes.status === "policy_unresolved") {
+    return {
+      status: "policy_unresolved",
+      code: holidayRes.code,
+      message: `Feiertagsprüfung für Minute am ${cleanDateIso} konnte nicht aufgelöst werden: ${holidayRes.message}`,
+      diagnostics: {
+        dateIso: cleanDateIso,
+        minuteOfDay,
+        clientId: policy.clientId,
+        federalState: policy.federalState,
+        details: holidayRes.diagnostics,
+      },
+    };
+  }
+
+  const isHoliday = holidayRes.isHoliday;
+  const holidayRecord = holidayRes.holiday;
+
+  // 5. Calendar day properties in UTC
   const dateUtc = new Date(Date.UTC(y, m - 1, d));
   const dayOfWeek = dateUtc.getUTCDay(); // 0 = Sun, 6 = Sat
 
   const isSaturday = dayOfWeek === 6;
   const isSunday = dayOfWeek === 0;
-
-  const holidayRes = resolveGermanHoliday(dateIso, policy.federalState, policy.municipality);
-  const isHoliday = holidayRes.status === "resolved" && holidayRes.isHoliday;
-  const holidayRecord = holidayRes.status === "resolved" ? holidayRes.holiday : undefined;
-
   const isNight = isMinuteInNightWindow(minuteOfDay, policy.nightWindow);
 
   const applicableComponents: SurchargeComponent[] = [];
@@ -522,6 +861,9 @@ export function evaluateMinuteSurcharges(
   const rateMultiplier = 1 + effectiveSurchargeFraction;
 
   return {
+    status: "resolved",
+    date: cleanDateIso,
+    minuteOfDay,
     isSaturday,
     isSunday,
     isHoliday,
