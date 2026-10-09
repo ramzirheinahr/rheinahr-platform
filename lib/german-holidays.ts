@@ -107,8 +107,8 @@ export const STATUTORY_LEGAL_BASES: Record<string, string> = {
   TH: "Thüringer Feiertagsgesetz (ThürFtG § 2)",
   AUGSBURG: "Augsburger Hohes Friedensfest (Art. 1 Abs. 2 FTG Bayern - nur Stadtgebiet Augsburg)",
   MARIA_HIMMELFAHRT_BY: "Mariä Himmelfahrt (Art. 1 Abs. 1 Nr. 2 FTG Bayern - nur katholische Gemeinden; Quelle: Bayerisches Landesamt für Statistik, Zensus 2022)",
-  SAXONY_FRONLEICHNAM: "Fronleichnam (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO - nur katholische Gemeinden im Landkreis Bautzen)",
-  THURINGIA_FRONLEICHNAM: "Fronleichnam (ThürFtG § 2 Abs. 2 - Landkreis Eichsfeld und gesetzlich bestimmte katholische Gemeinden)",
+  SAXONY_FRONLEICHNAM: "Fronleichnam (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO vom 4. Mai 1993, SächsGVBl. S. 417, geänd. 30. Mai 1995 - nur katholische Gemeinden/Ortsteile im Landkreis Bautzen)",
+  THURINGIA_FRONLEICHNAM: "Fronleichnam (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales - Landkreis Eichsfeld und bestimmte katholische Gemeinden/Ortsteile)",
 };
 
 export type HolidayRecord = {
@@ -261,15 +261,15 @@ export function isBavarianCatholicMunicipality(municipality?: string | null): bo
 }
 
 /**
- * Statutory Catholic Municipalities in Saxony (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO § 1 und Anlage).
+ * Statutory Catholic Municipalities in Saxony (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO vom 4. Mai 1993, SächsGVBl. S. 417, geänd. 30. Mai 1995).
  * Corpus Christi (Fronleichnam) is a statutory public holiday:
  * 1. Im gesamten Gemeindegebiet:
  *    - Crostwitz (Chrósćicy): 14625080
- *    - Nebelschütz (Njebjelčicy): 14625350 (teils geführt als 14625340)
+ *    - Nebelschütz (Njebjelčicy): 14625350
  *    - Panschwitz-Kuckau (Pančicy-Kukow): 14625440
  *    - Räckelwitz (Worklecy): 14625470
  *    - Ralbitz-Rosenthal (Ralbicy-Róžant): 14625500
- *    - Wittichenau (Kulow): 14625640 (teils geführt als 14625620)
+ *    - Wittichenau (Kulow): 14625640
  * 2. In Teilgebieten (nur bestimmte Ortsteile):
  *    - Bautzen (14625020): nur Ortsteile Bolbritz und Salzenforst (§ 1 Abs. 1 Nr. 1 FronleichnamsVO).
  *      Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst (policy_unresolved: AMBIGUOUS_MUNICIPAL_LOCATION).
@@ -518,15 +518,28 @@ const STATUTORY_THURINGIA_EICHSFELD_NAMES = new Set<string>([
 ]);
 
 /**
- * Other Statutory Catholic Municipalities in Thuringia (ThürFtG § 2 Abs. 2):
- * - Wartburgkreis: Buttlar (16063011), Geisa (16063032), Schleid (16063068)
- * - Unstrut-Hainich-Kreis: Südeichsfeld (16064074)
+ * Statutory Catholic Municipalities and Localities in Thuringia
+ * (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales).
+ *
+ * 1. Im gesamten Gemeindegebiet:
+ *    - Gesamter Landkreis Eichsfeld (56 Gemeinden gemäß TLS Gebietsstand 2026: 16061001 bis 16061119).
+ *    - Wartburgkreis:
+ *      * Buttlar: 16063011
+ *      * Geisa: 16063032
+ *      * Schleid: 16063068
+ *
+ * 2. In Teilgebieten (nur bestimmte Ortsteile):
+ *    - Wartburgkreis:
+ *      * Dermbach (16063015): nur Ortsteile Zella und Brunnhartshausen.
+ *        Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst (policy_unresolved: AMBIGUOUS_MUNICIPAL_LOCATION).
+ *    - Unstrut-Hainich-Kreis:
+ *      * Südeichsfeld (16064074): nur Ortsteile Heyerode, Hildebrandshausen, Katharinenberg und Lengenfeld unterm Stein.
+ *        (Hallungen wurde zum 01.01.2024 eingegliedert und ist KEIN Feiertag; ohne Ortsteil ist der Status ungelöst).
  */
-const STATUTORY_THURINGIA_OTHER_CATHOLIC = new Set<string>([
+const STATUTORY_THURINGIA_FULL_CATHOLIC = new Set<string>([
   "16063011", "buttlar",
   "16063032", "geisa",
   "16063068", "schleid",
-  "16064074", "südeichsfeld", "suedeichsfeld",
 ]);
 
 const KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
@@ -545,28 +558,70 @@ const KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
   "oppershausen", "16064053",
 ]);
 
-export function isThuringianCatholicMunicipality(municipality?: string | null): boolean | null {
+export function isThuringianCatholicLocation(
+  municipality?: string | null,
+  districtLocality?: string | null
+): boolean | null {
   if (!municipality || !municipality.trim()) return null;
-  const normalized = municipality.trim().toLowerCase();
+  const munNorm = municipality.trim().toLowerCase();
 
-  // Explicit non-qualifying Protestant / general municipalities
-  if (KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES.has(normalized)) {
+  // 1. Explicit non-qualifying Protestant / general municipalities
+  if (KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES.has(munNorm)) {
     return false;
   }
 
-  // Exact matching against verified 2026 TLS AGS codes and names (NO prefix / substring matching)
-  if (STATUTORY_THURINGIA_EICHSFELD_AGS.has(normalized)) {
+  // 2. Entire Landkreis Eichsfeld (56 statutory municipalities according to TLS 2026)
+  if (STATUTORY_THURINGIA_EICHSFELD_AGS.has(munNorm) || STATUTORY_THURINGIA_EICHSFELD_NAMES.has(munNorm)) {
     return true;
   }
-  if (STATUTORY_THURINGIA_EICHSFELD_NAMES.has(normalized)) {
+
+  // 3. Wartburgkreis: Entire Catholic municipalities
+  if (STATUTORY_THURINGIA_FULL_CATHOLIC.has(munNorm)) {
     return true;
   }
-  if (STATUTORY_THURINGIA_OTHER_CATHOLIC.has(normalized)) {
-    return true;
+
+  // 4. Wartburgkreis partial municipality: Dermbach (16063015)
+  // Statutory holiday ONLY in Ortsteile Zella und Brunnhartshausen (Thür. MIK Feiertags-Merkblatt)
+  if (munNorm === "16063015" || munNorm === "dermbach") {
+    if (!districtLocality || !districtLocality.trim()) {
+      return null; // Ambiguous without specified Ortsteil / district locality
+    }
+    const locNorm = districtLocality.trim().toLowerCase();
+    if (locNorm === "zella" || locNorm === "brunnhartshausen") {
+      return true;
+    }
+    return false; // Other Ortsteile (Kernort Dermbach, Diedorf, etc.) are regular workdays
+  }
+
+  // 5. Unstrut-Hainich-Kreis partial municipality: Südeichsfeld (16064074)
+  // Statutory holiday ONLY in Ortsteile Heyerode, Hildebrandshausen, Katharinenberg, Lengenfeld unterm Stein
+  // (Thür. MIK Feiertags-Merkblatt; Hallungen was merged in 2024 and does NOT qualify)
+  if (munNorm === "16064074" || munNorm === "südeichsfeld" || munNorm === "suedeichsfeld") {
+    if (!districtLocality || !districtLocality.trim()) {
+      return null; // Ambiguous without specified Ortsteil / district locality
+    }
+    const locNorm = districtLocality.trim().toLowerCase();
+    if (
+      locNorm === "heyerode" ||
+      locNorm === "hildebrandshausen" ||
+      locNorm === "katharinenberg" ||
+      locNorm === "lengenfeld unterm stein" ||
+      locNorm === "lengenfeld"
+    ) {
+      return true;
+    }
+    return false; // Other Ortsteile (e.g. Hallungen) are regular workdays
   }
 
   // Any unverified or unlisted municipality returns null (ambiguous / unresolved)
   return null;
+}
+
+export function isThuringianCatholicMunicipality(
+  municipality?: string | null,
+  districtLocality?: string | null
+): boolean | null {
+  return isThuringianCatholicLocation(municipality, districtLocality);
 }
 
 export type HolidayCalendarOptions = {
@@ -643,7 +698,7 @@ export function getGermanHolidaysForYear(options: HolidayCalendarOptions): Map<s
       add(addDaysToEaster(year, easter, 60), "Fronleichnam", false, STATUTORY_LEGAL_BASES.SAXONY_FRONLEICHNAM, municipality);
     }
   } else if (federalState === "TH" && municipality) {
-    if (isThuringianCatholicMunicipality(municipality) === true) {
+    if (isThuringianCatholicLocation(municipality, districtLocality) === true) {
       add(addDaysToEaster(year, easter, 60), "Fronleichnam", false, STATUTORY_LEGAL_BASES.THURINGIA_FRONLEICHNAM, municipality);
     }
   }
@@ -882,18 +937,39 @@ export function resolveGermanHoliday(
         };
       }
     } else if (federalState === "TH") {
-      const isCath = isThuringianCatholicMunicipality(municipalityInput);
+      const isCath = isThuringianCatholicLocation(municipalityInput, districtLocalityInput);
       if (isCath === null) {
+        const munNorm = municipalityInput ? municipalityInput.trim().toLowerCase() : "";
+        const isSuedeichsfeld = munNorm === "16064074" || munNorm === "südeichsfeld" || munNorm === "suedeichsfeld";
+        const isDermbach = munNorm === "16063015" || munNorm === "dermbach";
+
+        let msg =
+          "Fronleichnam im Freistaat Thüringen ist nur im Landkreis Eichsfeld sowie in gesetzlich bestimmten katholisch geprägten Gemeinden oder Ortsteilen gesetzlicher Feiertag (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales). Die Gemeinde/Dienststelle oder der Ortsteil ist nicht angegeben oder ungelöst.";
+        let reason =
+          "Fronleichnam municipal status ambiguous in Thuringia without verified statutory catholic municipality/Ortsteil or official AGS";
+
+        if (isSuedeichsfeld) {
+          msg =
+            "Fronleichnam in der Landgemeinde Südeichsfeld (16064074) ist nur in den Ortsteilen Heyerode, Hildebrandshausen, Katharinenberg und Lengenfeld unterm Stein gesetzlicher Feiertag (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales). Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst.";
+          reason =
+            "Südeichsfeld requires explicit districtLocality (Heyerode, Hildebrandshausen, Katharinenberg, Lengenfeld unterm Stein) to determine Fronleichnam status";
+        } else if (isDermbach) {
+          msg =
+            "Fronleichnam in der Gemeinde Dermbach (16063015) ist nur in den Ortsteilen Zella und Brunnhartshausen gesetzlicher Feiertag (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales). Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst.";
+          reason =
+            "Dermbach requires explicit districtLocality (Zella or Brunnhartshausen) to determine Fronleichnam status";
+        }
+
         return {
           status: "policy_unresolved",
           code: "AMBIGUOUS_MUNICIPAL_LOCATION",
-          message:
-            "Fronleichnam im Freistaat Thüringen ist nur im Landkreis Eichsfeld sowie in gesetzlich bestimmten katholisch geprägten Gemeinden gesetzlicher Feiertag (ThürFtG § 2 Abs. 2). Die Gemeinde/Dienststelle ist nicht angegeben oder ungelöst.",
+          message: msg,
           diagnostics: {
             rawDate: isoDate,
             rawFederalState: "TH",
             rawMunicipality: municipalityInput || null,
-            reason: "Fronleichnam municipal status ambiguous in Thuringia without verified statutory catholic municipality or official AGS",
+            rawDistrictLocality: districtLocalityInput || null,
+            reason,
           },
         };
       }

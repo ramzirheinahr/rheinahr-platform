@@ -456,14 +456,30 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(isThuringianCatholicMunicipality("16061045")).toBe(true);
       expect(isThuringianCatholicMunicipality("Dingelstädt")).toBe(true);
       expect(isThuringianCatholicMunicipality("16061118")).toBe(true); // Dingelstädt 2026 TLS key
-      expect(isThuringianCatholicMunicipality("Südeichsfeld")).toBe(true);
-      expect(isThuringianCatholicMunicipality("16064074")).toBe(true); // Südeichsfeld official key
       expect(isThuringianCatholicMunicipality("Schleid")).toBe(true);
       expect(isThuringianCatholicMunicipality("16063068")).toBe(true); // Schleid official key
       expect(isThuringianCatholicMunicipality("Buttlar")).toBe(true);
       expect(isThuringianCatholicMunicipality("16063011")).toBe(true); // Buttlar official key
       expect(isThuringianCatholicMunicipality("Geisa")).toBe(true);
       expect(isThuringianCatholicMunicipality("16063032")).toBe(true); // Geisa official key
+
+      // Thuringia partial sub-municipalities (Südeichsfeld and Dermbach)
+      // Südeichsfeld (16064074) requires Ortsteil; only Heyerode, Hildebrandshausen, Katharinenberg, Lengenfeld unterm Stein qualify
+      expect(isThuringianCatholicMunicipality("Südeichsfeld")).toBeNull();
+      expect(isThuringianCatholicMunicipality("16064074")).toBeNull();
+      expect(isThuringianCatholicMunicipality("16064074", "Heyerode")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16064074", "Hildebrandshausen")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16064074", "Katharinenberg")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16064074", "Lengenfeld unterm Stein")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16064074", "Hallungen")).toBe(false); // Merged in 2024, not statutory Catholic
+
+      // Dermbach (16063015) requires Ortsteil; only Zella and Brunnhartshausen qualify
+      expect(isThuringianCatholicMunicipality("Dermbach")).toBeNull();
+      expect(isThuringianCatholicMunicipality("16063015")).toBeNull();
+      expect(isThuringianCatholicMunicipality("16063015", "Zella")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16063015", "Brunnhartshausen")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16063015", "Dermbach")).toBe(false); // Kernort Dermbach is not a holiday
+      expect(isThuringianCatholicMunicipality("16063015", "Stadtlengsfeld")).toBe(false);
 
       // Non-qualifying / historic / dummy keys in Thuringia
       expect(isThuringianCatholicMunicipality("16064058")).toBeNull(); // Historic Schönstedt (NOT Südeichsfeld)
@@ -495,17 +511,57 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(resThSubstring.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
       }
 
+      // Südeichsfeld (16064074) sub-municipal Ortsteil precision in resolveGermanHoliday:
+      const resSuedeichsfeldNoLoc = resolveGermanHoliday(fronleichnam2026, "TH", "16064074");
+      expect(resSuedeichsfeldNoLoc.status).toBe("policy_unresolved");
+      if (resSuedeichsfeldNoLoc.status === "policy_unresolved") {
+        expect(resSuedeichsfeldNoLoc.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(resSuedeichsfeldNoLoc.message).toContain("Heyerode, Hildebrandshausen, Katharinenberg und Lengenfeld unterm Stein");
+      }
+
+      const resSuedeichsfeldHeyerode = resolveGermanHoliday(fronleichnam2026, "TH", "16064074", undefined, "Heyerode");
+      expect(resSuedeichsfeldHeyerode.status).toBe("resolved");
+      if (resSuedeichsfeldHeyerode.status === "resolved") {
+        expect(resSuedeichsfeldHeyerode.isHoliday).toBe(true);
+      }
+
+      const resSuedeichsfeldHallungen = resolveGermanHoliday(fronleichnam2026, "TH", "16064074", undefined, "Hallungen");
+      expect(resSuedeichsfeldHallungen.status).toBe("resolved");
+      if (resSuedeichsfeldHallungen.status === "resolved") {
+        expect(resSuedeichsfeldHallungen.isHoliday).toBe(false);
+      }
+
+      // Dermbach (16063015) sub-municipal Ortsteil precision in resolveGermanHoliday:
+      const resDermbachNoLoc = resolveGermanHoliday(fronleichnam2026, "TH", "16063015");
+      expect(resDermbachNoLoc.status).toBe("policy_unresolved");
+      if (resDermbachNoLoc.status === "policy_unresolved") {
+        expect(resDermbachNoLoc.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(resDermbachNoLoc.message).toContain("Zella und Brunnhartshausen");
+      }
+
+      const resDermbachZella = resolveGermanHoliday(fronleichnam2026, "TH", "16063015", undefined, "Zella");
+      expect(resDermbachZella.status).toBe("resolved");
+      if (resDermbachZella.status === "resolved") {
+        expect(resDermbachZella.isHoliday).toBe(true);
+      }
+
+      const resDermbachBrunnhartshausen = resolveGermanHoliday(fronleichnam2026, "TH", "16063015", undefined, "Brunnhartshausen");
+      expect(resDermbachBrunnhartshausen.status).toBe("resolved");
+      if (resDermbachBrunnhartshausen.status === "resolved") {
+        expect(resDermbachBrunnhartshausen.isHoliday).toBe(true);
+      }
+
+      const resDermbachKernort = resolveGermanHoliday(fronleichnam2026, "TH", "16063015", undefined, "Dermbach");
+      expect(resDermbachKernort.status).toBe("resolved");
+      if (resDermbachKernort.status === "resolved") {
+        expect(resDermbachKernort.isHoliday).toBe(false);
+      }
+
       // Positive statutory holiday resolutions in Thuringia:
       const resDingelstaedt = resolveGermanHoliday(fronleichnam2026, "TH", "16061118");
       expect(resDingelstaedt.status).toBe("resolved");
       if (resDingelstaedt.status === "resolved") {
         expect(resDingelstaedt.isHoliday).toBe(true);
-      }
-
-      const resSuedeichsfeld = resolveGermanHoliday(fronleichnam2026, "TH", "16064074");
-      expect(resSuedeichsfeld.status).toBe("resolved");
-      if (resSuedeichsfeld.status === "resolved") {
-        expect(resSuedeichsfeld.isHoliday).toBe(true);
       }
 
       const resSchleid = resolveGermanHoliday(fronleichnam2026, "TH", "16063068");
@@ -1442,6 +1498,52 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       }
     });
 
+    it("fails explicitly with policy_unresolved for TH 16064074 (Südeichsfeld) when districtLocality is missing", () => {
+      const policySuedeichsfeldNoLoc: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-suedeichsfeld-no-loc",
+        clientContractId: "contract-th-16064074",
+        federalState: "TH",
+        municipality: "16064074", // Südeichsfeld without districtLocality MUST fail
+      };
+
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: policySuedeichsfeldNoLoc,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolved.status).toBe("resolved");
+
+      const minuteEval = evaluateMinuteSurcharges(dateFronleichnam, 720, resolved);
+      expect(minuteEval.status).toBe("policy_unresolved");
+      if (minuteEval.status === "policy_unresolved") {
+        expect(minuteEval.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(minuteEval.message).toContain("Heyerode, Hildebrandshausen, Katharinenberg und Lengenfeld unterm Stein");
+      }
+    });
+
+    it("fails explicitly with policy_unresolved for TH 16063015 (Dermbach) when districtLocality is missing", () => {
+      const policyDermbachNoLoc: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-dermbach-no-loc",
+        clientContractId: "contract-th-16063015",
+        federalState: "TH",
+        municipality: "16063015", // Dermbach without districtLocality MUST fail
+      };
+
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: policyDermbachNoLoc,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolved.status).toBe("resolved");
+
+      const minuteEval = evaluateMinuteSurcharges(dateFronleichnam, 720, resolved);
+      expect(minuteEval.status).toBe("policy_unresolved");
+      if (minuteEval.status === "policy_unresolved") {
+        expect(minuteEval.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(minuteEval.message).toContain("Zella und Brunnhartshausen");
+      }
+    });
+
     it("evaluates verified positive 2026 TLS municipalities in evaluateMinuteSurcharges with statutory holiday rate", () => {
       // 1. Dingelstädt (16061118)
       const policyDingelstaedt: FacilitySurchargePolicyRecord = {
@@ -1459,23 +1561,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(evalDing.effectiveSurchargeFraction).toBe(1.0);
       }
 
-      // 2. Südeichsfeld (16064074)
-      const policySuedeichsfeld: FacilitySurchargePolicyRecord = {
-        ...baseContractPolicy,
-        clientId: "client-th-suedeichsfeld",
-        clientContractId: "contract-th-16064074",
-        federalState: "TH",
-        municipality: "16064074",
-      };
-      const resSued = resolveInvoiceSurchargePolicy({ policy: policySuedeichsfeld, referenceDate: dateFronleichnam }) as ResolvedSurchargePolicySuccess;
-      const evalSued = evaluateMinuteSurcharges(dateFronleichnam, 720, resSued);
-      expect(evalSued.status).toBe("resolved");
-      if (evalSued.status === "resolved") {
-        expect(evalSued.isHoliday).toBe(true);
-        expect(evalSued.effectiveSurchargeFraction).toBe(1.0);
-      }
-
-      // 3. Schleid (16063068)
+      // 2. Schleid (16063068)
       const policySchleid: FacilitySurchargePolicyRecord = {
         ...baseContractPolicy,
         clientId: "client-th-schleid",
@@ -1489,6 +1575,74 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       if (evalSchleid.status === "resolved") {
         expect(evalSchleid.isHoliday).toBe(true);
         expect(evalSchleid.effectiveSurchargeFraction).toBe(1.0);
+      }
+
+      // 3. Südeichsfeld (16064074) with qualifying Ortsteil Heyerode -> Holiday
+      const policySuedHeyerode: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-sued-heyerode",
+        clientContractId: "contract-th-16064074-heyerode",
+        federalState: "TH",
+        municipality: "16064074",
+        districtLocality: "Heyerode",
+      };
+      const resSuedHeyerode = resolveInvoiceSurchargePolicy({ policy: policySuedHeyerode, referenceDate: dateFronleichnam }) as ResolvedSurchargePolicySuccess;
+      const evalSuedHeyerode = evaluateMinuteSurcharges(dateFronleichnam, 720, resSuedHeyerode);
+      expect(evalSuedHeyerode.status).toBe("resolved");
+      if (evalSuedHeyerode.status === "resolved") {
+        expect(evalSuedHeyerode.isHoliday).toBe(true);
+        expect(evalSuedHeyerode.effectiveSurchargeFraction).toBe(1.0);
+      }
+
+      // 4. Südeichsfeld (16064074) with non-qualifying Ortsteil Hallungen -> Regular workday
+      const policySuedHallungen: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-sued-hallungen",
+        clientContractId: "contract-th-16064074-hallungen",
+        federalState: "TH",
+        municipality: "16064074",
+        districtLocality: "Hallungen",
+      };
+      const resSuedHallungen = resolveInvoiceSurchargePolicy({ policy: policySuedHallungen, referenceDate: dateFronleichnam }) as ResolvedSurchargePolicySuccess;
+      const evalSuedHallungen = evaluateMinuteSurcharges(dateFronleichnam, 720, resSuedHallungen);
+      expect(evalSuedHallungen.status).toBe("resolved");
+      if (evalSuedHallungen.status === "resolved") {
+        expect(evalSuedHallungen.isHoliday).toBe(false);
+        expect(evalSuedHallungen.effectiveSurchargeFraction).toBe(0.0);
+      }
+
+      // 5. Dermbach (16063015) with qualifying Ortsteil Zella -> Holiday
+      const policyDermbachZella: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-dermbach-zella",
+        clientContractId: "contract-th-16063015-zella",
+        federalState: "TH",
+        municipality: "16063015",
+        districtLocality: "Zella",
+      };
+      const resDermZella = resolveInvoiceSurchargePolicy({ policy: policyDermbachZella, referenceDate: dateFronleichnam }) as ResolvedSurchargePolicySuccess;
+      const evalDermZella = evaluateMinuteSurcharges(dateFronleichnam, 720, resDermZella);
+      expect(evalDermZella.status).toBe("resolved");
+      if (evalDermZella.status === "resolved") {
+        expect(evalDermZella.isHoliday).toBe(true);
+        expect(evalDermZella.effectiveSurchargeFraction).toBe(1.0);
+      }
+
+      // 6. Dermbach (16063015) with non-qualifying Ortsteil Dermbach -> Regular workday
+      const policyDermbachKernort: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-dermbach-kernort",
+        clientContractId: "contract-th-16063015-kernort",
+        federalState: "TH",
+        municipality: "16063015",
+        districtLocality: "Dermbach",
+      };
+      const resDermKernort = resolveInvoiceSurchargePolicy({ policy: policyDermbachKernort, referenceDate: dateFronleichnam }) as ResolvedSurchargePolicySuccess;
+      const evalDermKernort = evaluateMinuteSurcharges(dateFronleichnam, 720, resDermKernort);
+      expect(evalDermKernort.status).toBe("resolved");
+      if (evalDermKernort.status === "resolved") {
+        expect(evalDermKernort.isHoliday).toBe(false);
+        expect(evalDermKernort.effectiveSurchargeFraction).toBe(0.0);
       }
     });
   });

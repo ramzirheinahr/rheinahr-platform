@@ -7,26 +7,47 @@
     "SN_FRONLEICHNAM": {
       "state": "SN",
       "holiday": "Fronleichnam",
-      "legalAct": "Gesetz über die Sonn- und Feiertage im Freistaat Sachsen (SächsSFG § 1 Abs. 1 Nr. 1)",
-      "implementingRegulation": "Verordnung der Sächsischen Staatsregierung über den Fronleichnamstag (FronleichnamsVO vom 19. Mai 1993, SächsGVBl. S. 445)",
-      "legalSourceUrl": "https://www.revosax.sachsen.de/vorschrift/4142-FronleichnamsVO",
-      "scope": "Bestimmte Gemeinden und Ortsteile im Landkreis Bautzen"
+      "holidayScopeAuthority": {
+        "legalAct": "Gesetz über die Sonn- und Feiertage im Freistaat Sachsen (SächsSFG § 1 Abs. 1 Nr. 1)",
+        "implementingRegulation": "Verordnung der Sächsischen Staatsregierung über den Fronleichnamstag (FronleichnamsVO vom 4. Mai 1993, SächsGVBl. S. 417, geändert durch Verordnung vom 30. Mai 1995, SächsGVBl. S. 177)",
+        "legalSourceUrl": "https://www.revosax.sachsen.de/vorschrift/4142-FronleichnamsVO",
+        "scope": "Bestimmte Gemeinden und Ortsteile im Landkreis Bautzen"
+      },
+      "municipalTerritoryAuthority": {
+        "authority": "Statistisches Landesamt des Freistaates Sachsen / GV-ISys",
+        "sourceUrl": "https://www.statistikportal.de/de/gemeindeverzeichnis",
+        "purpose": "Amtliche Gemeindeschlüssel (AGS) und Gebietsstand"
+      }
     },
     "TH_FRONLEICHNAM": {
       "state": "TH",
       "holiday": "Fronleichnam",
-      "legalAct": "Thüringer Feiertagsgesetz (ThürFtG § 2 Abs. 2 vom 21. Dezember 1991)",
-      "officialSource": "Thüringer Landesamt für Statistik (TLS) - Gebietsstand 2026 (GEMAUSWAHL / GV-ISys)",
-      "legalSourceUrl": "https://statistik.thueringen.de/datenbank/gemauswahl.asp",
-      "scope": "Gesamter Landkreis Eichsfeld sowie bestimmte katholisch geprägte Gemeinden in Wartburgkreis und Unstrut-Hainich-Kreis"
+      "holidayScopeAuthority": {
+        "legalAct": "Thüringer Feiertagsgesetz (ThürFtG § 2 Abs. 2 vom 21. Dezember 1991)",
+        "officialGuideline": "Merkblatt des Thüringer Ministeriums für Inneres und Kommunales über gesetzliche Feiertage in Thüringen",
+        "legalSourceUrl": "https://innen.thueringen.de/fileadmin/staats_und_verwaltungsrecht/oeffentliches_recht/Merkblatt.pdf",
+        "scope": "Gesamter Landkreis Eichsfeld sowie gesetzlich benannte katholisch geprägte Gemeinden und Ortsteile in Wartburgkreis und Unstrut-Hainich-Kreis"
+      },
+      "municipalTerritoryAuthority": {
+        "authority": "Thüringer Landesamt für Statistik (TLS) - Gebietsstand 2026 (GEMAUSWAHL / GV-ISys / gebiet3.asp)",
+        "sourceUrl": "https://statistik.thueringen.de/datenbank/gemauswahl.asp",
+        "purpose": "Offizielle AGS-Identifikation, Gemeindegrenzen und Gebietsänderungen (z. B. Eingliederung von Hallungen 2024)"
+      }
     },
     "BY_MARIA_HIMMELFAHRT": {
       "state": "BY",
       "holiday": "Mariä Himmelfahrt (15. August)",
-      "legalAct": "Gesetz über den Schutz der Sonn- und Feiertage (FTG Bayern Art. 1 Abs. 1 Nr. 2)",
-      "officialSource": "Bayerisches Landesamt für Statistik / Zensus 2022 Religionszugehörigkeit",
-      "legalSourceUrl": "https://www.statistik.bayern.de/statistik/zensus/",
-      "scope": "Gemeinden mit überwiegend katholischer Bevölkerung"
+      "holidayScopeAuthority": {
+        "legalAct": "Gesetz über den Schutz der Sonn- und Feiertage (FTG Bayern Art. 1 Abs. 1 Nr. 2)",
+        "confessionalCriterion": "Bayerisches Landesamt für Statistik / Zensus 2022 Religionszugehörigkeit (überwiegend katholische Bevölkerung)",
+        "legalSourceUrl": "https://www.statistik.bayern.de/statistik/zensus/",
+        "scope": "Gemeinden mit überwiegend katholischer Bevölkerung"
+      },
+      "municipalTerritoryAuthority": {
+        "authority": "Bayerisches Landesamt für Statistik / GV-ISys",
+        "sourceUrl": "https://www.statistikportal.de/de/gemeindeverzeichnis",
+        "purpose": "Amtliche Gemeindeschlüssel (AGS) und Gebietsstand"
+      }
     }
   },
   "saxony": {
@@ -43,7 +64,7 @@
         "ags": "14625020",
         "name": "Bautzen",
         "qualifyingLocalities": ["Bolbritz", "Salzenforst"],
-        "nonQualifyingLocalities": ["Innenstadt", "Gesundbrunnen", "Burk", "Stiebitz", "auritz"],
+        "nonQualifyingLocalities": ["Innenstadt", "Gesundbrunnen", "Burk", "Stiebitz", "Auritz"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
@@ -160,11 +181,31 @@
       { "ags": "16061118", "name": "Dingelstädt" },
       { "ags": "16061119", "name": "Uder" }
     ],
-    "otherStatutoryCatholic": [
-      { "ags": "16063011", "name": "Buttlar", "county": "Wartburgkreis", "status": "statutory_holiday" },
-      { "ags": "16063032", "name": "Geisa", "county": "Wartburgkreis", "status": "statutory_holiday" },
-      { "ags": "16063068", "name": "Schleid", "county": "Wartburgkreis", "status": "statutory_holiday" },
-      { "ags": "16064074", "name": "Südeichsfeld", "county": "Unstrut-Hainich-Kreis", "status": "statutory_holiday" }
+    "fullMunicipalitiesWartburgkreis": [
+      { "ags": "16063011", "name": "Buttlar", "county": "Wartburgkreis", "status": "statutory_holiday_entire_municipality" },
+      { "ags": "16063032", "name": "Geisa", "county": "Wartburgkreis", "status": "statutory_holiday_entire_municipality" },
+      { "ags": "16063068", "name": "Schleid", "county": "Wartburgkreis", "status": "statutory_holiday_entire_municipality" }
+    ],
+    "partialMunicipalitiesThuringia": [
+      {
+        "ags": "16063015",
+        "name": "Dermbach",
+        "county": "Wartburgkreis",
+        "legalSource": "ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thür. MIK",
+        "qualifyingLocalities": ["Zella", "Brunnhartshausen"],
+        "nonQualifyingLocalities": ["Dermbach", "Diedorf", "Empfertshausen", "Neidhartshausen", "Stadtlengsfeld", "Urnshausen"],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "16064074",
+        "name": "Südeichsfeld",
+        "county": "Unstrut-Hainich-Kreis",
+        "legalSource": "ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thür. MIK",
+        "qualifyingLocalities": ["Heyerode", "Hildebrandshausen", "Katharinenberg", "Lengenfeld unterm Stein"],
+        "nonQualifyingLocalities": ["Hallungen"],
+        "unspecifiedLocalityStatus": "policy_unresolved",
+        "notes": "Hallungen wurde am 01.01.2024 eingegliedert und ist nicht feiertagsberechtigt."
+      }
     ],
     "disallowedOrUnresolvedKeys": [
       { "ags": "16064058", "name": "Schönstedt (historisch)", "reason": "Not Südeichsfeld; historic municipality merged into Unstrut-Hainich", "status": "policy_unresolved" },
