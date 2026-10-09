@@ -7,11 +7,21 @@ import { audit } from "@/lib/audit";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } from "@/lib/pricing";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
-import { sendEmailToRecipients } from "@/lib/email";
+import { sendEmailToRecipients, EmailDispatchReport } from "@/lib/email";
 import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
 import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
+import { CALCULATION_VERSIONS } from "@/lib/invoice-calculation-version";
 
 const VAT_RATE = 0.19;
+
+export type EmailDispatchStatus =
+  | "not_requested"
+  | "no_eligible_recipients"
+  | "send_failed"
+  | "sent_and_recorded"
+  | "partially_sent_and_recorded"
+  | "sent_but_record_failed"
+  | "partially_sent_but_record_failed";
 
 export async function generateMonthInvoices(
   clientId: string,
@@ -102,6 +112,7 @@ export async function generateMonthInvoices(
         nightStart: client.nightStart,
         nightEnd: client.nightEnd,
         paymentTermsDays: client.paymentTermsDays,
+        calculationVersion: CALCULATION_VERSIONS.LEGACY_V1,
       } as any
     }
   });
@@ -118,7 +129,7 @@ export async function generateMonthInvoices(
 
   // Permanently freeze invoice line items and totals in snapshotData
   const pdfData = buildInvoicePdfData(invoice, client, assignments);
-  await prisma.invoice.update({
+  const frozenInvoice = await prisma.invoice.update({
     where: { id: invoice.id },
     data: {
       snapshotData: {
@@ -143,6 +154,7 @@ export async function generateMonthInvoices(
         periodEnd: pdfData.periodEnd,
         isFrozen: true,
         frozenAt: new Date().toISOString(),
+        calculationVersion: CALCULATION_VERSIONS.LEGACY_V1,
       } as any
     }
   });
@@ -168,8 +180,11 @@ export async function generateMonthInvoices(
   });
 
   // Send Email with Attachment only if explicitly requested (e.g. from an automated pipeline)
+  let emailDispatchStatus: EmailDispatchStatus = "not_requested";
+  let dispatchReport: EmailDispatchReport | undefined;
+
   if (sendEmail) {
-    const pdfData = buildInvoicePdfData(invoice, client, assignments);
+    const pdfData = buildInvoicePdfData(frozenInvoice, client, assignments);
     const pdfBuffer = await generateInvoicePdf(pdfData);
 
     const attachments: { filename: string; content: Buffer; contentType: string }[] = [
@@ -192,37 +207,59 @@ export async function generateMonthInvoices(
     }
 
     const defaultRecipients = client.billingEmail
-      ? client.billingEmail.split(/[,;\s]+/).map((s) => s.trim()).filter((s) => s.includes("@"))
+      ? [...new Set(client.billingEmail.split(/[,;\s]+/).map((s) => s.trim().toLowerCase()).filter((s) => s.includes("@")))]
       : [client.userId];
     const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
 
     try {
-      await sendEmailToRecipients(targetRecipients, {
+      dispatchReport = await sendEmailToRecipients(targetRecipients, {
         subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
         body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
         url: `/client/schedule?year=${year}&month=${month}`,
         attachments
       });
-
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          snapshotData: {
-            ...(invoice.snapshotData as any),
-            emailSent: {
-              sentAt: new Date().toISOString(),
-              recipients: targetRecipients,
-              attachTimesheets,
-            }
-          }
-        }
-      });
     } catch (emailErr) {
-      console.error("Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);
+      console.error("Unerwarteter Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);
+    }
+
+    if (!dispatchReport || dispatchReport.acceptedCount === 0) {
+      if (dispatchReport && dispatchReport.eligibleCount === 0) {
+        emailDispatchStatus = "no_eligible_recipients";
+      } else {
+        emailDispatchStatus = "send_failed";
+      }
+    } else {
+      const isPartial = dispatchReport.acceptedCount < dispatchReport.totalRequested || dispatchReport.failedCount > 0 || dispatchReport.skippedCount > 0 || dispatchReport.unresolvedCount > 0;
+      try {
+        const currentSnapshot = (frozenInvoice.snapshotData as Record<string, unknown>) || {};
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            snapshotData: {
+              ...currentSnapshot,
+              emailSent: {
+                sentAt: new Date().toISOString(),
+                status: isPartial ? "partial" : "sent",
+                recipients: dispatchReport.acceptedRecipients,
+                acceptedRecipients: dispatchReport.acceptedRecipients,
+                failedRecipients: dispatchReport.failedRecipients,
+                skippedRecipients: dispatchReport.skippedRecipients,
+                unresolvedRecipients: dispatchReport.unresolvedRecipients,
+                attachTimesheets,
+              }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any
+          }
+        });
+        emailDispatchStatus = isPartial ? "partially_sent_and_recorded" : "sent_and_recorded";
+      } catch (recordErr) {
+        emailDispatchStatus = isPartial ? "partially_sent_but_record_failed" : "sent_but_record_failed";
+        console.error("Fehler beim Speichern der E-Mail-Metadaten:", recordErr);
+      }
     }
   }
 
   revalidatePath("/", "layout");
-  return { ok: true, invoiceId: invoice.id };
+  return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport };
 }
 

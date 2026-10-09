@@ -1,0 +1,676 @@
+{
+  "TC1": {
+    "window": "22:00–06:00",
+    "items": [
+      {
+        "pos": 1,
+        "description": "Oso, Majed (Pflegefachkraft) vom 11.07.2026 bis 12.07.2026",
+        "hours": "12,62",
+        "rate": "52,80",
+        "amount": "666,34 €"
+      },
+      {
+        "pos": 2,
+        "description": "Samstagzuschlag (Oso, Majed) 30%",
+        "hours": "6,80",
+        "rate": "15,84",
+        "amount": "107,71 €"
+      },
+      {
+        "pos": 3,
+        "description": "Sonntagzuschlag (Oso, Majed) 50%",
+        "hours": "5,82",
+        "rate": "26,40",
+        "amount": "153,65 €"
+      }
+    ],
+    "net": "927,70 €",
+    "vat": "176,26 €",
+    "gross": "1103,96 €",
+    "generationNet": 927.4319999999999,
+    "generationVat": 176.21208,
+    "generationGross": 1103.6440799999998
+  },
+  "TC1_default_night": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "Oso, Majed (Pflegefachkraft) vom 11.07.2026 bis 12.07.2026",
+        "hours": "12,62",
+        "rate": "52,80",
+        "amount": "666,34 €"
+      },
+      {
+        "pos": 2,
+        "description": "Samstagzuschlag (Oso, Majed) 30%",
+        "hours": "6,80",
+        "rate": "15,84",
+        "amount": "107,71 €"
+      },
+      {
+        "pos": 3,
+        "description": "Nachtzuschlag (20:00-06:00) (Oso, Majed) 25%",
+        "hours": "1,13",
+        "rate": "13,20",
+        "amount": "14,92 €"
+      },
+      {
+        "pos": 4,
+        "description": "Sonntagzuschlag (Oso, Majed) 50%",
+        "hours": "5,82",
+        "rate": "26,40",
+        "amount": "153,65 €"
+      }
+    ],
+    "net": "942,62 €",
+    "vat": "179,10 €",
+    "gross": "1121,72 €",
+    "generationNet": 942.3919999999998
+  },
+  "TC2": {
+    "break": "Sunday 01:07–01:52 (invented midpoint)",
+    "groups": {
+      "sat": {
+        "components": [
+          "sat"
+        ],
+        "hours": 1.5
+      },
+      "sat+night": {
+        "components": [
+          "sat",
+          "night"
+        ],
+        "hours": 2
+      },
+      "sun+night": {
+        "components": [
+          "sun",
+          "night"
+        ],
+        "hours": 5.25
+      },
+      "sun": {
+        "components": [
+          "sun"
+        ],
+        "hours": 0.5
+      }
+    },
+    "items": [
+      {
+        "pos": 1,
+        "description": "Oso, Majed (Pflegefachkraft) vom 11.07.2026 bis 11.07.2026",
+        "hours": "9,25",
+        "rate": "40,00",
+        "amount": "370,00 €"
+      },
+      {
+        "pos": 2,
+        "description": "Samstagzuschlag (Oso, Majed) 25%",
+        "hours": "3,50",
+        "rate": "10,00",
+        "amount": "35,00 €"
+      },
+      {
+        "pos": 3,
+        "description": "Nachtzuschlag (22:00-06:00) (Oso, Majed) 25%",
+        "hours": "7,25",
+        "rate": "10,00",
+        "amount": "72,50 €"
+      },
+      {
+        "pos": 4,
+        "description": "Sonntagzuschlag (Oso, Majed) 50%",
+        "hours": "5,75",
+        "rate": "20,00",
+        "amount": "115,00 €"
+      }
+    ],
+    "net": "592,50 €",
+    "vat": "112,58 €",
+    "gross": "705,08 €",
+    "generationNet": 592.5
+  },
+  "TC3_2026-04-05": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "Oso, Majed (Pflegefachkraft) vom 05.04.2026 bis 05.04.2026",
+        "hours": "3,00",
+        "rate": "40,00",
+        "amount": "120,00 €"
+      },
+      {
+        "pos": 2,
+        "description": "Sonntagzuschlag (Oso, Majed) 50%",
+        "hours": "3,00",
+        "rate": "20,00",
+        "amount": "60,00 €"
+      }
+    ],
+    "net": "180,00 €",
+    "vat": "34,20 €",
+    "gross": "214,20 €"
+  },
+  "TC3_2026-05-24": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "Oso, Majed (Pflegefachkraft) vom 24.05.2026 bis 24.05.2026",
+        "hours": "3,00",
+        "rate": "40,00",
+        "amount": "120,00 €"
+      },
+      {
+        "pos": 2,
+        "description": "Sonntagzuschlag (Oso, Majed) 50%",
+        "hours": "3,00",
+        "rate": "20,00",
+        "amount": "60,00 €"
+      }
+    ],
+    "net": "180,00 €",
+    "vat": "34,20 €",
+    "gross": "214,20 €"
+  },
+  "TC3_recognized": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "Oso, Majed (Pflegefachkraft) vom 01.11.2026 bis 01.11.2026",
+        "hours": "3,00",
+        "rate": "40,00",
+        "amount": "120,00 €"
+      },
+      {
+        "pos": 2,
+        "description": "Sonntagzuschlag (Oso, Majed) 50%",
+        "hours": "3,00",
+        "rate": "20,00",
+        "amount": "60,00 €"
+      },
+      {
+        "pos": 3,
+        "description": "Feiertagszuschlag (Oso, Majed) 100%",
+        "hours": "3,00",
+        "rate": "40,00",
+        "amount": "120,00 €"
+      }
+    ],
+    "net": "300,00 €",
+    "vat": "57,00 €",
+    "gross": "357,00 €"
+  },
+  "TC4": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "Worker A (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+        "hours": "1,02",
+        "rate": "40,00",
+        "amount": "40,80 €"
+      },
+      {
+        "pos": 2,
+        "description": "Worker B (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+        "hours": "1,02",
+        "rate": "40,00",
+        "amount": "40,80 €"
+      },
+      {
+        "pos": 3,
+        "description": "Worker C (Pflegehilfskraft) vom 06.07.2026 bis 06.07.2026",
+        "hours": "1,02",
+        "rate": "30,00",
+        "amount": "30,60 €"
+      }
+    ],
+    "net": "112,20 €",
+    "vat": "21,32 €",
+    "gross": "133,52 €",
+    "generationNet": 111.83333333333333
+  },
+  "TC5": {
+    "ordinary": {
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+          "hours": "3,00",
+          "rate": "40,00",
+          "amount": "120,00 €"
+        }
+      ],
+      "net": "120,00 €",
+      "vat": "22,80 €",
+      "gross": "142,80 €"
+    },
+    "legacy": {
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+          "hours": "2,50",
+          "rate": "40,00",
+          "amount": "100,00 €"
+        }
+      ],
+      "net": "100,00 €",
+      "vat": "19,00 €",
+      "gross": "119,00 €"
+    },
+    "forceLegacy": {
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+          "hours": "2,50",
+          "rate": "40,00",
+          "amount": "100,00 €"
+        }
+      ],
+      "net": "100,00 €",
+      "vat": "19,00 €",
+      "gross": "119,00 €"
+    }
+  },
+  "decimalTie": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+        "hours": "0,02",
+        "rate": "51,25",
+        "amount": "1,02 €"
+      }
+    ],
+    "net": "1,02 €",
+    "vat": "0,19 €",
+    "gross": "1,21 €",
+    "expectedLine": "1,03 €"
+  },
+  "vatTie": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+        "hours": "1,00",
+        "rate": "42,50",
+        "amount": "42,50 €"
+      }
+    ],
+    "net": "42,50 €",
+    "vat": "8,07 €",
+    "gross": "50,57 €",
+    "expectedVat": "8,08 €",
+    "expectedGross": "50,58 €"
+  },
+  "homonyms": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "Same Name (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+        "hours": "2,03",
+        "rate": "40,00",
+        "amount": "81,20 €"
+      }
+    ],
+    "net": "81,20 €",
+    "vat": "15,43 €",
+    "gross": "96,63 €",
+    "expectedSeparateNet": "81,60 €"
+  },
+  "invalidFrozen": {
+    "items": [
+      {
+        "pos": 1,
+        "description": "bad",
+        "hours": "12,62",
+        "rate": "52,80",
+        "amount": "666,16 €"
+      }
+    ],
+    "net": "1,00 €",
+    "vat": "0,19 €",
+    "gross": "1,19 €"
+  },
+  "oversizedBreak": {
+    "groupedHours": 0,
+    "netShiftHours": 0,
+    "requestNet": 0
+  },
+  "confirmedHoursMismatch": {
+    "signedHours": 6,
+    "invoiceHours": "7,50",
+    "invoiceNet": "300,00 €",
+    "confirmedHoursBaseNet": "240,00 €"
+  },
+  "historicalDrift": {
+    "before": {
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+          "hours": "3,00",
+          "rate": "40,00",
+          "amount": "120,00 €"
+        }
+      ],
+      "net": "120,00 €",
+      "vat": "22,80 €",
+      "gross": "142,80 €"
+    },
+    "after": {
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+          "hours": "4,00",
+          "rate": "40,00",
+          "amount": "160,00 €"
+        }
+      ],
+      "net": "160,00 €",
+      "vat": "30,40 €",
+      "gross": "190,40 €"
+    },
+    "dbNet": 120
+  },
+  "DST": {
+    "wallClockHours": 8,
+    "springElapsedHours": 7,
+    "autumnElapsedHours": 9
+  },
+  "order_generation": {
+    "db": {
+      "net": 927.4319999999999,
+      "vat": 176.21208,
+      "gross": 1103.6440799999998
+    },
+    "snapshot": {
+      "shortCode": "AUD",
+      "internalNumber": "TEST",
+      "facilityName": "Synthetic audit facility",
+      "address": "Synthetic address",
+      "billingEmail": "audit@example.invalid",
+      "billingInfo": null,
+      "hourlyRates": {
+        "pflegefachkraft": 52.8,
+        "pflegehelfer": 30
+      },
+      "surchargeSat": 0.3,
+      "surchargeSun": 0.5,
+      "surchargeHoliday": 1,
+      "surchargeNight": 0.25,
+      "nightStart": "22:00",
+      "nightEnd": "06:00",
+      "paymentTermsDays": 14,
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 11.07.2026 bis 12.07.2026",
+          "hours": "12,62",
+          "rate": "52,80",
+          "amount": "666,34 €"
+        },
+        {
+          "pos": 2,
+          "description": "Samstagzuschlag (Oso, Majed) 30%",
+          "hours": "6,80",
+          "rate": "15,84",
+          "amount": "107,71 €"
+        },
+        {
+          "pos": 3,
+          "description": "Sonntagzuschlag (Oso, Majed) 50%",
+          "hours": "5,82",
+          "rate": "26,40",
+          "amount": "153,65 €"
+        }
+      ],
+      "subtotal": "927,70 €",
+      "taxAmount": "176,26 €",
+      "total": "1103,96 €",
+      "periodStart": "11.07.2026",
+      "periodEnd": "12.07.2026",
+      "isFrozen": true,
+      "frozenAt": "2026-10-08T12:00:00.000Z",
+      "calculationVersion": "legacy-v1"
+    }
+  },
+  "month_generation": {
+    "db": {
+      "net": 927.4319999999999,
+      "vat": 176.21208,
+      "gross": 1103.6440799999998
+    },
+    "snapshot": {
+      "shortCode": "AUD",
+      "internalNumber": "TEST",
+      "facilityName": "Synthetic audit facility",
+      "address": "Synthetic address",
+      "billingInfo": null,
+      "hourlyRates": {
+        "pflegefachkraft": 52.8,
+        "pflegehelfer": 30
+      },
+      "surchargeSat": 0.3,
+      "surchargeSun": 0.5,
+      "surchargeHoliday": 1,
+      "surchargeNight": 0.25,
+      "nightStart": "22:00",
+      "nightEnd": "06:00",
+      "paymentTermsDays": 14,
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 11.07.2026 bis 12.07.2026",
+          "hours": "12,62",
+          "rate": "52,80",
+          "amount": "666,34 €"
+        },
+        {
+          "pos": 2,
+          "description": "Samstagzuschlag (Oso, Majed) 30%",
+          "hours": "6,80",
+          "rate": "15,84",
+          "amount": "107,71 €"
+        },
+        {
+          "pos": 3,
+          "description": "Sonntagzuschlag (Oso, Majed) 50%",
+          "hours": "5,82",
+          "rate": "26,40",
+          "amount": "153,65 €"
+        }
+      ],
+      "subtotal": "927,70 €",
+      "taxAmount": "176,26 €",
+      "total": "1103,96 €",
+      "periodStart": "11.07.2026",
+      "periodEnd": "12.07.2026",
+      "isFrozen": true,
+      "frozenAt": "2026-10-08T12:00:00.000Z",
+      "calculationVersion": "legacy-v1"
+    }
+  },
+  "order_email_snapshot_keys": {
+    "before": [
+      "shortCode",
+      "internalNumber",
+      "facilityName",
+      "address",
+      "billingEmail",
+      "billingInfo",
+      "hourlyRates",
+      "surchargeSat",
+      "surchargeSun",
+      "surchargeHoliday",
+      "surchargeNight",
+      "nightStart",
+      "nightEnd",
+      "paymentTermsDays",
+      "items",
+      "subtotal",
+      "taxAmount",
+      "total",
+      "periodStart",
+      "periodEnd",
+      "isFrozen",
+      "frozenAt",
+      "calculationVersion"
+    ],
+    "after": [
+      "shortCode",
+      "internalNumber",
+      "facilityName",
+      "address",
+      "billingEmail",
+      "billingInfo",
+      "hourlyRates",
+      "surchargeSat",
+      "surchargeSun",
+      "surchargeHoliday",
+      "surchargeNight",
+      "nightStart",
+      "nightEnd",
+      "paymentTermsDays",
+      "items",
+      "subtotal",
+      "taxAmount",
+      "total",
+      "periodStart",
+      "periodEnd",
+      "isFrozen",
+      "frozenAt",
+      "calculationVersion",
+      "emailSent"
+    ]
+  },
+  "month_email_snapshot_keys": {
+    "before": [
+      "shortCode",
+      "internalNumber",
+      "facilityName",
+      "address",
+      "billingInfo",
+      "hourlyRates",
+      "surchargeSat",
+      "surchargeSun",
+      "surchargeHoliday",
+      "surchargeNight",
+      "nightStart",
+      "nightEnd",
+      "paymentTermsDays",
+      "items",
+      "subtotal",
+      "taxAmount",
+      "total",
+      "periodStart",
+      "periodEnd",
+      "isFrozen",
+      "frozenAt",
+      "calculationVersion"
+    ],
+    "after": [
+      "shortCode",
+      "internalNumber",
+      "facilityName",
+      "address",
+      "billingInfo",
+      "hourlyRates",
+      "surchargeSat",
+      "surchargeSun",
+      "surchargeHoliday",
+      "surchargeNight",
+      "nightStart",
+      "nightEnd",
+      "paymentTermsDays",
+      "items",
+      "subtotal",
+      "taxAmount",
+      "total",
+      "periodStart",
+      "periodEnd",
+      "isFrozen",
+      "frozenAt",
+      "calculationVersion",
+      "emailSent"
+    ]
+  },
+  "refreshRates": {
+    "netAmount": 120,
+    "vatAmount": 22.8,
+    "grossAmount": 142.8,
+    "snapshotData": {
+      "id": "audit-client",
+      "userId": "audit-user",
+      "shortCode": "AUD",
+      "internalNumber": "TEST",
+      "facilityName": "Synthetic audit facility",
+      "address": "Synthetic address",
+      "billingEmail": "audit@example.invalid",
+      "billingInfo": null,
+      "hourlyRates": {
+        "pflegefachkraft": 60,
+        "pflegehelfer": 30
+      },
+      "surchargeSat": 0.3,
+      "surchargeSun": 0.5,
+      "surchargeHoliday": 1,
+      "surchargeNight": 0.25,
+      "nightStart": "22:00",
+      "nightEnd": "06:00",
+      "paymentTermsDays": 14,
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
+          "hours": "3,00",
+          "rate": "40,00",
+          "amount": "120,00 €"
+        }
+      ],
+      "subtotal": "120,00 €",
+      "taxAmount": "22,80 €",
+      "total": "142,80 €",
+      "periodStart": "06.07.2026",
+      "periodEnd": "06.07.2026",
+      "isFrozen": true,
+      "refreshedAt": "2026-10-08T12:00:00.000Z"
+    }
+  },
+  "adjustment": {
+    "dbNet": 937.43,
+    "pdf": {
+      "items": [
+        {
+          "pos": 1,
+          "description": "Oso, Majed (Pflegefachkraft) vom 11.07.2026 bis 12.07.2026",
+          "hours": "12,62",
+          "rate": "52,80",
+          "amount": "666,34 €"
+        },
+        {
+          "pos": 2,
+          "description": "Samstagzuschlag (Oso, Majed) 30%",
+          "hours": "6,80",
+          "rate": "15,84",
+          "amount": "107,71 €"
+        },
+        {
+          "pos": 3,
+          "description": "Sonntagzuschlag (Oso, Majed) 50%",
+          "hours": "5,82",
+          "rate": "26,40",
+          "amount": "153,65 €"
+        }
+      ],
+      "net": "927,70 €",
+      "vat": "176,26 €",
+      "gross": "1103,96 €"
+    },
+    "expectedCanonicalNet": "937,70 €"
+  }
+}
