@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { InvoicingHub } from "@/components/admin/invoicing/invoicing-hub";
 import { format } from "@/lib/date-utils";
 
+import { buildInvoicingWhereClause } from "@/lib/invoicing";
+
 export const dynamic = "force-dynamic";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -33,40 +35,22 @@ export default async function InvoicingPage({
   const q = sp.q?.trim() || "";
   const words = q.split(/\s+/).filter(Boolean);
 
-  const invoiceWhere: any = {
-    OR: [
-      {
-        assignments: {
-          some: {
-            order: {
-              shiftDate: { gte: from, lte: to },
-            },
-          },
-        },
-      },
-      {
-        assignments: { none: {} },
-        date: { gte: from, lte: to },
-      },
-    ],
-  };
-
-  if (words.length > 0) {
-    invoiceWhere.AND = words.map((w) => ({
-      OR: [
-        { invoiceNumber: { contains: w, mode: "insensitive" } },
-        { client: { facilityName: { contains: w, mode: "insensitive" } } },
-      ],
-    }));
-  }
+  const invoiceWhere = buildInvoicingWhereClause({
+    from,
+    to,
+    query: q,
+  });
 
   // 1. Fetch Invoices in range
   const invoices = await prisma.invoice.findMany({
     where: invoiceWhere,
     include: {
-      client: true
+      client: true,
+      _count: {
+        select: { assignments: true },
+      },
     },
-    orderBy: { date: "desc" }
+    orderBy: { date: "desc" },
   });
 
   // 2. Fetch all assignments in the period (for shift-level billing status verification)

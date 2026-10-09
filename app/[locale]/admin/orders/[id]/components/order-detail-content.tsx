@@ -1,5 +1,3 @@
-import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { candidatesForShift } from "@/lib/orders";
 import {
@@ -21,14 +19,30 @@ const d = (date: Date) => date.toISOString().slice(0, 10);
 
 export async function OrderDetailContent({
   requestGroupId,
+  defaultMonth,
+  isGroupOrder = true,
 }: {
   requestGroupId: string;
+  defaultMonth?: string | null;
+  isGroupOrder?: boolean;
 }) {
-  const t = await getTranslations("orders");
   const id = requestGroupId;
 
+  let defaultYear: number | undefined;
+  let defaultMonthNum: number | undefined;
+  if (defaultMonth && /^\d{4}-\d{2}$/.test(defaultMonth)) {
+    const [yStr, mStr] = defaultMonth.split("-");
+    defaultYear = Number(yStr);
+    defaultMonthNum = Number(mStr);
+  }
+
   const orders = await prisma.order.findMany({
-    where: { requestGroupId: id },
+    where: {
+      OR: [
+        { requestGroupId: id },
+        { id: id },
+      ],
+    },
     orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
     include: {
       client: {
@@ -74,9 +88,14 @@ export async function OrderDetailContent({
     where: {
       assignments: {
         some: {
-          order: { requestGroupId: id }
-        }
-      }
+          order: {
+            OR: [
+              { requestGroupId: id },
+              { id: id },
+            ],
+          },
+        },
+      },
     },
     include: {
       client: true,
@@ -90,10 +109,15 @@ export async function OrderDetailContent({
     where: {
       assignments: {
         some: {
-          order: { requestGroupId: id }
-        }
-      }
-    }
+          order: {
+            OR: [
+              { requestGroupId: id },
+              { id: id },
+            ],
+          },
+        },
+      },
+    },
   });
 
   const uncontractedAssignments = orders.flatMap(o => 
@@ -137,6 +161,7 @@ export async function OrderDetailContent({
     requestGroupId: id,
     qual: orders[0].requiredQualification,
     shifts: orders.map((o) => ({
+      id: o.id,
       date: d(o.shiftDate),
       start: o.startTime,
       end: o.endTime,
@@ -205,27 +230,33 @@ export async function OrderDetailContent({
 
   return (
     <>
-      <OrderContractsBanner 
-        requestGroupId={id} 
-        contracts={contracts} 
-        uncontractedAssignments={uncontractedAssignments} 
-      />
+      {isGroupOrder ? (
+        <>
+          <OrderContractsBanner
+            requestGroupId={id}
+            contracts={contracts}
+            uncontractedAssignments={uncontractedAssignments}
+          />
 
-      <OrderConfirmationsBanner 
-        requestGroupId={id}
-        assignments={confirmedAssignments}
-      />
+          <OrderConfirmationsBanner
+            requestGroupId={id}
+            assignments={confirmedAssignments}
+          />
 
-      <OrderInvoicesBanner 
-        requestGroupId={id} 
-        invoices={invoices} 
-        uninvoicedAssignments={uninvoicedAssignments} 
-      />
+          <OrderInvoicesBanner
+            requestGroupId={id}
+            invoices={invoices}
+            uninvoicedAssignments={uninvoicedAssignments}
+          />
+        </>
+      ) : null}
 
       <PendingResponsesProvider>
         <AssignSelectionProvider selectableOrderIds={selectableOrderIds}>
           <OrderRequestBuilder
             initial={initial}
+            defaultYear={defaultYear}
+            defaultMonth={defaultMonthNum}
             surcharges={resolveSurcharges(orders[0].client)}
             rates={resolveRates(orders[0].client)}
             nightWindow={resolveNightWindow(orders[0].client)}

@@ -351,6 +351,7 @@ export async function findMatchingMonthlyRequestGroupId(opts: {
   clientId: string;
   shiftDate: Date; // any day within the target month
   requiredQualification: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx?: any; // optional Prisma transaction client
 }): Promise<string | null> {
   const db = opts.tx ?? prisma;
@@ -377,5 +378,83 @@ export async function findMatchingMonthlyRequestGroupId(opts: {
   });
 
   return existingOrder?.requestGroupId ?? null;
+}
+
+export type ResolvedAdminOrderRoute = {
+  firstOrder: {
+    id: string;
+    requestGroupId: string | null;
+    shiftDate: Date;
+    status: string;
+    client: {
+      id: string;
+      userId: string;
+      facilityName: string;
+    };
+  };
+  isGroupOrder: boolean;
+  targetGroupId: string;
+  groupFilter: { requestGroupId: string } | { id: string };
+  allOrdersInGroup: { shiftDate: Date; status: string }[];
+  canExecuteGroupActions: boolean;
+};
+
+export type OrderRouteQueryDb = Pick<typeof prisma, "order">;
+
+/**
+ * Shared order route resolver used by app/[locale]/admin/orders/[id]/page.tsx
+ * and automated test suites. Safely handles both order groups (requestGroupId)
+ * and standalone shifts (requestGroupId: null) without 404, clearly isolating
+ * group batch actions from single orders.
+ */
+export async function resolveAdminOrderRoute(
+  id: string,
+  db: OrderRouteQueryDb = prisma
+): Promise<ResolvedAdminOrderRoute | null> {
+  const firstOrder = await db.order.findFirst({
+    where: {
+      OR: [
+        { requestGroupId: id },
+        { id: id },
+      ],
+    },
+    orderBy: { shiftDate: "asc" },
+    select: {
+      id: true,
+      requestGroupId: true,
+      shiftDate: true,
+      status: true,
+      client: {
+        select: {
+          id: true,
+          userId: true,
+          facilityName: true,
+        },
+      },
+    },
+  });
+
+  if (!firstOrder) return null;
+
+  const isGroupOrder = Boolean(firstOrder.requestGroupId);
+  const targetGroupId = firstOrder.requestGroupId || firstOrder.id;
+  const groupFilter = firstOrder.requestGroupId
+    ? { requestGroupId: firstOrder.requestGroupId }
+    : { id: firstOrder.id };
+
+  const allOrdersInGroup = await db.order.findMany({
+    where: groupFilter,
+    orderBy: { shiftDate: "asc" },
+    select: { shiftDate: true, status: true },
+  });
+
+  return {
+    firstOrder,
+    isGroupOrder,
+    targetGroupId,
+    groupFilter,
+    allOrdersInGroup,
+    canExecuteGroupActions: isGroupOrder,
+  };
 }
 

@@ -1235,3 +1235,76 @@ export async function getMonthlySpesenOverviewData(params: {
     totals,
   };
 }
+
+// 12. Monthly Shift Overlap Detection (Phase 3d)
+export async function getMonthlyShiftOverlaps(params: {
+  year: number;
+  month: number;
+}) {
+  const { detectShiftOverlaps, validateYearMonth } = await import("./shift-overlap-engine");
+  type ShiftInputType = import("./shift-overlap-engine").ShiftInput;
+
+  const { year, month } = validateYearMonth(params.year, params.month);
+
+  // Query window: from 2 days before the start of the month to 2 days after end of month
+  // to ensure overnight shifts at month boundaries are captured.
+  const queryStart = new Date(Date.UTC(year, month - 1, 1 - 2));
+  const queryEnd = new Date(Date.UTC(year, month, 2, 23, 59, 59));
+
+  const assignments = await prisma.assignment.findMany({
+    where: {
+      status: { not: "declined" },
+      order: {
+        status: { not: "cancelled" },
+        shiftDate: {
+          gte: queryStart,
+          lte: queryEnd,
+        },
+      },
+    },
+    include: {
+      worker: {
+        select: {
+          id: true,
+          fullName: true,
+          internalNumber: true,
+        },
+      },
+      order: {
+        select: {
+          id: true,
+          requestGroupId: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          status: true,
+          clientId: true,
+          client: {
+            select: {
+              facilityName: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const shifts: ShiftInputType[] = assignments.map((a) => ({
+    orderId: a.order.id,
+    requestGroupId: a.order.requestGroupId,
+    shiftDate: a.order.shiftDate,
+    startTime: a.order.startTime,
+    endTime: a.order.endTime,
+    status: a.order.status,
+    facilityName: a.order.client.facilityName,
+    clientId: a.order.clientId,
+    workerId: a.worker.id,
+    workerName: a.worker.fullName,
+    workerInternalNumber: a.worker.internalNumber,
+    assignmentId: a.id,
+    assignmentStatus: a.status,
+    timezone: "Europe/Berlin",
+  }));
+
+  return detectShiftOverlaps(shifts, year, month);
+}

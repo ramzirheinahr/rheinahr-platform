@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Printer, Search, Loader2 } from "lucide-react";
 import { fetchStundennachweisAction } from "@/app/[locale]/admin/reports/actions";
@@ -55,8 +54,6 @@ export function StundennachweisView({
     });
     window.open(`/api/reports/stundennachweis/pdf?${params.toString()}`, "_blank");
   };
-
-  const selectedClient = clients.find((c) => c.id === clientId);
 
   return (
     <div className="w-full space-y-6">
@@ -161,7 +158,7 @@ export function StundennachweisView({
           <CardHeader className="bg-muted/30 pb-3 border-b flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-base font-semibold">
-                Stundennachweis: {selectedClientName || "—"}
+                {t("stundennachweis.resultTitle")}: {selectedClientName || "—"}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {startDate} bis {endDate} · {rows.length} Einträge

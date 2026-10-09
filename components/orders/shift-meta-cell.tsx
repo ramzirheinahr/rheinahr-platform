@@ -212,7 +212,11 @@ export function ShiftMetaCell({
   const showCheckbox = Boolean(selection && meta.selectable);
 
   return (
-    <div className="flex items-center gap-2">
+    <div
+      className="flex items-center gap-2"
+      data-order-id={meta.orderId}
+      data-shift-id={meta.orderId}
+    >
       {showCheckbox ? (
         <input
           type="checkbox"
@@ -259,6 +263,8 @@ export function ShiftMetaCell({
                 {assignments.map((a) => (
                   <li
                     key={a.id}
+                    id={`assignment-${a.id}`}
+                    data-assignment-id={a.id}
                     className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
                   >
                     <div className="flex items-center gap-2">

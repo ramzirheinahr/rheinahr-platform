@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState, useTransition, useRef } from "react";
+import { Fragment, useMemo, useState, useTransition, useRef, useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
@@ -131,6 +131,8 @@ export function OrderRequestBuilder({
   backHref,
   shiftMeta,
   assignable = false,
+  defaultYear,
+  defaultMonth,
 }: {
   initial?: InitialRequest;
   // When provided, the builder runs in admin mode: the admin must pick the
@@ -160,6 +162,8 @@ export function OrderRequestBuilder({
   // dialog per shift.
   shiftMeta?: Record<string, ShiftMeta>;
   assignable?: boolean;
+  defaultYear?: number;
+  defaultMonth?: number;
 }) {
   const t = useTranslations("orderRequest");
   const o = useTranslations("orders");
@@ -185,9 +189,11 @@ export function OrderRequestBuilder({
   const firstDate = initial?.shifts[0]?.date;
   const initData = initial ? fromInitial(initial.shifts) : null;
 
-  const [year, setYear] = useState(firstDate ? Number(firstDate.slice(0, 4)) : thisYear);
+  const [year, setYear] = useState(
+    defaultYear ?? (firstDate ? Number(firstDate.slice(0, 4)) : thisYear)
+  );
   const [month, setMonth] = useState(
-    firstDate ? Number(firstDate.slice(5, 7)) : now.getUTCMonth() + 1,
+    defaultMonth ?? (firstDate ? Number(firstDate.slice(5, 7)) : now.getUTCMonth() + 1)
   );
   const [qual, setQual] = useState<Qual>((initial?.qual as Qual) ?? qualifications[0]);
 
@@ -244,6 +250,60 @@ export function OrderRequestBuilder({
       };
     });
   }, [year, month, locale, holidays, todayStr]);
+
+  // Scroll and focus the targeted shift if URL has #shift-... or #assignment-...
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const highlightTarget = () => {
+      const hash = window.location.hash;
+      if (!hash) return;
+      const cleanHash = hash.replace(/^#/, "");
+      const targetOrderId = cleanHash.startsWith("shift-")
+        ? cleanHash.replace(/^shift-/, "")
+        : cleanHash;
+
+      // Switch to month of the targeted shift if needed
+      if (initial?.shifts) {
+        const found = initial.shifts.find((s) => s.id === targetOrderId);
+        if (found) {
+          const sy = Number(found.date.slice(0, 4));
+          const sm = Number(found.date.slice(5, 7));
+          if (!isNaN(sy) && !isNaN(sm) && (sy !== year || sm !== month)) {
+            setYear(sy);
+            setMonth(sm);
+            return; // Effect will re-trigger on year/month change to highlight in the newly rendered month
+          }
+        }
+      }
+
+      const el =
+        document.getElementById(cleanHash) ||
+        document.getElementById(`shift-${targetOrderId}`) ||
+        document.querySelector(`[data-order-id="${targetOrderId}"]`) ||
+        document.querySelector(`[data-shift-id="${targetOrderId}"]`) ||
+        document.querySelector(`[data-assignment-id="${cleanHash.replace(/^assignment-/, "")}"]`);
+
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (el instanceof HTMLElement) {
+          el.focus({ preventScroll: true });
+        }
+        el.classList.add("ring-2", "ring-primary", "bg-amber-100/60", "dark:bg-amber-900/40");
+        setTimeout(() => {
+          el.classList.remove("ring-2", "ring-primary", "bg-amber-100/60", "dark:bg-amber-900/40");
+        }, 3000);
+      }
+    };
+
+    const timer = setTimeout(highlightTarget, 150);
+    window.addEventListener("hashchange", highlightTarget);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("hashchange", highlightTarget);
+    };
+  }, [initial, year, month]);
 
   const get = (date: string, slot: number): Cell => cells[`${date}:${slot}`] ?? EMPTY;
 
@@ -348,7 +408,7 @@ export function OrderRequestBuilder({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function exportToExcel() {
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     days.forEach((d) => {
       const count = effCount(d.date);
       let dayHasShifts = false;
@@ -392,6 +452,7 @@ export function OrderRequestBuilder({
     XLSX.writeFile(workbook, `Bestellung_${year}_${pad(month)}.xlsx`);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function processImportedData(data: any[]) {
     const mergedCells = { ...undoState.cells };
     const mergedCounts = { ...undoState.counts };
@@ -471,7 +532,7 @@ export function OrderRequestBuilder({
            }
         }
         
-        let slotToUse = emptySlot !== -1 ? emptySlot : existingCount;
+        const slotToUse = emptySlot !== -1 ? emptySlot : existingCount;
         if (slotToUse >= existingCount) {
            mergedCounts[dateStr] = slotToUse + 1;
         }
@@ -506,6 +567,7 @@ export function OrderRequestBuilder({
       const workbook = XLSX.read(pasteText, { type: "string" });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data = XLSX.utils.sheet_to_json(worksheet) as any[];
       processImportedData(data);
       setPasteDialogOpen(false);
@@ -527,6 +589,7 @@ export function OrderRequestBuilder({
         const workbook = XLSX.read(buffer, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const data = XLSX.utils.sheet_to_json(worksheet) as any[];
 
         processImportedData(data);
@@ -961,12 +1024,18 @@ export function OrderRequestBuilder({
               const count = effCount(d.date);
               const extra = Array.from({ length: count - 1 }, (_, k) => k + 1);
               const hasExtra = extra.length > 0;
+              const slot0OrderId = shiftMeta?.[`${d.date}:0`]?.orderId;
               return (
                 <Fragment key={d.date}>
                   <tr
+                    id={slot0OrderId ? `shift-${slot0OrderId}` : undefined}
+                    data-order-id={slot0OrderId}
+                    data-shift-id={slot0OrderId}
+                    tabIndex={slot0OrderId ? -1 : undefined}
                     title={d.holiday ?? undefined}
                     className={cn(
                       hasExtra ? "border-b border-slate-200 dark:border-slate-800" : "border-b-2 border-slate-300 dark:border-slate-700",
+                      "target:bg-amber-100/70 dark:target:bg-amber-900/30 target:ring-2 target:ring-amber-500/80 transition-all duration-300",
                       rowCls
                     )}
                   >
@@ -1029,11 +1098,17 @@ export function OrderRequestBuilder({
                   </tr>
                   {extra.map((slot, sIdx) => {
                     const isLastExtra = sIdx === extra.length - 1;
+                    const slotOrderId = shiftMeta?.[`${d.date}:${slot}`]?.orderId;
                     return (
                       <tr
                         key={slot}
+                        id={slotOrderId ? `shift-${slotOrderId}` : undefined}
+                        data-order-id={slotOrderId}
+                        data-shift-id={slotOrderId}
+                        tabIndex={slotOrderId ? -1 : undefined}
                         className={cn(
                           isLastExtra ? "border-b-2 border-slate-300 dark:border-slate-700" : "border-b border-slate-200 dark:border-slate-800",
+                          "target:bg-amber-100/70 dark:target:bg-amber-900/30 target:ring-2 target:ring-amber-500/80 transition-all duration-300",
                           rowCls
                         )}
                       >

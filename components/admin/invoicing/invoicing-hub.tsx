@@ -8,13 +8,15 @@ import { SentInvoicesTab } from "./sent-invoices-tab";
 import { ShiftsBillingStatusTab } from "./shifts-billing-status-tab";
 import { UnbilledClientsTab } from "./unbilled-clients-tab";
 import { OpenInvoicesTab } from "./open-invoices-tab";
-import { FileText, Mail, BarChart3, Users, Clock } from "lucide-react";
+import { CancelledInvoicesTab, type CancelledInvoiceRow } from "./cancelled-invoices-tab";
+import { FileText, Mail, BarChart3, Users, Clock, Ban } from "lucide-react";
+import type { ComponentProps } from "react";
 
 interface InvoicingHubProps {
-  invoices: any[];
-  shifts: any[];
-  unbilledClients: any[];
-  readyShifts: any[];
+  invoices: CancelledInvoiceRow[];
+  shifts: ComponentProps<typeof ShiftsBillingStatusTab>["shifts"];
+  unbilledClients: ComponentProps<typeof UnbilledClientsTab>["unbilledClients"];
+  readyShifts?: unknown[];
   totalActiveClientsCount: number;
 }
 
@@ -22,14 +24,26 @@ export function InvoicingHub({
   invoices,
   shifts,
   unbilledClients,
-  readyShifts,
   totalActiveClientsCount,
 }: InvoicingHubProps) {
   const t = useTranslations("invoicing");
   const [activeTab, setActiveTab] = useState("invoices");
 
-  const sentCount = invoices.filter((i) => !!i.snapshotData?.emailSent?.sentAt).length;
-  const openCount = invoices.filter((i) => i.status === "unpaid").length;
+  const regularInvoices = invoices.filter((i) => i.status !== "cancelled");
+  const cancelledInvoices = invoices.filter((i) => i.status === "cancelled");
+  const sentCount = regularInvoices.filter((i) => {
+    const s =
+      i.snapshotData && typeof i.snapshotData === "object"
+        ? (i.snapshotData as Record<string, unknown>)
+        : null;
+    const email =
+      s?.emailSent && typeof s.emailSent === "object"
+        ? (s.emailSent as { sentAt?: string })
+        : null;
+    return !!email?.sentAt;
+  }).length;
+  const openCount = regularInvoices.filter((i) => i.status === "unpaid").length;
+  const cancelledCount = cancelledInvoices.length;
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -42,7 +56,7 @@ export function InvoicingHub({
             <FileText className="size-4" />
             <span>{t("tabs.invoices")}</span>
             <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-slate-200/80 text-slate-700 data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-800">
-              {invoices.length}
+              {regularInvoices.length}
             </span>
           </TabsTrigger>
 
@@ -95,15 +109,28 @@ export function InvoicingHub({
               </span>
             )}
           </TabsTrigger>
+
+          <TabsTrigger
+            value="cancelledInvoices"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-rose-800 data-[state=active]:shadow-sm whitespace-nowrap"
+          >
+            <Ban className="size-4" />
+            <span>{t("tabs.cancelledInvoices")}</span>
+            {cancelledCount > 0 && (
+              <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-900 font-semibold">
+                {cancelledCount}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
       </div>
 
       <TabsContent value="invoices" className="m-0 focus-visible:outline-none">
-        <InvoicingList invoices={invoices} />
+        <InvoicingList invoices={regularInvoices} />
       </TabsContent>
 
       <TabsContent value="sentEmails" className="m-0 focus-visible:outline-none">
-        <SentInvoicesTab invoices={invoices} />
+        <SentInvoicesTab invoices={regularInvoices} />
       </TabsContent>
 
       <TabsContent value="shiftStatus" className="m-0 focus-visible:outline-none">
@@ -118,7 +145,11 @@ export function InvoicingHub({
       </TabsContent>
 
       <TabsContent value="openInvoices" className="m-0 focus-visible:outline-none">
-        <OpenInvoicesTab invoices={invoices} />
+        <OpenInvoicesTab invoices={regularInvoices} />
+      </TabsContent>
+
+      <TabsContent value="cancelledInvoices" className="m-0 focus-visible:outline-none">
+        <CancelledInvoicesTab invoices={cancelledInvoices} />
       </TabsContent>
     </Tabs>
   );

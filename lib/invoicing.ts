@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import type { ConfirmationMethod } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
 
@@ -188,5 +189,87 @@ export async function generateUniqueInvoiceNumber({
   }
 
   return candidate;
+}
+
+export function buildInvoicingWhereClause(params: {
+  from: Date;
+  to: Date;
+  query?: string;
+}): Prisma.InvoiceWhereInput {
+  const { from, to, query = "" } = params;
+  const words = query.trim().split(/\s+/).filter(Boolean);
+
+  const where: Prisma.InvoiceWhereInput = {
+    OR: [
+      {
+        status: "cancelled",
+        date: { gte: from, lte: to },
+      },
+      {
+        status: { not: "cancelled" },
+        OR: [
+          {
+            assignments: {
+              some: {
+                order: {
+                  shiftDate: { gte: from, lte: to },
+                },
+              },
+            },
+          },
+          {
+            assignments: { none: {} },
+            date: { gte: from, lte: to },
+          },
+        ],
+      },
+    ],
+  };
+
+  if (words.length > 0) {
+    where.AND = words.map((w) => ({
+      OR: [
+        { invoiceNumber: { contains: w, mode: "insensitive" } },
+        { client: { facilityName: { contains: w, mode: "insensitive" } } },
+        {
+          snapshotData: {
+            path: ["facilityName"],
+            string_contains: w,
+            mode: "insensitive",
+          },
+        },
+      ],
+    }));
+  }
+
+  return where;
+}
+
+export function getInvoiceFacilityName(invoice: {
+  client?: { facilityName?: string | null } | null;
+  snapshotData?: unknown;
+}): string {
+  const snapshot =
+    invoice.snapshotData && typeof invoice.snapshotData === "object"
+      ? (invoice.snapshotData as Record<string, unknown>)
+      : null;
+  const snapshotFacility =
+    typeof snapshot?.facilityName === "string" ? snapshot.facilityName.trim() : "";
+  if (snapshotFacility) return snapshotFacility;
+  return invoice.client?.facilityName?.trim() || "—";
+}
+
+export function hasReliableInvoiceDocument(invoice: {
+  status?: string;
+  snapshotData?: unknown;
+}): boolean {
+  if (invoice.status === "cancelled") {
+    const snapshot =
+      invoice.snapshotData && typeof invoice.snapshotData === "object"
+        ? (invoice.snapshotData as Record<string, unknown>)
+        : null;
+    return Array.isArray(snapshot?.items) && snapshot.items.length > 0;
+  }
+  return true;
 }
 

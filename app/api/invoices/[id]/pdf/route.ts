@@ -4,6 +4,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
+import { hasReliableInvoiceDocument } from "@/lib/invoicing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,13 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
 
   const allowed = roleSatisfies(user.role, ["admin"]) || invoice.client.userId === user.id;
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
+
+  if (invoice.status === "cancelled" && !hasReliableInvoiceDocument(invoice)) {
+    return new NextResponse(
+      "Für diese stornierte Rechnung ist keine verlässliche historische Fassung verfügbar (keine eingefrorenen Posten im Snapshot gespeichert).",
+      { status: 422 }
+    );
+  }
 
   const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
 

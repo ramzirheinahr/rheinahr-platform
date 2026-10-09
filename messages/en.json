@@ -508,7 +508,9 @@
     "workerSwappedSubject": "Worker swapped for your shift",
     "workerSwappedBody": "A worker has been swapped for your shift. Here are the details of the new worker.",
     "newWorkerDetails": "New worker details",
-    "swappedWorkerRemoved": "The previous worker was unassigned."
+    "swappedWorkerRemoved": "The previous worker was unassigned.",
+    "singleOrderBadge": "Single Shift (no group)",
+    "singleOrderNotice": "Group batch actions are only available for order groups."
   },
   "orderRequest": {
     "importedToast": "Imported successfully.",
@@ -999,7 +1001,7 @@
     "internalNotice": "Internal Area: Changes or transfers do not trigger any notifications to workers or clients.",
     "tabs": {
       "overview": "Overview",
-      "stundennachweis": "Proof of Hours",
+      "stundennachweis": "Hours Overview",
       "monatsliste": "Monthly List",
       "aueg": "AÜG Worker List",
       "mitarbeiterListe": "Staff List",
@@ -1034,14 +1036,15 @@
       "noResults": "No results found"
     },
     "stundennachweis": {
-      "title": "Create Proof of Hours",
+      "title": "Create Hours Overview",
       "sundayNotice": "Sunday shifts are highlighted in yellow",
       "livingArea": "Living Area",
       "hours": "Hours",
       "hoursWithoutPause": "Hours Without Break",
       "shiftDate": "Date",
       "from": "from",
-      "to": "to"
+      "to": "to",
+      "resultTitle": "Hours Overview"
     },
     "monatsliste": {
       "title": "Monthly List",
@@ -1149,6 +1152,41 @@
       "code2": "Code 2",
       "advance": "Advance",
       "transferSuccess": "Shifts were successfully transferred/copied"
+    },
+    "shiftOverlap": {
+      "title": "Shift Overlaps",
+      "subtitle": "Monthly check of time overlaps across all employees and clients (for information only)",
+      "checkButton": "Check Shift Overlaps",
+      "checking": "Checking...",
+      "affectedWorkers": "Affected Employees",
+      "overlapPairs": "Overlapping Shift Pairs",
+      "totalOverlapMinutes": "Total Overlap",
+      "noResults": "No shift overlaps in the selected month",
+      "noResultsDesc": "No time overlaps were detected between shifts of active employees for the selected month.",
+      "dstWarningBadge": "DST Notice",
+      "dstWarningNotice": "Warning: Some shifts have recorded times during a daylight saving transition. Please verify shift times carefully.",
+      "minutes": "Minutes",
+      "shiftA": "Shift 1",
+      "shiftB": "Shift 2",
+      "facility": "Facility / Client",
+      "time": "Time Window",
+      "status": "Status",
+      "viewShift": "Open Shift",
+      "filterWorkerPlaceholder": "Filter by employee or employee no....",
+      "filterClientPlaceholder": "Filter by client / facility...",
+      "internalNotice": "Note: This audit report is strictly for informational purposes. It does not prevent creating or editing shifts and does not alter invoices or booking records.",
+      "dataWarningsTitle": "Data and DST Transition Warnings (excluded from totals)",
+      "dataWarningsDesc": "The following shifts have invalid time formats or times recorded during daylight saving transitions. To avoid fabricated or estimated durations, they are listed separately and excluded from definite overlap totals.",
+      "reasonInvalidFormat": "Invalid Time Format",
+      "reasonInvalidFormatDesc": "Expected time format: HH:mm (00:00 to 23:59).",
+      "reasonDstGap": "Non-existent Time (DST Spring Forward)",
+      "reasonDstGapDesc": "Time does not exist in timezone (daylight saving spring forward).",
+      "reasonDstAmbiguous": "Ambiguous Time (DST Fall Back)",
+      "reasonDstAmbiguousDesc": "Time is ambiguous / occurs twice (daylight saving fall back).",
+      "worker": "Employee",
+      "date": "Date",
+      "shift": "Shift",
+      "reason": "Cause / Notice"
     }
   },
   "invoicing": {
@@ -1186,7 +1224,8 @@
       "shiftStatus": "Shift Billing Status",
       "unbilledClients": "Unbilled Clients",
       "readyToBill": "Ready to Bill",
-      "openInvoices": "Open Invoices"
+      "openInvoices": "Open Invoices",
+      "cancelledInvoices": "Cancelled invoices"
     },
     "sentEmails": {
       "title": "Invoices Sent via Email",
@@ -1243,7 +1282,24 @@
       "updating": "Updating...",
       "success": "Invoice updated successfully!",
       "reasonRequired": "Please enter a reason for the net adjustment."
-    }
+    },
+    "cancelled": "Cancelled",
+    "noCancelledInvoices": "No cancelled invoices",
+    "noCancelledInvoicesDescription": "No cancelled invoices were found for this period.",
+    "cancelledInvoiceSingle": "cancelled invoice",
+    "cancelledInvoicePlural": "cancelled invoices",
+    "sentViaEmailHistorical": "Sent via Email (Historical)",
+    "invoiceNumberHeader": "Invoice No.",
+    "clientFacilityHeader": "Client / Facility",
+    "invoiceDateHeader": "Invoice Date",
+    "grossAmountHeader": "Gross Amount",
+    "statusHeader": "Status",
+    "actionsHeader": "Actions",
+    "viewPdf": "View PDF",
+    "downloadPdf": "Download PDF",
+    "sentOnTooltip": "Sent on {date}",
+    "noReliableCopy": "No reliable copy available",
+    "noReliableCopyTooltip": "No frozen items are saved in the snapshot for this cancelled invoice."
   },
   "adminDashboard": {
     "invoiceFinanceTitle": "Finances (invoices)",

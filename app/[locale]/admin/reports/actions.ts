@@ -287,3 +287,12 @@ export async function transferOrCopyShiftsAction(params: {
   // Strictly internal: zero notifications dispatched
   return await transferOrCopyShifts(params);
 }
+
+export async function checkShiftOverlapsAction(params: {
+  year: number;
+  month: number;
+}) {
+  await requireRole("de", "admin");
+  const { getMonthlyShiftOverlaps } = await import("@/lib/reports-data");
+  return await getMonthlyShiftOverlaps(params);
+}

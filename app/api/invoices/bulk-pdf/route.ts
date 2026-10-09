@@ -5,6 +5,7 @@ import { audit } from "@/lib/audit";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { PDFDocument } from "pdf-lib";
+import { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +38,8 @@ export async function GET(req: Request) {
 
   const words = q.split(/\s+/).filter(Boolean);
 
-  const invoiceWhere: any = {
+  const invoiceWhere: Prisma.InvoiceWhereInput = {
+    status: { not: "cancelled" },
     OR: [
       {
         assignments: {

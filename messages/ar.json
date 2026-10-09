@@ -510,7 +510,9 @@
     "workerSwappedSubject": "تبديل موظف لورديتك",
     "workerSwappedBody": "تم تبديل موظف لورديتك. إليك تفاصيل الموظف الجديد.",
     "newWorkerDetails": "تفاصيل الموظف الجديد",
-    "swappedWorkerRemoved": "تم إلغاء تعيين الموظف السابق."
+    "swappedWorkerRemoved": "تم إلغاء تعيين الموظف السابق.",
+    "singleOrderBadge": "وردية فردية (بدون مجموعة)",
+    "singleOrderNotice": "إجراءات المجموعات متاحة فقط لمجموعات الطلبات."
   },
   "orderRequest": {
     "importedToast": "تم الاستيراد بنجاح.",
@@ -1001,7 +1003,7 @@
     "internalNotice": "قسم داخلي: التعديلات أو عمليات النقل لا ترسل أي إشعارات للعامل أو العميل.",
     "tabs": {
       "overview": "نظرة عامة",
-      "stundennachweis": "Stundennachweis (كشف الساعات)",
+      "stundennachweis": "Stundenübersicht (نظرة عامة على الساعات)",
       "monatsliste": "Monatsliste (القائمة الشهرية)",
       "aueg": "Liste für AÜG (قائمة عمالة الإعارة)",
       "mitarbeiterListe": "Liste der Mitarbeiter (قائمة الموظفين)",
@@ -1036,14 +1038,15 @@
       "noResults": "لا توجد نتائج"
     },
     "stundennachweis": {
-      "title": "إنشاء كشف الساعات Zeiterfassung",
+      "title": "إنشاء نظرة عامة على الساعات Stundenübersicht",
       "sundayNotice": "ورديات يوم الأحد محددة باللون الأصفر",
       "livingArea": "القسم / الجناح",
       "hours": "الساعات",
       "hoursWithoutPause": "الساعات بدون استراحة",
       "shiftDate": "التاريخ",
       "from": "من",
-      "to": "إلى"
+      "to": "إلى",
+      "resultTitle": "نظرة عامة على الساعات Stundenübersicht"
     },
     "monatsliste": {
       "title": "القائمة الشهرية Monatsliste",
@@ -1151,6 +1154,41 @@
       "code2": "رمز 2",
       "advance": "سلفة",
       "transferSuccess": "تم نقل/نسخ الورديات بنجاح"
+    },
+    "shiftOverlap": {
+      "title": "فحص تداخل الورديات",
+      "subtitle": "فحص شهري للتداخلات الزمنية بين الورديات لجميع الموظفين والعملاء (للعلم فقط)",
+      "checkButton": "فحص تداخل الورديات",
+      "checking": "جاري الفحص...",
+      "affectedWorkers": "العمال المتأثرون",
+      "overlapPairs": "أزواج الورديات المتداخلة",
+      "totalOverlapMinutes": "إجمالي دقائق التداخل",
+      "noResults": "لا توجد تداخلات ورديات في الشهر المختار",
+      "noResultsDesc": "لم يتم العثور على أي تداخلات زمنية بين ورديات العمال النشطة خلال الشهر المحدد.",
+      "dstWarningBadge": "تنبيه التوقيت الصيفي",
+      "dstWarningNotice": "تنبيه: تم رصد أوقات تقع ضمن فترة انتقال التوقيت الصيفي/الشتوي لبعض الورديات. يُرجى مراجعة ساعات العمل بعناية.",
+      "minutes": "دقيقة",
+      "shiftA": "الوردية 1",
+      "shiftB": "الوردية 2",
+      "facility": "المنشأة / العميل",
+      "time": "الفترة",
+      "status": "الحالة",
+      "viewShift": "فتح الوردية",
+      "filterWorkerPlaceholder": "تصفية بحسب الموظف أو الرقم الوظيفي...",
+      "filterClientPlaceholder": "تصفية بحسب العميل أو المنشأة...",
+      "internalNotice": "تنبيه: هذا التقرير للعلم فقط؛ ولا يمنع إنشاء أو تعديل الورديات ولا يؤثر على الفواتير أو القيود المحاسبية.",
+      "dataWarningsTitle": "تنبيهات جودة البيانات وانتقال التوقيت الصيفي (مستبعدة من المجاميع)",
+      "dataWarningsDesc": "تتضمن الورديات التالية أوقاتاً غير صالحة أو أوقاتاً ملتبسة تقع في فترة تغيير التوقيت (الشتوي/الصيفي). تم عزلها هنا لتجنب احتساب دقائق غير مؤكدة بالتخمين، ولم يتم تضمينها في المجاميع القطعية.",
+      "reasonInvalidFormat": "صيغة الوقت غير صالحة",
+      "reasonInvalidFormatDesc": "صيغة الوقت المتوقعة: HH:mm (من 00:00 إلى 23:59).",
+      "reasonDstGap": "وقت غير موجود (تقديم التوقيت الصيفي)",
+      "reasonDstGapDesc": "الوقت غير موجود في النطاق الزمني (تقديم التوقيت الصيفي).",
+      "reasonDstAmbiguous": "وقت ملتبس ومكرر (تأخير التوقيت الشتوي)",
+      "reasonDstAmbiguousDesc": "الوقت مكرر وملتبس (تأخير التوقيت الشتوي).",
+      "worker": "الموظف",
+      "date": "التاريخ",
+      "shift": "الوردية",
+      "reason": "السبب / الملاحظة"
     }
   },
   "invoicing": {
@@ -1188,7 +1226,8 @@
       "shiftStatus": "حالة فوترة الورديات",
       "unbilledClients": "زبائن بدون فواتير",
       "readyToBill": "جاهزة للفوترة",
-      "openInvoices": "الفواتير المفتوحة"
+      "openInvoices": "الفواتير المفتوحة",
+      "cancelledInvoices": "الفواتير الملغاة"
     },
     "sentEmails": {
       "title": "الفواتير المرسلة عبر البريد الإلكتروني",
@@ -1245,7 +1284,24 @@
       "updating": "جارٍ التحديث...",
       "success": "تم تحديث الفاتورة بنجاح!",
       "reasonRequired": "يرجى كتابة سبب لتعديل الصافي."
-    }
+    },
+    "cancelled": "ملغاة",
+    "noCancelledInvoices": "لا توجد فواتير ملغاة",
+    "noCancelledInvoicesDescription": "لم يتم العثور على أي فواتير ملغاة في هذه الفترة.",
+    "cancelledInvoiceSingle": "فاتورة ملغاة",
+    "cancelledInvoicePlural": "فواتير ملغاة",
+    "sentViaEmailHistorical": "أُرسلت بالإيميل (سجل تاريخي)",
+    "invoiceNumberHeader": "رقم الفاتورة",
+    "clientFacilityHeader": "العميل / المنشأة",
+    "invoiceDateHeader": "تاريخ الفاتورة",
+    "grossAmountHeader": "المبلغ الإجمالي",
+    "statusHeader": "الحالة",
+    "actionsHeader": "الإجراءات",
+    "viewPdf": "عرض PDF",
+    "downloadPdf": "تنزيل PDF",
+    "sentOnTooltip": "تم الإرسال في {date}",
+    "noReliableCopy": "لا تتوفر نسخة موثوقة",
+    "noReliableCopyTooltip": "لا تتوفر بنود مجمدة محفوظة في لقطة هذه الفاتورة الملغاة."
   },
   "adminDashboard": {
     "invoiceFinanceTitle": "المالية (الفواتير)",

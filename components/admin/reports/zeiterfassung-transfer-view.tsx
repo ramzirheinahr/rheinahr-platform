@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Copy, ArrowRightLeft, Search, Loader2, Check, X } from "lucide-react";
 import { fetchMonatslisteAction, transferOrCopyShiftsAction } from "@/app/[locale]/admin/reports/actions";
 import type { MonatslisteRow } from "@/lib/reports-data";
+import { ShiftOverlapSection } from "./shift-overlap-section";
 
 const MONTHS = [
   { value: 1, label: "Januar" },
@@ -506,6 +507,9 @@ export function ZeiterfassungTransferView({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Monthly Shift Overlap Detection (Phase 3d) */}
+      <ShiftOverlapSection />
     </div>
   );
 }

@@ -508,7 +508,9 @@
     "workerSwappedSubject": "Mitarbeiterwechsel für Ihre Schicht",
     "workerSwappedBody": "Ein Mitarbeiter wurde für Ihre Schicht gewechselt. Hier sind die Details des neuen Mitarbeiters.",
     "newWorkerDetails": "Details zum neuen Mitarbeiter",
-    "swappedWorkerRemoved": "Der vorherige Mitarbeiter wurde abgemeldet."
+    "swappedWorkerRemoved": "Der vorherige Mitarbeiter wurde abgemeldet.",
+    "singleOrderBadge": "Einzelauftrag (ohne Gruppe)",
+    "singleOrderNotice": "Gruppenaktionen sind nur für Auftragsgruppen verfügbar."
   },
   "orderRequest": {
     "importedToast": "Erfolgreich importiert.",
@@ -999,7 +1001,7 @@
     "internalNotice": "Interner Bereich: Änderungen oder Übertragungen lösen keine Benachrichtigungen an Mitarbeiter oder Kunden aus.",
     "tabs": {
       "overview": "Übersicht",
-      "stundennachweis": "Stundennachweis",
+      "stundennachweis": "Stundenübersicht",
       "monatsliste": "Monatsliste",
       "aueg": "Liste für AÜG",
       "mitarbeiterListe": "Liste der Mitarbeiter",
@@ -1034,14 +1036,15 @@
       "noResults": "Keine Ergebnisse gefunden"
     },
     "stundennachweis": {
-      "title": "Zeiterfassung erstellen",
+      "title": "Stundenübersicht erstellen",
       "sundayNotice": "Sonntagsschichten sind gelb markiert",
       "livingArea": "Wohnbereich",
       "hours": "Stunden",
       "hoursWithoutPause": "Stunden Ohne Pause",
       "shiftDate": "Datum",
       "from": "von",
-      "to": "bis"
+      "to": "bis",
+      "resultTitle": "Stundenübersicht"
     },
     "monatsliste": {
       "title": "Monatsliste",
@@ -1149,6 +1152,41 @@
       "code2": "Code 2",
       "advance": "Vorschuss",
       "transferSuccess": "Schichten wurden erfolgreich übertragen/kopiert"
+    },
+    "shiftOverlap": {
+      "title": "Schichtüberschneidungen",
+      "subtitle": "Monatliche Prüfung zeitlicher Überschneidungen für alle Mitarbeiter und Kunden (nur zur Information)",
+      "checkButton": "Schichtüberschneidungen prüfen",
+      "checking": "Wird geprüft...",
+      "affectedWorkers": "Betroffene Mitarbeiter",
+      "overlapPairs": "Überschneidende Schichtpaare",
+      "totalOverlapMinutes": "Gesamte Überschneidung",
+      "noResults": "Keine Schichtüberschneidungen im ausgewählten Monat",
+      "noResultsDesc": "Für den ausgewählten Monat wurden keine zeitlichen Überschneidungen zwischen Schichten aktiver Mitarbeiter festgestellt.",
+      "dstWarningBadge": "DST-Hinweis",
+      "dstWarningNotice": "Achtung: Für einige Schichten wurden Zeiten im Bereich einer Zeitumstellung (Sommer-/Winterzeit) erfasst. Bitte prüfen Sie die Dienstzeiten sorgfältig.",
+      "minutes": "Minuten",
+      "shiftA": "Schicht 1",
+      "shiftB": "Schicht 2",
+      "facility": "Einrichtung / Kunde",
+      "time": "Zeitraum",
+      "status": "Status",
+      "viewShift": "Schicht öffnen",
+      "filterWorkerPlaceholder": "Nach Mitarbeiter oder Personal-Nr. filtern...",
+      "filterClientPlaceholder": "Nach Kunde / Einrichtung filtern...",
+      "internalNotice": "Hinweis: Dieser Prüfbericht dient ausschließlich Informationszwecken. Er blockiert weder das Erstellen noch das Bearbeiten von Schichten und verändert keine Rechnungen oder Buchungsdaten.",
+      "dataWarningsTitle": "Daten- und Zeitumstellungshinweise (nicht in den Summen enthalten)",
+      "dataWarningsDesc": "Für die folgenden Schichten liegen ungültige Zeitangaben oder Zeiten im Übergangsbereich der Sommer-/Winterzeit vor. Diese werden zur Vermeidung von Fehlberechnungen gesondert aufgeführt und nicht in die verbindlichen Überschneidungsminuten eingerechnet.",
+      "reasonInvalidFormat": "Ungültiges Zeitformat",
+      "reasonInvalidFormatDesc": "Erwartetes Zeitformat: HH:mm (00:00 bis 23:59).",
+      "reasonDstGap": "Nicht existierende Uhrzeit (Zeitumstellung)",
+      "reasonDstGapDesc": "Uhrzeit existiert nicht in der Zeitzone (Sommerzeitumstellung).",
+      "reasonDstAmbiguous": "Mehrdeutige Uhrzeit (Zeitumstellung)",
+      "reasonDstAmbiguousDesc": "Uhrzeit ist mehrdeutig / doppelt vorhanden (Winterzeitumstellung).",
+      "worker": "Mitarbeiter",
+      "date": "Datum",
+      "shift": "Schicht",
+      "reason": "Ursache / Hinweis"
     }
   },
   "invoicing": {
@@ -1186,7 +1224,8 @@
       "shiftStatus": "Schicht-Abrechnungsstatus",
       "unbilledClients": "Kunden ohne Rechnung",
       "readyToBill": "Bereit zur Abrechnung",
-      "openInvoices": "Offene Rechnungen"
+      "openInvoices": "Offene Rechnungen",
+      "cancelledInvoices": "Stornierte Rechnungen"
     },
     "sentEmails": {
       "title": "Per E-Mail versendete Rechnungen",
@@ -1243,7 +1282,24 @@
       "updating": "Wird aktualisiert...",
       "success": "Rechnung wurde erfolgreich aktualisiert!",
       "reasonRequired": "Bitte geben Sie eine Begründung für die Netto-Korrektur an."
-    }
+    },
+    "cancelled": "Storniert",
+    "noCancelledInvoices": "Keine stornierten Rechnungen",
+    "noCancelledInvoicesDescription": "In diesem Zeitraum wurden keine stornierten Rechnungen gefunden.",
+    "cancelledInvoiceSingle": "stornierte Rechnung",
+    "cancelledInvoicePlural": "stornierte Rechnungen",
+    "sentViaEmailHistorical": "Per E-Mail versendet (Historisch)",
+    "invoiceNumberHeader": "Rechnungsnr.",
+    "clientFacilityHeader": "Kunde / Einrichtung",
+    "invoiceDateHeader": "Rechnungsdatum",
+    "grossAmountHeader": "Betrag (Brutto)",
+    "statusHeader": "Status",
+    "actionsHeader": "Aktionen",
+    "viewPdf": "PDF ansehen",
+    "downloadPdf": "PDF herunterladen",
+    "sentOnTooltip": "Versendet am {date}",
+    "noReliableCopy": "Keine verlässliche Belegfassung verfügbar",
+    "noReliableCopyTooltip": "Für diese stornierte Rechnung sind keine eingefrorenen Posten im Snapshot gespeichert."
   },
   "adminDashboard": {
     "invoiceFinanceTitle": "Finanzen (Rechnungen)",

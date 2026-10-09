@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { isRequestCancelable } from "@/lib/orders";
+import { isRequestCancelable, resolveAdminOrderRoute } from "@/lib/orders";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { CancelRequestButton } from "@/components/orders/cancel-request-button";
@@ -27,31 +27,17 @@ export default async function AdminRequestDetail({
   const t = await getTranslations("orders");
   const c = await getTranslations("common");
 
-  // Fast fetch just for the header info
-  const firstOrder = await prisma.order.findFirst({
-    where: { requestGroupId: id },
-    orderBy: { shiftDate: "asc" },
-    select: {
-      id: true,
-      shiftDate: true,
-      status: true,
-      client: {
-        select: {
-          id: true,
-          userId: true,
-          facilityName: true,
-        },
-      },
-    }
-  });
+  // Resolve route using shared helper: supports both request groups and standalone orders without 404
+  const routeData = await resolveAdminOrderRoute(id);
+  if (!routeData) notFound();
 
-  if (!firstOrder) notFound();
-
-  const allOrdersInGroup = await prisma.order.findMany({
-    where: { requestGroupId: id },
-    orderBy: { shiftDate: "asc" },
-    select: { shiftDate: true, status: true }
-  });
+  const {
+    firstOrder,
+    isGroupOrder,
+    targetGroupId,
+    allOrdersInGroup,
+    canExecuteGroupActions,
+  } = routeData;
 
   const clientOwner = await prisma.user.findUnique({
     where: { id: firstOrder.client.userId },
@@ -102,37 +88,54 @@ export default async function AdminRequestDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            className="gap-2"
-            render={<a href={`/api/exports/order-request/${id}?format=pdf`} target="_blank" />}
-          >
-            <Download className="size-4" />
-            PDF
-          </Button>
-          <SendOrderEmailButton
-            requestGroupId={id}
-            facilityName={facility}
-          />
-          <CopyPublicLinkButton 
-            requestGroupId={id} 
-            type="confirm" 
-            defaultStartDate={d(allOrdersInGroup[0].shiftDate)}
-            defaultEndDate={d(allOrdersInGroup[allOrdersInGroup.length - 1].shiftDate)}
-            employees={employees}
-          />
-          {isRequestCancelable(allOrdersInGroup) ? (
-            <CancelRequestButton requestGroupId={id} admin />
-          ) : null}
-          <Button className="gap-2" render={<Link href={`/admin/orders/${id}/edit?month=${returnMonth}`} />}>
-            <Pencil className="size-4" />
-            {c("edit")}
-          </Button>
+          {canExecuteGroupActions ? (
+            <>
+              <Button
+                variant="outline"
+                className="gap-2"
+                render={<a href={`/api/exports/order-request/${targetGroupId}?format=pdf`} target="_blank" />}
+              >
+                <Download className="size-4" />
+                PDF
+              </Button>
+              <SendOrderEmailButton
+                requestGroupId={targetGroupId}
+                facilityName={facility}
+              />
+              <CopyPublicLinkButton
+                requestGroupId={targetGroupId}
+                type="confirm"
+                defaultStartDate={d(allOrdersInGroup[0].shiftDate)}
+                defaultEndDate={d(allOrdersInGroup[allOrdersInGroup.length - 1].shiftDate)}
+                employees={employees}
+              />
+              {isRequestCancelable(allOrdersInGroup) ? (
+                <CancelRequestButton requestGroupId={targetGroupId} admin />
+              ) : null}
+              <Button className="gap-2" render={<Link href={`/admin/orders/${targetGroupId}/edit?month=${returnMonth}`} />}>
+                <Pencil className="size-4" />
+                {c("edit")}
+              </Button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                {t("singleOrderBadge")}
+              </span>
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                {t("singleOrderNotice")}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
       <Suspense fallback={<ScheduleSkeleton />}>
-        <OrderDetailContent requestGroupId={id} />
+        <OrderDetailContent
+          requestGroupId={targetGroupId}
+          defaultMonth={returnMonth}
+          isGroupOrder={isGroupOrder}
+        />
       </Suspense>
     </div>
   );
