@@ -5,7 +5,6 @@ import {
   calculateEasterSunday,
   calculateBussUndBettag,
   isBavarianCatholicMunicipality,
-  type GermanFederalState,
 } from "./german-holidays";
 import {
   resolveInvoiceSurchargePolicy,
@@ -56,6 +55,10 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       if (resFrauentagNW.status === "resolved") {
         expect(resFrauentagNW.isHoliday).toBe(false);
       }
+
+      // Verify getGermanHolidaysForYear full year generation
+      const allNWHolidays = getGermanHolidaysForYear({ year: 2026, federalState: "NW" });
+      expect(allNWHolidays.size).toBe(11);
     });
 
     it("distinguishes Sachsen (SN) Buß- und Bettag and Heilige Drei Könige in Bayern (BY)", () => {
@@ -212,6 +215,11 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(resSL.isHoliday).toBe(true);
         expect(resSL.holiday?.name).toBe("Mariä Himmelfahrt");
       }
+
+      // Verify isBavarianCatholicMunicipality helper directly
+      expect(isBavarianCatholicMunicipality("München")).toBe(true);
+      expect(isBavarianCatholicMunicipality("Nürnberg")).toBe(false);
+      expect(isBavarianCatholicMunicipality("Unbekannte Gemeinde")).toBeNull();
     });
 
     it("supports documented custom contract/facility exceptions", () => {
@@ -523,6 +531,26 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
 
       expect(res1.frozenHash).toBe(res2.frozenHash);
       expect(res1.frozenHash).toHaveLength(64); // SHA-256 hex string
+
+      const directHash = computePolicyCanonicalHash({
+        clientId: policyA.clientId,
+        clientContractId: policyA.clientContractId || null,
+        policyVersion: policyA.policyVersion!,
+        federalState: policyA.federalState,
+        municipality: policyA.municipality || null,
+        surchargeSat: policyA.surchargeSat,
+        surchargeSun: policyA.surchargeSun,
+        surchargeHoliday: policyA.surchargeHoliday,
+        surchargeNight: policyA.surchargeNight,
+        nightStart: policyA.nightStart!,
+        nightEnd: policyA.nightEnd!,
+        combinationRule: policyA.combinationRule!,
+        sourceType: policyA.sourceType!,
+        sourceReference: policyA.sourceReference,
+        effectiveFrom: "2026-01-01",
+        effectiveTo: "2026-12-31",
+      });
+      expect(res1.frozenHash).toBe(directHash);
 
       // Altering even a single parameter (e.g. nightStart from 21:00 to 20:00) changes the hash
       const policyModified = { ...policyA, nightStart: "20:00" };
