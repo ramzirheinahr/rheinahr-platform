@@ -362,6 +362,13 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(resBautzenInnenstadt.isHoliday).toBe(false);
       }
 
+      // Bautzen with misspelled/unverified Ortsteil (e.g. Salzenforstt) -> policy_unresolved (AMBIGUOUS_MUNICIPAL_LOCATION)
+      const resBautzenSalzenforstt = resolveGermanHoliday(fronleichnam2026, "SN", "Bautzen", undefined, "Salzenforstt");
+      expect(resBautzenSalzenforstt.status).toBe("policy_unresolved");
+      if (resBautzenSalzenforstt.status === "policy_unresolved") {
+        expect(resBautzenSalzenforstt.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+
       // 4. Non-qualifying municipality in Saxony (e.g. Dresden)
       const resDresden = resolveGermanHoliday(fronleichnam2026, "SN", "Dresden");
       expect(resDresden.status).toBe("resolved");
@@ -435,6 +442,43 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(isSaxonyCatholicMunicipality("Bautzen")).toBeNull();
       expect(isSaxonyCatholicMunicipality("Bautzen", "Salzenforst")).toBe(true);
       expect(isSaxonyCatholicMunicipality("Bautzen", "Innenstadt")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("Bautzen", "Salzenforstt")).toBeNull(); // Typo must NOT return false
+
+      // Göda (14625160)
+      expect(isSaxonyCatholicMunicipality("14625160", "Coblenz")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625160", "Göda")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625160", "Coblenzz")).toBeNull();
+
+      // Großdubrau (14625170)
+      expect(isSaxonyCatholicMunicipality("14625170", "Sdier")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625170", "Großdubrau")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625170", "Sdierr")).toBeNull();
+
+      // Hoyerswerda (14625240)
+      expect(isSaxonyCatholicMunicipality("14625240", "Dörgenhausen")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625240", "Hoyerswerda")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625240", "Dörgenhausenn")).toBeNull();
+
+      // Königswartha (14625270)
+      expect(isSaxonyCatholicMunicipality("14625270", "Truppen")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625270", "Königswartha")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625270", "Truppenn")).toBeNull();
+
+      // Neschwitz (14625360)
+      expect(isSaxonyCatholicMunicipality("14625360", "Caßlau")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625360", "Holscha")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625360", "Caßlauu")).toBeNull();
+
+      // Puschwitz (14625430)
+      expect(isSaxonyCatholicMunicipality("14625430", "Guhra")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625430", "Bannewitz")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625430", "Guhraa")).toBeNull();
+
+      // Radibor (14625490)
+      expect(isSaxonyCatholicMunicipality("14625490", "Bornitz")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625490", "Caminau")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625490", "Bornitzz")).toBeNull();
+
       expect(isSaxonyCatholicMunicipality("Dresden")).toBe(false);
       expect(isSaxonyCatholicMunicipality(null)).toBeNull();
 
@@ -472,6 +516,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(isThuringianCatholicMunicipality("16064074", "Katharinenberg")).toBe(true);
       expect(isThuringianCatholicMunicipality("16064074", "Lengenfeld unterm Stein")).toBe(true);
       expect(isThuringianCatholicMunicipality("16064074", "Hallungen")).toBe(false); // Merged in 2024, not statutory Catholic
+      expect(isThuringianCatholicMunicipality("16064074", "Heyerodee")).toBeNull(); // Typo must NOT return false
 
       // Dermbach (16063015) requires Ortsteil; only Zella and Brunnhartshausen qualify
       expect(isThuringianCatholicMunicipality("Dermbach")).toBeNull();
@@ -480,6 +525,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(isThuringianCatholicMunicipality("16063015", "Brunnhartshausen")).toBe(true);
       expect(isThuringianCatholicMunicipality("16063015", "Dermbach")).toBe(false); // Kernort Dermbach is not a holiday
       expect(isThuringianCatholicMunicipality("16063015", "Stadtlengsfeld")).toBe(false);
+      expect(isThuringianCatholicMunicipality("16063015", "Zellaa")).toBeNull(); // Typo must NOT return false
 
       // Non-qualifying / historic / dummy keys in Thuringia
       expect(isThuringianCatholicMunicipality("16064058")).toBeNull(); // Historic Schönstedt (NOT Südeichsfeld)
@@ -531,6 +577,13 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(resSuedeichsfeldHallungen.isHoliday).toBe(false);
       }
 
+      // Südeichsfeld with typo Ortsteil Heyerodee must return policy_unresolved:
+      const resSuedeichsfeldHeyerodee = resolveGermanHoliday(fronleichnam2026, "TH", "16064074", undefined, "Heyerodee");
+      expect(resSuedeichsfeldHeyerodee.status).toBe("policy_unresolved");
+      if (resSuedeichsfeldHeyerodee.status === "policy_unresolved") {
+        expect(resSuedeichsfeldHeyerodee.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+
       // Dermbach (16063015) sub-municipal Ortsteil precision in resolveGermanHoliday:
       const resDermbachNoLoc = resolveGermanHoliday(fronleichnam2026, "TH", "16063015");
       expect(resDermbachNoLoc.status).toBe("policy_unresolved");
@@ -555,6 +608,13 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(resDermbachKernort.status).toBe("resolved");
       if (resDermbachKernort.status === "resolved") {
         expect(resDermbachKernort.isHoliday).toBe(false);
+      }
+
+      // Dermbach with typo Ortsteil Zellaa must return policy_unresolved:
+      const resDermbachZellaa = resolveGermanHoliday(fronleichnam2026, "TH", "16063015", undefined, "Zellaa");
+      expect(resDermbachZellaa.status).toBe("policy_unresolved");
+      if (resDermbachZellaa.status === "policy_unresolved") {
+        expect(resDermbachZellaa.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
       }
 
       // Positive statutory holiday resolutions in Thuringia:
@@ -1390,6 +1450,26 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(evalNoLoc.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
         expect(evalNoLoc.message).toContain("Bolbritz und Salzenforst");
       }
+
+      // 3. Facility policy in Bautzen with misspelled Ortsteil Salzenforstt -> evaluateMinuteSurcharges MUST return policy_unresolved
+      const policyBautzenTypo: FacilitySurchargePolicyRecord = {
+        ...policyBautzenSalzenforst,
+        clientId: "client-bautzen-typo",
+        districtLocality: "Salzenforstt",
+      };
+
+      const resolvedTypo = resolveInvoiceSurchargePolicy({
+        policy: policyBautzenTypo,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolvedTypo.status).toBe("resolved");
+
+      const evalTypo = evaluateMinuteSurcharges(dateFronleichnam, 720, resolvedTypo);
+      expect(evalTypo.status).toBe("policy_unresolved");
+      if (evalTypo.status === "policy_unresolved") {
+        expect(evalTypo.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(evalTypo.message).toContain("Bolbritz und Salzenforst");
+      }
     });
   });
 
@@ -1532,6 +1612,54 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
 
       const resolved = resolveInvoiceSurchargePolicy({
         policy: policyDermbachNoLoc,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolved.status).toBe("resolved");
+
+      const minuteEval = evaluateMinuteSurcharges(dateFronleichnam, 720, resolved);
+      expect(minuteEval.status).toBe("policy_unresolved");
+      if (minuteEval.status === "policy_unresolved") {
+        expect(minuteEval.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(minuteEval.message).toContain("Zella und Brunnhartshausen");
+      }
+    });
+
+    it("fails explicitly with policy_unresolved for TH 16064074 (Südeichsfeld) with misspelled/unverified Ortsteil (Heyerodee)", () => {
+      const policySuedeichsfeldTypo: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-suedeichsfeld-typo",
+        clientContractId: "contract-th-16064074-typo",
+        federalState: "TH",
+        municipality: "16064074",
+        districtLocality: "Heyerodee", // Misspelled Ortsteil must NOT default to false
+      };
+
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: policySuedeichsfeldTypo,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolved.status).toBe("resolved");
+
+      const minuteEval = evaluateMinuteSurcharges(dateFronleichnam, 720, resolved);
+      expect(minuteEval.status).toBe("policy_unresolved");
+      if (minuteEval.status === "policy_unresolved") {
+        expect(minuteEval.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(minuteEval.message).toContain("Heyerode, Hildebrandshausen, Katharinenberg und Lengenfeld unterm Stein");
+      }
+    });
+
+    it("fails explicitly with policy_unresolved for TH 16063015 (Dermbach) with misspelled/unverified Ortsteil (Zellaa)", () => {
+      const policyDermbachTypo: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-dermbach-typo",
+        clientContractId: "contract-th-16063015-typo",
+        federalState: "TH",
+        municipality: "16063015",
+        districtLocality: "Zellaa", // Misspelled Ortsteil must NOT default to false
+      };
+
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: policyDermbachTypo,
         referenceDate: dateFronleichnam,
       }) as ResolvedSurchargePolicySuccess;
       expect(resolved.status).toBe("resolved");

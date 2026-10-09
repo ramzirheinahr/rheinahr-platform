@@ -9,7 +9,7 @@
       "holiday": "Fronleichnam",
       "holidayScopeAuthority": {
         "legalAct": "Gesetz über die Sonn- und Feiertage im Freistaat Sachsen (SächsSFG § 1 Abs. 1 Nr. 1)",
-        "implementingRegulation": "Verordnung der Sächsischen Staatsregierung über den Fronleichnamstag (FronleichnamsVO vom 4. Mai 1993, SächsGVBl. S. 417, geändert durch Verordnung vom 30. Mai 1995, SächsGVBl. S. 177)",
+        "implementingRegulation": "Verordnung der Sächsischen Staatsregierung über den Fronleichnamstag (FronleichnamsVO vom 4. Mai 1993, SächsGVBl. S. 417, geändert durch Verordnung vom 30. Mai 1995, SächsGVBl. S. 160)",
         "legalSourceUrl": "https://www.revosax.sachsen.de/vorschrift/4142-FronleichnamsVO",
         "scope": "Bestimmte Gemeinden und Ortsteile im Landkreis Bautzen"
       },
@@ -23,7 +23,7 @@
       "state": "TH",
       "holiday": "Fronleichnam",
       "holidayScopeAuthority": {
-        "legalAct": "Thüringer Feiertagsgesetz (ThürFtG § 2 Abs. 2 vom 21. Dezember 1991)",
+        "legalAct": "Thüringer Feiertagsgesetz (ThürFtG § 2 Abs. 2 vom 21. Dezember 1994)",
         "officialGuideline": "Merkblatt des Thüringer Ministeriums für Inneres und Kommunales über gesetzliche Feiertage in Thüringen",
         "legalSourceUrl": "https://innen.thueringen.de/fileadmin/staats_und_verwaltungsrecht/oeffentliches_recht/Merkblatt.pdf",
         "scope": "Gesamter Landkreis Eichsfeld sowie gesetzlich benannte katholisch geprägte Gemeinden und Ortsteile in Wartburgkreis und Unstrut-Hainich-Kreis"
@@ -71,36 +71,42 @@
         "ags": "14625160",
         "name": "Göda",
         "qualifyingLocalities": ["Coblenz", "Doberschau", "Nedaschütz", "Prischwitz"],
+        "nonQualifyingLocalities": ["Göda", "Birkau", "Dahren", "Seitschen", "Storcha"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
         "ags": "14625170",
         "name": "Großdubrau",
         "qualifyingLocalities": ["Sdier"],
+        "nonQualifyingLocalities": ["Großdubrau", "Brehmen", "Crosta", "Klix", "Quoos"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
         "ags": "14625240",
         "name": "Hoyerswerda",
         "qualifyingLocalities": ["Dörgenhausen"],
+        "nonQualifyingLocalities": ["Hoyerswerda", "Altstadt", "Neustadt", "Bröthen", "Knappenrode", "Zeißig"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
         "ags": "14625270",
         "name": "Königswartha",
         "qualifyingLocalities": ["Truppen"],
+        "nonQualifyingLocalities": ["Königswartha", "Caminau", "Johnsdorf", "Wartha"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
         "ags": "14625360",
         "name": "Neschwitz",
         "qualifyingLocalities": ["Caßlau", "Luga", "Neschwitz", "Saritsch", "Übigau", "Weidlitz"],
+        "nonQualifyingLocalities": ["Holscha", "Holschdubrau", "Kleinholscha", "Kronsförstchen", "Neudorf"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
         "ags": "14625430",
         "name": "Puschwitz",
         "qualifyingLocalities": ["Guhra", "Jeßnitz", "Lauske", "Neu-Jeßnitz", "Neu-Puschwitz", "Puschwitz", "Wetro"],
+        "nonQualifyingLocalities": ["Bannewitz"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
@@ -111,6 +117,7 @@
           "Lippitsch", "Lomske", "Luppa", "Luppedubrau", "Luttowitz", "Merka", "Milkwitz",
           "Milstrich", "Neu-Bornitz", "Neu-Brohna", "Quoos", "Radibor", "Strohschütz"
         ],
+        "nonQualifyingLocalities": ["Caminau", "Grünbusch", "Wessel"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       }
     ],

@@ -107,8 +107,8 @@ export const STATUTORY_LEGAL_BASES: Record<string, string> = {
   TH: "Thüringer Feiertagsgesetz (ThürFtG § 2)",
   AUGSBURG: "Augsburger Hohes Friedensfest (Art. 1 Abs. 2 FTG Bayern - nur Stadtgebiet Augsburg)",
   MARIA_HIMMELFAHRT_BY: "Mariä Himmelfahrt (Art. 1 Abs. 1 Nr. 2 FTG Bayern - nur katholische Gemeinden; Quelle: Bayerisches Landesamt für Statistik, Zensus 2022)",
-  SAXONY_FRONLEICHNAM: "Fronleichnam (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO vom 4. Mai 1993, SächsGVBl. S. 417, geänd. 30. Mai 1995 - nur katholische Gemeinden/Ortsteile im Landkreis Bautzen)",
-  THURINGIA_FRONLEICHNAM: "Fronleichnam (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales - Landkreis Eichsfeld und bestimmte katholische Gemeinden/Ortsteile)",
+  SAXONY_FRONLEICHNAM: "Fronleichnam (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO vom 4. Mai 1993, SächsGVBl. S. 417, geänd. 30. Mai 1995, SächsGVBl. S. 160 - nur katholische Gemeinden/Ortsteile im Landkreis Bautzen)",
+  THURINGIA_FRONLEICHNAM: "Fronleichnam (ThürFtG § 2 Abs. 2 vom 21. Dezember 1994 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales - Landkreis Eichsfeld und bestimmte katholische Gemeinden/Ortsteile)",
 };
 
 export type HolidayRecord = {
@@ -306,6 +306,108 @@ const KNOWN_SAXONY_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
   "riesa", "14627230",
 ]);
 
+/**
+ * Partial municipalities in Landkreis Bautzen (Sachsen) under Sächsische FronleichnamsVO:
+ * (FronleichnamsVO vom 4. Mai 1993, SächsGVBl. S. 417, geändert durch Verordnung vom 30. Mai 1995, SächsGVBl. S. 160).
+ * For each municipality, only specified Ortsteile are statutory holidays (qualifying = true).
+ * Verified official non-qualifying Ortsteile return false.
+ * Any unverified, missing, or misspelled Ortsteil returns null (policy_unresolved: AMBIGUOUS_MUNICIPAL_LOCATION).
+ */
+const SAXONY_PARTIAL_MUNICIPALITY_RULES: Record<
+  string,
+  { qualifying: Set<string>; verifiedNonQualifying: Set<string> }
+> = {
+  // Bautzen (14625020): nur Ortsteile Bolbritz und Salzenforst (§ 1 Abs. 1 Nr. 1 FronleichnamsVO)
+  bautzen: {
+    qualifying: new Set(["bolbritz", "salzenforst"]),
+    verifiedNonQualifying: new Set([
+      "auritz", "bloaschütz", "bloaschuetz", "burk", "döberkitz", "doeberkitz",
+      "gesundbrunnen", "innenstadt", "kleinseidau", "lubachau", "nadelwitz",
+      "neumalsitz", "niederuhna", "oberkaina", "oberuhna", "schmochtitz",
+      "stiebitz", "teichnitz", "temritz",
+    ]),
+  },
+  // Göda (14625160): nur Ortsteile Coblenz, Doberschau, Nedaschütz, Prischwitz
+  göda: {
+    qualifying: new Set(["coblenz", "doberschau", "nedaschütz", "nedaschuetz", "prischwitz"]),
+    verifiedNonQualifying: new Set([
+      "göda", "goeda", "birkau", "buscheritz", "dahren", "dreikretscham",
+      "großschweidnitz", "grossschweidnitz", "jannowitz", "kleinförstchen",
+      "kleinfoerstchen", "leutwitz", "muschelwitz", "oberförstchen", "oberfoerstchen",
+      "paßditz", "passditz", "pietwitz", "preske", "seitschen", "semmichau",
+      "siebitz", "spittwitz", "storcha", "zscharnitz",
+    ]),
+  },
+  // Großdubrau (14625170): nur Ortsteil Sdier
+  großdubrau: {
+    qualifying: new Set(["sdier"]),
+    verifiedNonQualifying: new Set([
+      "großdubrau", "grossdubrau", "brehmen", "crosta", "dahlowitz", "göbeln",
+      "goebeln", "großsehrchen", "grosssehrchen", "halbau", "jesnitz", "jeßnitz",
+      "klix", "kronförstchen", "kronfoerstchen", "mönau", "moenau", "neudörfel",
+      "neudoerfel", "quoos", "salga", "spreewiese", "uhyst", "zschillichau",
+    ]),
+  },
+  // Hoyerswerda (14625240): nur Ortsteil Dörgenhausen
+  hoyerswerda: {
+    qualifying: new Set(["dörgenhausen", "doergenhausen"]),
+    verifiedNonQualifying: new Set([
+      "hoyerswerda", "altstadt", "neustadt", "bröthen", "broethen", "knappenrode",
+      "michalken", "schwarzkollm", "zeißig", "zeissig",
+    ]),
+  },
+  // Königswartha (14625270): nur Ortsteil Truppen
+  königswartha: {
+    qualifying: new Set(["truppen"]),
+    verifiedNonQualifying: new Set([
+      "königswartha", "koenigswartha", "caminau", "johnsdorf", "neudorf", "wartha",
+    ]),
+  },
+  // Neschwitz (14625360): nur Ortsteile Caßlau, Luga, Neschwitz, Saritsch, Übigau, Weidlitz
+  neschwitz: {
+    qualifying: new Set([
+      "caßlau", "casslau", "luga", "neschwitz", "saritsch", "übigau", "uebigau", "weidlitz",
+    ]),
+    verifiedNonQualifying: new Set([
+      "holscha", "holschdubrau", "kleinholscha", "kronsförstchen", "kronsfoerstchen",
+      "neudorf", "pannewitz", "wetro", "zeschdorf",
+    ]),
+  },
+  // Puschwitz (14625430): nur Ortsteile Guhra, Jeßnitz, Lauske, Neu-Jeßnitz, Neu-Puschwitz, Puschwitz, Wetro
+  puschwitz: {
+    qualifying: new Set([
+      "guhra", "jeßnitz", "jessnitz", "lauske", "neu-jeßnitz", "neu-jessnitz",
+      "neu-puschwitz", "puschwitz", "wetro",
+    ]),
+    verifiedNonQualifying: new Set(["bannewitz"]),
+  },
+  // Radibor (14625490): nur die 20 Ortsteile laut FronleichnamsVO
+  radibor: {
+    qualifying: new Set([
+      "bornitz", "brohna", "camina", "cölln", "coelln", "droben", "großbrösern",
+      "grossbroesern", "kleinbrösern", "kleinbroesern", "lippitsch", "lomske",
+      "luppa", "luppedubrau", "luttowitz", "merka", "milkwitz", "milstrich",
+      "neu-bornitz", "neu-brohna", "quoos", "radibor", "strohschütz", "strohschuetz",
+    ]),
+    verifiedNonQualifying: new Set(["caminau", "grünbusch", "gruenbusch", "wessel"]),
+  },
+};
+
+const SAXONY_PARTIAL_MUNICIPALITY_ALIASES: Record<string, string> = {
+  "14625020": "bautzen",
+  "stadt bautzen": "bautzen",
+  "14625160": "göda",
+  "goeda": "göda",
+  "14625170": "großdubrau",
+  "grossdubrau": "großdubrau",
+  "14625240": "hoyerswerda",
+  "14625270": "königswartha",
+  "koenigswartha": "königswartha",
+  "14625360": "neschwitz",
+  "14625430": "puschwitz",
+  "14625490": "radibor",
+};
+
 export function isSaxonyCatholicLocation(
   municipality?: string | null,
   districtLocality?: string | null
@@ -323,63 +425,25 @@ export function isSaxonyCatholicLocation(
     return true;
   }
 
-  // 3. Bautzen: Statutory holiday ONLY in Ortsteile Bolbritz and Salzenforst (§ 1 Abs. 1 Nr. 1 FronleichnamsVO)
-  if (munNorm === "bautzen" || munNorm === "14625020" || munNorm === "stadt bautzen") {
+  // 3. Partial municipalities in Landkreis Bautzen (Sächsische FronleichnamsVO)
+  const ruleKey = SAXONY_PARTIAL_MUNICIPALITY_RULES[munNorm]
+    ? munNorm
+    : SAXONY_PARTIAL_MUNICIPALITY_ALIASES[munNorm];
+
+  if (ruleKey) {
     if (!districtLocality || !districtLocality.trim()) {
       return null; // Ambiguous without specified Ortsteil / district locality
     }
     const locNorm = districtLocality.trim().toLowerCase();
-    if (locNorm === "bolbritz" || locNorm === "salzenforst") {
+    const rule = SAXONY_PARTIAL_MUNICIPALITY_RULES[ruleKey];
+    if (rule.qualifying.has(locNorm)) {
       return true;
     }
-    return false; // Other Ortsteile (e.g. Innenstadt, Gesundbrunnen) are NOT holidays
-  }
-
-  // 4. Other partial municipalities in Landkreis Bautzen (Sächsische FronleichnamsVO Anlage)
-  if (munNorm === "göda" || munNorm === "goeda" || munNorm === "14625160") {
-    if (!districtLocality || !districtLocality.trim()) return null;
-    const locNorm = districtLocality.trim().toLowerCase();
-    return ["coblenz", "doberschau", "nedaschütz", "nedaschuetz", "prischwitz"].includes(locNorm);
-  }
-
-  if (munNorm === "großdubrau" || munNorm === "grossdubrau" || munNorm === "14625170") {
-    if (!districtLocality || !districtLocality.trim()) return null;
-    const locNorm = districtLocality.trim().toLowerCase();
-    return locNorm === "sdier";
-  }
-
-  if (munNorm === "hoyerswerda" || munNorm === "14625240") {
-    if (!districtLocality || !districtLocality.trim()) return null;
-    const locNorm = districtLocality.trim().toLowerCase();
-    return locNorm === "dörgenhausen" || locNorm === "doergenhausen";
-  }
-
-  if (munNorm === "königswartha" || munNorm === "koenigswartha" || munNorm === "14625270") {
-    if (!districtLocality || !districtLocality.trim()) return null;
-    const locNorm = districtLocality.trim().toLowerCase();
-    return locNorm === "truppen";
-  }
-
-  if (munNorm === "neschwitz" || munNorm === "14625360") {
-    if (!districtLocality || !districtLocality.trim()) return null;
-    const locNorm = districtLocality.trim().toLowerCase();
-    return ["neschwitz", "caßlau", "casslau", "luga", "saritsch", "übigau", "uebigau", "weidlitz"].includes(locNorm);
-  }
-
-  if (munNorm === "puschwitz" || munNorm === "14625430") {
-    if (!districtLocality || !districtLocality.trim()) return null;
-    const locNorm = districtLocality.trim().toLowerCase();
-    return ["guhra", "jeßnitz", "jessnitz", "lauske", "neu-jeßnitz", "neu-jessnitz", "neu-puschwitz", "puschwitz", "wetro"].includes(locNorm);
-  }
-
-  if (munNorm === "radibor" || munNorm === "14625490") {
-    if (!districtLocality || !districtLocality.trim()) return null;
-    const locNorm = districtLocality.trim().toLowerCase();
-    return [
-      "bornitz", "brohna", "camina", "cölln", "coelln", "droben", "großbrösern", "grossbroesern",
-      "kleinbrösern", "kleinbroesern", "lippitsch", "lomske", "luppa", "luppedubrau", "luttowitz",
-      "merka", "milkwitz", "milstrich", "neu-bornitz", "neu-brohna", "quoos", "radibor", "strohschütz", "strohschuetz",
-    ].includes(locNorm);
+    if (rule.verifiedNonQualifying.has(locNorm)) {
+      return false;
+    }
+    // Any unverified / misspelled / unknown Ortsteil returns null (policy_unresolved)
+    return null;
   }
 
   // Any unlisted municipality returns null (ambiguous / unresolved)
@@ -558,6 +622,43 @@ const KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
   "oppershausen", "16064053",
 ]);
 
+/**
+ * Partial municipalities in Thuringia under ThürFtG § 2 Abs. 2:
+ * (ThürFtG § 2 Abs. 2 vom 21. Dezember 1994 i.V.m. Feiertags-Merkblatt des Thüringer Innenministeriums).
+ * For each municipality, only specified Ortsteile are statutory holidays (qualifying = true).
+ * Verified official non-qualifying Ortsteile return false.
+ * Any unverified, missing, or misspelled Ortsteil returns null (policy_unresolved: AMBIGUOUS_MUNICIPAL_LOCATION).
+ */
+const THURINGIA_PARTIAL_MUNICIPALITY_RULES: Record<
+  string,
+  { qualifying: Set<string>; verifiedNonQualifying: Set<string> }
+> = {
+  // Dermbach (16063015): nur Ortsteile Zella und Brunnhartshausen
+  dermbach: {
+    qualifying: new Set(["zella", "brunnhartshausen"]),
+    verifiedNonQualifying: new Set([
+      "dermbach", "diedorf", "empfertshausen", "fischbach", "neidhartshausen",
+      "stadtlengsfeld", "urnshausen", "unteralba", "oberalba", "glattbach", "lindenau",
+    ]),
+  },
+  // Südeichsfeld (16064074): nur Ortsteile Heyerode, Hildebrandshausen, Katharinenberg, Lengenfeld unterm Stein
+  südeichsfeld: {
+    qualifying: new Set([
+      "heyerode", "hildebrandshausen", "katharinenberg",
+      "lengenfeld unterm stein", "lengenfeld",
+    ]),
+    verifiedNonQualifying: new Set([
+      "hallungen", "diedorf", "faulungen", "schierschwende", "wendehausen",
+    ]),
+  },
+};
+
+const THURINGIA_PARTIAL_MUNICIPALITY_ALIASES: Record<string, string> = {
+  "16063015": "dermbach",
+  "16064074": "südeichsfeld",
+  "suedeichsfeld": "südeichsfeld",
+};
+
 export function isThuringianCatholicLocation(
   municipality?: string | null,
   districtLocality?: string | null
@@ -580,37 +681,25 @@ export function isThuringianCatholicLocation(
     return true;
   }
 
-  // 4. Wartburgkreis partial municipality: Dermbach (16063015)
-  // Statutory holiday ONLY in Ortsteile Zella und Brunnhartshausen (Thür. MIK Feiertags-Merkblatt)
-  if (munNorm === "16063015" || munNorm === "dermbach") {
-    if (!districtLocality || !districtLocality.trim()) {
-      return null; // Ambiguous without specified Ortsteil / district locality
-    }
-    const locNorm = districtLocality.trim().toLowerCase();
-    if (locNorm === "zella" || locNorm === "brunnhartshausen") {
-      return true;
-    }
-    return false; // Other Ortsteile (Kernort Dermbach, Diedorf, etc.) are regular workdays
-  }
+  // 4. Partial municipalities in Thuringia (Dermbach and Südeichsfeld)
+  const ruleKey = THURINGIA_PARTIAL_MUNICIPALITY_RULES[munNorm]
+    ? munNorm
+    : THURINGIA_PARTIAL_MUNICIPALITY_ALIASES[munNorm];
 
-  // 5. Unstrut-Hainich-Kreis partial municipality: Südeichsfeld (16064074)
-  // Statutory holiday ONLY in Ortsteile Heyerode, Hildebrandshausen, Katharinenberg, Lengenfeld unterm Stein
-  // (Thür. MIK Feiertags-Merkblatt; Hallungen was merged in 2024 and does NOT qualify)
-  if (munNorm === "16064074" || munNorm === "südeichsfeld" || munNorm === "suedeichsfeld") {
+  if (ruleKey) {
     if (!districtLocality || !districtLocality.trim()) {
       return null; // Ambiguous without specified Ortsteil / district locality
     }
     const locNorm = districtLocality.trim().toLowerCase();
-    if (
-      locNorm === "heyerode" ||
-      locNorm === "hildebrandshausen" ||
-      locNorm === "katharinenberg" ||
-      locNorm === "lengenfeld unterm stein" ||
-      locNorm === "lengenfeld"
-    ) {
+    const rule = THURINGIA_PARTIAL_MUNICIPALITY_RULES[ruleKey];
+    if (rule.qualifying.has(locNorm)) {
       return true;
     }
-    return false; // Other Ortsteile (e.g. Hallungen) are regular workdays
+    if (rule.verifiedNonQualifying.has(locNorm)) {
+      return false;
+    }
+    // Any unverified / misspelled / unknown Ortsteil returns null (policy_unresolved: AMBIGUOUS_MUNICIPAL_LOCATION)
+    return null;
   }
 
   // Any unverified or unlisted municipality returns null (ambiguous / unresolved)
@@ -923,7 +1012,7 @@ export function resolveGermanHoliday(
           status: "policy_unresolved",
           code: "AMBIGUOUS_MUNICIPAL_LOCATION",
           message: isBautzen
-            ? "Fronleichnam in der Stadt Bautzen (14625020) ist nur in den Ortsteilen Bolbritz und Salzenforst gesetzlicher Feiertag (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO § 1 und Anlage). Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst."
+            ? "Fronleichnam in der Stadt Bautzen (14625020) ist nur in den Ortsteilen Bolbritz und Salzenforst gesetzlicher Feiertag (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO § 1 und Anlage). Ohne Angabe oder bei nicht verifiziertem Ortsteil (districtLocality) ist der Status ungelöst."
             : "Fronleichnam im Freistaat Sachsen ist nur in bestimmten katholisch geprägten Gemeinden oder Ortsteilen des Landkreises Bautzen gesetzlicher Feiertag (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO § 1 und Anlage). Die Gemeinde oder der Ortsteil ist nicht angegeben, unvollständig oder ungelöst.",
           diagnostics: {
             rawDate: isoDate,
@@ -931,7 +1020,7 @@ export function resolveGermanHoliday(
             rawMunicipality: municipalityInput || null,
             rawDistrictLocality: districtLocalityInput || null,
             reason: isBautzen
-              ? "Bautzen requires explicit districtLocality (e.g. Bolbritz or Salzenforst) to determine Fronleichnam status"
+              ? "Bautzen requires explicit verified districtLocality (e.g. Bolbritz or Salzenforst) to determine Fronleichnam status"
               : "Fronleichnam municipal status ambiguous in Saxony without verified statutory catholic municipality/Ortsteil or official AGS",
           },
         };
@@ -950,14 +1039,14 @@ export function resolveGermanHoliday(
 
         if (isSuedeichsfeld) {
           msg =
-            "Fronleichnam in der Landgemeinde Südeichsfeld (16064074) ist nur in den Ortsteilen Heyerode, Hildebrandshausen, Katharinenberg und Lengenfeld unterm Stein gesetzlicher Feiertag (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales). Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst.";
+            "Fronleichnam in der Landgemeinde Südeichsfeld (16064074) ist nur in den Ortsteilen Heyerode, Hildebrandshausen, Katharinenberg und Lengenfeld unterm Stein gesetzlicher Feiertag (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales). Ohne Angabe oder bei nicht verifiziertem Ortsteil (districtLocality) ist der Status ungelöst.";
           reason =
-            "Südeichsfeld requires explicit districtLocality (Heyerode, Hildebrandshausen, Katharinenberg, Lengenfeld unterm Stein) to determine Fronleichnam status";
+            "Südeichsfeld requires explicit verified districtLocality (Heyerode, Hildebrandshausen, Katharinenberg, Lengenfeld unterm Stein) to determine Fronleichnam status";
         } else if (isDermbach) {
           msg =
-            "Fronleichnam in der Gemeinde Dermbach (16063015) ist nur in den Ortsteilen Zella und Brunnhartshausen gesetzlicher Feiertag (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales). Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst.";
+            "Fronleichnam in der Gemeinde Dermbach (16063015) ist nur in den Ortsteilen Zella und Brunnhartshausen gesetzlicher Feiertag (ThürFtG § 2 Abs. 2 i.V.m. Feiertags-Merkblatt des Thüringer Ministeriums für Inneres und Kommunales). Ohne Angabe oder bei nicht verifiziertem Ortsteil (districtLocality) ist der Status ungelöst.";
           reason =
-            "Dermbach requires explicit districtLocality (Zella or Brunnhartshausen) to determine Fronleichnam status";
+            "Dermbach requires explicit verified districtLocality (Zella or Brunnhartshausen) to determine Fronleichnam status";
         }
 
         return {
