@@ -273,13 +273,13 @@ export function isBavarianCatholicMunicipality(municipality?: string | null): bo
  * 2. In Teilgebieten (nur bestimmte Ortsteile):
  *    - Bautzen (14625020): nur Ortsteile Bolbritz und Salzenforst (§ 1 Abs. 1 Nr. 1 FronleichnamsVO).
  *      Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst (policy_unresolved: AMBIGUOUS_MUNICIPAL_LOCATION).
- *    - Göda (14625160): nur Ortsteile Coblenz, Doberschau, Nedaschütz, Prischwitz.
- *    - Großdubrau (14625170): nur Ortsteil Sdier.
+ *    - Göda (14625150): Ortsteil Prischwitz; other locations require verified territorial evidence.
+ *    - Großdubrau (14625160): nur Ortsteil Sdier.
  *    - Hoyerswerda (14625240): nur Ortsteil Dörgenhausen.
- *    - Königswartha (14625270): nur Ortsteil Truppen.
+ *    - Königswartha (14625280): Königswartha und Truppen; other locations require verified historical boundaries.
  *    - Neschwitz (14625360): nur Ortsteile Caßlau, Luga, Neschwitz, Saritsch, Übigau, Weidlitz.
- *    - Puschwitz (14625430): nur Ortsteile Guhra, Jeßnitz, Lauske, Neu-Jeßnitz, Neu-Puschwitz, Puschwitz, Wetro.
- *    - Radibor (14625490): nur Ortsteile Bornitz, Brohna, Camina, Cölln, Droben, Großbrösern, Kleinbrösern, Lippitsch, Lomske, Luppa, Luppedubrau, Luttowitz, Merka, Milkwitz, Milstrich, Neu-Bornitz, Neu-Brohna, Quoos, Radibor, Strohschütz.
+ *    - Puschwitz (14625460): nur belegte Ortsteile Guhra, Jeßnitz, Lauske, Neu-Jeßnitz, Neu-Puschwitz, Puschwitz, Wetro.
+ *    - Radibor (14625490): nur belegte Ortsteile Bornitz, Brohna, Camina, Cölln, Droben, Großbrösern, Kleinbrösern, Lippitsch, Lomske, Luppa, Luppedubrau, Luttowitz, Merka, Milkwitz, Neu-Bornitz, Neu-Brohna, Quoos, Radibor, Strohschütz.
  */
 const KNOWN_SAXONY_FULL_CATHOLIC_MUNICIPALITIES = new Set<string>([
   "crostwitz", "chrósćicy", "14625080",
@@ -327,40 +327,27 @@ const SAXONY_PARTIAL_MUNICIPALITY_RULES: Record<
       "stiebitz", "teichnitz", "temritz",
     ]),
   },
-  // Göda (14625160): nur Ortsteile Coblenz, Doberschau, Nedaschütz, Prischwitz
+  // Göda (14625150): Prischwitz is named in FronleichnamsVO; Coblenz and Nedaschütz are not.
   göda: {
-    qualifying: new Set(["coblenz", "doberschau", "nedaschütz", "nedaschuetz", "prischwitz"]),
-    verifiedNonQualifying: new Set([
-      "göda", "goeda", "birkau", "buscheritz", "dahren", "dreikretscham",
-      "großschweidnitz", "grossschweidnitz", "jannowitz", "kleinförstchen",
-      "kleinfoerstchen", "leutwitz", "muschelwitz", "oberförstchen", "oberfoerstchen",
-      "paßditz", "passditz", "pietwitz", "preske", "seitschen", "semmichau",
-      "siebitz", "spittwitz", "storcha", "zscharnitz",
-    ]),
+    qualifying: new Set(["prischwitz"]),
+    // Göda and Coblenz were separate from the listed Prischwitz municipality in 1993.
+    verifiedNonQualifying: new Set(["göda", "goeda", "coblenz", "nedaschütz", "nedaschuetz"]),
   },
-  // Großdubrau (14625170): nur Ortsteil Sdier
+  // Großdubrau (14625160): nur Ortsteil Sdier
   großdubrau: {
     qualifying: new Set(["sdier"]),
-    verifiedNonQualifying: new Set([
-      "großdubrau", "grossdubrau", "brehmen", "crosta", "dahlowitz", "göbeln",
-      "goebeln", "großsehrchen", "grosssehrchen", "halbau", "jesnitz", "jeßnitz",
-      "klix", "kronförstchen", "kronfoerstchen", "mönau", "moenau", "neudörfel",
-      "neudoerfel", "quoos", "salga", "spreewiese", "uhyst", "zschillichau",
-    ]),
+    verifiedNonQualifying: new Set(["großdubrau", "grossdubrau"]),
   },
   // Hoyerswerda (14625240): nur Ortsteil Dörgenhausen
   hoyerswerda: {
     qualifying: new Set(["dörgenhausen", "doergenhausen"]),
-    verifiedNonQualifying: new Set([
-      "hoyerswerda", "altstadt", "neustadt", "bröthen", "broethen", "knappenrode",
-      "michalken", "schwarzkollm", "zeißig", "zeissig",
-    ]),
+    verifiedNonQualifying: new Set(["hoyerswerda"]),
   },
-  // Königswartha (14625270): nur Ortsteil Truppen
+  // Königswartha (14625280): Königswartha is named in FronleichnamsVO; Truppen belonged to it by 1957.
   königswartha: {
-    qualifying: new Set(["truppen"]),
+    qualifying: new Set(["königswartha", "koenigswartha", "truppen"]),
     verifiedNonQualifying: new Set([
-      "königswartha", "koenigswartha", "caminau", "johnsdorf", "neudorf", "wartha",
+      "wartha",
     ]),
   },
   // Neschwitz (14625360): nur Ortsteile Caßlau, Luga, Neschwitz, Saritsch, Übigau, Weidlitz
@@ -368,43 +355,40 @@ const SAXONY_PARTIAL_MUNICIPALITY_RULES: Record<
     qualifying: new Set([
       "caßlau", "casslau", "luga", "neschwitz", "saritsch", "übigau", "uebigau", "weidlitz",
     ]),
-    verifiedNonQualifying: new Set([
-      "holscha", "holschdubrau", "kleinholscha", "kronsförstchen", "kronsfoerstchen",
-      "neudorf", "pannewitz", "wetro", "zeschdorf",
-    ]),
+    verifiedNonQualifying: new Set(),
   },
-  // Puschwitz (14625430): nur Ortsteile Guhra, Jeßnitz, Lauske, Neu-Jeßnitz, Neu-Puschwitz, Puschwitz, Wetro
+  // Puschwitz (14625460): nur Ortsteile Guhra, Jeßnitz, Lauske, Neu-Jeßnitz, Neu-Puschwitz, Puschwitz, Wetro
   puschwitz: {
     qualifying: new Set([
       "guhra", "jeßnitz", "jessnitz", "lauske", "neu-jeßnitz", "neu-jessnitz",
       "neu-puschwitz", "puschwitz", "wetro",
     ]),
-    verifiedNonQualifying: new Set(["bannewitz"]),
+    verifiedNonQualifying: new Set(),
   },
   // Radibor (14625490): nur die 20 Ortsteile laut FronleichnamsVO
   radibor: {
     qualifying: new Set([
       "bornitz", "brohna", "camina", "cölln", "coelln", "droben", "großbrösern",
       "grossbroesern", "kleinbrösern", "kleinbroesern", "lippitsch", "lomske",
-      "luppa", "luppedubrau", "luttowitz", "merka", "milkwitz", "milstrich",
+      "luppa", "luppedubrau", "luttowitz", "merka", "milkwitz",
       "neu-bornitz", "neu-brohna", "quoos", "radibor", "strohschütz", "strohschuetz",
     ]),
-    verifiedNonQualifying: new Set(["caminau", "grünbusch", "gruenbusch", "wessel"]),
+    verifiedNonQualifying: new Set(),
   },
 };
 
 const SAXONY_PARTIAL_MUNICIPALITY_ALIASES: Record<string, string> = {
   "14625020": "bautzen",
   "stadt bautzen": "bautzen",
-  "14625160": "göda",
+  "14625150": "göda",
   "goeda": "göda",
-  "14625170": "großdubrau",
+  "14625160": "großdubrau",
   "grossdubrau": "großdubrau",
   "14625240": "hoyerswerda",
-  "14625270": "königswartha",
+  "14625280": "königswartha",
   "koenigswartha": "königswartha",
   "14625360": "neschwitz",
-  "14625430": "puschwitz",
+  "14625460": "puschwitz",
   "14625490": "radibor",
 };
 

@@ -444,39 +444,41 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(isSaxonyCatholicMunicipality("Bautzen", "Innenstadt")).toBe(false);
       expect(isSaxonyCatholicMunicipality("Bautzen", "Salzenforstt")).toBeNull(); // Typo must NOT return false
 
-      // Göda (14625160)
-      expect(isSaxonyCatholicMunicipality("14625160", "Coblenz")).toBe(true);
-      expect(isSaxonyCatholicMunicipality("14625160", "Göda")).toBe(false);
-      expect(isSaxonyCatholicMunicipality("14625160", "Coblenzz")).toBeNull();
+      // Göda (14625150). Coblenz was a separate municipality when the VO was enacted.
+      expect(isSaxonyCatholicMunicipality("14625150", "Prischwitz")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625150", "Göda")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625150", "Coblenz")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625150", "Prischwitzz")).toBeNull();
 
-      // Großdubrau (14625170)
-      expect(isSaxonyCatholicMunicipality("14625170", "Sdier")).toBe(true);
-      expect(isSaxonyCatholicMunicipality("14625170", "Großdubrau")).toBe(false);
-      expect(isSaxonyCatholicMunicipality("14625170", "Sdierr")).toBeNull();
+      // Großdubrau (14625160)
+      expect(isSaxonyCatholicMunicipality("14625160", "Sdier")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625160", "Großdubrau")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625160", "Sdierr")).toBeNull();
 
       // Hoyerswerda (14625240)
       expect(isSaxonyCatholicMunicipality("14625240", "Dörgenhausen")).toBe(true);
       expect(isSaxonyCatholicMunicipality("14625240", "Hoyerswerda")).toBe(false);
       expect(isSaxonyCatholicMunicipality("14625240", "Dörgenhausenn")).toBeNull();
 
-      // Königswartha (14625270)
-      expect(isSaxonyCatholicMunicipality("14625270", "Truppen")).toBe(true);
-      expect(isSaxonyCatholicMunicipality("14625270", "Königswartha")).toBe(false);
-      expect(isSaxonyCatholicMunicipality("14625270", "Truppenn")).toBeNull();
+      // Königswartha (14625280) itself is named in the FronleichnamsVO.
+      expect(isSaxonyCatholicMunicipality("14625280", "Truppen")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625280", "Königswartha")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625280", "Wartha")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625280", "Truppenn")).toBeNull();
 
       // Neschwitz (14625360)
       expect(isSaxonyCatholicMunicipality("14625360", "Caßlau")).toBe(true);
-      expect(isSaxonyCatholicMunicipality("14625360", "Holscha")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625360", "Holscha")).toBeNull();
       expect(isSaxonyCatholicMunicipality("14625360", "Caßlauu")).toBeNull();
 
-      // Puschwitz (14625430)
-      expect(isSaxonyCatholicMunicipality("14625430", "Guhra")).toBe(true);
-      expect(isSaxonyCatholicMunicipality("14625430", "Bannewitz")).toBe(false);
-      expect(isSaxonyCatholicMunicipality("14625430", "Guhraa")).toBeNull();
+      // Puschwitz (14625460)
+      expect(isSaxonyCatholicMunicipality("14625460", "Guhra")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625460", "Bannewitz")).toBeNull();
+      expect(isSaxonyCatholicMunicipality("14625460", "Guhraa")).toBeNull();
 
       // Radibor (14625490)
       expect(isSaxonyCatholicMunicipality("14625490", "Bornitz")).toBe(true);
-      expect(isSaxonyCatholicMunicipality("14625490", "Caminau")).toBe(false);
+      expect(isSaxonyCatholicMunicipality("14625490", "Caminau")).toBeNull();
       expect(isSaxonyCatholicMunicipality("14625490", "Bornitzz")).toBeNull();
 
       expect(isSaxonyCatholicMunicipality("Dresden")).toBe(false);

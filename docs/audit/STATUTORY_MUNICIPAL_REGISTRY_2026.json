@@ -15,8 +15,9 @@
       },
       "municipalTerritoryAuthority": {
         "authority": "Statistisches Landesamt des Freistaates Sachsen / GV-ISys",
-        "sourceUrl": "https://www.statistikportal.de/de/gemeindeverzeichnis",
-        "purpose": "Amtliche Gemeindeschlüssel (AGS) und Gebietsstand"
+        "sourceUrl": "https://www.statistik.sachsen.de/download/verzeichnisse/Verzeichnis_statistik-sachsen_gemeinden-gemeindeteile.pdf",
+        "sourceTerritoryDate": "2025-10-01",
+        "purpose": "Amtliche Gemeindeschlüssel (AGS) und Gemeinde-Gemeindeteil-Zuordnung im Landkreis Bautzen; die Ausgabe wurde 2026 nur für Dresden aktualisiert. Vor produktiver Aktivierung spätere Bautzener Gebietsänderungen prüfen"
       }
     },
     "TH_FRONLEICHNAM": {
@@ -68,45 +69,45 @@
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
-        "ags": "14625160",
+        "ags": "14625150",
         "name": "Göda",
-        "qualifyingLocalities": ["Coblenz", "Doberschau", "Nedaschütz", "Prischwitz"],
-        "nonQualifyingLocalities": ["Göda", "Birkau", "Dahren", "Seitschen", "Storcha"],
+        "qualifyingLocalities": ["Prischwitz"],
+        "nonQualifyingLocalities": ["Göda", "Coblenz", "Nedaschütz"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
-        "ags": "14625170",
+        "ags": "14625160",
         "name": "Großdubrau",
         "qualifyingLocalities": ["Sdier"],
-        "nonQualifyingLocalities": ["Großdubrau", "Brehmen", "Crosta", "Klix", "Quoos"],
+        "nonQualifyingLocalities": ["Großdubrau"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
         "ags": "14625240",
         "name": "Hoyerswerda",
         "qualifyingLocalities": ["Dörgenhausen"],
-        "nonQualifyingLocalities": ["Hoyerswerda", "Altstadt", "Neustadt", "Bröthen", "Knappenrode", "Zeißig"],
+        "nonQualifyingLocalities": ["Hoyerswerda"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
-        "ags": "14625270",
+        "ags": "14625280",
         "name": "Königswartha",
-        "qualifyingLocalities": ["Truppen"],
-        "nonQualifyingLocalities": ["Königswartha", "Caminau", "Johnsdorf", "Wartha"],
+        "qualifyingLocalities": ["Königswartha", "Truppen"],
+        "nonQualifyingLocalities": ["Wartha"],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
         "ags": "14625360",
         "name": "Neschwitz",
         "qualifyingLocalities": ["Caßlau", "Luga", "Neschwitz", "Saritsch", "Übigau", "Weidlitz"],
-        "nonQualifyingLocalities": ["Holscha", "Holschdubrau", "Kleinholscha", "Kronsförstchen", "Neudorf"],
+        "nonQualifyingLocalities": [],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
-        "ags": "14625430",
+        "ags": "14625460",
         "name": "Puschwitz",
         "qualifyingLocalities": ["Guhra", "Jeßnitz", "Lauske", "Neu-Jeßnitz", "Neu-Puschwitz", "Puschwitz", "Wetro"],
-        "nonQualifyingLocalities": ["Bannewitz"],
+        "nonQualifyingLocalities": [],
         "unspecifiedLocalityStatus": "policy_unresolved"
       },
       {
@@ -115,9 +116,9 @@
         "qualifyingLocalities": [
           "Bornitz", "Brohna", "Camina", "Cölln", "Droben", "Großbrösern", "Kleinbrösern",
           "Lippitsch", "Lomske", "Luppa", "Luppedubrau", "Luttowitz", "Merka", "Milkwitz",
-          "Milstrich", "Neu-Bornitz", "Neu-Brohna", "Quoos", "Radibor", "Strohschütz"
+          "Neu-Bornitz", "Neu-Brohna", "Quoos", "Radibor", "Strohschütz"
         ],
-        "nonQualifyingLocalities": ["Caminau", "Grünbusch", "Wessel"],
+        "nonQualifyingLocalities": [],
         "unspecifiedLocalityStatus": "policy_unresolved"
       }
     ],
