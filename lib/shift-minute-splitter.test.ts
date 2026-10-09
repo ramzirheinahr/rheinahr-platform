@@ -438,7 +438,8 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
         expect(result.breakMinutes).toBe(30);
         expect(result.netWorkMinutes).toBe(480);
         expect(result.intervals.reduce((a, b) => a + b.durationMinutes, 0)).toBe(480);
-        expect(result.breakIntervals.reduce((a, b) => a + b.durationMinutes, 0)).toBe(30);
+        // Duration-only breaks do not synthesize fake physical intervals
+        expect(result.breakIntervals).toHaveLength(0);
       }
     });
 

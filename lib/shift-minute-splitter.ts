@@ -24,6 +24,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 import {
   evaluateMinuteSurcharges,
+  computePolicyCanonicalHash,
   type ResolvedSurchargePolicySuccess,
   type SurchargeCombinationRule,
   type SurchargeComponent,
@@ -117,10 +118,13 @@ export type PreparedWorkLineItem = {
     | "surcharge_sunday"
     | "surcharge_holiday"
     | "surcharge_night";
+  surchargePolicyId: string;
+  surchargePolicyVersion: number;
   priceVersionId: string;
   minutes: number;
-  rateMultiplier: number; // 1.0 for base, rateMultiplier for combined
-  rateFraction: number;   // 0 for base, effective surcharge fraction for surcharge line
+  rateMultiplier: number;     // 1.0 for base, composite multiplier (1 + surchargeFraction) for diagnostics
+  rateFraction: number;       // Surcharge percentage: 0 for base, +0.25 for +25%, etc.
+  surchargeFraction: number;  // Explicit incremental surcharge percentage
   combinationRule: SurchargeCombinationRule;
   descriptionDE: string;
 };
@@ -184,6 +188,7 @@ export type ShiftMinuteSplitUnresolvedCode =
   | "CLIENT_POLICY_MISMATCH"
   | "MISSING_POLICY"
   | "MISSING_EFFECTIVE_HOURS_VERSION"
+  | "EFFECTIVE_HOURS_MISMATCH"
   | "MISSING_WORKER_ID"
   | "MISSING_CLIENT_ID"
   | "UNSUPPORTED_DATE_RANGE";
@@ -265,15 +270,17 @@ export function validateMinuteSplittingInvariants(
     );
   }
 
-  // 3. Sum of break interval durations = breakMinutes
-  const sumBreakIntervals = result.breakIntervals.reduce(
-    (acc, it) => acc + it.durationMinutes,
-    0
-  );
-  if (sumBreakIntervals !== result.breakMinutes) {
-    errors.push(
-      `Invariant failed: sum of breakIntervals (${sumBreakIntervals}) != breakMinutes (${result.breakMinutes})`
+  // 3. Sum of break interval durations = breakMinutes (when physical break intervals are present)
+  if (result.breakIntervals.length > 0) {
+    const sumBreakIntervals = result.breakIntervals.reduce(
+      (acc, it) => acc + it.durationMinutes,
+      0
     );
+    if (sumBreakIntervals !== result.breakMinutes) {
+      errors.push(
+        `Invariant failed: sum of breakIntervals (${sumBreakIntervals}) != breakMinutes (${result.breakMinutes})`
+      );
+    }
   }
 
   // 4. Base line item minutes = netWorkMinutes
@@ -365,6 +372,43 @@ export function splitShiftMinutes(
     };
   }
 
+  // Verify that the terms of the frozen policy strictly match its frozenHash (anti-tampering check)
+  const calculatedPolicyHash = computePolicyCanonicalHash({
+    clientId: input.policy.clientId,
+    clientContractId: input.policy.clientContractId,
+    policyVersion: input.policy.policyVersion,
+    federalState: input.policy.federalState,
+    municipality: input.policy.municipality,
+    districtLocality: input.policy.districtLocality,
+    surchargeSat: input.policy.surcharges.sat,
+    surchargeSun: input.policy.surcharges.sun,
+    surchargeHoliday: input.policy.surcharges.holiday,
+    surchargeNight: input.policy.surcharges.night,
+    nightStart: input.policy.nightWindow.start,
+    nightEnd: input.policy.nightWindow.end,
+    combinationRule: input.policy.combinationRule,
+    sourceType: input.policy.sourceType,
+    sourceReference: input.policy.sourceReference,
+    effectiveFrom: input.policy.effectiveFrom,
+    effectiveTo: input.policy.effectiveTo,
+  });
+
+  if (input.policy.frozenHash !== calculatedPolicyHash) {
+    return {
+      status: "unresolved",
+      code: "POLICY_UNRESOLVED",
+      message: `Die Prüfsumme der eingefrorenen Richtlinie stimmt nicht mit ihren Bedingungen überein (Erwartet: ${calculatedPolicyHash}, Hinterlegt: ${input.policy.frozenHash || "null"}).`,
+      diagnostics: {
+        shiftId: input.shiftId,
+        clientId: input.clientId,
+        policyId: input.policy.policyId,
+        underlyingPolicyCode: "TAMPERED_FROZEN_POLICY",
+        expectedHash: calculatedPolicyHash,
+        actualHash: input.policy.frozenHash,
+      },
+    };
+  }
+
   // 3. Effective Work Hours Reference Validation
   if (
     !input.effectiveWorkHoursRef ||
@@ -389,9 +433,38 @@ export function splitShiftMinutes(
   let explicitEndDayIso: string | null = null;
   let startUtcMs = 0;
   let endUtcMs = 0;
+  let isExplicitTimestampInput = false;
 
   if (input.startDateTime && input.endDateTime) {
     // Explicit Date / ISO string input
+    isExplicitTimestampInput = true;
+
+    // Validate explicit timezone offset if string
+    if (typeof input.startDateTime === "string") {
+      const sTrim = input.startDateTime.trim();
+      if (!/(Z|[+-]\d{2}(:?\d{2})?)$/.test(sTrim)) {
+        return {
+          status: "unresolved",
+          code: "INVALID_TIME_FORMAT",
+          message:
+            "startDateTime muss eine explizite Zeitzonenangabe oder einen UTC-Offset (z.B. 'Z' oder '+01:00') besitzen.",
+          diagnostics: { shiftId: input.shiftId, startDateTime: input.startDateTime },
+        };
+      }
+    }
+    if (typeof input.endDateTime === "string") {
+      const eTrim = input.endDateTime.trim();
+      if (!/(Z|[+-]\d{2}(:?\d{2})?)$/.test(eTrim)) {
+        return {
+          status: "unresolved",
+          code: "INVALID_TIME_FORMAT",
+          message:
+            "endDateTime muss eine explizite Zeitzonenangabe oder einen UTC-Offset (z.B. 'Z' oder '+01:00') besitzen.",
+          diagnostics: { shiftId: input.shiftId, endDateTime: input.endDateTime },
+        };
+      }
+    }
+
     const sDate =
       input.startDateTime instanceof Date
         ? input.startDateTime
@@ -406,6 +479,26 @@ export function splitShiftMinutes(
         status: "unresolved",
         code: "INVALID_TIME_FORMAT",
         message: "Ungültige Zeitstempel in startDateTime oder endDateTime.",
+        diagnostics: {
+          shiftId: input.shiftId,
+          startDateTime: String(input.startDateTime),
+          endDateTime: String(input.endDateTime),
+        },
+      };
+    }
+
+    // Require minute precision (non-zero seconds or milliseconds rejected)
+    if (
+      sDate.getUTCSeconds() !== 0 ||
+      sDate.getUTCMilliseconds() !== 0 ||
+      eDate.getUTCSeconds() !== 0 ||
+      eDate.getUTCMilliseconds() !== 0
+    ) {
+      return {
+        status: "unresolved",
+        code: "INVALID_TIME_FORMAT",
+        message:
+          "Arbeitszeiten müssen minutengenau angegeben werden (Sekunden und Millisekunden müssen 0 sein).",
         diagnostics: {
           shiftId: input.shiftId,
           startDateTime: String(input.startDateTime),
@@ -598,27 +691,47 @@ export function splitShiftMinutes(
 
   // 5. Generate Minute Grid
   const minutes: InternalMinute[] = [];
-  let currDateIso = startDayIso;
-  let currMinuteOfDay = startH * 60 + startMin;
-  const targetEndMinuteOfDay = endH * 60 + endMin;
-  const targetEndDateIso = explicitEndDayIso || startDayIso;
 
-  let minuteIdx = 0;
-  while (true) {
-    if (currDateIso === targetEndDateIso && currMinuteOfDay === targetEndMinuteOfDay) {
-      break;
+  if (isExplicitTimestampInput) {
+    // Explicit timestamps: strictly iterate physical UTC minutes (DST-safe)
+    const physicalMinutes = Math.round((endUtcMs - startUtcMs) / 60000);
+    for (let i = 0; i < physicalMinutes; i++) {
+      const curUtcMs = startUtcMs + i * 60000;
+      const curFmt = formatInTimeZone(curUtcMs, tz, "yyyy-MM-dd HH:mm");
+      const dateIso = curFmt.slice(0, 10);
+      const hour = Number(curFmt.slice(11, 13));
+      const min = Number(curFmt.slice(14, 16));
+      minutes.push({
+        minuteIndex: i,
+        dateIso,
+        minuteOfDay: hour * 60 + min,
+        isBreak: false,
+      });
     }
-    minutes.push({
-      minuteIndex: minuteIdx++,
-      dateIso: currDateIso,
-      minuteOfDay: currMinuteOfDay,
-      isBreak: false,
-    });
+  } else {
+    // Wall clock shiftDate + startTime/endTime: iterate wall clock minutes
+    let currDateIso = startDayIso;
+    let currMinuteOfDay = startH * 60 + startMin;
+    const targetEndMinuteOfDay = endH * 60 + endMin;
+    const targetEndDateIso = explicitEndDayIso || startDayIso;
 
-    currMinuteOfDay++;
-    if (currMinuteOfDay === 1440) {
-      currMinuteOfDay = 0;
-      currDateIso = advanceCalendarDay(currDateIso);
+    let minuteIdx = 0;
+    while (true) {
+      if (currDateIso === targetEndDateIso && currMinuteOfDay === targetEndMinuteOfDay) {
+        break;
+      }
+      minutes.push({
+        minuteIndex: minuteIdx++,
+        dateIso: currDateIso,
+        minuteOfDay: currMinuteOfDay,
+        isBreak: false,
+      });
+
+      currMinuteOfDay++;
+      if (currMinuteOfDay === 1440) {
+        currMinuteOfDay = 0;
+        currDateIso = advanceCalendarDay(currDateIso);
+      }
     }
   }
 
@@ -766,42 +879,100 @@ export function splitShiftMinutes(
       })
     );
 
+    // Contractual proportional break allocation requires explicit documented source reference
+    if (
+      input.contractualBreakAllocationRule === "proportional" &&
+      (!input.breakAllocationSourceReference ||
+        !input.breakAllocationSourceReference.trim())
+    ) {
+      return {
+        status: "unresolved",
+        code: "UNRESOLVED_BREAK_ALLOCATION",
+        message:
+          "Für eine proportionale Pausenaufteilung ist eine dokumentierte Quelle (breakAllocationSourceReference) zwingend erforderlich.",
+        diagnostics: {
+          shiftId: input.shiftId,
+          contractualBreakAllocationRule: input.contractualBreakAllocationRule,
+          breakAllocationSourceReference: input.breakAllocationSourceReference,
+        },
+      };
+    }
+
     if (distinctProfiles.size > 1) {
       // Crosses surcharge boundaries!
       if (input.contractualBreakAllocationRule === "proportional") {
-        // Contractually documented proportional allocation
-        // Count minutes per category profile
-        const profileMinutes = new Map<string, number>();
+
+        // Proportional allocation via Largest Remainder Method (Hamilton Method)
+        const profileCounts = new Map<string, number>();
         for (const ev of evaluatedAll) {
           if (ev.status !== "resolved") continue;
           const key = `${ev.applicableComponents.slice().sort().join("+")}|${ev.rateMultiplier}`;
-          profileMinutes.set(key, (profileMinutes.get(key) || 0) + 1);
+          profileCounts.set(key, (profileCounts.get(key) || 0) + 1);
         }
 
-        // Distribute break proportionally
-        // We will mark break minutes proportionally from the end of each category cluster
-        const breakDeductionPerProfile = new Map<string, number>();
-        let allocatedSum = 0;
+        type ProfileAllocation = {
+          key: string;
+          count: number;
+          exactQuota: number;
+          baseQuota: number;
+          remainder: number;
+          allocation: number;
+        };
 
-        for (const [key, count] of profileMinutes.entries()) {
-          const alloc = Math.round((count / grossShiftMinutes) * totalBreakMinutes);
-          breakDeductionPerProfile.set(key, alloc);
-          allocatedSum += alloc;
+        const profileList: ProfileAllocation[] = [];
+        let allocatedBaseSum = 0;
+
+        for (const [key, count] of profileCounts.entries()) {
+          const exactQuota = (count * totalBreakMinutes) / grossShiftMinutes;
+          const baseQuota = Math.floor(exactQuota);
+          const remainder = exactQuota - baseQuota;
+          profileList.push({
+            key,
+            count,
+            exactQuota,
+            baseQuota,
+            remainder,
+            allocation: baseQuota,
+          });
+          allocatedBaseSum += baseQuota;
         }
 
-        // Adjust rounding delta to guarantee exact sum
-        const delta = totalBreakMinutes - allocatedSum;
-        if (delta !== 0) {
-          const firstKey = profileMinutes.keys().next().value;
-          if (firstKey) {
-            breakDeductionPerProfile.set(
-              firstKey,
-              (breakDeductionPerProfile.get(firstKey) || 0) + delta
-            );
+        let deficit = totalBreakMinutes - allocatedBaseSum;
+
+        // Sort descending by remainder, tie-break deterministically by key
+        profileList.sort((a, b) => {
+          if (b.remainder !== a.remainder) {
+            return b.remainder - a.remainder;
+          }
+          return a.key.localeCompare(b.key);
+        });
+
+        // Distribute remaining break minutes to highest remainders with capacity
+        for (const p of profileList) {
+          if (deficit === 0) break;
+          if (p.allocation < p.count) {
+            p.allocation++;
+            deficit--;
           }
         }
 
-        // Apply deduction to minutes
+        // Failsafe in case any profile was saturated
+        if (deficit > 0) {
+          for (const p of profileList) {
+            if (deficit === 0) break;
+            const canAdd = p.count - p.allocation;
+            const add = Math.min(deficit, canAdd);
+            p.allocation += add;
+            deficit -= add;
+          }
+        }
+
+        const breakDeductionPerProfile = new Map<string, number>();
+        for (const p of profileList) {
+          breakDeductionPerProfile.set(p.key, p.allocation);
+        }
+
+        // Apply deduction to minutes from the end of each category cluster
         const deductedCounter = new Map<string, number>();
         for (let i = minutes.length - 1; i >= 0; i--) {
           const ev = evaluatedAll[i];
@@ -839,43 +1010,45 @@ export function splitShiftMinutes(
     }
   }
 
-  // Build Break Intervals
-  let curBreakStart: InternalMinute | null = null;
-  let breakIntIdx = 1;
+  // Build Break Intervals ONLY when physical break windows were provided (do not synthesize for accounting deductions)
+  if (input.breakWindows && input.breakWindows.length > 0) {
+    let curBreakStart: InternalMinute | null = null;
+    let breakIntIdx = 1;
 
-  for (let i = 0; i < minutes.length; i++) {
-    const m = minutes[i];
-    if (m.isBreak) {
-      if (!curBreakStart) {
-        curBreakStart = m;
-      }
-    } else {
-      if (curBreakStart) {
-        const lastM = minutes[i - 1];
-        breakIntervals.push({
-          intervalIndex: breakIntIdx++,
-          dateIso: curBreakStart.dateIso,
-          startMinuteOfDay: curBreakStart.minuteOfDay,
-          endMinuteOfDay: lastM.minuteOfDay + 1,
-          startTime: minuteOfDayToHHMM(curBreakStart.minuteOfDay),
-          endTime: minuteOfDayToHHMM(lastM.minuteOfDay + 1),
-          durationMinutes: i - curBreakStart.minuteIndex,
-        });
-        curBreakStart = null;
+    for (let i = 0; i < minutes.length; i++) {
+      const m = minutes[i];
+      if (m.isBreak) {
+        if (!curBreakStart) {
+          curBreakStart = m;
+        }
+      } else {
+        if (curBreakStart) {
+          const lastM = minutes[i - 1];
+          breakIntervals.push({
+            intervalIndex: breakIntIdx++,
+            dateIso: curBreakStart.dateIso,
+            startMinuteOfDay: curBreakStart.minuteOfDay,
+            endMinuteOfDay: lastM.minuteOfDay + 1,
+            startTime: minuteOfDayToHHMM(curBreakStart.minuteOfDay),
+            endTime: minuteOfDayToHHMM(lastM.minuteOfDay + 1),
+            durationMinutes: i - curBreakStart.minuteIndex,
+          });
+          curBreakStart = null;
+        }
       }
     }
-  }
-  if (curBreakStart) {
-    const lastM = minutes[minutes.length - 1];
-    breakIntervals.push({
-      intervalIndex: breakIntIdx++,
-      dateIso: curBreakStart.dateIso,
-      startMinuteOfDay: curBreakStart.minuteOfDay,
-      endMinuteOfDay: lastM.minuteOfDay + 1,
-      startTime: minuteOfDayToHHMM(curBreakStart.minuteOfDay),
-      endTime: minuteOfDayToHHMM(lastM.minuteOfDay + 1),
-      durationMinutes: minutes.length - curBreakStart.minuteIndex,
-    });
+    if (curBreakStart) {
+      const lastM = minutes[minutes.length - 1];
+      breakIntervals.push({
+        intervalIndex: breakIntIdx++,
+        dateIso: curBreakStart.dateIso,
+        startMinuteOfDay: curBreakStart.minuteOfDay,
+        endMinuteOfDay: lastM.minuteOfDay + 1,
+        startTime: minuteOfDayToHHMM(curBreakStart.minuteOfDay),
+        endTime: minuteOfDayToHHMM(lastM.minuteOfDay + 1),
+        durationMinutes: minutes.length - curBreakStart.minuteIndex,
+      });
+    }
   }
 
   // 7. Evaluate Working Minutes & Discretize Intervals
@@ -888,6 +1061,28 @@ export function splitShiftMinutes(
       code: "INVALID_TIME_INTERVAL",
       message: "Nettoarbeitszeit nach Pausenabzug beträgt 0 Minuten.",
       diagnostics: { shiftId: input.shiftId, grossShiftMinutes, totalBreakMinutes },
+    };
+  }
+
+  // Reconcile calculated netWorkMinutes with confirmed effective hours (DIN 1333 commercial hundredths comparison)
+  const calculatedHundredths = Math.round((netWorkMinutes * 100) / 60);
+  const confirmedHundredths = Math.round(
+    input.effectiveWorkHoursRef.effectiveHours * 100
+  );
+  if (calculatedHundredths !== confirmedHundredths) {
+    return {
+      status: "unresolved",
+      code: "EFFECTIVE_HOURS_MISMATCH",
+      message: `Berechnete Nettoarbeitszeit (${netWorkMinutes} Min. = ${(netWorkMinutes / 60).toFixed(2)} Std.) weicht von den bestätigten Arbeitsstunden (${input.effectiveWorkHoursRef.effectiveHours.toFixed(2)} Std.) ab.`,
+      diagnostics: {
+        shiftId: input.shiftId,
+        calculatedNetWorkMinutes: netWorkMinutes,
+        calculatedHundredths,
+        confirmedEffectiveHours: input.effectiveWorkHoursRef.effectiveHours,
+        confirmedHundredths,
+        effectiveHoursVersion: input.effectiveWorkHoursRef.effectiveVersion,
+        effectiveHoursSource: input.effectiveWorkHoursRef.source,
+      },
     };
   }
 
@@ -1066,79 +1261,94 @@ function getEffectiveSurchargeComponents(
   // 10. Prepare Structured Line Items for Phase 5 exact billing
   const preparedLineItems: PreparedWorkLineItem[] = [];
 
-  // Base Line Item
+  // Base Line Item (bills 100% of base rate, incremental surcharge fraction = 0)
   preparedLineItems.push({
     workerId: input.workerId,
     workerName: input.workerName,
     qualification: input.qualification,
     itemCategory: "base",
+    surchargePolicyId: input.policy.policyId,
+    surchargePolicyVersion: input.policy.policyVersion,
     priceVersionId: input.policy.policyId,
     minutes: netWorkMinutes,
     rateMultiplier: 1.0,
     rateFraction: 0,
+    surchargeFraction: 0,
     combinationRule: input.policy.combinationRule,
     descriptionDE: `Grundvergütung (${(netWorkMinutes / 60).toFixed(2)} Std.)`,
   });
 
-  // Saturday Surcharge Item
+  // Saturday Surcharge Item (bills incremental surcharge percentage only, avoiding base double-counting)
   if (saturdayMinutes > 0) {
     preparedLineItems.push({
       workerId: input.workerId,
       workerName: input.workerName,
       qualification: input.qualification,
       itemCategory: "surcharge_saturday",
+      surchargePolicyId: input.policy.policyId,
+      surchargePolicyVersion: input.policy.policyVersion,
       priceVersionId: input.policy.policyId,
       minutes: saturdayMinutes,
       rateMultiplier: 1 + input.policy.surcharges.sat,
       rateFraction: input.policy.surcharges.sat,
+      surchargeFraction: input.policy.surcharges.sat,
       combinationRule: input.policy.combinationRule,
       descriptionDE: `Samstagszuschlag (+${(input.policy.surcharges.sat * 100).toFixed(0)}%)`,
     });
   }
 
-  // Sunday Surcharge Item
+  // Sunday Surcharge Item (bills incremental surcharge percentage only, avoiding base double-counting)
   if (sundayMinutes > 0) {
     preparedLineItems.push({
       workerId: input.workerId,
       workerName: input.workerName,
       qualification: input.qualification,
       itemCategory: "surcharge_sunday",
+      surchargePolicyId: input.policy.policyId,
+      surchargePolicyVersion: input.policy.policyVersion,
       priceVersionId: input.policy.policyId,
       minutes: sundayMinutes,
       rateMultiplier: 1 + input.policy.surcharges.sun,
       rateFraction: input.policy.surcharges.sun,
+      surchargeFraction: input.policy.surcharges.sun,
       combinationRule: input.policy.combinationRule,
       descriptionDE: `Sonntagszuschlag (+${(input.policy.surcharges.sun * 100).toFixed(0)}%)`,
     });
   }
 
-  // Holiday Surcharge Item
+  // Holiday Surcharge Item (bills incremental surcharge percentage only, avoiding base double-counting)
   if (holidayMinutes > 0) {
     preparedLineItems.push({
       workerId: input.workerId,
       workerName: input.workerName,
       qualification: input.qualification,
       itemCategory: "surcharge_holiday",
+      surchargePolicyId: input.policy.policyId,
+      surchargePolicyVersion: input.policy.policyVersion,
       priceVersionId: input.policy.policyId,
       minutes: holidayMinutes,
       rateMultiplier: 1 + input.policy.surcharges.holiday,
       rateFraction: input.policy.surcharges.holiday,
+      surchargeFraction: input.policy.surcharges.holiday,
       combinationRule: input.policy.combinationRule,
       descriptionDE: `Feiertagszuschlag (+${(input.policy.surcharges.holiday * 100).toFixed(0)}%)`,
     });
   }
 
-  // Night Surcharge Item
+  // Night Surcharge Item (bills incremental surcharge percentage only, avoiding base double-counting)
   if (nightMinutes > 0) {
     preparedLineItems.push({
       workerId: input.workerId,
       workerName: input.workerName,
       qualification: input.qualification,
       itemCategory: "surcharge_night",
+      surchargePolicyId: input.policy.policyId,
+      surchargePolicyVersion: input.policy.policyVersion,
       priceVersionId: input.policy.policyId,
       minutes: nightMinutes,
       rateMultiplier: 1 + input.policy.surcharges.night,
       rateFraction: input.policy.surcharges.night,
+      surchargeFraction: input.policy.surcharges.night,
       combinationRule: input.policy.combinationRule,
       descriptionDE: `Nachtzuschlag (+${(input.policy.surcharges.night * 100).toFixed(0)}%)`,
     });
