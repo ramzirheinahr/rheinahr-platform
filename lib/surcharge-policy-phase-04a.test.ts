@@ -104,6 +104,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       // 2026-11-01 is Sunday
       const policyNW: FacilitySurchargePolicyRecord = {
         clientId: "client-nw-1",
+        clientContractId: "contract-nw-1",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -221,6 +222,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       // Explicit failure in evaluateMinuteSurcharges: ambiguous Bavarian municipality must NOT default to regular day / 1.0x
       const policyBYAmbiguous: FacilitySurchargePolicyRecord = {
         clientId: "client-by-ambiguous",
+        clientContractId: "contract-by-ambiguous",
         policyVersion: 1,
         federalState: "BY",
         municipality: "UnbekannteGemeinde",
@@ -276,26 +278,91 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(isBavarianCatholicMunicipality("Unbekannte Gemeinde")).toBeNull();
     });
 
-    it("evaluates statutory local Fronleichnam exceptions in Saxony (SN) and Thuringia (TH)", () => {
+    it("evaluates statutory local Fronleichnam exceptions in Saxony (SN) and Thuringia (TH) with precise AGS and Ortsteil rules", () => {
       // 2026-06-04 is Fronleichnam
       const fronleichnam2026 = "2026-06-04";
 
-      // Saxony (SN) - SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO:
-      // Statutory holiday in designated Catholic communities of Landkreis Bautzen
+      // 1. Saxony (SN) - Statutory full Catholic municipalities in Landkreis Bautzen:
+      // Crostwitz (AGS: 14625080)
       const resCrostwitz = resolveGermanHoliday(fronleichnam2026, "SN", "Crostwitz");
       expect(resCrostwitz.status).toBe("resolved");
       if (resCrostwitz.status === "resolved") {
         expect(resCrostwitz.isHoliday).toBe(true);
         expect(resCrostwitz.holiday?.name).toBe("Fronleichnam");
       }
+      const resCrostwitzAgs = resolveGermanHoliday(fronleichnam2026, "SN", "14625080");
+      expect(resCrostwitzAgs.status).toBe("resolved");
+      if (resCrostwitzAgs.status === "resolved") {
+        expect(resCrostwitzAgs.isHoliday).toBe(true);
+      }
 
-      const resPanschwitzAgs = resolveGermanHoliday(fronleichnam2026, "SN", "14625390"); // Panschwitz-Kuckau AGS
+      // Panschwitz-Kuckau (AGS: 14625440)
+      const resPanschwitz = resolveGermanHoliday(fronleichnam2026, "SN", "Panschwitz-Kuckau");
+      expect(resPanschwitz.status).toBe("resolved");
+      if (resPanschwitz.status === "resolved") {
+        expect(resPanschwitz.isHoliday).toBe(true);
+      }
+      const resPanschwitzAgs = resolveGermanHoliday(fronleichnam2026, "SN", "14625440");
       expect(resPanschwitzAgs.status).toBe("resolved");
       if (resPanschwitzAgs.status === "resolved") {
         expect(resPanschwitzAgs.isHoliday).toBe(true);
       }
 
-      // Non-qualifying municipality in Saxony (e.g. Dresden)
+      // 2. Strict Saxony Counter-Tests: Cunewalde (14625090) and Obergurig (14625390) are NOT statutory holiday locations!
+      const resCunewalde = resolveGermanHoliday(fronleichnam2026, "SN", "14625090");
+      expect(resCunewalde.status).toBe("resolved");
+      if (resCunewalde.status === "resolved") {
+        expect(resCunewalde.isHoliday).toBe(false);
+      }
+
+      const resObergurig = resolveGermanHoliday(fronleichnam2026, "SN", "14625390");
+      expect(resObergurig.status).toBe("resolved");
+      if (resObergurig.status === "resolved") {
+        expect(resObergurig.isHoliday).toBe(false);
+      }
+
+      const resPulsnitz = resolveGermanHoliday(fronleichnam2026, "SN", "14625450");
+      expect(resPulsnitz.status).toBe("resolved");
+      if (resPulsnitz.status === "resolved") {
+        expect(resPulsnitz.isHoliday).toBe(false);
+      }
+
+      // 3. Bautzen (14625020) sub-municipal Ortsteil precision:
+      // Bautzen without Ortsteil MUST return policy_unresolved (AMBIGUOUS_MUNICIPAL_LOCATION)
+      const resBautzenNoLocality = resolveGermanHoliday(fronleichnam2026, "SN", "Bautzen");
+      expect(resBautzenNoLocality.status).toBe("policy_unresolved");
+      if (resBautzenNoLocality.status === "policy_unresolved") {
+        expect(resBautzenNoLocality.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(resBautzenNoLocality.message).toContain("Bolbritz und Salzenforst");
+      }
+
+      const resBautzenAgsNoLocality = resolveGermanHoliday(fronleichnam2026, "SN", "14625020");
+      expect(resBautzenAgsNoLocality.status).toBe("policy_unresolved");
+      if (resBautzenAgsNoLocality.status === "policy_unresolved") {
+        expect(resBautzenAgsNoLocality.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+
+      // Bautzen with Ortsteil Salzenforst or Bolbritz -> Statutory Holiday (true)
+      const resBautzenSalzenforst = resolveGermanHoliday(fronleichnam2026, "SN", "Bautzen", undefined, "Salzenforst");
+      expect(resBautzenSalzenforst.status).toBe("resolved");
+      if (resBautzenSalzenforst.status === "resolved") {
+        expect(resBautzenSalzenforst.isHoliday).toBe(true);
+      }
+
+      const resBautzenBolbritz = resolveGermanHoliday(fronleichnam2026, "SN", "14625020", undefined, "Bolbritz");
+      expect(resBautzenBolbritz.status).toBe("resolved");
+      if (resBautzenBolbritz.status === "resolved") {
+        expect(resBautzenBolbritz.isHoliday).toBe(true);
+      }
+
+      // Bautzen with other Ortsteil (e.g. Innenstadt) -> Regular workday (false)
+      const resBautzenInnenstadt = resolveGermanHoliday(fronleichnam2026, "SN", "Bautzen", undefined, "Innenstadt");
+      expect(resBautzenInnenstadt.status).toBe("resolved");
+      if (resBautzenInnenstadt.status === "resolved") {
+        expect(resBautzenInnenstadt.isHoliday).toBe(false);
+      }
+
+      // 4. Non-qualifying municipality in Saxony (e.g. Dresden)
       const resDresden = resolveGermanHoliday(fronleichnam2026, "SN", "Dresden");
       expect(resDresden.status).toBe("resolved");
       if (resDresden.status === "resolved") {
@@ -310,13 +377,19 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(resSNAmbiguous.message).toContain("Fronleichnam im Freistaat Sachsen");
       }
 
-      // Thuringia (TH) - ThürFtG § 2 Abs. 2:
-      // Statutory holiday in the entire Landkreis Eichsfeld and designated Catholic communities
+      // 5. Thuringia (TH) - ThürFtG § 2 Abs. 2:
+      // Statutory holiday in the entire Landkreis Eichsfeld (AGS prefix 16061)
       const resHeiligenstadt = resolveGermanHoliday(fronleichnam2026, "TH", "Heilbad Heiligenstadt");
       expect(resHeiligenstadt.status).toBe("resolved");
       if (resHeiligenstadt.status === "resolved") {
         expect(resHeiligenstadt.isHoliday).toBe(true);
         expect(resHeiligenstadt.holiday?.name).toBe("Fronleichnam");
+      }
+
+      const resHeiligenstadtAgs = resolveGermanHoliday(fronleichnam2026, "TH", "16061045");
+      expect(resHeiligenstadtAgs.status).toBe("resolved");
+      if (resHeiligenstadtAgs.status === "resolved") {
+        expect(resHeiligenstadtAgs.isHoliday).toBe(true);
       }
 
       const resEichsfeld = resolveGermanHoliday(fronleichnam2026, "TH", "Landkreis Eichsfeld");
@@ -325,11 +398,23 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
         expect(resEichsfeld.isHoliday).toBe(true);
       }
 
-      // Non-qualifying municipality in Thuringia (e.g. Erfurt)
+      // Official Thuringian register keys for kreisfreie Städte (Erfurt: 16051000, Jena: 16053000)
       const resErfurt = resolveGermanHoliday(fronleichnam2026, "TH", "Erfurt");
       expect(resErfurt.status).toBe("resolved");
       if (resErfurt.status === "resolved") {
         expect(resErfurt.isHoliday).toBe(false);
+      }
+
+      const resErfurtAgs = resolveGermanHoliday(fronleichnam2026, "TH", "16051000");
+      expect(resErfurtAgs.status).toBe("resolved");
+      if (resErfurtAgs.status === "resolved") {
+        expect(resErfurtAgs.isHoliday).toBe(false);
+      }
+
+      const resJenaAgs = resolveGermanHoliday(fronleichnam2026, "TH", "16053000");
+      expect(resJenaAgs.status).toBe("resolved");
+      if (resJenaAgs.status === "resolved") {
+        expect(resJenaAgs.isHoliday).toBe(false);
       }
 
       // Ambiguous municipality in Thuringia on Fronleichnam must return policy_unresolved rather than regular day!
@@ -342,12 +427,98 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
 
       // Direct helper assertions
       expect(isSaxonyCatholicMunicipality("Crostwitz")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625080")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("14625090")).toBe(false); // Cunewalde
+      expect(isSaxonyCatholicMunicipality("14625390")).toBe(false); // Obergurig
+      expect(isSaxonyCatholicMunicipality("14625340")).toBeNull(); // Malschwitz (NOT a Fronleichnam municipality in VO)
+      expect(isSaxonyCatholicMunicipality("14625620")).toBeNull(); // Undocumented/historic key
+      expect(isSaxonyCatholicMunicipality("Bautzen")).toBeNull();
+      expect(isSaxonyCatholicMunicipality("Bautzen", "Salzenforst")).toBe(true);
+      expect(isSaxonyCatholicMunicipality("Bautzen", "Innenstadt")).toBe(false);
       expect(isSaxonyCatholicMunicipality("Dresden")).toBe(false);
       expect(isSaxonyCatholicMunicipality(null)).toBeNull();
 
+      // Counter-tests: SN Malschwitz (14625340) and undocumented (14625620) must be policy_unresolved
+      const resMalschwitz = resolveGermanHoliday(fronleichnam2026, "SN", "14625340");
+      expect(resMalschwitz.status).toBe("policy_unresolved");
+      if (resMalschwitz.status === "policy_unresolved") {
+        expect(resMalschwitz.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+
+      const resSnOldKey = resolveGermanHoliday(fronleichnam2026, "SN", "14625620");
+      expect(resSnOldKey.status).toBe("policy_unresolved");
+      if (resSnOldKey.status === "policy_unresolved") {
+        expect(resSnOldKey.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+
+      // Thuringia verified 2026 TLS statutory registry assertions
       expect(isThuringianCatholicMunicipality("Heilbad Heiligenstadt")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16061045")).toBe(true);
+      expect(isThuringianCatholicMunicipality("Dingelstädt")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16061118")).toBe(true); // Dingelstädt 2026 TLS key
+      expect(isThuringianCatholicMunicipality("Südeichsfeld")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16064074")).toBe(true); // Südeichsfeld official key
+      expect(isThuringianCatholicMunicipality("Schleid")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16063068")).toBe(true); // Schleid official key
+      expect(isThuringianCatholicMunicipality("Buttlar")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16063011")).toBe(true); // Buttlar official key
+      expect(isThuringianCatholicMunicipality("Geisa")).toBe(true);
+      expect(isThuringianCatholicMunicipality("16063032")).toBe(true); // Geisa official key
+
+      // Non-qualifying / historic / dummy keys in Thuringia
+      expect(isThuringianCatholicMunicipality("16064058")).toBeNull(); // Historic Schönstedt (NOT Südeichsfeld)
+      expect(isThuringianCatholicMunicipality("16061199")).toBeNull(); // Non-existent dummy Eichsfeld key
+      expect(isThuringianCatholicMunicipality("not-eichsfeld")).toBeNull(); // Substring must not match
+      expect(isThuringianCatholicMunicipality("Seebach")).toBe(false);
+      expect(isThuringianCatholicMunicipality("16063071")).toBe(false); // Seebach (Wartburgkreis)
       expect(isThuringianCatholicMunicipality("Erfurt")).toBe(false);
+      expect(isThuringianCatholicMunicipality("16051000")).toBe(false);
+      expect(isThuringianCatholicMunicipality("16053000")).toBe(false);
       expect(isThuringianCatholicMunicipality(null)).toBeNull();
+
+      // Counter-tests in resolveGermanHoliday:
+      const resThSchoenstedt = resolveGermanHoliday(fronleichnam2026, "TH", "16064058");
+      expect(resThSchoenstedt.status).toBe("policy_unresolved");
+      if (resThSchoenstedt.status === "policy_unresolved") {
+        expect(resThSchoenstedt.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+
+      const resThDummy = resolveGermanHoliday(fronleichnam2026, "TH", "16061199");
+      expect(resThDummy.status).toBe("policy_unresolved");
+      if (resThDummy.status === "policy_unresolved") {
+        expect(resThDummy.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+
+      const resThSubstring = resolveGermanHoliday(fronleichnam2026, "TH", "not-eichsfeld");
+      expect(resThSubstring.status).toBe("policy_unresolved");
+      if (resThSubstring.status === "policy_unresolved") {
+        expect(resThSubstring.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+
+      // Positive statutory holiday resolutions in Thuringia:
+      const resDingelstaedt = resolveGermanHoliday(fronleichnam2026, "TH", "16061118");
+      expect(resDingelstaedt.status).toBe("resolved");
+      if (resDingelstaedt.status === "resolved") {
+        expect(resDingelstaedt.isHoliday).toBe(true);
+      }
+
+      const resSuedeichsfeld = resolveGermanHoliday(fronleichnam2026, "TH", "16064074");
+      expect(resSuedeichsfeld.status).toBe("resolved");
+      if (resSuedeichsfeld.status === "resolved") {
+        expect(resSuedeichsfeld.isHoliday).toBe(true);
+      }
+
+      const resSchleid = resolveGermanHoliday(fronleichnam2026, "TH", "16063068");
+      expect(resSchleid.status).toBe("resolved");
+      if (resSchleid.status === "resolved") {
+        expect(resSchleid.isHoliday).toBe(true);
+      }
+
+      const resSeebach = resolveGermanHoliday(fronleichnam2026, "TH", "16063071");
+      expect(resSeebach.status).toBe("resolved");
+      if (resSeebach.status === "resolved") {
+        expect(resSeebach.isHoliday).toBe(false);
+      }
     });
 
     it("supports documented custom contract/facility exceptions", () => {
@@ -375,6 +546,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       // Facility policy with highest_non_night_plus_night
       const policyHighest: FacilitySurchargePolicyRecord = {
         clientId: "client-rule-test",
+        clientContractId: "contract-rule-test",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -438,6 +610,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
   describe("5. Policy Lifecycle, Effective Dates, and Expiration Diagnostics", () => {
     const basePolicy: FacilitySurchargePolicyRecord = {
       clientId: "client-lifecycle-1",
+      clientContractId: "contract-lifecycle-1",
       policyVersion: 1,
       federalState: "BY",
       municipality: "München",
@@ -482,6 +655,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
     it("rejects inverted date intervals with INVALID_DATE_INTERVAL", () => {
       const invertedPolicy: FacilitySurchargePolicyRecord = {
         clientId: "client-inverted",
+        clientContractId: "contract-inverted-1",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -649,6 +823,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
     it("rejects invalid surcharge fractions", () => {
       const negativeRatePolicy: FacilitySurchargePolicyRecord = {
         clientId: "client-neg-rate",
+        clientContractId: "contract-neg-rate",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: -0.1, // Negative surcharge
@@ -676,6 +851,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
     it("rejects missing combinationRule and missing sourceType", () => {
       const missingRulePolicy: FacilitySurchargePolicyRecord = {
         clientId: "client-missing-rule",
+        clientContractId: "contract-missing-rule",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -714,9 +890,81 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       }
     });
 
+    it("enforces strict provenance verification across setting, local_exception, and contract sources", () => {
+      // 1. Setting without verifier metadata MUST be rejected with UNVERIFIED_POLICY_SOURCE
+      const unverifiedSetting: FacilitySurchargePolicyRecord = {
+        clientId: "client-setting-unverified",
+        policyVersion: 1,
+        federalState: "NW",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "setting",
+        sourceReference: "Admin Einstellung im Web-Portal", // Free text alone is not sufficient
+        effectiveFrom: "2026-01-01",
+      };
+      const resSetting = resolveInvoiceSurchargePolicy({
+        policy: unverifiedSetting,
+        referenceDate: "2026-05-01",
+      });
+      expect(resSetting.status).toBe("policy_unresolved");
+      if (resSetting.status === "policy_unresolved") {
+        expect(resSetting.code).toBe("UNVERIFIED_POLICY_SOURCE");
+        expect(resSetting.message).toContain("verifiedByUserId und verifiedAt sind Pflichtangaben");
+      }
+
+      // Setting with verifier metadata resolves successfully
+      const verifiedSetting: FacilitySurchargePolicyRecord = {
+        ...unverifiedSetting,
+        verifiedByUserId: "admin-audit-user-42",
+        verifiedAt: "2026-01-01T10:00:00.000Z",
+      };
+      const resSettingSuccess = resolveInvoiceSurchargePolicy({
+        policy: verifiedSetting,
+        referenceDate: "2026-05-01",
+      });
+      expect(resSettingSuccess.status).toBe("resolved");
+
+      // 2. Local exception without verifier metadata MUST be rejected
+      const unverifiedLocalExc: FacilitySurchargePolicyRecord = {
+        ...unverifiedSetting,
+        sourceType: "local_exception",
+        sourceReference: "Ausnahmeverfügung Bautzen",
+      };
+      const resExc = resolveInvoiceSurchargePolicy({
+        policy: unverifiedLocalExc,
+        referenceDate: "2026-05-01",
+      });
+      expect(resExc.status).toBe("policy_unresolved");
+      if (resExc.status === "policy_unresolved") {
+        expect(resExc.code).toBe("UNVERIFIED_POLICY_SOURCE");
+      }
+
+      // 3. Contract without clientContractId and without verifier metadata MUST be rejected
+      const unverifiedContract: FacilitySurchargePolicyRecord = {
+        ...unverifiedSetting,
+        sourceType: "contract",
+        sourceReference: "Freitext-Vertragsbeleg",
+      };
+      const resContract = resolveInvoiceSurchargePolicy({
+        policy: unverifiedContract,
+        referenceDate: "2026-05-01",
+      });
+      expect(resContract.status).toBe("policy_unresolved");
+      if (resContract.status === "policy_unresolved") {
+        expect(resContract.code).toBe("UNVERIFIED_POLICY_SOURCE");
+        expect(resContract.message).toContain("clientContractId besitzen oder mit Benutzer-Verifizierungsdaten");
+      }
+    });
+
     it("rejects unverified policy without sourceReference", () => {
       const unverifiedPolicy: FacilitySurchargePolicyRecord = {
         clientId: "client-unverified",
+        clientContractId: "contract-unverified",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -744,6 +992,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
     it("strictly rejects tampered frozen policy with TAMPERED_FROZEN_POLICY", () => {
       const tamperedPolicy: FacilitySurchargePolicyRecord = {
         clientId: "client-tampered",
+        clientContractId: "contract-tampered-1",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -774,6 +1023,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
     it("safely handles invalid verifiedAt without throwing unhandled exceptions", () => {
       const invalidVerifiedPolicy: FacilitySurchargePolicyRecord = {
         clientId: "client-invalid-verified",
+        clientContractId: "contract-verified-1",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -802,6 +1052,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
     it("validates that client policy intervals do not overlap", () => {
       const p1: FacilitySurchargePolicyRecord = {
         clientId: "client-overlap-test",
+        clientContractId: "contract-overlap-1",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -845,6 +1096,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
     it("evaluates New Year's Eve (Dec 31) vs New Year's Day (Jan 1) minute by minute", () => {
       const policyNW: FacilitySurchargePolicyRecord = {
         clientId: "client-nye",
+        clientContractId: "contract-nye-1",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -989,6 +1241,7 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       // Rejection in resolveInvoiceSurchargePolicy reference date
       const policyNW: FacilitySurchargePolicyRecord = {
         clientId: "client-nw-gregorian",
+        clientContractId: "contract-greg-1",
         policyVersion: 1,
         federalState: "NW",
         surchargeSat: 0.25,
@@ -1019,6 +1272,224 @@ describe("Phase 4a Acceptance Criteria Suite: Surcharge Policy & German Calendar
       expect(isValidGregorianCalendarDate(2026, 2, 31)).toBe(false);
       expect(isValidGregorianCalendarDate(2026, 4, 31)).toBe(false);
       expect(isValidGregorianCalendarDate(2026, 4, 30)).toBe(true);
+    });
+  });
+
+  describe("11. Sub-Municipal Ortsteil Precision in Minute Evaluation (Bautzen)", () => {
+    it("evaluates Bautzen with Salzenforst as holiday, and Bautzen without Ortsteil as policy_unresolved", () => {
+      // 2026-06-04 is Fronleichnam in Saxony
+      const dateFronleichnam = "2026-06-04";
+
+      // 1. Facility policy in Bautzen with explicit Ortsteil Salzenforst
+      const policyBautzenSalzenforst: FacilitySurchargePolicyRecord = {
+        clientId: "client-bautzen-salzenforst",
+        clientContractId: "contract-sn-bautzen-1",
+        policyVersion: 1,
+        federalState: "SN",
+        municipality: "14625020", // Bautzen AGS
+        districtLocality: "Salzenforst",
+        surchargeSat: 0.25,
+        surchargeSun: 0.5,
+        surchargeHoliday: 1.0,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
+        combinationRule: "highest_non_night_plus_night",
+        sourceType: "contract",
+        sourceReference: "Vertrag Klinik Bautzen-Salzenforst",
+        effectiveFrom: "2026-01-01",
+      };
+
+      const resolvedSalzenforst = resolveInvoiceSurchargePolicy({
+        policy: policyBautzenSalzenforst,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolvedSalzenforst.status).toBe("resolved");
+      expect(resolvedSalzenforst.districtLocality).toBe("Salzenforst");
+
+      const evalSalzenforst = evaluateMinuteSurcharges(dateFronleichnam, 720, resolvedSalzenforst);
+      expect(evalSalzenforst.status).toBe("resolved");
+      if (evalSalzenforst.status === "resolved") {
+        expect(evalSalzenforst.isHoliday).toBe(true);
+        expect(evalSalzenforst.holidayRecord?.name).toBe("Fronleichnam");
+        expect(evalSalzenforst.effectiveSurchargeFraction).toBe(1.0);
+      }
+
+      // 2. Facility policy in Bautzen WITHOUT districtLocality -> evaluateMinuteSurcharges MUST return policy_unresolved
+      const policyBautzenNoLocality: FacilitySurchargePolicyRecord = {
+        ...policyBautzenSalzenforst,
+        clientId: "client-bautzen-no-loc",
+        districtLocality: undefined,
+      };
+
+      const resolvedNoLoc = resolveInvoiceSurchargePolicy({
+        policy: policyBautzenNoLocality,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolvedNoLoc.status).toBe("resolved");
+
+      const evalNoLoc = evaluateMinuteSurcharges(dateFronleichnam, 720, resolvedNoLoc);
+      expect(evalNoLoc.status).toBe("policy_unresolved");
+      if (evalNoLoc.status === "policy_unresolved") {
+        expect(evalNoLoc.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+        expect(evalNoLoc.message).toContain("Bolbritz und Salzenforst");
+      }
+    });
+  });
+
+  describe("12. Disallowed & Ambiguous Key Counter-Tests in evaluateMinuteSurcharges (Never 1.0x)", () => {
+    const dateFronleichnam = "2026-06-04";
+
+    const baseContractPolicy = {
+      policyVersion: 1,
+      surchargeSat: 0.25,
+      surchargeSun: 0.5,
+      surchargeHoliday: 1.0,
+      surchargeNight: 0.25,
+      nightStart: "20:00",
+      nightEnd: "06:00",
+      combinationRule: "highest_non_night_plus_night" as const,
+      sourceType: "contract" as const,
+      sourceReference: "Vertrag 2026 Audit",
+      effectiveFrom: "2026-01-01",
+    };
+
+    it("fails explicitly with policy_unresolved for SN 14625340 (Malschwitz) without defaulting to 1.0x", () => {
+      const policyMalschwitz: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-sn-malschwitz",
+        clientContractId: "contract-sn-14625340",
+        federalState: "SN",
+        municipality: "14625340", // Malschwitz (NOT a statutory Fronleichnam municipality)
+      };
+
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: policyMalschwitz,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolved.status).toBe("resolved");
+
+      const minuteEval = evaluateMinuteSurcharges(dateFronleichnam, 720, resolved);
+      expect(minuteEval.status).toBe("policy_unresolved");
+      if (minuteEval.status === "policy_unresolved") {
+        expect(minuteEval.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+    });
+
+    it("fails explicitly with policy_unresolved for TH 16064058 (historic Schönstedt) without defaulting to 1.0x", () => {
+      const policySchoenstedt: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-schoenstedt",
+        clientContractId: "contract-th-16064058",
+        federalState: "TH",
+        municipality: "16064058", // Historic Schönstedt (NOT Südeichsfeld 16064074)
+      };
+
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: policySchoenstedt,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolved.status).toBe("resolved");
+
+      const minuteEval = evaluateMinuteSurcharges(dateFronleichnam, 720, resolved);
+      expect(minuteEval.status).toBe("policy_unresolved");
+      if (minuteEval.status === "policy_unresolved") {
+        expect(minuteEval.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+    });
+
+    it("fails explicitly with policy_unresolved for TH 16061199 (dummy code) without defaulting to 1.0x", () => {
+      const policyDummy: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-dummy",
+        clientContractId: "contract-th-16061199",
+        federalState: "TH",
+        municipality: "16061199", // Dummy non-existent AGS code
+      };
+
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: policyDummy,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolved.status).toBe("resolved");
+
+      const minuteEval = evaluateMinuteSurcharges(dateFronleichnam, 720, resolved);
+      expect(minuteEval.status).toBe("policy_unresolved");
+      if (minuteEval.status === "policy_unresolved") {
+        expect(minuteEval.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+    });
+
+    it("fails explicitly with policy_unresolved for TH not-eichsfeld without defaulting to 1.0x", () => {
+      const policySubstring: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-substring",
+        clientContractId: "contract-th-not-eichsfeld",
+        federalState: "TH",
+        municipality: "not-eichsfeld", // Free-text substring match must be rejected
+      };
+
+      const resolved = resolveInvoiceSurchargePolicy({
+        policy: policySubstring,
+        referenceDate: dateFronleichnam,
+      }) as ResolvedSurchargePolicySuccess;
+      expect(resolved.status).toBe("resolved");
+
+      const minuteEval = evaluateMinuteSurcharges(dateFronleichnam, 720, resolved);
+      expect(minuteEval.status).toBe("policy_unresolved");
+      if (minuteEval.status === "policy_unresolved") {
+        expect(minuteEval.code).toBe("AMBIGUOUS_MUNICIPAL_LOCATION");
+      }
+    });
+
+    it("evaluates verified positive 2026 TLS municipalities in evaluateMinuteSurcharges with statutory holiday rate", () => {
+      // 1. Dingelstädt (16061118)
+      const policyDingelstaedt: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-dingelstaedt",
+        clientContractId: "contract-th-16061118",
+        federalState: "TH",
+        municipality: "16061118",
+      };
+      const resDing = resolveInvoiceSurchargePolicy({ policy: policyDingelstaedt, referenceDate: dateFronleichnam }) as ResolvedSurchargePolicySuccess;
+      const evalDing = evaluateMinuteSurcharges(dateFronleichnam, 720, resDing);
+      expect(evalDing.status).toBe("resolved");
+      if (evalDing.status === "resolved") {
+        expect(evalDing.isHoliday).toBe(true);
+        expect(evalDing.effectiveSurchargeFraction).toBe(1.0);
+      }
+
+      // 2. Südeichsfeld (16064074)
+      const policySuedeichsfeld: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-suedeichsfeld",
+        clientContractId: "contract-th-16064074",
+        federalState: "TH",
+        municipality: "16064074",
+      };
+      const resSued = resolveInvoiceSurchargePolicy({ policy: policySuedeichsfeld, referenceDate: dateFronleichnam }) as ResolvedSurchargePolicySuccess;
+      const evalSued = evaluateMinuteSurcharges(dateFronleichnam, 720, resSued);
+      expect(evalSued.status).toBe("resolved");
+      if (evalSued.status === "resolved") {
+        expect(evalSued.isHoliday).toBe(true);
+        expect(evalSued.effectiveSurchargeFraction).toBe(1.0);
+      }
+
+      // 3. Schleid (16063068)
+      const policySchleid: FacilitySurchargePolicyRecord = {
+        ...baseContractPolicy,
+        clientId: "client-th-schleid",
+        clientContractId: "contract-th-16063068",
+        federalState: "TH",
+        municipality: "16063068",
+      };
+      const resSchleid = resolveInvoiceSurchargePolicy({ policy: policySchleid, referenceDate: dateFronleichnam }) as ResolvedSurchargePolicySuccess;
+      const evalSchleid = evaluateMinuteSurcharges(dateFronleichnam, 720, resSchleid);
+      expect(evalSchleid.status).toBe("resolved");
+      if (evalSchleid.status === "resolved") {
+        expect(evalSchleid.isHoliday).toBe(true);
+        expect(evalSchleid.effectiveSurchargeFraction).toBe(1.0);
+      }
     });
   });
 });

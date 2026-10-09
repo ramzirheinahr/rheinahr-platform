@@ -34,6 +34,7 @@ export type FacilitySurchargePolicyRecord = {
   policyVersion?: number;
   federalState: string;
   municipality?: string | null;
+  districtLocality?: string | null;
   surchargeSat: number;
   surchargeSun: number;
   surchargeHoliday: number;
@@ -80,6 +81,7 @@ export type ResolvedSurchargePolicySuccess = {
   federalState: GermanFederalState;
   federalStateNameDE: string;
   municipality: string | null;
+  districtLocality: string | null;
   surcharges: {
     sat: number;
     sun: number;
@@ -153,6 +155,7 @@ export function computePolicyCanonicalHash(terms: {
   policyVersion: number;
   federalState: string;
   municipality: string | null;
+  districtLocality?: string | null;
   surchargeSat: number;
   surchargeSun: number;
   surchargeHoliday: number;
@@ -169,6 +172,7 @@ export function computePolicyCanonicalHash(terms: {
     clientId: terms.clientId,
     clientContractId: terms.clientContractId,
     combinationRule: terms.combinationRule,
+    districtLocality: terms.districtLocality || null,
     effectiveFrom: terms.effectiveFrom,
     effectiveTo: terms.effectiveTo,
     federalState: terms.federalState,
@@ -514,7 +518,54 @@ export function resolveInvoiceSurchargePolicy(
     };
   }
 
-  // 8. Validate verifiedAt safely without unhandled JS exceptions
+  // 8. Enforce source provenance verification:
+  // Setting & local_exception MUST be verified by an authorized user (verifiedByUserId + verifiedAt)
+  if (sourceType === "setting" || sourceType === "local_exception") {
+    if (!policy.verifiedByUserId || !policy.verifiedByUserId.trim() || policy.verifiedAt == null) {
+      return {
+        status: "policy_unresolved",
+        code: "UNVERIFIED_POLICY_SOURCE",
+        message: `Zuschlagsrichtlinien vom Quellentyp "${sourceType}" müssen durch einen autorisierten Benutzer verifiziert sein (verifiedByUserId und verifiedAt sind Pflichtangaben, reiner Freitext in sourceReference reicht nicht aus).`,
+        diagnostics: {
+          clientId: policy.clientId,
+          sourceType,
+          sourceReference: policy.sourceReference,
+          verifiedByUserId: policy.verifiedByUserId || null,
+          verifiedAt: policy.verifiedAt
+            ? (policy.verifiedAt instanceof Date ? policy.verifiedAt.toISOString() : String(policy.verifiedAt))
+            : null,
+        },
+      };
+    }
+  }
+
+  // Contract MUST have either clientContractId OR (verifiedByUserId + verifiedAt)
+  if (sourceType === "contract") {
+    const hasContractId = Boolean(policy.clientContractId && policy.clientContractId.trim());
+    const hasUserVerification = Boolean(
+      policy.verifiedByUserId && policy.verifiedByUserId.trim() && policy.verifiedAt != null
+    );
+    if (!hasContractId && !hasUserVerification) {
+      return {
+        status: "policy_unresolved",
+        code: "UNVERIFIED_POLICY_SOURCE",
+        message:
+          'Vertragsbasierte Zuschlagsrichtlinien (sourceType="contract") müssen entweder eine verknüpfte clientContractId besitzen oder mit Benutzer-Verifizierungsdaten (verifiedByUserId und verifiedAt) versehen sein.',
+        diagnostics: {
+          clientId: policy.clientId,
+          sourceType,
+          clientContractId: policy.clientContractId || null,
+          sourceReference: policy.sourceReference,
+          verifiedByUserId: policy.verifiedByUserId || null,
+          verifiedAt: policy.verifiedAt
+            ? (policy.verifiedAt instanceof Date ? policy.verifiedAt.toISOString() : String(policy.verifiedAt))
+            : null,
+        },
+      };
+    }
+  }
+
+  // 9. Validate verifiedAt safely without unhandled JS exceptions
   let verifiedAtIso: string | null = null;
   if (policy.verifiedAt != null) {
     if (policy.verifiedAt instanceof Date) {
@@ -550,6 +601,7 @@ export function resolveInvoiceSurchargePolicy(
 
   const policyId = policy.id || `policy-${policy.clientId}-v${policyVersion}`;
   const municipality = policy.municipality?.trim() || null;
+  const districtLocality = policy.districtLocality?.trim() || null;
 
   const termsToHash = {
     clientId: policy.clientId,
@@ -557,6 +609,7 @@ export function resolveInvoiceSurchargePolicy(
     policyVersion,
     federalState,
     municipality,
+    districtLocality,
     surchargeSat,
     surchargeSun,
     surchargeHoliday,
@@ -572,7 +625,7 @@ export function resolveInvoiceSurchargePolicy(
 
   const calculatedHash = computePolicyCanonicalHash(termsToHash);
 
-  // 9. Tampered Frozen Policy Hash Enforcement:
+  // 10. Tampered Frozen Policy Hash Enforcement:
   // If policy is frozen, stored hash MUST match calculated terms hash exactly.
   if (policy.isFrozen === true) {
     if (!policy.frozenHash || policy.frozenHash !== calculatedHash) {
@@ -600,6 +653,7 @@ export function resolveInvoiceSurchargePolicy(
     federalState,
     federalStateNameDE: GERMAN_STATE_NAMES_DE[federalState],
     municipality,
+    districtLocality,
     surcharges: {
       sat: surchargeSat,
       sun: surchargeSun,
@@ -760,7 +814,13 @@ export function evaluateMinuteSurcharges(
   }
 
   // 4. Resolve statutory holiday and explicitly fail if unresolved (no silent fallback to regular day)
-  const holidayRes = resolveGermanHoliday(cleanDateIso, policy.federalState, policy.municipality);
+  const holidayRes = resolveGermanHoliday(
+    cleanDateIso,
+    policy.federalState,
+    policy.municipality,
+    undefined,
+    policy.districtLocality
+  );
   if (holidayRes.status === "policy_unresolved") {
     return {
       status: "policy_unresolved",

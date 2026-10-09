@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Statutory Municipal Holiday Registry 2026",
+  "effectiveYear": 2026,
+  "lastAudited": "2026-10-09",
+  "legalAuthorities": {
+    "SN_FRONLEICHNAM": {
+      "state": "SN",
+      "holiday": "Fronleichnam",
+      "legalAct": "Gesetz über die Sonn- und Feiertage im Freistaat Sachsen (SächsSFG § 1 Abs. 1 Nr. 1)",
+      "implementingRegulation": "Verordnung der Sächsischen Staatsregierung über den Fronleichnamstag (FronleichnamsVO vom 19. Mai 1993, SächsGVBl. S. 445)",
+      "legalSourceUrl": "https://www.revosax.sachsen.de/vorschrift/4142-FronleichnamsVO",
+      "scope": "Bestimmte Gemeinden und Ortsteile im Landkreis Bautzen"
+    },
+    "TH_FRONLEICHNAM": {
+      "state": "TH",
+      "holiday": "Fronleichnam",
+      "legalAct": "Thüringer Feiertagsgesetz (ThürFtG § 2 Abs. 2 vom 21. Dezember 1991)",
+      "officialSource": "Thüringer Landesamt für Statistik (TLS) - Gebietsstand 2026 (GEMAUSWAHL / GV-ISys)",
+      "legalSourceUrl": "https://statistik.thueringen.de/datenbank/gemauswahl.asp",
+      "scope": "Gesamter Landkreis Eichsfeld sowie bestimmte katholisch geprägte Gemeinden in Wartburgkreis und Unstrut-Hainich-Kreis"
+    },
+    "BY_MARIA_HIMMELFAHRT": {
+      "state": "BY",
+      "holiday": "Mariä Himmelfahrt (15. August)",
+      "legalAct": "Gesetz über den Schutz der Sonn- und Feiertage (FTG Bayern Art. 1 Abs. 1 Nr. 2)",
+      "officialSource": "Bayerisches Landesamt für Statistik / Zensus 2022 Religionszugehörigkeit",
+      "legalSourceUrl": "https://www.statistik.bayern.de/statistik/zensus/",
+      "scope": "Gemeinden mit überwiegend katholischer Bevölkerung"
+    }
+  },
+  "saxony": {
+    "fullMunicipalities": [
+      { "ags": "14625080", "name": "Crostwitz", "sorbianName": "Chrósćicy", "status": "statutory_holiday_entire_municipality" },
+      { "ags": "14625350", "name": "Nebelschütz", "sorbianName": "Njebjelčicy", "status": "statutory_holiday_entire_municipality" },
+      { "ags": "14625440", "name": "Panschwitz-Kuckau", "sorbianName": "Pančicy-Kukow", "status": "statutory_holiday_entire_municipality" },
+      { "ags": "14625470", "name": "Räckelwitz", "sorbianName": "Worklecy", "status": "statutory_holiday_entire_municipality" },
+      { "ags": "14625500", "name": "Ralbitz-Rosenthal", "sorbianName": "Ralbicy-Róžant", "status": "statutory_holiday_entire_municipality" },
+      { "ags": "14625640", "name": "Wittichenau", "sorbianName": "Kulow", "status": "statutory_holiday_entire_municipality" }
+    ],
+    "partialMunicipalities": [
+      {
+        "ags": "14625020",
+        "name": "Bautzen",
+        "qualifyingLocalities": ["Bolbritz", "Salzenforst"],
+        "nonQualifyingLocalities": ["Innenstadt", "Gesundbrunnen", "Burk", "Stiebitz", "auritz"],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "14625160",
+        "name": "Göda",
+        "qualifyingLocalities": ["Coblenz", "Doberschau", "Nedaschütz", "Prischwitz"],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "14625170",
+        "name": "Großdubrau",
+        "qualifyingLocalities": ["Sdier"],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "14625240",
+        "name": "Hoyerswerda",
+        "qualifyingLocalities": ["Dörgenhausen"],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "14625270",
+        "name": "Königswartha",
+        "qualifyingLocalities": ["Truppen"],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "14625360",
+        "name": "Neschwitz",
+        "qualifyingLocalities": ["Caßlau", "Luga", "Neschwitz", "Saritsch", "Übigau", "Weidlitz"],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "14625430",
+        "name": "Puschwitz",
+        "qualifyingLocalities": ["Guhra", "Jeßnitz", "Lauske", "Neu-Jeßnitz", "Neu-Puschwitz", "Puschwitz", "Wetro"],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      },
+      {
+        "ags": "14625490",
+        "name": "Radibor",
+        "qualifyingLocalities": [
+          "Bornitz", "Brohna", "Camina", "Cölln", "Droben", "Großbrösern", "Kleinbrösern",
+          "Lippitsch", "Lomske", "Luppa", "Luppedubrau", "Luttowitz", "Merka", "Milkwitz",
+          "Milstrich", "Neu-Bornitz", "Neu-Brohna", "Quoos", "Radibor", "Strohschütz"
+        ],
+        "unspecifiedLocalityStatus": "policy_unresolved"
+      }
+    ],
+    "explicitNonQualifyingOrDisallowedKeys": [
+      { "ags": "14625340", "name": "Malschwitz", "reason": "Not a Fronleichnam municipality in Sächsische FronleichnamsVO", "status": "policy_unresolved" },
+      { "ags": "14625620", "reason": "Historic/undocumented key; official Wittichenau AGS is 14625640", "status": "policy_unresolved" },
+      { "ags": "14625090", "name": "Cunewalde", "status": "not_a_holiday" },
+      { "ags": "14625390", "name": "Obergurig", "status": "not_a_holiday" },
+      { "ags": "14625450", "name": "Pulsnitz", "status": "not_a_holiday" }
+    ]
+  },
+  "thuringia": {
+    "landkreisEichsfeld56": [
+      { "ags": "16061001", "name": "Arenshausen" },
+      { "ags": "16061002", "name": "Asbach-Sickenberg" },
+      { "ags": "16061003", "name": "Berlingerode" },
+      { "ags": "16061012", "name": "Bodenrode-Westhausen" },
+      { "ags": "16061014", "name": "Bornhagen" },
+      { "ags": "16061015", "name": "Brehme" },
+      { "ags": "16061017", "name": "Breitenworbis" },
+      { "ags": "16061018", "name": "Büttstedt" },
+      { "ags": "16061019", "name": "Buhla" },
+      { "ags": "16061021", "name": "Burgwalde" },
+      { "ags": "16061023", "name": "Dieterode" },
+      { "ags": "16061024", "name": "Dietzenrode/Vatterode" },
+      { "ags": "16061026", "name": "Ecklingerode" },
+      { "ags": "16061027", "name": "Effelder" },
+      { "ags": "16061031", "name": "Ferna" },
+      { "ags": "16061032", "name": "Freienhagen" },
+      { "ags": "16061033", "name": "Fretterode" },
+      { "ags": "16061034", "name": "Geisleden" },
+      { "ags": "16061035", "name": "Geismar" },
+      { "ags": "16061036", "name": "Gerbershausen" },
+      { "ags": "16061037", "name": "Gernrode" },
+      { "ags": "16061041", "name": "Großbartloff" },
+      { "ags": "16061044", "name": "Haynrode" },
+      { "ags": "16061045", "name": "Heilbad Heiligenstadt" },
+      { "ags": "16061047", "name": "Heuthen" },
+      { "ags": "16061048", "name": "Hohengandern" },
+      { "ags": "16061056", "name": "Kella" },
+      { "ags": "16061057", "name": "Kirchgandern" },
+      { "ags": "16061058", "name": "Kirchworbis" },
+      { "ags": "16061062", "name": "Krombach" },
+      { "ags": "16061063", "name": "Küllstedt" },
+      { "ags": "16061066", "name": "Lindewerra" },
+      { "ags": "16061069", "name": "Marth" },
+      { "ags": "16061074", "name": "Niederorschel" },
+      { "ags": "16061075", "name": "Pfaffschwende" },
+      { "ags": "16061076", "name": "Reinholterode" },
+      { "ags": "16061078", "name": "Rohrberg" },
+      { "ags": "16061082", "name": "Rustenfelde" },
+      { "ags": "16061083", "name": "Schachtebich" },
+      { "ags": "16061085", "name": "Schwobfeld" },
+      { "ags": "16061086", "name": "Sickerode" },
+      { "ags": "16061089", "name": "Steinbach" },
+      { "ags": "16061094", "name": "Tastungen" },
+      { "ags": "16061098", "name": "Volkerode" },
+      { "ags": "16061101", "name": "Wachstedt" },
+      { "ags": "16061102", "name": "Wahlhausen" },
+      { "ags": "16061103", "name": "Wehnde" },
+      { "ags": "16061105", "name": "Wiesenfeld" },
+      { "ags": "16061107", "name": "Wingerode" },
+      { "ags": "16061113", "name": "Schimberg" },
+      { "ags": "16061114", "name": "Teistungen" },
+      { "ags": "16061115", "name": "Leinefelde-Worbis" },
+      { "ags": "16061116", "name": "Am Ohmberg" },
+      { "ags": "16061117", "name": "Sonnenstein" },
+      { "ags": "16061118", "name": "Dingelstädt" },
+      { "ags": "16061119", "name": "Uder" }
+    ],
+    "otherStatutoryCatholic": [
+      { "ags": "16063011", "name": "Buttlar", "county": "Wartburgkreis", "status": "statutory_holiday" },
+      { "ags": "16063032", "name": "Geisa", "county": "Wartburgkreis", "status": "statutory_holiday" },
+      { "ags": "16063068", "name": "Schleid", "county": "Wartburgkreis", "status": "statutory_holiday" },
+      { "ags": "16064074", "name": "Südeichsfeld", "county": "Unstrut-Hainich-Kreis", "status": "statutory_holiday" }
+    ],
+    "disallowedOrUnresolvedKeys": [
+      { "ags": "16064058", "name": "Schönstedt (historisch)", "reason": "Not Südeichsfeld; historic municipality merged into Unstrut-Hainich", "status": "policy_unresolved" },
+      { "ags": "16061199", "reason": "Non-existent dummy AGS code in Landkreis Eichsfeld", "status": "policy_unresolved" },
+      { "name": "not-eichsfeld", "reason": "Arbitrary string containing substring 'eichsfeld'", "status": "policy_unresolved" },
+      { "ags": "16063071", "name": "Seebach", "reason": "Protestant municipality in Wartburgkreis (previously confused with Schleid 16063068)", "status": "not_a_holiday" },
+      { "ags": "16064003", "name": "Bad Langensalza (vormals Anrode)", "status": "not_a_holiday" },
+      { "ags": "16064053", "name": "Oppershausen (vormals Rodeberg)", "status": "not_a_holiday" }
+    ]
+  }
+}

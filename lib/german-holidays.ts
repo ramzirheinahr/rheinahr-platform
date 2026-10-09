@@ -261,25 +261,39 @@ export function isBavarianCatholicMunicipality(municipality?: string | null): bo
 }
 
 /**
- * Statutory Catholic Municipalities in Saxony (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO).
- * Corpus Christi (Fronleichnam) is a statutory public holiday ONLY in designated
- * municipalities and districts in Landkreis Bautzen.
- * Canonical sample list and official AGS keys.
+ * Statutory Catholic Municipalities in Saxony (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO § 1 und Anlage).
+ * Corpus Christi (Fronleichnam) is a statutory public holiday:
+ * 1. Im gesamten Gemeindegebiet:
+ *    - Crostwitz (Chrósćicy): 14625080
+ *    - Nebelschütz (Njebjelčicy): 14625350 (teils geführt als 14625340)
+ *    - Panschwitz-Kuckau (Pančicy-Kukow): 14625440
+ *    - Räckelwitz (Worklecy): 14625470
+ *    - Ralbitz-Rosenthal (Ralbicy-Róžant): 14625500
+ *    - Wittichenau (Kulow): 14625640 (teils geführt als 14625620)
+ * 2. In Teilgebieten (nur bestimmte Ortsteile):
+ *    - Bautzen (14625020): nur Ortsteile Bolbritz und Salzenforst (§ 1 Abs. 1 Nr. 1 FronleichnamsVO).
+ *      Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst (policy_unresolved: AMBIGUOUS_MUNICIPAL_LOCATION).
+ *    - Göda (14625160): nur Ortsteile Coblenz, Doberschau, Nedaschütz, Prischwitz.
+ *    - Großdubrau (14625170): nur Ortsteil Sdier.
+ *    - Hoyerswerda (14625240): nur Ortsteil Dörgenhausen.
+ *    - Königswartha (14625270): nur Ortsteil Truppen.
+ *    - Neschwitz (14625360): nur Ortsteile Caßlau, Luga, Neschwitz, Saritsch, Übigau, Weidlitz.
+ *    - Puschwitz (14625430): nur Ortsteile Guhra, Jeßnitz, Lauske, Neu-Jeßnitz, Neu-Puschwitz, Puschwitz, Wetro.
+ *    - Radibor (14625490): nur Ortsteile Bornitz, Brohna, Camina, Cölln, Droben, Großbrösern, Kleinbrösern, Lippitsch, Lomske, Luppa, Luppedubrau, Luttowitz, Merka, Milkwitz, Milstrich, Neu-Bornitz, Neu-Brohna, Quoos, Radibor, Strohschütz.
  */
-const KNOWN_SAXONY_CATHOLIC_MUNICIPALITIES = new Set<string>([
-  "crostwitz", "chrósćicy", "14625090",
-  "panschwitz-kuckau", "pančicy-kukow", "14625390",
-  "nebelschütz", "njebjelčicy", "14625340",
-  "räckelwitz", "worklecy", "14625440",
-  "ralbitz-rosenthal", "ralbicy-róžant", "14625460",
-  "wittichenau", "kulow", "14625620",
-  "bautzen", "14625020",
-  "radibor", "14625450",
-  "puschwitz", "14625430",
-  "neschwitz", "14625360",
+const KNOWN_SAXONY_FULL_CATHOLIC_MUNICIPALITIES = new Set<string>([
+  "crostwitz", "chrósćicy", "14625080",
+  "nebelschütz", "njebjelčicy", "14625350",
+  "panschwitz-kuckau", "pančicy-kukow", "14625440",
+  "räckelwitz", "worklecy", "14625470",
+  "ralbitz-rosenthal", "ralbicy-róžant", "14625500",
+  "wittichenau", "kulow", "14625640",
 ]);
 
 const KNOWN_SAXONY_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
+  "cunewalde", "14625090",
+  "obergurig", "14625390",
+  "pulsnitz", "14625450",
   "dresden", "14612000",
   "leipzig", "14713000",
   "chemnitz", "14511000",
@@ -292,52 +306,266 @@ const KNOWN_SAXONY_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
   "riesa", "14627230",
 ]);
 
-export function isSaxonyCatholicMunicipality(municipality?: string | null): boolean | null {
+export function isSaxonyCatholicLocation(
+  municipality?: string | null,
+  districtLocality?: string | null
+): boolean | null {
   if (!municipality || !municipality.trim()) return null;
-  const normalized = municipality.trim().toLowerCase();
-  if (KNOWN_SAXONY_CATHOLIC_MUNICIPALITIES.has(normalized)) return true;
-  if (KNOWN_SAXONY_PROTESTANT_OR_GENERAL_MUNICIPALITIES.has(normalized)) return false;
+  const munNorm = municipality.trim().toLowerCase();
+
+  // 1. Explicit non-qualifying municipalities in Saxony
+  if (KNOWN_SAXONY_PROTESTANT_OR_GENERAL_MUNICIPALITIES.has(munNorm)) {
+    return false;
+  }
+
+  // 2. Entire municipalities where Fronleichnam is a statutory public holiday
+  if (KNOWN_SAXONY_FULL_CATHOLIC_MUNICIPALITIES.has(munNorm)) {
+    return true;
+  }
+
+  // 3. Bautzen: Statutory holiday ONLY in Ortsteile Bolbritz and Salzenforst (§ 1 Abs. 1 Nr. 1 FronleichnamsVO)
+  if (munNorm === "bautzen" || munNorm === "14625020" || munNorm === "stadt bautzen") {
+    if (!districtLocality || !districtLocality.trim()) {
+      return null; // Ambiguous without specified Ortsteil / district locality
+    }
+    const locNorm = districtLocality.trim().toLowerCase();
+    if (locNorm === "bolbritz" || locNorm === "salzenforst") {
+      return true;
+    }
+    return false; // Other Ortsteile (e.g. Innenstadt, Gesundbrunnen) are NOT holidays
+  }
+
+  // 4. Other partial municipalities in Landkreis Bautzen (Sächsische FronleichnamsVO Anlage)
+  if (munNorm === "göda" || munNorm === "goeda" || munNorm === "14625160") {
+    if (!districtLocality || !districtLocality.trim()) return null;
+    const locNorm = districtLocality.trim().toLowerCase();
+    return ["coblenz", "doberschau", "nedaschütz", "nedaschuetz", "prischwitz"].includes(locNorm);
+  }
+
+  if (munNorm === "großdubrau" || munNorm === "grossdubrau" || munNorm === "14625170") {
+    if (!districtLocality || !districtLocality.trim()) return null;
+    const locNorm = districtLocality.trim().toLowerCase();
+    return locNorm === "sdier";
+  }
+
+  if (munNorm === "hoyerswerda" || munNorm === "14625240") {
+    if (!districtLocality || !districtLocality.trim()) return null;
+    const locNorm = districtLocality.trim().toLowerCase();
+    return locNorm === "dörgenhausen" || locNorm === "doergenhausen";
+  }
+
+  if (munNorm === "königswartha" || munNorm === "koenigswartha" || munNorm === "14625270") {
+    if (!districtLocality || !districtLocality.trim()) return null;
+    const locNorm = districtLocality.trim().toLowerCase();
+    return locNorm === "truppen";
+  }
+
+  if (munNorm === "neschwitz" || munNorm === "14625360") {
+    if (!districtLocality || !districtLocality.trim()) return null;
+    const locNorm = districtLocality.trim().toLowerCase();
+    return ["neschwitz", "caßlau", "casslau", "luga", "saritsch", "übigau", "uebigau", "weidlitz"].includes(locNorm);
+  }
+
+  if (munNorm === "puschwitz" || munNorm === "14625430") {
+    if (!districtLocality || !districtLocality.trim()) return null;
+    const locNorm = districtLocality.trim().toLowerCase();
+    return ["guhra", "jeßnitz", "jessnitz", "lauske", "neu-jeßnitz", "neu-jessnitz", "neu-puschwitz", "puschwitz", "wetro"].includes(locNorm);
+  }
+
+  if (munNorm === "radibor" || munNorm === "14625490") {
+    if (!districtLocality || !districtLocality.trim()) return null;
+    const locNorm = districtLocality.trim().toLowerCase();
+    return [
+      "bornitz", "brohna", "camina", "cölln", "coelln", "droben", "großbrösern", "grossbroesern",
+      "kleinbrösern", "kleinbroesern", "lippitsch", "lomske", "luppa", "luppedubrau", "luttowitz",
+      "merka", "milkwitz", "milstrich", "neu-bornitz", "neu-brohna", "quoos", "radibor", "strohschütz", "strohschuetz",
+    ].includes(locNorm);
+  }
+
+  // Any unlisted municipality returns null (ambiguous / unresolved)
   return null;
 }
 
+export function isSaxonyCatholicMunicipality(
+  municipality?: string | null,
+  districtLocality?: string | null
+): boolean | null {
+  return isSaxonyCatholicLocation(municipality, districtLocality);
+}
+
 /**
- * Statutory Catholic Municipalities in Thuringia (ThürFtG § 2 Abs. 2).
- * Corpus Christi (Fronleichnam) is a statutory public holiday in the entire
- * Landkreis Eichsfeld and designated communities in Unstrut-Hainich-Kreis and Wartburgkreis.
+ * Official Statutory Municipalities in Landkreis Eichsfeld (Thüringen) according to
+ * Thüringer Landesamt für Statistik (TLS) Gebietsstand 2026 (ThürFtG § 2 Abs. 2).
+ * Exactly 56 statutory municipalities.
  */
-const KNOWN_THURINGIA_CATHOLIC_MUNICIPALITIES = new Set<string>([
-  "landkreis eichsfeld", "eichsfeld",
-  "heilbad heiligenstadt", "heiligenstadt", "16061045",
-  "leinefelde-worbis", "leinefelde", "worbis", "16061061",
-  "dingelstädt", "dingelstaedt", "16061023",
-  "südeichsfeld", "suedeichsfeld", "16064058",
-  "geisa", "16063032",
-  "anrode", "16064003",
-  "dünwald", "duenwald", "16064014",
-  "rodeberg", "16064053",
-  "buttlar", "16063013",
-  "schleid", "16063071",
+const STATUTORY_THURINGIA_EICHSFELD_AGS = new Set<string>([
+  "16061001", // Arenshausen
+  "16061002", // Asbach-Sickenberg
+  "16061003", // Berlingerode
+  "16061012", // Bodenrode-Westhausen
+  "16061014", // Bornhagen
+  "16061015", // Brehme
+  "16061017", // Breitenworbis
+  "16061018", // Büttstedt
+  "16061019", // Buhla
+  "16061021", // Burgwalde
+  "16061023", // Dieterode
+  "16061024", // Dietzenrode/Vatterode
+  "16061026", // Ecklingerode
+  "16061027", // Effelder
+  "16061031", // Ferna
+  "16061032", // Freienhagen
+  "16061033", // Fretterode
+  "16061034", // Geisleden
+  "16061035", // Geismar
+  "16061036", // Gerbershausen
+  "16061037", // Gernrode
+  "16061041", // Großbartloff
+  "16061044", // Haynrode
+  "16061045", // Heilbad Heiligenstadt
+  "16061047", // Heuthen
+  "16061048", // Hohengandern
+  "16061056", // Kella
+  "16061057", // Kirchgandern
+  "16061058", // Kirchworbis
+  "16061062", // Krombach
+  "16061063", // Küllstedt
+  "16061066", // Lindewerra
+  "16061069", // Marth
+  "16061074", // Niederorschel
+  "16061075", // Pfaffschwende
+  "16061076", // Reinholterode
+  "16061078", // Rohrberg
+  "16061082", // Rustenfelde
+  "16061083", // Schachtebich
+  "16061085", // Schwobfeld
+  "16061086", // Sickerode
+  "16061089", // Steinbach
+  "16061094", // Tastungen
+  "16061098", // Volkerode
+  "16061101", // Wachstedt
+  "16061102", // Wahlhausen
+  "16061103", // Wehnde
+  "16061105", // Wiesenfeld
+  "16061107", // Wingerode
+  "16061113", // Schimberg
+  "16061114", // Teistungen
+  "16061115", // Leinefelde-Worbis
+  "16061116", // Am Ohmberg
+  "16061117", // Sonnenstein
+  "16061118", // Dingelstädt
+  "16061119", // Uder
+]);
+
+const STATUTORY_THURINGIA_EICHSFELD_NAMES = new Set<string>([
+  "landkreis eichsfeld", "kreis eichsfeld",
+  "am ohmberg",
+  "arenshausen",
+  "asbach-sickenberg",
+  "berlingerode",
+  "bodenrode-westhausen",
+  "bornhagen",
+  "brehme",
+  "breitenworbis",
+  "büttstedt", "buettstedt",
+  "buhla",
+  "burgwalde",
+  "dieterode",
+  "dietzenrode/vatterode", "dietzenrode-vatterode", "dietzenrode vatterode",
+  "dingelstädt", "dingelstaedt", "dingelstädt, stadt", "dingelstaedt, stadt",
+  "ecklingerode",
+  "effelder",
+  "ferna",
+  "freienhagen",
+  "fretterode",
+  "geisleden",
+  "geismar",
+  "gerbershausen",
+  "gernrode",
+  "großbartloff", "grossbartloff",
+  "haynrode",
+  "heilbad heiligenstadt", "heiligenstadt",
+  "heuthen",
+  "hohengandern",
+  "kella",
+  "kirchgandern",
+  "kirchworbis",
+  "krombach",
+  "küllstedt", "kuellstedt",
+  "leinefelde-worbis", "leinefelde", "worbis",
+  "lindewerra",
+  "marth",
+  "niederorschel",
+  "pfaffschwende",
+  "reinholterode",
+  "rohrberg",
+  "rustenfelde",
+  "schachtebich",
+  "schimberg",
+  "schwobfeld",
+  "sickerode",
+  "sonnenstein",
+  "steinbach",
+  "tastungen",
+  "teistungen",
+  "uder",
+  "volkerode",
+  "wachstedt",
+  "wahlhausen",
+  "wehnde",
+  "wiesenfeld",
+  "wingerode",
+]);
+
+/**
+ * Other Statutory Catholic Municipalities in Thuringia (ThürFtG § 2 Abs. 2):
+ * - Wartburgkreis: Buttlar (16063011), Geisa (16063032), Schleid (16063068)
+ * - Unstrut-Hainich-Kreis: Südeichsfeld (16064074)
+ */
+const STATUTORY_THURINGIA_OTHER_CATHOLIC = new Set<string>([
+  "16063011", "buttlar",
+  "16063032", "geisa",
+  "16063068", "schleid",
+  "16064074", "südeichsfeld", "suedeichsfeld",
 ]);
 
 const KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES = new Set<string>([
-  "erfurt", "16062000",
-  "jena", "16063000",
-  "weimar", "16064000",
-  "gera", "16065000",
+  "erfurt", "16051000",
+  "gera", "16052000",
+  "jena", "16053000",
+  "suhl", "16054000",
+  "weimar", "16055000",
   "eisenach", "16063022",
-  "suhl", "16070000",
   "gotha", "16067029",
   "nordhausen", "16062041",
   "altenburg", "16077001",
   "ilmenau", "16070029",
+  "bad langensalza", "16064003",
+  "seebach", "16063071",
+  "oppershausen", "16064053",
 ]);
 
 export function isThuringianCatholicMunicipality(municipality?: string | null): boolean | null {
   if (!municipality || !municipality.trim()) return null;
   const normalized = municipality.trim().toLowerCase();
-  if (normalized.includes("eichsfeld")) return true;
-  if (KNOWN_THURINGIA_CATHOLIC_MUNICIPALITIES.has(normalized)) return true;
-  if (KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES.has(normalized)) return false;
+
+  // Explicit non-qualifying Protestant / general municipalities
+  if (KNOWN_THURINGIA_PROTESTANT_OR_GENERAL_MUNICIPALITIES.has(normalized)) {
+    return false;
+  }
+
+  // Exact matching against verified 2026 TLS AGS codes and names (NO prefix / substring matching)
+  if (STATUTORY_THURINGIA_EICHSFELD_AGS.has(normalized)) {
+    return true;
+  }
+  if (STATUTORY_THURINGIA_EICHSFELD_NAMES.has(normalized)) {
+    return true;
+  }
+  if (STATUTORY_THURINGIA_OTHER_CATHOLIC.has(normalized)) {
+    return true;
+  }
+
+  // Any unverified or unlisted municipality returns null (ambiguous / unresolved)
   return null;
 }
 
@@ -345,6 +573,7 @@ export type HolidayCalendarOptions = {
   year: number;
   federalState: GermanFederalState;
   municipality?: string | null;
+  districtLocality?: string | null;
   customExceptions?: HolidayException[];
 };
 
@@ -352,7 +581,7 @@ export type HolidayCalendarOptions = {
  * Pure generator of all statutory public holidays for a specific German Federal State and year.
  */
 export function getGermanHolidaysForYear(options: HolidayCalendarOptions): Map<string, HolidayRecord> {
-  const { year, federalState, municipality, customExceptions } = options;
+  const { year, federalState, municipality, districtLocality, customExceptions } = options;
   const holidays = new Map<string, HolidayRecord>();
 
   const easter = calculateEasterSunday(year);
@@ -410,7 +639,7 @@ export function getGermanHolidaysForYear(options: HolidayCalendarOptions): Map<s
   ) {
     add(addDaysToEaster(year, easter, 60), "Fronleichnam", false, stateBasis);
   } else if (federalState === "SN" && municipality) {
-    if (isSaxonyCatholicMunicipality(municipality) === true) {
+    if (isSaxonyCatholicLocation(municipality, districtLocality) === true) {
       add(addDaysToEaster(year, easter, 60), "Fronleichnam", false, STATUTORY_LEGAL_BASES.SAXONY_FRONLEICHNAM, municipality);
     }
   } else if (federalState === "TH" && municipality) {
@@ -518,6 +747,7 @@ export type HolidayResolutionUnresolved = {
     rawDate?: string;
     rawFederalState?: string;
     rawMunicipality?: string | null;
+    rawDistrictLocality?: string | null;
     reason: string;
   };
 };
@@ -533,7 +763,8 @@ export function resolveGermanHoliday(
   dateInput: Date | string,
   federalStateInput: unknown,
   municipalityInput?: string | null,
-  customExceptions?: HolidayException[]
+  customExceptions?: HolidayException[],
+  districtLocalityInput?: string | null
 ): HolidayResolutionResult {
   let isoDate: string;
   let year: number;
@@ -628,18 +859,25 @@ export function resolveGermanHoliday(
 
   if (isoDate === fronleichnamIso) {
     if (federalState === "SN") {
-      const isCath = isSaxonyCatholicMunicipality(municipalityInput);
+      const isCath = isSaxonyCatholicLocation(municipalityInput, districtLocalityInput);
       if (isCath === null) {
+        const isBautzen =
+          municipalityInput &&
+          ["bautzen", "14625020", "stadt bautzen"].includes(municipalityInput.trim().toLowerCase());
         return {
           status: "policy_unresolved",
           code: "AMBIGUOUS_MUNICIPAL_LOCATION",
-          message:
-            "Fronleichnam im Freistaat Sachsen ist nur in bestimmten katholisch geprägten Gemeinden des Landkreises Bautzen gesetzlicher Feiertag (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO). Die Gemeinde/Dienststelle ist nicht angegeben oder ungelöst.",
+          message: isBautzen
+            ? "Fronleichnam in der Stadt Bautzen (14625020) ist nur in den Ortsteilen Bolbritz und Salzenforst gesetzlicher Feiertag (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO § 1 und Anlage). Ohne Angabe des Ortsteils (districtLocality) ist der Status ungelöst."
+            : "Fronleichnam im Freistaat Sachsen ist nur in bestimmten katholisch geprägten Gemeinden oder Ortsteilen des Landkreises Bautzen gesetzlicher Feiertag (SächsSFG § 1 Abs. 1 Nr. 1 i.V.m. FronleichnamsVO § 1 und Anlage). Die Gemeinde oder der Ortsteil ist nicht angegeben, unvollständig oder ungelöst.",
           diagnostics: {
             rawDate: isoDate,
             rawFederalState: "SN",
             rawMunicipality: municipalityInput || null,
-            reason: "Fronleichnam municipal status ambiguous in Saxony without verified statutory catholic municipality or official AGS",
+            rawDistrictLocality: districtLocalityInput || null,
+            reason: isBautzen
+              ? "Bautzen requires explicit districtLocality (e.g. Bolbritz or Salzenforst) to determine Fronleichnam status"
+              : "Fronleichnam municipal status ambiguous in Saxony without verified statutory catholic municipality/Ortsteil or official AGS",
           },
         };
       }
@@ -666,6 +904,7 @@ export function resolveGermanHoliday(
     year,
     federalState,
     municipality: municipalityInput,
+    districtLocality: districtLocalityInput,
     customExceptions,
   });
 

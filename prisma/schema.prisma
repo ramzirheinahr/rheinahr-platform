@@ -625,17 +625,18 @@ model FacilitySurchargePolicy {
   id               String                    @id @default(uuid())
   clientId         String                    @map("client_id")
   clientContractId String?                   @map("client_contract_id")
-  policyVersion    Int                       @default(1) @map("policy_version")
+  policyVersion    Int                       @map("policy_version")
   federalState     String                    @map("federal_state") // ISO 3166-2:DE code e.g. "NW", "BY", "BE", "BW"
-  municipality     String?                   @map("municipality")   // Municipal exception location e.g. "Augsburg"
+  municipality     String?                   @map("municipality")   // Municipal name or official AGS key e.g. "09162000"
+  districtLocality String?                   @map("district_locality") // Sub-municipal locality / Ortsteil e.g. "Salzenforst"
   surchargeSat     Float                     @map("surcharge_sat")
   surchargeSun     Float                     @map("surcharge_sun")
   surchargeHoliday Float                     @map("surcharge_holiday")
   surchargeNight   Float                     @map("surcharge_night")
-  nightStart       String                    @default("20:00") @map("night_start")
-  nightEnd         String                    @default("06:00") @map("night_end")
-  combinationRule  SurchargeCombinationRule  @default(highest_non_night_plus_night) @map("combination_rule")
-  sourceType       SurchargePolicySourceType @default(setting) @map("source_type")
+  nightStart       String                    @map("night_start")
+  nightEnd         String                    @map("night_end")
+  combinationRule  SurchargeCombinationRule  @map("combination_rule")
+  sourceType       SurchargePolicySourceType @map("source_type")
   sourceReference  String                    @map("source_reference")
   verifiedByUserId String?                   @map("verified_by_user_id")
   verifiedAt       DateTime?                 @map("verified_at")
