@@ -27,14 +27,21 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
 
   let path: string | null = null;
   if (documentId) {
-    const doc = await prisma.confirmationDocument.findFirst({
-      where: { id: documentId, assignmentId },
-      select: { storagePath: true },
-    });
-    if (!doc || !doc.storagePath) {
-      return new NextResponse("Dokument nicht gefunden", { status: 404 });
+    if (documentId.startsWith("legacy-")) {
+      path = a.serviceConfirmation?.documentUrl || null;
+      if (!path) {
+        return new NextResponse("Dokument nicht gefunden", { status: 404 });
+      }
+    } else {
+      const doc = await prisma.confirmationDocument.findFirst({
+        where: { id: documentId, assignmentId },
+        select: { storagePath: true },
+      });
+      if (!doc || !doc.storagePath) {
+        return new NextResponse("Dokument nicht gefunden", { status: 404 });
+      }
+      path = doc.storagePath;
     }
-    path = doc.storagePath;
   } else {
     const latestDoc = await prisma.confirmationDocument.findFirst({
       where: { assignmentId, storagePath: { not: null } },
@@ -60,10 +67,15 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
 
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
+  if (path.startsWith("/api/confirmations/")) {
+    return NextResponse.redirect(new URL(path, _req.url));
+  }
+
+  const cleanPath = path.replace(/^\/?confirmations\//, "").replace(/^\//, "");
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.storage
     .from("confirmations")
-    .createSignedUrl(path, 60);
+    .createSignedUrl(cleanPath, 60);
   if (error || !data) return new NextResponse("Error", { status: 500 });
 
   await audit({

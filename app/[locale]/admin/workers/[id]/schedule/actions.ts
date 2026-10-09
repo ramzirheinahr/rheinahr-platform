@@ -91,3 +91,207 @@ export async function deleteWorkerAdjustment(id: string) {
     revalidatePath(`/worker`);
   }
 }
+
+export async function uploadWorkerConfirmationEvidenceAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || !["super_admin", "admin"].includes(user.role)) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const workerId = formData.get("workerId") as string;
+  const signerName = (formData.get("signerName") as string) || undefined;
+  const notes = (formData.get("notes") as string) || undefined;
+  const file = formData.get("file") as File | null;
+
+  if (!file || !(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Bitte eine Datei auswählen." };
+  }
+
+  const assignmentIdsRaw = formData.getAll("assignmentIds");
+  let assignmentIds: string[] = [];
+  if (
+    assignmentIdsRaw.length === 1 &&
+    typeof assignmentIdsRaw[0] === "string" &&
+    assignmentIdsRaw[0].startsWith("[")
+  ) {
+    try {
+      assignmentIds = JSON.parse(assignmentIdsRaw[0]);
+    } catch {
+      assignmentIds = [assignmentIdsRaw[0]];
+    }
+  } else {
+    assignmentIds = assignmentIdsRaw.map(String);
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  try {
+    const { uploadWorkerMultiShiftEvidence } = await import(
+      "@/lib/confirmation-evidence-service"
+    );
+    const res = await uploadWorkerMultiShiftEvidence({
+      workerId,
+      assignmentIds,
+      file: {
+        buffer,
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        sizeBytes: file.size,
+      },
+      signerName,
+      notes,
+      currentUser: user,
+    });
+
+    revalidatePath(`/admin/workers/${workerId}/schedule`);
+    revalidatePath(`/admin/clients`);
+    revalidatePath(`/admin/orders`);
+    revalidatePath(`/worker`);
+
+    return { ok: true, count: res.count };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Fehler beim Hochladen.";
+    return { ok: false, error: msg };
+  }
+}
+
+export async function getShiftEvidenceTimelineAction(assignmentId: string) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  try {
+    const { getAssignmentEvidenceHistory, sanitizePublicEvidenceTimeline } =
+      await import("@/lib/confirmation-evidence-service");
+    const rawTimeline = await getAssignmentEvidenceHistory(assignmentId, user);
+    const timeline = sanitizePublicEvidenceTimeline(rawTimeline);
+    const canAdminDecide = user.role === "admin" || user.role === "super_admin";
+    return { ok: true, timeline, canAdminDecide };
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message : "Fehler beim Laden der Nachweise.";
+    return { ok: false, error: msg };
+  }
+}
+
+export async function proposeHoursCorrectionAction(params: {
+  assignmentId: string;
+  documentId: string;
+  expectedEffectiveVersion: string;
+  expectedBaselineHours?: number | null;
+  proposedHours?: number | string;
+  proposedStartTime?: string | null;
+  proposedEndTime?: string | null;
+  proposedBreakMinutes?: number | string | null;
+  reason?: string | null;
+}) {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  if (!params.expectedEffectiveVersion || !params.expectedEffectiveVersion.trim()) {
+    return { ok: false, error: "missing_version" };
+  }
+
+  try {
+    const { createOrUpdateHoursCorrectionRequest } = await import(
+      "@/lib/confirmation-evidence-service"
+    );
+    const request = await createOrUpdateHoursCorrectionRequest({
+      assignmentId: params.assignmentId,
+      documentId: params.documentId,
+      expectedEffectiveVersion: params.expectedEffectiveVersion,
+      expectedBaselineHours: params.expectedBaselineHours,
+      proposedHours: params.proposedHours,
+      proposedStartTime: params.proposedStartTime,
+      proposedEndTime: params.proposedEndTime,
+      proposedBreakMinutes: params.proposedBreakMinutes,
+      reason: params.reason,
+      currentUser: user,
+    });
+
+    revalidatePath("/admin/workers");
+    revalidatePath("/admin/clients");
+    revalidatePath("/admin/orders");
+    return { ok: true, requestId: request.id };
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message : "Fehler beim Einreichen des Korrekturvorschlags.";
+    return { ok: false, error: msg };
+  }
+}
+
+export async function approveHoursCorrectionAction(params: {
+  correctionRequestId: string;
+  expectedEffectiveVersion: string;
+  effectiveStartTime?: string | null;
+  effectiveEndTime?: string | null;
+  effectiveBreakMinutes?: number | string | null;
+  decisionNote?: string | null;
+}) {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  if (!params.expectedEffectiveVersion || !params.expectedEffectiveVersion.trim()) {
+    return { ok: false, error: "missing_version" };
+  }
+
+  try {
+    const { approveHoursCorrectionRequest } = await import(
+      "@/lib/confirmation-evidence-service"
+    );
+    const result = await approveHoursCorrectionRequest({
+      correctionRequestId: params.correctionRequestId,
+      expectedEffectiveVersion: params.expectedEffectiveVersion,
+      effectiveStartTime: params.effectiveStartTime,
+      effectiveEndTime: params.effectiveEndTime,
+      effectiveBreakMinutes: params.effectiveBreakMinutes,
+      decisionNote: params.decisionNote,
+      currentUser: user,
+    });
+
+    revalidatePath("/admin/workers");
+    revalidatePath("/admin/clients");
+    revalidatePath("/admin/orders");
+    return { ok: true, result };
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message : "Fehler beim Genehmigen der Stundenkorrektur.";
+    return { ok: false, error: msg };
+  }
+}
+
+export async function rejectHoursCorrectionAction(params: {
+  correctionRequestId: string;
+  decisionNote?: string | null;
+}) {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  try {
+    const { rejectHoursCorrectionRequest } = await import(
+      "@/lib/confirmation-evidence-service"
+    );
+    const result = await rejectHoursCorrectionRequest({
+      correctionRequestId: params.correctionRequestId,
+      decisionNote: params.decisionNote,
+      currentUser: user,
+    });
+
+    revalidatePath("/admin/workers");
+    revalidatePath("/admin/clients");
+    revalidatePath("/admin/orders");
+    return { ok: true, result };
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message : "Fehler beim Ablehnen der Stundenkorrektur.";
+    return { ok: false, error: msg };
+  }
+}

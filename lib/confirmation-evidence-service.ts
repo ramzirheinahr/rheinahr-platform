@@ -35,6 +35,7 @@ export type EvidenceFilePayload = {
 
 export type AddEvidenceParams = {
   assignmentId: string;
+  intent?: "attach_evidence" | "initial_confirmation";
   file?: EvidenceFilePayload;
   storagePath?: string;
   fileHash?: string;
@@ -60,7 +61,7 @@ export type EvidenceDocumentView = {
   id: string;
   assignmentId: string;
   sourceType: ConfirmationDocumentSourceType;
-  storagePath: string | null;
+  storagePath?: string | null;
   fileHash: string | null;
   fileName: string | null;
   mimeType: string | null;
@@ -77,6 +78,25 @@ export type EvidenceDocumentView = {
   isPhysicalScan: boolean;
 };
 
+export type CorrectionRecordView = {
+  id: string;
+  documentId: string | null;
+  baseVersion: string | null;
+  revision: number;
+  status: HoursCorrectionStatus;
+  previousHoursWorked: number | null;
+  proposedHoursWorked: number;
+  proposedStartTime: string | null;
+  proposedEndTime: string | null;
+  proposedBreakMinutes: number | null;
+  reason: string | null;
+  requestedAt: string;
+  requestedById: string | null;
+  decidedAt: string | null;
+  decidedById: string | null;
+  decisionNote: string | null;
+};
+
 export type EvidenceTimeline = {
   assignmentId: string;
   orderId: string;
@@ -88,6 +108,14 @@ export type EvidenceTimeline = {
   scheduledHours: number;
   currentApprovedHours: number | null;
   currentMethod: "electronic" | "upload" | null;
+  effectiveWorkHours: number;
+  effectiveStartTime: string;
+  effectiveEndTime: string;
+  effectiveBreakMinutes: number;
+  effectiveSource: "approved_correction" | "service_confirmation" | "scheduled";
+  effectiveVersion: string;
+  isCorrected: boolean;
+  approvedCorrection: CorrectionRecordView | null;
   legacyConfirmation: {
     exists: boolean;
     method: "electronic" | "upload" | null;
@@ -109,18 +137,8 @@ export type EvidenceTimeline = {
     confirmedAt: string | null;
   } | null;
   documents: EvidenceDocumentView[];
-  pendingCorrection: {
-    id: string;
-    status: HoursCorrectionStatus;
-    previousHoursWorked: number | null;
-    proposedHoursWorked: number;
-    proposedStartTime: string | null;
-    proposedEndTime: string | null;
-    proposedBreakMinutes: number | null;
-    reason: string | null;
-    requestedAt: string;
-    requestedById: string | null;
-  } | null;
+  pendingCorrection: CorrectionRecordView | null;
+  corrections: CorrectionRecordView[];
 };
 
 /**
@@ -289,6 +307,62 @@ export function validateBreakMinutes(mins: unknown): number | null {
     return mins;
   }
   throw new ConfirmationEvidenceError("INVALID_BREAK_MINUTES", "Ungültiger Wert für Pausenminuten.");
+}
+
+/**
+ * Parses "HH:mm" time string into total minutes since midnight (0 to 1439).
+ */
+export function parseTimeToMinutes(timeStr: string): number {
+  const validated = validateShiftTime(timeStr);
+  if (!validated) {
+    throw new ConfirmationEvidenceError("INVALID_SHIFT_TIME", "Uhrzeit darf nicht leer sein.");
+  }
+  const [hStr, mStr] = validated.split(":");
+  return Number.parseInt(hStr, 10) * 60 + Number.parseInt(mStr, 10);
+}
+
+/**
+ * Computes gross shift minutes between start and end time.
+ * Handles crossing midnight correctly (e.g., 22:00 to 06:00 => 480 minutes).
+ */
+export function computeShiftGrossMinutes(startTime: string, endTime: string): number {
+  const startMin = parseTimeToMinutes(startTime);
+  const endMin = parseTimeToMinutes(endTime);
+  if (endMin > startMin) {
+    return endMin - startMin;
+  }
+  if (endMin < startMin) {
+    return 1440 - startMin + endMin;
+  }
+  return 0;
+}
+
+/**
+ * Computes net shift hours rounded to 2 decimal places:
+ * Math.round(((grossMinutes - breakMinutes) / 60) * 100) / 100
+ */
+export function computeShiftNetHours(
+  startTime: string,
+  endTime: string,
+  breakMinutes: number
+): number {
+  const gross = computeShiftGrossMinutes(startTime, endTime);
+  if (gross <= 0) {
+    throw new ConfirmationEvidenceError(
+      "INVALID_SHIFT_TIME",
+      "Beginn und Ende müssen eine positive Schichtdauer ergeben."
+    );
+  }
+  const validBreak = validateBreakMinutes(breakMinutes);
+  const breakMin = validBreak ?? 0;
+  if (breakMin >= gross) {
+    throw new ConfirmationEvidenceError(
+      "INVALID_BREAK_MINUTES",
+      "Die Pausenzeit darf nicht größer oder gleich der gesamten Schichtdauer sein."
+    );
+  }
+  const netMin = gross - breakMin;
+  return Math.round((netMin / 60) * 100) / 100;
 }
 
 /**
@@ -476,30 +550,53 @@ export async function addConfirmationEvidence(params: AddEvidenceParams) {
         });
       }
     } else {
-      // INITIAL MANUAL CONFIRMATION: No prior record exists.
-      // Create ServiceConfirmation with method: "upload" so scheduling status advances normally.
-      const initialHours =
-        validatedProposedHours !== undefined
-          ? validatedProposedHours
-          : netShiftHours(
-              assignment.order.startTime,
-              assignment.order.endTime,
-              assignment.order.breakMinutes
-            );
+      const intent = params.intent || "attach_evidence";
+      if (intent === "initial_confirmation") {
+        // INITIAL MANUAL CONFIRMATION: Explicit initial manual confirmation intent.
+        const initialHours =
+          validatedProposedHours !== undefined
+            ? validatedProposedHours
+            : netShiftHours(
+                assignment.order.startTime,
+                assignment.order.endTime,
+                assignment.order.breakMinutes
+              );
 
-      await tx.serviceConfirmation.create({
-        data: {
-          assignmentId,
-          confirmedById: currentUser.id,
-          method: "upload",
-          documentUrl: storagePath,
-          hoursWorked: initialHours,
-          signerName: signerName || "Manuell signiert",
-          clientNotes: params.clientNotes || "Manuell signierter Leistungsnachweis",
-          ipAddress: signerIp || "unknown",
-          confirmedAt: now,
-        },
-      });
+        await tx.serviceConfirmation.create({
+          data: {
+            assignmentId,
+            confirmedById: currentUser.id,
+            method: "upload",
+            documentUrl: storagePath,
+            hoursWorked: initialHours,
+            signerName: signerName || "Manuell signiert",
+            clientNotes: params.clientNotes || "Manuell signierter Leistungsnachweis",
+            ipAddress: signerIp || "unknown",
+            confirmedAt: now,
+          },
+        });
+      } else {
+        // intent === "attach_evidence" (default):
+        // Strict Phase 3b/3c requirement: Attaching evidence to an unconfirmed shift
+        // stores the ConfirmationDocument ONLY, and NEVER creates an implicit ServiceConfirmation!
+        if (validatedProposedHours !== undefined) {
+          correctionRequest = await tx.workHoursCorrectionRequest.create({
+            data: {
+              assignmentId,
+              documentId: doc.id,
+              status: "proposed",
+              previousHoursWorked: null,
+              proposedHoursWorked: validatedProposedHours,
+              proposedStartTime: validatedStartTime ?? null,
+              proposedEndTime: validatedEndTime ?? null,
+              proposedBreakMinutes: validatedBreakMinutes ?? null,
+              reason: correctionReason || params.clientNotes || "Stundennachweis eingereicht",
+              requestedById: currentUser.id,
+              requestedAt: now,
+            },
+          });
+        }
+      }
     }
 
     return {
@@ -543,6 +640,794 @@ export async function addConfirmationEvidence(params: AddEvidenceParams) {
   }
 }
 
+export type EffectiveAssignmentWorkHours = {
+  assignmentId: string;
+  effectiveHours: number;
+  effectiveStartTime: string;
+  effectiveEndTime: string;
+  effectiveBreakMinutes: number;
+  source: "approved_correction" | "service_confirmation" | "scheduled";
+  effectiveVersion: string;
+  isCorrected: boolean;
+  baselineHours: number | null;
+  approvedCorrection: CorrectionRecordView | null;
+};
+
+export type ProposeHoursCorrectionParams = {
+  assignmentId: string;
+  documentId: string;
+  expectedEffectiveVersion: string;
+  expectedBaselineHours?: number | null;
+  proposedHours?: number | string;
+  proposedStartTime?: string | null;
+  proposedEndTime?: string | null;
+  proposedBreakMinutes?: number | string | null;
+  reason?: string | null;
+  currentUser: {
+    id: string;
+    role: string;
+    clientId?: string | null;
+  };
+};
+
+export type ApproveHoursCorrectionParams = {
+  correctionRequestId: string;
+  expectedEffectiveVersion: string;
+  effectiveStartTime?: string | null;
+  effectiveEndTime?: string | null;
+  effectiveBreakMinutes?: number | string | null;
+  decisionNote?: string | null;
+  currentUser: {
+    id: string;
+    role: string;
+  };
+  decidedAt?: Date;
+};
+
+export type RejectHoursCorrectionParams = {
+  correctionRequestId: string;
+  expectedEffectiveVersion?: string | null;
+  decisionNote?: string | null;
+  currentUser: {
+    id: string;
+    role: string;
+  };
+};
+
+export function computeAssignmentEffectiveVersion(
+  assignmentId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  latestApprovedCorrection: any | null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  serviceConfirmation: any | null,
+  orderOrOrderId:
+    | string
+    | {
+        id: string;
+        startTime?: string | null;
+        endTime?: string | null;
+        breakMinutes?: number | null;
+      },
+  orderTimesFallback?: {
+    startTime: string;
+    endTime: string;
+    breakMinutes: number;
+  }
+): string {
+  const orderId = typeof orderOrOrderId === "string" ? orderOrOrderId : orderOrOrderId.id;
+  const orderStart =
+    (typeof orderOrOrderId === "object" && orderOrOrderId.startTime) ||
+    orderTimesFallback?.startTime ||
+    "";
+  const orderEnd =
+    (typeof orderOrOrderId === "object" && orderOrOrderId.endTime) ||
+    orderTimesFallback?.endTime ||
+    "";
+  const orderBreak =
+    (typeof orderOrOrderId === "object" && orderOrOrderId.breakMinutes != null)
+      ? Number(orderOrOrderId.breakMinutes)
+      : (orderTimesFallback?.breakMinutes ?? 0);
+
+  if (latestApprovedCorrection) {
+    const rev = latestApprovedCorrection.revision ?? 1;
+    const hours = Number(latestApprovedCorrection.proposedHoursWorked).toFixed(2);
+    const start = latestApprovedCorrection.proposedStartTime || "";
+    const end = latestApprovedCorrection.proposedEndTime || "";
+    const brk = latestApprovedCorrection.proposedBreakMinutes ?? 0;
+    const docId = latestApprovedCorrection.documentId || "";
+    const baseVer = latestApprovedCorrection.baseVersion || "";
+    const payload = `corr|${latestApprovedCorrection.id}|r${rev}|${hours}|${start}|${end}|${brk}|${docId}|${baseVer}`;
+    const hash = crypto.createHash("sha256").update(payload).digest("hex").slice(0, 16);
+    return `corr:${latestApprovedCorrection.id}:r${rev}:${hash}`;
+  }
+
+  if (serviceConfirmation) {
+    const hours =
+      serviceConfirmation.hoursWorked != null
+        ? Number(serviceConfirmation.hoursWorked).toFixed(2)
+        : "";
+    const doc = serviceConfirmation.documentUrl || "";
+    const method = serviceConfirmation.method || "";
+    const confirmedTime = serviceConfirmation.confirmedAt
+      ? new Date(serviceConfirmation.confirmedAt).getTime()
+      : 0;
+    const payload = `sc|${serviceConfirmation.id}|${confirmedTime}|${hours}|${orderStart}|${orderEnd}|${orderBreak}|${doc}|${method}`;
+    const hash = crypto.createHash("sha256").update(payload).digest("hex").slice(0, 16);
+    return `sc:${serviceConfirmation.id}:${hash}`;
+  }
+
+  const scheduledNet = (orderStart && orderEnd)
+    ? netShiftHours(orderStart, orderEnd, orderBreak).toFixed(2)
+    : "0.00";
+  const payload = `sched|${orderId}|${orderStart}|${orderEnd}|${orderBreak}|${scheduledNet}`;
+  const hash = crypto.createHash("sha256").update(payload).digest("hex").slice(0, 16);
+  return `scheduled:${orderId}:${hash}`;
+}
+
+/**
+ * Central Read Model: Resolves effective work hours per Assignment.
+ *
+ * Invariant Hierarchy:
+ * 1. Approved correction request (status: "approved") => uses approved hours, times, and break.
+ * 2. ServiceConfirmation => uses historical hoursWorked and scheduled order times.
+ * 3. Scheduled shift => uses netShiftHours(order.startTime, order.endTime, order.breakMinutes).
+ *
+ * Isolation guarantee: strictly assignment-scoped. Does NOT modify or inspect invoices or order-level shared times.
+ */
+export async function getAssignmentEffectiveWorkHours(
+  assignmentId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  clientOrTx: any = prisma
+): Promise<EffectiveAssignmentWorkHours> {
+  const assignment = await clientOrTx.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      order: {
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+          breakMinutes: true,
+        },
+      },
+      serviceConfirmation: {
+        select: {
+          id: true,
+          method: true,
+          hoursWorked: true,
+          signatureData: true,
+          signerName: true,
+          confirmedAt: true,
+          documentUrl: true,
+        },
+      },
+    },
+  });
+
+  if (!assignment) {
+    throw new ConfirmationEvidenceError(
+      "ASSIGNMENT_NOT_FOUND",
+      "Die angegebene Schicht wurde nicht gefunden.",
+      404
+    );
+  }
+
+  // Find latest approved correction ordered by causal database revision first,
+  // followed by decidedAt, requestedAt, and id. Completely immune to app-server clock skew.
+  const approvedCorrection = await clientOrTx.workHoursCorrectionRequest.findFirst({
+    where: {
+      assignmentId,
+      status: "approved",
+    },
+    orderBy: [
+      { revision: "desc" },
+      { decidedAt: "desc" },
+      { requestedAt: "desc" },
+      { id: "desc" },
+    ],
+  });
+
+  const scheduledHours = netShiftHours(
+    assignment.order.startTime,
+    assignment.order.endTime,
+    assignment.order.breakMinutes
+  );
+
+  const baselineHours =
+    assignment.serviceConfirmation?.hoursWorked != null
+      ? Number(assignment.serviceConfirmation.hoursWorked)
+      : scheduledHours;
+
+  const effectiveVersion = computeAssignmentEffectiveVersion(
+    assignmentId,
+    approvedCorrection,
+    assignment.serviceConfirmation,
+    assignment.order
+  );
+
+  if (approvedCorrection) {
+    return {
+      assignmentId,
+      effectiveHours: Number(approvedCorrection.proposedHoursWorked),
+      effectiveStartTime: approvedCorrection.proposedStartTime || assignment.order.startTime,
+      effectiveEndTime: approvedCorrection.proposedEndTime || assignment.order.endTime,
+      effectiveBreakMinutes:
+        approvedCorrection.proposedBreakMinutes ?? assignment.order.breakMinutes,
+      source: "approved_correction",
+      effectiveVersion,
+      isCorrected: true,
+      baselineHours,
+      approvedCorrection: {
+        id: approvedCorrection.id,
+        documentId: approvedCorrection.documentId,
+        baseVersion: approvedCorrection.baseVersion || null,
+        revision: approvedCorrection.revision ?? 1,
+        status: approvedCorrection.status,
+        previousHoursWorked:
+          approvedCorrection.previousHoursWorked != null
+            ? Number(approvedCorrection.previousHoursWorked)
+            : null,
+        proposedHoursWorked: Number(approvedCorrection.proposedHoursWorked),
+        proposedStartTime: approvedCorrection.proposedStartTime,
+        proposedEndTime: approvedCorrection.proposedEndTime,
+        proposedBreakMinutes: approvedCorrection.proposedBreakMinutes,
+        reason: approvedCorrection.reason,
+        requestedById: approvedCorrection.requestedById,
+        requestedAt: approvedCorrection.requestedAt.toISOString(),
+        decidedById: approvedCorrection.decidedById,
+        decidedAt: approvedCorrection.decidedAt
+          ? approvedCorrection.decidedAt.toISOString()
+          : null,
+        decisionNote: approvedCorrection.decisionNote,
+      },
+    };
+  }
+
+  if (assignment.serviceConfirmation?.hoursWorked != null) {
+    return {
+      assignmentId,
+      effectiveHours: Number(assignment.serviceConfirmation.hoursWorked),
+      effectiveStartTime: assignment.order.startTime,
+      effectiveEndTime: assignment.order.endTime,
+      effectiveBreakMinutes: assignment.order.breakMinutes,
+      source: "service_confirmation",
+      effectiveVersion,
+      isCorrected: false,
+      baselineHours,
+      approvedCorrection: null,
+    };
+  }
+
+  return {
+    assignmentId,
+    effectiveHours: scheduledHours,
+    effectiveStartTime: assignment.order.startTime,
+    effectiveEndTime: assignment.order.endTime,
+    effectiveBreakMinutes: assignment.order.breakMinutes,
+    source: "scheduled",
+    effectiveVersion,
+    isCorrected: false,
+    baselineHours,
+    approvedCorrection: null,
+  };
+}
+
+/**
+ * Server Operation 1: Creates or updates an explicit hours correction proposal
+ * linked to an existing ConfirmationDocument on this assignment.
+ */
+export async function createOrUpdateHoursCorrectionRequest(
+  params: ProposeHoursCorrectionParams
+) {
+  const isAdmin =
+    params.currentUser.role === "admin" || params.currentUser.role === "super_admin";
+  if (!isAdmin) {
+    throw new ConfirmationEvidenceError(
+      "FORBIDDEN",
+      "Nur Administratoren dürfen Stundenkorrekturen vorschlagen.",
+      403
+    );
+  }
+
+  await assertAssignmentAccess(params.assignmentId, params.currentUser);
+
+  // Validate document existence and assignment boundary
+  const doc = await prisma.confirmationDocument.findUnique({
+    where: { id: params.documentId },
+  });
+  if (!doc) {
+    throw new ConfirmationEvidenceError(
+      "DOCUMENT_NOT_FOUND",
+      "Das angegebene Dokument wurde nicht gefunden.",
+      404
+    );
+  }
+  if (doc.assignmentId !== params.assignmentId) {
+    throw new ConfirmationEvidenceError(
+      "DOCUMENT_ASSIGNMENT_MISMATCH",
+      "Das ausgewählte Dokument gehört nicht zu dieser Schicht.",
+      400
+    );
+  }
+
+  // Time & break validation
+  const startTime = validateShiftTime(params.proposedStartTime);
+  const endTime = validateShiftTime(params.proposedEndTime);
+  const breakMinutes = validateBreakMinutes(params.proposedBreakMinutes);
+  let proposedHours = validateAndNormalizeProposedHours(params.proposedHours);
+
+  if (startTime && endTime) {
+    const grossMinutes = computeShiftGrossMinutes(startTime, endTime);
+    if (grossMinutes <= 0) {
+      throw new ConfirmationEvidenceError(
+        "INVALID_SHIFT_TIME",
+        "Beginn und Ende müssen eine positive Schichtdauer ergeben.",
+        400
+      );
+    }
+    if (breakMinutes !== null) {
+      if (breakMinutes >= grossMinutes) {
+        throw new ConfirmationEvidenceError(
+          "INVALID_BREAK_MINUTES",
+          "Die Pause darf nicht größer oder gleich der Schichtdauer sein.",
+          400
+        );
+      }
+      const calcNet = computeShiftNetHours(startTime, endTime, breakMinutes);
+      if (proposedHours === undefined) {
+        proposedHours = calcNet;
+      } else if (Math.abs(calcNet - proposedHours) > 0.01) {
+        throw new ConfirmationEvidenceError(
+          "HOURS_TIME_MISMATCH",
+          `Die vorgeschlagenen Stunden (${proposedHours}) stimmen nicht mit den Zeitangaben überein (${calcNet} Std).`,
+          400
+        );
+      }
+    }
+  }
+
+  if (proposedHours === undefined) {
+    throw new ConfirmationEvidenceError(
+      "INVALID_PROPOSED_HOURS",
+      "Vorgeschlagene Stunden müssen angegeben werden oder aus Beginn, Ende und Pause berechnet werden können.",
+      400
+    );
+  }
+
+  if (
+    !params.expectedEffectiveVersion ||
+    typeof params.expectedEffectiveVersion !== "string" ||
+    !params.expectedEffectiveVersion.trim()
+  ) {
+    throw new ConfirmationEvidenceError(
+      "MISSING_VERSION_TOKEN",
+      "Der Versionsbezeichner (expectedEffectiveVersion) ist für die Prüfung zwingend erforderlich.",
+      400
+    );
+  }
+
+  const now = new Date();
+
+  return await prisma.$transaction(async (tx) => {
+    // 1. Resolve current effective baseline inside transaction
+    const currentEffective = await getAssignmentEffectiveWorkHours(params.assignmentId, tx);
+    const currentBaselineHours = currentEffective.effectiveHours;
+
+    // 2. Strict Version validation: reject if client expected a different version token
+    if (currentEffective.effectiveVersion !== params.expectedEffectiveVersion.trim()) {
+      throw new ConfirmationEvidenceError(
+        "CONCURRENT_MODIFICATION_CONFLICT",
+        `Die Basis-Version der Schicht wurde zwischenzeitlich geändert (Erwartet: '${params.expectedEffectiveVersion.trim()}', Aktuell: '${currentEffective.effectiveVersion}'). Bitte laden Sie die Schicht neu.`,
+        409
+      );
+    }
+
+    // 3. Optimistic baseline hours validation (secondary safeguard)
+    if (
+      params.expectedBaselineHours !== undefined &&
+      params.expectedBaselineHours !== null &&
+      Math.abs(Number(params.expectedBaselineHours) - currentBaselineHours) > 0.001
+    ) {
+      throw new ConfirmationEvidenceError(
+        "CONCURRENT_MODIFICATION_CONFLICT",
+        `Die Basis-Stunden der Schicht wurden zwischenzeitlich geändert (Erwartet: ${params.expectedBaselineHours} Std, Aktuell: ${currentBaselineHours} Std). Bitte laden Sie die Schicht neu.`,
+        409
+      );
+    }
+
+    // 4. Check if there is an existing pending request
+    const existingPending = await tx.workHoursCorrectionRequest.findFirst({
+      where: {
+        assignmentId: params.assignmentId,
+        status: "proposed",
+      },
+    });
+
+    if (existingPending) {
+      return await tx.workHoursCorrectionRequest.update({
+        where: { id: existingPending.id },
+        data: {
+          documentId: doc.id,
+          baseVersion: currentEffective.effectiveVersion,
+          previousHoursWorked: currentBaselineHours,
+          proposedHoursWorked: proposedHours,
+          proposedStartTime: startTime ?? null,
+          proposedEndTime: endTime ?? null,
+          proposedBreakMinutes: breakMinutes ?? null,
+          reason: params.reason?.trim() || null,
+          requestedById: params.currentUser.id,
+          requestedAt: now,
+        },
+      });
+    }
+
+    return await tx.workHoursCorrectionRequest.create({
+      data: {
+        assignmentId: params.assignmentId,
+        documentId: doc.id,
+        baseVersion: currentEffective.effectiveVersion,
+        status: "proposed",
+        previousHoursWorked: currentBaselineHours,
+        proposedHoursWorked: proposedHours,
+        proposedStartTime: startTime ?? null,
+        proposedEndTime: endTime ?? null,
+        proposedBreakMinutes: breakMinutes ?? null,
+        reason: params.reason?.trim() || null,
+        requestedById: params.currentUser.id,
+        requestedAt: now,
+      },
+    });
+  });
+}
+
+/**
+ * Server Operation 2: Explicitly approves a proposed hours correction request.
+ *
+ * Invariants:
+ * - Requires admin authorization.
+ * - Rejects already decided requests (ALREADY_DECIDED).
+ * - Atomic DB conditional transition: updateMany with { id, status: "proposed" } and count === 1.
+ * - Enforces single approved correction per assignment, preventing concurrent duplicate approvals.
+ * - Requires supporting document matching the assignment.
+ * - Checks that no newer approved request exists (STALE_CORRECTION_REQUEST).
+ * - Mandates explicit digital time details (start, end, break) at approval time.
+ * - Validates consistency between digital times and approved hours.
+ * - Leaves ServiceConfirmation, original electronic signatures, and invoices completely untouched.
+ */
+export async function approveHoursCorrectionRequest(
+  params: ApproveHoursCorrectionParams
+) {
+  const isAdmin =
+    params.currentUser.role === "admin" || params.currentUser.role === "super_admin";
+  if (!isAdmin) {
+    throw new ConfirmationEvidenceError(
+      "FORBIDDEN",
+      "Nur Administratoren dürfen Stundenkorrekturen genehmigen.",
+      403
+    );
+  }
+
+  if (
+    !params.expectedEffectiveVersion ||
+    typeof params.expectedEffectiveVersion !== "string" ||
+    !params.expectedEffectiveVersion.trim()
+  ) {
+    throw new ConfirmationEvidenceError(
+      "MISSING_VERSION_TOKEN",
+      "Der Versionsbezeichner (expectedEffectiveVersion) ist für die Genehmigung zwingend erforderlich.",
+      400
+    );
+  }
+
+  const now = new Date();
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const request = await tx.workHoursCorrectionRequest.findUnique({
+        where: { id: params.correctionRequestId },
+        include: {
+          assignment: {
+            include: {
+              order: true,
+              serviceConfirmation: true,
+            },
+          },
+          document: true,
+        },
+      });
+
+      if (!request) {
+        throw new ConfirmationEvidenceError(
+          "CORRECTION_REQUEST_NOT_FOUND",
+          "Der angegebene Korrekturantrag wurde nicht gefunden.",
+          404
+        );
+      }
+
+      if (request.status === "approved") {
+        throw new ConfirmationEvidenceError(
+          "ALREADY_DECIDED",
+          "Dieser Korrekturantrag wurde bereits genehmigt.",
+          409
+        );
+      }
+      if (request.status === "rejected") {
+        throw new ConfirmationEvidenceError(
+          "ALREADY_DECIDED",
+          "Dieser Korrekturantrag wurde bereits abgelehnt.",
+          409
+        );
+      }
+
+      // Document safety: must exist and match assignment
+      if (!request.document) {
+        throw new ConfirmationEvidenceError(
+          "DOCUMENT_NOT_FOUND",
+          "Dem Antrag ist kein gültiges Belegdokument zugeordnet.",
+          400
+        );
+      }
+      if (request.document.assignmentId !== request.assignmentId) {
+        throw new ConfirmationEvidenceError(
+          "DOCUMENT_ASSIGNMENT_MISMATCH",
+          "Das zugeordnete Belegdokument gehört zu einer anderen Schicht.",
+          400
+        );
+      }
+
+      // 1. Version Verification: resolve current effective work hours inside transaction
+      const currentEffective = await getAssignmentEffectiveWorkHours(request.assignmentId, tx);
+
+      if (currentEffective.effectiveVersion !== params.expectedEffectiveVersion.trim()) {
+        throw new ConfirmationEvidenceError(
+          "CONCURRENT_MODIFICATION_CONFLICT",
+          `Die Basis-Version der Schicht wurde zwischenzeitlich geändert (Erwartet: '${params.expectedEffectiveVersion.trim()}', Aktuell: '${currentEffective.effectiveVersion}'). Bitte laden Sie die Schicht neu.`,
+          409
+        );
+      }
+
+      if (request.baseVersion && request.baseVersion !== currentEffective.effectiveVersion) {
+        throw new ConfirmationEvidenceError(
+          "STALE_BASELINE_CONFLICT",
+          "Dieser Korrekturantrag wurde auf einer veralteten Basis-Version erstellt und kann nicht genehmigt werden.",
+          409
+        );
+      }
+
+      // 2. Stale check: check if a newer approved request exists
+      const newerApproved = await tx.workHoursCorrectionRequest.findFirst({
+        where: {
+          assignmentId: request.assignmentId,
+          status: "approved",
+          decidedAt: {
+            gt: request.requestedAt,
+          },
+        },
+      });
+      if (newerApproved) {
+        throw new ConfirmationEvidenceError(
+          "STALE_CORRECTION_REQUEST",
+          "Es existiert bereits eine neuere genehmigte Korrektur für diese Schicht.",
+          409
+        );
+      }
+
+      // Guard against concurrent competing approvals from the SAME base version
+      const competingApproved = await tx.workHoursCorrectionRequest.findFirst({
+        where: {
+          assignmentId: request.assignmentId,
+          status: "approved",
+          baseVersion: currentEffective.effectiveVersion,
+          id: { not: request.id },
+        },
+      });
+      if (competingApproved) {
+        throw new ConfirmationEvidenceError(
+          "CONCURRENT_DECISION_CONFLICT",
+          "Es wurde bereits eine Korrektur für dieselbe Basis-Version genehmigt.",
+          409
+        );
+      }
+
+      // Mandatory digital time details: start, end, break must be resolved at approval time!
+      const startTimeRaw = params.effectiveStartTime || request.proposedStartTime;
+      const endTimeRaw = params.effectiveEndTime || request.proposedEndTime;
+      const breakMinutesRaw =
+        params.effectiveBreakMinutes !== undefined && params.effectiveBreakMinutes !== null
+          ? params.effectiveBreakMinutes
+          : request.proposedBreakMinutes;
+
+      const startTime = validateShiftTime(startTimeRaw);
+      const endTime = validateShiftTime(endTimeRaw);
+      const breakMinutes = validateBreakMinutes(breakMinutesRaw);
+
+      if (!startTime || !endTime || breakMinutes === null) {
+        throw new ConfirmationEvidenceError(
+          "MISSING_TIME_DETAILS",
+          "Beginn, Ende und Pausenzeit sind für die Genehmigung zwingend erforderlich.",
+          400
+        );
+      }
+
+      const grossMinutes = computeShiftGrossMinutes(startTime, endTime);
+      if (grossMinutes <= 0) {
+        throw new ConfirmationEvidenceError(
+          "INVALID_SHIFT_TIME",
+          "Beginn und Ende müssen eine positive Schichtdauer ergeben.",
+          400
+        );
+      }
+
+      if (breakMinutes >= grossMinutes) {
+        throw new ConfirmationEvidenceError(
+          "INVALID_BREAK_MINUTES",
+          "Die Pausenzeit darf nicht größer oder gleich der gesamten Schichtdauer sein.",
+          400
+        );
+      }
+
+      const computedNet = computeShiftNetHours(startTime, endTime, breakMinutes);
+      const proposedHours = Number(request.proposedHoursWorked);
+
+      if (Math.abs(computedNet - proposedHours) > 0.01) {
+        throw new ConfirmationEvidenceError(
+          "HOURS_TIME_MISMATCH",
+          `Die genehmigten Stunden (${proposedHours}) stimmen nicht mit den Zeitangaben überein (Beginn ${startTime}, Ende ${endTime}, Pause ${breakMinutes}m = ${computedNet} Std).`,
+          400
+        );
+      }
+
+      // Compute causal monotonic revision for approved corrections on this assignment
+      const latestApprovedBefore = await tx.workHoursCorrectionRequest.findFirst({
+        where: {
+          assignmentId: request.assignmentId,
+          status: "approved",
+        },
+        orderBy: [
+          { revision: "desc" },
+          { decidedAt: "desc" },
+          { requestedAt: "desc" },
+          { id: "desc" },
+        ],
+        select: { revision: true },
+      });
+      const nextRevision = (latestApprovedBefore?.revision ?? 0) + 1;
+
+      // Atomic conditional update at database level:
+      // Guarantees that only a request currently in "proposed" status transitions to "approved"
+      const updateResult = await tx.workHoursCorrectionRequest.updateMany({
+        where: {
+          id: request.id,
+          status: "proposed",
+        },
+        data: {
+          status: "approved",
+          revision: nextRevision,
+          baseVersion: currentEffective.effectiveVersion,
+          proposedStartTime: startTime,
+          proposedEndTime: endTime,
+          proposedBreakMinutes: breakMinutes,
+          decidedById: params.currentUser.id,
+          decidedAt: params.decidedAt ?? now,
+          decisionNote: params.decisionNote?.trim() || null,
+        },
+      });
+
+      if (updateResult.count !== 1) {
+        throw new ConfirmationEvidenceError(
+          "ALREADY_DECIDED",
+          "Dieser Korrekturantrag wurde bereits parallel entschieden.",
+          409
+        );
+      }
+
+      return await tx.workHoursCorrectionRequest.findUniqueOrThrow({
+        where: { id: request.id },
+      });
+    });
+  } catch (err: unknown) {
+    if (err instanceof ConfirmationEvidenceError) throw err;
+    const errorCode = (err as { code?: string })?.code;
+    const meta = (err as { meta?: { target?: string[] | string } })?.meta;
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    if (
+      errorCode === "P2002" &&
+      (errorMessage.includes("work_hours_correction_requests_assignment_base_approved_key") ||
+        errorMessage.includes("base_version") ||
+        (Array.isArray(meta?.target) && meta.target.includes("base_version")) ||
+        (typeof meta?.target === "string" && meta.target.includes("base_version")))
+    ) {
+      throw new ConfirmationEvidenceError(
+        "CONCURRENT_DECISION_CONFLICT",
+        "Es wurde bereits parallel eine andere Korrektur für dieselbe Basis-Version genehmigt.",
+        409
+      );
+    }
+    throw err;
+  }
+}
+
+/**
+ * Server Operation 3: Explicitly rejects a proposed hours correction request.
+ *
+ * Invariants:
+ * - Requires admin authorization.
+ * - Rejects already decided requests (ALREADY_DECIDED).
+ * - Atomic DB conditional transition: updateMany with { id, status: "proposed" } and count === 1.
+ * - Records decision maker, timestamp, and decision note.
+ * - Leaves effective hours at previous baseline without mutating anything else.
+ */
+export async function rejectHoursCorrectionRequest(
+  params: RejectHoursCorrectionParams
+) {
+  const isAdmin =
+    params.currentUser.role === "admin" || params.currentUser.role === "super_admin";
+  if (!isAdmin) {
+    throw new ConfirmationEvidenceError(
+      "FORBIDDEN",
+      "Nur Administratoren dürfen Stundenkorrekturen ablehnen.",
+      403
+    );
+  }
+
+  const now = new Date();
+
+  return await prisma.$transaction(async (tx) => {
+    const request = await tx.workHoursCorrectionRequest.findUnique({
+      where: { id: params.correctionRequestId },
+    });
+
+    if (!request) {
+      throw new ConfirmationEvidenceError(
+        "CORRECTION_REQUEST_NOT_FOUND",
+        "Der angegebene Korrekturantrag wurde nicht gefunden.",
+        404
+      );
+    }
+
+    if (request.status === "approved") {
+      throw new ConfirmationEvidenceError(
+        "ALREADY_DECIDED",
+        "Dieser Korrekturantrag wurde bereits genehmigt.",
+        409
+      );
+    }
+    if (request.status === "rejected") {
+      throw new ConfirmationEvidenceError(
+        "ALREADY_DECIDED",
+        "Dieser Korrekturantrag wurde bereits abgelehnt.",
+        409
+      );
+    }
+
+    // Atomic conditional update at database level
+    const updateResult = await tx.workHoursCorrectionRequest.updateMany({
+      where: {
+        id: request.id,
+        status: "proposed",
+      },
+      data: {
+        status: "rejected",
+        decidedById: params.currentUser.id,
+        decidedAt: now,
+        decisionNote: params.decisionNote?.trim() || "Abgelehnt durch Administrator",
+      },
+    });
+
+    if (updateResult.count !== 1) {
+      throw new ConfirmationEvidenceError(
+        "ALREADY_DECIDED",
+        "Dieser Korrekturantrag wurde bereits parallel entschieden.",
+        409
+      );
+    }
+
+    return await tx.workHoursCorrectionRequest.findUniqueOrThrow({
+      where: { id: request.id },
+    });
+  });
+}
+
 /**
  * Retrieves the full evidence history and timeline for an assignment.
  * Implements compatible retro-active reading for legacy records:
@@ -560,13 +1445,13 @@ export async function getAssignmentEvidenceHistory(
     orderBy: { createdAt: "asc" },
   });
 
-  const pendingCorrection = await prisma.workHoursCorrectionRequest.findFirst({
-    where: {
-      assignmentId,
-      status: "proposed",
-    },
+  const allCorrections = await prisma.workHoursCorrectionRequest.findMany({
+    where: { assignmentId },
     orderBy: { requestedAt: "desc" },
   });
+
+  const pendingCorrection = allCorrections.find((c) => c.status === "proposed") || null;
+  const effectiveInfo = await getAssignmentEffectiveWorkHours(assignmentId, prisma);
 
   const scheduledHours = netShiftHours(
     assignment.order.startTime,
@@ -575,15 +1460,26 @@ export async function getAssignmentEvidenceHistory(
   );
 
   const sc = assignment.serviceConfirmation;
+  const legacyIsArchivedPdf = Boolean(
+    sc?.method === "electronic" &&
+      Boolean(
+        sc?.documentUrl &&
+          (sc.documentUrl.includes("/signed/") ||
+            sc.documentUrl.includes("signed-confirmations") ||
+            sc.documentUrl.endsWith(".pdf"))
+      )
+  );
+  const legacyIsDynamicView = Boolean(
+    sc?.method === "electronic" && !legacyIsArchivedPdf
+  );
+
   const legacyBaseline = sc
     ? {
         exists: true,
         method: sc.method as "electronic" | "upload",
         hoursWorked: sc.hoursWorked ? Number(sc.hoursWorked) : null,
-        hasArchivedPdf: Boolean(sc.method === "electronic" && sc.documentUrl?.includes("/signed/")),
-        isDynamicallyGeneratedView: Boolean(
-          sc.method === "electronic" && !sc.documentUrl?.includes("/signed/")
-        ),
+        hasArchivedPdf: legacyIsArchivedPdf,
+        isDynamicallyGeneratedView: legacyIsDynamicView,
         hasSignatureImage: Boolean(sc.signatureData),
         signerName: sc.signerName,
         confirmedAt: sc.confirmedAt.toISOString(),
@@ -629,11 +1525,9 @@ export async function getAssignmentEvidenceHistory(
   // This ensures the original remains visible EVEN AFTER subsequent manual sheets or corrections are uploaded!
   const hasModernOriginal = docs.some((d) => d.sourceType === "electronic_original");
   if (sc && !hasModernOriginal) {
-    const isArchivedPdf = Boolean(sc.method === "electronic" && sc.documentUrl?.includes("/signed/"));
+    const isArchivedPdf = legacyIsArchivedPdf;
     const isPhysicalScan = Boolean(sc.method === "upload" && sc.documentUrl);
-    const isDynamicallyGeneratedView = Boolean(
-      sc.method === "electronic" && !sc.documentUrl?.includes("/signed/")
-    );
+    const isDynamicallyGeneratedView = legacyIsDynamicView;
 
     documentViews.unshift({
       id: `legacy-${sc.id}`,
@@ -657,6 +1551,16 @@ export async function getAssignmentEvidenceHistory(
     });
   }
 
+  // Strict chronological sorting:
+  // Electronic original or legacy baseline ALWAYS first, followed by manual uploads/corrections in chronological order.
+  documentViews.sort((a, b) => {
+    const aIsOriginal = a.sourceType === "electronic_original";
+    const bIsOriginal = b.sourceType === "electronic_original";
+    if (aIsOriginal && !bIsOriginal) return -1;
+    if (!aIsOriginal && bIsOriginal) return 1;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+
   return {
     assignmentId: assignment.id,
     orderId: assignment.order.id,
@@ -668,12 +1572,23 @@ export async function getAssignmentEvidenceHistory(
     scheduledHours,
     currentApprovedHours: sc?.hoursWorked ? Number(sc.hoursWorked) : null,
     currentMethod: sc ? (sc.method as "electronic" | "upload") : null,
+    effectiveWorkHours: effectiveInfo.effectiveHours,
+    effectiveStartTime: effectiveInfo.effectiveStartTime,
+    effectiveEndTime: effectiveInfo.effectiveEndTime,
+    effectiveBreakMinutes: effectiveInfo.effectiveBreakMinutes,
+    effectiveSource: effectiveInfo.source,
+    effectiveVersion: effectiveInfo.effectiveVersion,
+    isCorrected: effectiveInfo.isCorrected,
+    approvedCorrection: effectiveInfo.approvedCorrection,
     legacyConfirmation: legacyBaseline,
     legacyBaseline,
     documents: documentViews,
     pendingCorrection: pendingCorrection
       ? {
           id: pendingCorrection.id,
+          documentId: pendingCorrection.documentId,
+          baseVersion: pendingCorrection.baseVersion || null,
+          revision: pendingCorrection.revision ?? 1,
           status: pendingCorrection.status,
           previousHoursWorked: pendingCorrection.previousHoursWorked
             ? Number(pendingCorrection.previousHoursWorked)
@@ -685,7 +1600,328 @@ export async function getAssignmentEvidenceHistory(
           reason: pendingCorrection.reason,
           requestedAt: pendingCorrection.requestedAt.toISOString(),
           requestedById: pendingCorrection.requestedById,
+          decidedAt: pendingCorrection.decidedAt
+            ? pendingCorrection.decidedAt.toISOString()
+            : null,
+          decidedById: pendingCorrection.decidedById,
+          decisionNote: pendingCorrection.decisionNote,
         }
       : null,
+    corrections: allCorrections.map((c) => ({
+      id: c.id,
+      documentId: c.documentId,
+      baseVersion: c.baseVersion || null,
+      revision: c.revision ?? 1,
+      status: c.status,
+      previousHoursWorked: c.previousHoursWorked ? Number(c.previousHoursWorked) : null,
+      proposedHoursWorked: Number(c.proposedHoursWorked),
+      proposedStartTime: c.proposedStartTime,
+      proposedEndTime: c.proposedEndTime,
+      proposedBreakMinutes: c.proposedBreakMinutes,
+      reason: c.reason,
+      requestedAt: c.requestedAt.toISOString(),
+      requestedById: c.requestedById,
+      decidedAt: c.decidedAt ? c.decidedAt.toISOString() : null,
+      decidedById: c.decidedById,
+      decisionNote: c.decisionNote,
+    })),
   };
+}
+
+/**
+ * Sanitizes an EvidenceTimeline DTO before returning it to the browser/client,
+ * removing internal storage paths and sensitive storage keys from metadata.
+ * The client accesses files exclusively through authenticated endpoints like
+ * /api/confirmations/[assignmentId]/document?documentId=...
+ */
+export function sanitizePublicEvidenceTimeline(
+  timeline: EvidenceTimeline
+): EvidenceTimeline {
+  return {
+    ...timeline,
+    documents: timeline.documents.map((doc) => {
+      const sanitizedDoc = { ...doc };
+      delete sanitizedDoc.storagePath;
+
+      if (sanitizedDoc.metadata && typeof sanitizedDoc.metadata === "object") {
+        const cleanMeta: Record<string, unknown> = {};
+        for (const [key, val] of Object.entries(sanitizedDoc.metadata)) {
+          const lower = key.toLowerCase();
+          if (
+            lower.includes("storage") ||
+            lower.includes("path") ||
+            lower.includes("bucket") ||
+            lower.includes("url")
+          ) {
+            continue;
+          }
+          cleanMeta[key] = val;
+        }
+        sanitizedDoc.metadata = Object.keys(cleanMeta).length > 0 ? cleanMeta : null;
+      }
+
+      return sanitizedDoc;
+    }),
+  };
+}
+
+export type UploadWorkerMultiShiftParams = {
+  workerId: string;
+  assignmentIds: string[];
+  file: EvidenceFilePayload;
+  signerName?: string;
+  notes?: string;
+  currentUser: {
+    id: string;
+    role: string;
+    clientId?: string | null;
+  };
+};
+
+export type UploadWorkerMultiShiftResult = {
+  success: boolean;
+  count: number;
+  storagePath: string;
+  fileHash: string;
+  documents: {
+    id: string;
+    assignmentId: string;
+    sourceType: ConfirmationDocumentSourceType;
+    storagePath: string | null;
+  }[];
+};
+
+/**
+ * Phase 3b: Uploads a single physical timesheet document for one or multiple shifts
+ * strictly belonging to the specified worker.
+ *
+ * Guarantees:
+ * 1. Admin/super_admin role verification.
+ * 2. Atomic validation: rejects entire request if any assignmentId is missing, non-existent,
+ *    or belongs to another worker.
+ * 3. File validation: max 25 MB, allowed MIME types (PDF, PNG, JPEG, WebP), genuine magic bytes.
+ * 4. Single physical file upload with upsert: false.
+ * 5. Multi-record linking in a single DB transaction.
+ * 6. Preserves existing ServiceConfirmation (hoursWorked, method, signatureData, confirmedAt)
+ *    if the shift was already confirmed!
+ * 7. Storage cleanup on failure (no orphaned files).
+ */
+export async function uploadWorkerMultiShiftEvidence(
+  params: UploadWorkerMultiShiftParams
+): Promise<UploadWorkerMultiShiftResult> {
+  const isAdmin =
+    params.currentUser.role === "admin" || params.currentUser.role === "super_admin";
+  if (!isAdmin) {
+    throw new ConfirmationEvidenceError(
+      "FORBIDDEN",
+      "Nur Administratoren dürfen Stundenzettel für Mitarbeiter hochladen.",
+      403
+    );
+  }
+
+  if (!params.workerId || typeof params.workerId !== "string" || !params.workerId.trim()) {
+    throw new ConfirmationEvidenceError("INVALID_WORKER_ID", "Ungültige Mitarbeiter-ID.", 400);
+  }
+  const worker = await prisma.worker.findUnique({
+    where: { id: params.workerId.trim() },
+    select: { id: true, fullName: true },
+  });
+  if (!worker) {
+    throw new ConfirmationEvidenceError(
+      "WORKER_NOT_FOUND",
+      "Der angegebene Mitarbeiter existiert nicht.",
+      404
+    );
+  }
+
+  if (!Array.isArray(params.assignmentIds) || params.assignmentIds.length === 0) {
+    throw new ConfirmationEvidenceError(
+      "INVALID_ASSIGNMENT_IDS",
+      "Mindestens eine Schicht muss ausgewählt werden.",
+      400
+    );
+  }
+
+  const normalizedIds: string[] = [];
+  const seenIds = new Set<string>();
+
+  for (const rawId of params.assignmentIds) {
+    if (typeof rawId !== "string") {
+      throw new ConfirmationEvidenceError(
+        "INVALID_ASSIGNMENT_IDS",
+        "Ungültiger Schichtbezeichner: Es werden nur nicht-leere Zeichenketten akzeptiert.",
+        400
+      );
+    }
+    const trimmed = rawId.trim();
+    if (!trimmed) {
+      throw new ConfirmationEvidenceError(
+        "INVALID_ASSIGNMENT_IDS",
+        "Ungültiger Schichtbezeichner: Leere Schicht-IDs sind nicht zulässig.",
+        400
+      );
+    }
+    if (seenIds.has(trimmed)) {
+      throw new ConfirmationEvidenceError(
+        "INVALID_ASSIGNMENT_IDS",
+        `Doppelte Schicht-ID '${trimmed}' in der Auswahlliste.`,
+        400
+      );
+    }
+    seenIds.add(trimmed);
+    normalizedIds.push(trimmed);
+  }
+
+  const uniqueAssignmentIds = normalizedIds;
+
+  const assignments = await prisma.assignment.findMany({
+    where: { id: { in: uniqueAssignmentIds } },
+    include: {
+      order: {
+        select: {
+          id: true,
+          clientId: true,
+          shiftDate: true,
+          startTime: true,
+          endTime: true,
+          breakMinutes: true,
+          requestGroupId: true,
+          client: {
+            select: {
+              id: true,
+              facilityName: true,
+            },
+          },
+        },
+      },
+      worker: {
+        select: {
+          id: true,
+          fullName: true,
+        },
+      },
+      serviceConfirmation: true,
+    },
+  });
+
+  if (assignments.length !== uniqueAssignmentIds.length) {
+    throw new ConfirmationEvidenceError(
+      "ASSIGNMENT_NOT_FOUND",
+      "Eine oder mehrere der angegebenen Schichten wurden nicht gefunden.",
+      404
+    );
+  }
+
+  const mismatched = assignments.find((a) => a.workerId !== worker.id);
+  if (mismatched) {
+    throw new ConfirmationEvidenceError(
+      "WORKER_MISMATCH",
+      "Eine oder mehrere Schichten gehören nicht zum angegebenen Mitarbeiter.",
+      403
+    );
+  }
+
+  validateEvidenceFile(params.file);
+  const fileHash = computeFileSha256(params.file.buffer);
+  const safeName = sanitizeFileName(params.file.fileName);
+  const cleanMime = params.file.mimeType.toLowerCase().split(";")[0].trim();
+
+  const existingDocs = await prisma.confirmationDocument.findMany({
+    where: {
+      assignmentId: { in: uniqueAssignmentIds },
+      fileHash,
+    },
+    select: { assignmentId: true },
+  });
+  if (existingDocs.length > 0) {
+    throw new ConfirmationEvidenceError(
+      "DUPLICATE_DOCUMENT",
+      "Dieses Dokument wurde für eine oder mehrere der ausgewählten Schichten bereits hochgeladen.",
+      409
+    );
+  }
+
+  const randomSlug = crypto.randomBytes(6).toString("hex");
+  const storagePath = `signed-confirmations/worker-${worker.id}/${Date.now()}-${randomSlug}-${safeName}`;
+
+  const supabase = createSupabaseAdminClient();
+  const { error: uploadError } = await supabase.storage
+    .from("confirmations")
+    .upload(storagePath, params.file.buffer, {
+      contentType: cleanMime,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new ConfirmationEvidenceError(
+      "STORAGE_UPLOAD_FAILED",
+      `Fehler beim Hochladen der Datei ins Speichersystem: ${uploadError.message}`,
+      500
+    );
+  }
+
+  const uploadedToStorage = true;
+  const now = new Date();
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const createdDocs = [];
+
+      for (const a of assignments) {
+        // Create ConfirmationDocument record without mutating ServiceConfirmation
+        const doc = await tx.confirmationDocument.create({
+          data: {
+            assignmentId: a.id,
+            sourceType: a.serviceConfirmation ? "manual_correction" : "manual_upload",
+            storagePath,
+            fileHash,
+            fileName: safeName,
+            mimeType: cleanMime,
+            fileSizeBytes: params.file.sizeBytes,
+            signerName: params.signerName || null,
+            uploadedById: params.currentUser.id,
+            uploaderRole: params.currentUser.role,
+            metadata: {
+              notes: params.notes || null,
+              multiShiftBatchCount: uniqueAssignmentIds.length,
+              workerId: worker.id,
+              clientFacilityName: a.order.client.facilityName,
+            },
+            createdAt: now,
+          },
+        });
+        createdDocs.push(doc);
+      }
+
+      return {
+        success: true,
+        count: createdDocs.length,
+        storagePath,
+        fileHash,
+        documents: createdDocs.map((d) => ({
+          id: d.id,
+          assignmentId: d.assignmentId,
+          sourceType: d.sourceType,
+          storagePath: d.storagePath,
+        })),
+      };
+    });
+  } catch (dbErr) {
+    if (uploadedToStorage) {
+      try {
+        await supabase.storage.from("confirmations").remove([storagePath]);
+      } catch (cleanupErr) {
+        console.error("Failed to clean up storage file after DB failure:", cleanupErr);
+      }
+    }
+    const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+    if (errorMessage.includes("DUPLICATE_DOCUMENT") || errorMessage.includes("P2002")) {
+      throw new ConfirmationEvidenceError(
+        "DUPLICATE_DOCUMENT",
+        "Dieses Dokument wurde für eine oder mehrere der ausgewählten Schichten bereits hochgeladen.",
+        409
+      );
+    }
+    throw dbErr;
+  }
 }

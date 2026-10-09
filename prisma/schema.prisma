@@ -670,6 +670,8 @@ model WorkHoursCorrectionRequest {
   id                   String                @id @default(uuid())
   assignmentId         String                @map("assignment_id")
   documentId           String?               @map("document_id")
+  baseVersion          String?               @map("base_version")
+  revision             Int                   @default(1) @map("revision")
   status               HoursCorrectionStatus @default(proposed)
   previousHoursWorked  Decimal?              @map("previous_hours_worked") @db.Decimal(5, 2)
   proposedHoursWorked  Decimal               @map("proposed_hours_worked") @db.Decimal(5, 2)
@@ -689,6 +691,8 @@ model WorkHoursCorrectionRequest {
   decidedBy   User?                 @relation("CorrectionDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
 
   @@index([assignmentId, status])
+  @@index([assignmentId, baseVersion])
+  @@index([assignmentId, revision])
   @@map("work_hours_correction_requests")
 }
 

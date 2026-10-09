@@ -1,6 +1,5 @@
 import { getTranslations } from "next-intl/server";
 import {
-  rowBillHours,
   type ClientScheduleRow,
   type ClientScheduleTotals,
 } from "@/lib/client-schedule";
@@ -8,6 +7,7 @@ import { germanHolidays } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Clock, Download, FileSignature, FileWarning, FileClock } from "lucide-react";
+import { ShiftEvidenceDialog } from "@/components/admin/shift-evidence-dialog";
 
 // One facility's month as the familiar schedule table — every day of the
 // month (weekend/NRW-holiday tint), each deployment with worker, times,
@@ -80,6 +80,11 @@ export async function MonthScheduleTable({
         >
           <Download className="size-3.5" />
         </a>
+        <ShiftEvidenceDialog
+          assignmentId={a.id}
+          shiftDate={a.date}
+          workerName={a.workerName}
+        />
       </div>
     ) : (
       <Badge
@@ -207,6 +212,11 @@ export async function MonthScheduleTable({
                       >
                         <Download className="size-3.5" />
                       </a>
+                      <ShiftEvidenceDialog
+                        assignmentId={a.id}
+                        shiftDate={a.date}
+                        workerName={a.workerName}
+                      />
                     </div>
                   ) : (
                     <Badge

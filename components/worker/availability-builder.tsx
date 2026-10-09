@@ -29,6 +29,7 @@ import { submitLeaveRequest } from "@/app/[locale]/worker/leave/actions";
 import { requestLeaveEdit } from "@/app/[locale]/worker/leave/actions";
 import { addLeaveByAdmin } from "@/app/[locale]/admin/leave/actions";
 import { WorkerShiftConfirmDialog } from "@/components/worker/worker-shift-confirm-dialog";
+import { ShiftEvidenceDialog } from "@/components/admin/shift-evidence-dialog";
 
 type BType = "none" | "full" | "early" | "late" | "night" | "custom";
 type Block = { type: BType; start: string; end: string };
@@ -318,10 +319,6 @@ export function AvailabilityBuilder({
     });
   }
 
-  function toggleLeaveDate(d: string) {
-    // Deprecated, using start and end dates
-  }
-
   function toggleAdminLeaveDate(d: string) {
     setAdminLeaveDates((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
@@ -340,7 +337,7 @@ export function AvailabilityBuilder({
       return;
     }
     
-    let current = new Date(start);
+    const current = new Date(start);
     while (current <= end) {
       dates.push(current.toISOString().split('T')[0]);
       current.setDate(current.getDate() + 1);
@@ -497,6 +494,11 @@ export function AvailabilityBuilder({
             >
               <Download className="size-3.5" />
             </a>
+            <ShiftEvidenceDialog
+              assignmentId={a.id}
+              shiftDate={a.date}
+              facilityName={a.facilityName}
+            />
           </div>
         ) : a.status === "confirmed" ? (
           <div className="flex items-center gap-1.5">
@@ -882,6 +884,11 @@ export function AvailabilityBuilder({
                                 >
                                   <Download className="size-3.5" />
                                 </a>
+                                <ShiftEvidenceDialog
+                                  assignmentId={a.id}
+                                  shiftDate={a.date}
+                                  facilityName={a.facilityName}
+                                />
                               </div>
                             ) : a.status === "confirmed" ? (
                               <div className="flex items-center gap-1.5">

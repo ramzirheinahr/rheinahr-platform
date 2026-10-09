@@ -21,6 +21,7 @@ import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { RemoveAssignmentButton } from "@/components/admin/remove-assignment-button";
 import { SwapWorkerDialog } from "@/components/admin/swap-worker-dialog";
 import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
+import { ShiftEvidenceDialog } from "@/components/admin/shift-evidence-dialog";
 import { useAssignSelection } from "@/components/orders/assign-selection";
 import { usePendingResponses } from "@/components/orders/pending-responses-provider";
 import { ToggleMealAllowanceButton } from "@/components/orders/allowance-toggles";
@@ -186,6 +187,12 @@ export function ShiftMetaCell({
                     >
                       <Download className="size-3.5" />
                     </a>
+                    <ShiftEvidenceDialog
+                      assignmentId={a.id}
+                      shiftDate={meta.shiftDate}
+                      facilityName={meta.facilityName}
+                      workerName={a.workerName}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -339,10 +346,18 @@ export function ShiftMetaCell({
                             {cf("pendingReconfirm")} · {a.correctionHours}h
                           </span>
                         ) : (
-                          <RequestHoursCorrectionDialog
-                            assignmentId={a.id}
-                            currentHours={a.hours ?? null}
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <RequestHoursCorrectionDialog
+                              assignmentId={a.id}
+                              currentHours={a.hours ?? null}
+                            />
+                            <ShiftEvidenceDialog
+                              assignmentId={a.id}
+                              shiftDate={meta.shiftDate}
+                              facilityName={meta.facilityName}
+                              workerName={a.workerName}
+                            />
+                          </div>
                         ))}
                       <ToggleMealAllowanceButton 
                         assignmentId={a.id} 

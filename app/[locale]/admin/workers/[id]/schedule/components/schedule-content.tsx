@@ -6,6 +6,7 @@ import {
 } from "@/lib/worker-schedule";
 import { AvailabilityBuilder } from "@/components/worker/availability-builder";
 import { WorkerAdjustments } from "@/components/admin/worker-adjustments";
+import { WorkerConfirmationUploadDialog } from "@/components/admin/worker-confirmation-upload-dialog";
 
 export async function ScheduleContent({
   workerId,
@@ -24,7 +25,13 @@ export async function ScheduleContent({
 
   const monthStr = `${year}-${String(month).padStart(2, "0")}`;
 
-  const [{ rows: assignments, leaveDays, totals }, initialBlocks, adjustmentsData, noteSetting] = await Promise.all([
+  const [
+    { rows: assignments, leaveDays, totals },
+    initialBlocks,
+    adjustmentsData,
+    noteSetting,
+    workerRecord,
+  ] = await Promise.all([
     getWorkerMonthSchedule(workerId, year, month),
     getWorkerMonthAvailability(workerId, year, month),
     prisma.workerHoursAdjustment.findMany({
@@ -33,6 +40,10 @@ export async function ScheduleContent({
     }),
     prisma.systemSetting.findUnique({
       where: { key: `azk.note.${workerId}.${monthStr}` },
+    }),
+    prisma.worker.findUnique({
+      where: { id: workerId },
+      select: { fullName: true },
     }),
   ]);
 
@@ -50,9 +61,27 @@ export async function ScheduleContent({
   return (
     <div className="space-y-6 mt-6">
       <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold">{av("title")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{av("subtitle")}</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">{av("title")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{av("subtitle")}</p>
+          </div>
+          <WorkerConfirmationUploadDialog
+            workerId={workerId}
+            workerName={workerRecord?.fullName || ""}
+            year={year}
+            month={month}
+            shifts={assignments.map((a) => ({
+              id: a.id,
+              date: a.date,
+              startTime: a.startTime,
+              endTime: a.endTime,
+              facilityName: a.facilityName,
+              scheduledHours: a.scheduledHours,
+              confirmedHours: a.confirmedHours,
+              status: a.status,
+            }))}
+          />
         </div>
         <AvailabilityBuilder
           year={year}
