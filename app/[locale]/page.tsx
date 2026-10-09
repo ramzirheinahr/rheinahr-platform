@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 
+export const dynamic = "force-dynamic";
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
