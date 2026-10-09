@@ -530,7 +530,7 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
       }
     });
 
-    it("resolves cleanly when contractual proportional break allocation rule is documented", () => {
+    it("resolves cleanly when contractual proportional break allocation rule is documented with verified clause", () => {
       // Shift 18:00 to 22:00 (120 min day, 120 min night), breakMinutes: 30.
       // Contractual rule: "proportional".
       // 50% day / 50% night -> 15 min deducted from day, 15 min from night.
@@ -552,6 +552,15 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
         breakMinutes: 30,
         contractualBreakAllocationRule: "proportional",
         breakAllocationSourceReference: "Tarifvertrag TVöD-B § 7 Abs. 2",
+        verifiedBreakClause: {
+          clientId: "client-test-01",
+          clientContractId: "TVöD-B",
+          policyVersion: 1,
+          clauseReference: "Tarifvertrag TVöD-B § 7 Abs. 2",
+          rule: "proportional",
+          verifiedAt: "2026-01-01T00:00:00Z",
+          verifiedBy: "legal-audit-dept",
+        },
         effectiveWorkHoursRef: {
           effectiveHours: 3.5,
           effectiveVersion: "sched:order-10:contractual",
@@ -712,26 +721,57 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
         expect(res1.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
       }
 
-      // 2. Random unverified free text
-      const inputRandomRef: ShiftMinuteSplitterInput = {
+      // 2. Invented contract prefix ("contract-invented-rule")
+      const inputInventedPrefix: ShiftMinuteSplitterInput = {
         ...inputNoRef,
-        breakAllocationSourceReference: "Random unverified verbal agreement",
+        breakAllocationSourceReference: "contract-invented-rule",
       };
-      const res2 = splitShiftMinutes(inputRandomRef);
+      const res2 = splitShiftMinutes(inputInventedPrefix);
       expect(res2.status).toBe("unresolved");
       if (res2.status === "unresolved") {
         expect(res2.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
       }
 
-      // 3. Foreign client contract reference
+      // 3. Reference citing contract ID in free text without verifiedBreakClause
+      const inputContractNoClause: ShiftMinuteSplitterInput = {
+        ...inputNoRef,
+        breakAllocationSourceReference: "TVöD-B", // Correct contract ID, but no verified clause record
+      };
+      const res3 = splitShiftMinutes(inputContractNoClause);
+      expect(res3.status).toBe("unresolved");
+      if (res3.status === "unresolved") {
+        expect(res3.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
+      }
+
+      // 4. Foreign client contract reference
       const inputForeignRef: ShiftMinuteSplitterInput = {
         ...inputNoRef,
         breakAllocationSourceReference: "contract-different-client-99",
       };
-      const res3 = splitShiftMinutes(inputForeignRef);
-      expect(res3.status).toBe("unresolved");
-      if (res3.status === "unresolved") {
-        expect(res3.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
+      const res4 = splitShiftMinutes(inputForeignRef);
+      expect(res4.status).toBe("unresolved");
+      if (res4.status === "unresolved") {
+        expect(res4.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
+      }
+
+      // 5. verifiedBreakClause with foreign contract mismatch
+      const inputMismatchClause: ShiftMinuteSplitterInput = {
+        ...inputNoRef,
+        breakAllocationSourceReference: "Tarifvertrag TVöD-B § 7 Abs. 2",
+        verifiedBreakClause: {
+          clientId: "client-test-01",
+          clientContractId: "OTHER-CONTRACT-999", // Mismatched!
+          policyVersion: 1,
+          clauseReference: "Tarifvertrag TVöD-B § 7 Abs. 2",
+          rule: "proportional",
+          verifiedAt: "2026-01-01T00:00:00Z",
+          verifiedBy: "legal-audit-dept",
+        },
+      };
+      const res5 = splitShiftMinutes(inputMismatchClause);
+      expect(res5.status).toBe("unresolved");
+      if (res5.status === "unresolved") {
+        expect(res5.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
       }
     });
 
@@ -898,6 +938,103 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
       if (result.status === "unresolved") {
         expect(result.code).toBe("DST_AMBIGUOUS");
         expect(result.message).toContain("mehrdeutig");
+      }
+    });
+
+    it("splits repeated autumn hour (02:xx CEST and 02:xx CET) into two distinct, unambiguous intervals without zero-length anomaly", () => {
+      // 2026-10-25 00:30Z to 01:30Z = 60 physical minutes
+      // 00:30Z–01:00Z is 02:30–03:00 CEST (+02:00)
+      // 01:00Z–01:30Z is 02:00–02:30 CET (+01:00)
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "shift-dst-autumn-intervals",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        startDateTime: "2026-10-25T00:30:00Z",
+        endDateTime: "2026-10-25T01:30:00Z",
+        effectiveWorkHoursRef: {
+          effectiveHours: 1.0,
+          effectiveVersion: "conf:order-dst-autumn",
+          source: "service_confirmation",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status).toBe("resolved");
+      if (result.status === "resolved") {
+        expect(result.grossShiftMinutes).toBe(60);
+        expect(result.netWorkMinutes).toBe(60);
+        expect(result.intervals).toHaveLength(2);
+
+        // First 30 minutes in CEST
+        const int1 = result.intervals[0];
+        expect(int1.startTime).toBe("02:30");
+        expect(int1.endTime).toBe("03:00");
+        expect(int1.durationMinutes).toBe(30);
+        expect(int1.endMinuteOfDay - int1.startMinuteOfDay).toBe(30);
+        expect(int1.startDateTime).toBe("2026-10-25T00:30:00.000Z");
+        expect(int1.endDateTime).toBe("2026-10-25T01:00:00.000Z");
+
+        // Second 30 minutes in CET (after rollback)
+        const int2 = result.intervals[1];
+        expect(int2.startTime).toBe("02:00");
+        expect(int2.endTime).toBe("02:30");
+        expect(int2.durationMinutes).toBe(30);
+        expect(int2.endMinuteOfDay - int2.startMinuteOfDay).toBe(30);
+        expect(int2.startDateTime).toBe("2026-10-25T01:00:00.000Z");
+        expect(int2.endDateTime).toBe("2026-10-25T01:30:00.000Z");
+
+        // Verify no interval has identical start and end time with non-zero duration
+        for (const iv of result.intervals) {
+          expect(iv.startTime).not.toBe(iv.endTime);
+        }
+      }
+    });
+
+    it("splits spring-forward jump into two distinct unambiguous intervals matching UTC bounds", () => {
+      // 2026-03-29 00:30Z to 01:30Z = 60 physical minutes
+      // 00:30Z–01:00Z is 01:30–02:00 CET (+01:00)
+      // 01:00Z–01:30Z is 03:00–03:30 CEST (+02:00, jumping over 02:00–02:59)
+      const input: ShiftMinuteSplitterInput = {
+        shiftId: "shift-dst-spring-intervals",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        startDateTime: "2026-03-29T00:30:00Z",
+        endDateTime: "2026-03-29T01:30:00Z",
+        effectiveWorkHoursRef: {
+          effectiveHours: 1.0,
+          effectiveVersion: "conf:order-dst-spring",
+          source: "service_confirmation",
+        },
+        policy: defaultPolicy,
+      };
+
+      const result = splitShiftMinutes(input);
+      expect(result.status).toBe("resolved");
+      if (result.status === "resolved") {
+        expect(result.grossShiftMinutes).toBe(60);
+        expect(result.netWorkMinutes).toBe(60);
+        expect(result.intervals).toHaveLength(2);
+
+        // First 30 minutes in CET
+        const int1 = result.intervals[0];
+        expect(int1.startTime).toBe("01:30");
+        expect(int1.endTime).toBe("02:00");
+        expect(int1.durationMinutes).toBe(30);
+        expect(int1.endMinuteOfDay - int1.startMinuteOfDay).toBe(30);
+        expect(int1.startDateTime).toBe("2026-03-29T00:30:00.000Z");
+        expect(int1.endDateTime).toBe("2026-03-29T01:00:00.000Z");
+
+        // Second 30 minutes in CEST (after clock springs forward)
+        const int2 = result.intervals[1];
+        expect(int2.startTime).toBe("03:00");
+        expect(int2.endTime).toBe("03:30");
+        expect(int2.durationMinutes).toBe(30);
+        expect(int2.endMinuteOfDay - int2.startMinuteOfDay).toBe(30);
+        expect(int2.startDateTime).toBe("2026-03-29T01:00:00.000Z");
+        expect(int2.endDateTime).toBe("2026-03-29T01:30:00.000Z");
       }
     });
   });
@@ -1585,4 +1722,3 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
     });
   });
 });
-

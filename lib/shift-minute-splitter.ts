@@ -65,6 +65,7 @@ export type ShiftMinuteSplitterInput = {
   breakWindows?: ShiftBreakWindow[];
   contractualBreakAllocationRule?: "proportional" | null;
   breakAllocationSourceReference?: string;
+  verifiedBreakClause?: VerifiedContractBreakAllocationClause;
 
   // Phase 3c Effective Work Hours Provenance Reference
   effectiveWorkHoursRef: {
@@ -80,6 +81,16 @@ export type ShiftMinuteSplitterInput = {
   policy: ResolvedSurchargePolicySuccess;
 };
 
+export type VerifiedContractBreakAllocationClause = {
+  clientId: string;
+  clientContractId: string;
+  policyVersion: number;
+  clauseReference: string;
+  rule: "proportional";
+  verifiedAt: string;
+  verifiedBy: string;
+};
+
 export type ShiftMinuteInterval = {
   intervalIndex: number;
   dateIso: string;
@@ -87,6 +98,8 @@ export type ShiftMinuteInterval = {
   endMinuteOfDay: number; // exclusive (0..1440)
   startTime: string;      // "HH:mm"
   endTime: string;        // "HH:mm"
+  startDateTime?: string; // ISO 8601 UTC timestamp
+  endDateTime?: string;   // ISO 8601 UTC timestamp
   durationMinutes: number;
   isNight: boolean;
   isSaturday: boolean;
@@ -1056,14 +1069,11 @@ export function splitShiftMinutes(
         };
       }
 
-      // Check 3: Must reference the contract ID or policy source reference of this client
+      // Check 3: Reject arbitrary or foreign contract references
       const matchesContractId = contractIdLower.length > 0 && refLower.includes(contractIdLower);
       const matchesSourceRef = policySourceRefLower.length > 0 && refLower.includes(policySourceRefLower);
-      const matchesContractPrefix =
-        (contractIdLower.startsWith("contract") || policySourceRefLower.startsWith("contract")) &&
-        refLower.startsWith("contract");
 
-      if (!matchesContractId && !matchesSourceRef && !matchesContractPrefix) {
+      if (!matchesContractId && !matchesSourceRef) {
         return {
           status: "unresolved",
           code: "UNRESOLVED_BREAK_ALLOCATION",
@@ -1082,6 +1092,56 @@ export function splitShiftMinutes(
     if (distinctProfiles.size > 1) {
       // Crosses surcharge boundaries!
       if (input.contractualBreakAllocationRule === "proportional") {
+        // Check 4: Across intersecting surcharge boundaries, mere free text referencing the contract ID
+        // does NOT prove that the contract actually contains a proportional break allocation clause.
+        // A verified contract break clause record (verifiedBreakClause) is strictly required.
+        const vb = input.verifiedBreakClause;
+        if (!vb) {
+          return {
+            status: "unresolved",
+            code: "UNRESOLVED_BREAK_ALLOCATION",
+            message: `Eine proportionale Pausenaufteilung über unterschiedliche Zuschlagskategorien hinweg erfordert einen verifizierten vertraglichen Nachweis (verifiedBreakClause). Der Freitext-Quellverweis ("${input.breakAllocationSourceReference?.trim()}") belegt ohne verifizierten Nachweis nicht das Bestehen einer vertraglichen Pausenregelung; die Abrechnung bleibt bis zur vertraglichen Erfassung ungelöst.`,
+            diagnostics: {
+              shiftId: input.shiftId,
+              clientId: input.clientId,
+              contractualBreakAllocationRule: input.contractualBreakAllocationRule,
+              breakAllocationSourceReference: input.breakAllocationSourceReference,
+              reason: "MISSING_VERIFIED_BREAK_CLAUSE",
+            },
+          };
+        }
+
+        const matchesVbClient = vb.clientId.toLowerCase() === input.clientId.toLowerCase();
+        const matchesVbContract =
+          vb.clientContractId.toLowerCase() === (input.policy.clientContractId || "").toLowerCase();
+        const matchesVbVersion = vb.policyVersion === input.policy.policyVersion;
+        const matchesVbRule = vb.rule === "proportional";
+        const hasVbClauseRef = Boolean(vb.clauseReference && vb.clauseReference.trim());
+        const hasVbVerifiedBy = Boolean(vb.verifiedBy && vb.verifiedBy.trim());
+        const hasVbVerifiedAt = Boolean(vb.verifiedAt && !isNaN(Date.parse(vb.verifiedAt)));
+
+        if (
+          !matchesVbClient ||
+          !matchesVbContract ||
+          !matchesVbVersion ||
+          !matchesVbRule ||
+          !hasVbClauseRef ||
+          !hasVbVerifiedBy ||
+          !hasVbVerifiedAt
+        ) {
+          return {
+            status: "unresolved",
+            code: "UNRESOLVED_BREAK_ALLOCATION",
+            message: `Der hinterlegte vertragliche Pausennachweis stimmt nicht mit dem Mandanten, Vertrag oder der Richtlinienversion überein.`,
+            diagnostics: {
+              shiftId: input.shiftId,
+              clientId: input.clientId,
+              expectedClientContractId: input.policy.clientContractId,
+              expectedPolicyVersion: input.policy.policyVersion,
+              verifiedBreakClause: vb,
+            },
+          };
+        }
 
         // Proportional allocation via Largest Remainder Method (Hamilton Method)
         const profileCounts = new Map<string, number>();
@@ -1383,7 +1443,8 @@ function getEffectiveSurchargeComponents(
     // Check if contiguous and matching all surcharge properties
     const isContiguous =
       curr.m.minuteIndex === prev.m.minuteIndex + 1 &&
-      curr.m.dateIso === prev.m.dateIso;
+      curr.m.dateIso === prev.m.dateIso &&
+      curr.m.minuteOfDay === prev.m.minuteOfDay + 1;
 
     const matchesProperties =
       curr.isNight === prev.isNight &&
@@ -1397,6 +1458,8 @@ function getEffectiveSurchargeComponents(
     if (isContiguous && matchesProperties) {
       curIntervalCount++;
     } else {
+      const startUtc = new Date(curIntervalStart.m.utcMs).toISOString();
+      const endUtc = new Date(prev.m.utcMs + 60000).toISOString();
       intervals.push({
         intervalIndex: intervalIdx++,
         dateIso: curIntervalStart.m.dateIso,
@@ -1404,6 +1467,8 @@ function getEffectiveSurchargeComponents(
         endMinuteOfDay: prev.m.minuteOfDay + 1,
         startTime: minuteOfDayToHHMM(curIntervalStart.m.minuteOfDay),
         endTime: minuteOfDayToHHMM(prev.m.minuteOfDay + 1),
+        startDateTime: startUtc,
+        endDateTime: endUtc,
         durationMinutes: curIntervalCount,
         isNight: curIntervalStart.isNight,
         isSaturday: curIntervalStart.isSaturday,
@@ -1423,6 +1488,8 @@ function getEffectiveSurchargeComponents(
 
   // Push final interval
   const lastEv = evaluatedWorkMinutes[evaluatedWorkMinutes.length - 1];
+  const finalStartUtc = new Date(curIntervalStart.m.utcMs).toISOString();
+  const finalEndUtc = new Date(lastEv.m.utcMs + 60000).toISOString();
   intervals.push({
     intervalIndex: intervalIdx++,
     dateIso: curIntervalStart.m.dateIso,
@@ -1430,6 +1497,8 @@ function getEffectiveSurchargeComponents(
     endMinuteOfDay: lastEv.m.minuteOfDay + 1,
     startTime: minuteOfDayToHHMM(curIntervalStart.m.minuteOfDay),
     endTime: minuteOfDayToHHMM(lastEv.m.minuteOfDay + 1),
+    startDateTime: finalStartUtc,
+    endDateTime: finalEndUtc,
     durationMinutes: curIntervalCount,
     isNight: curIntervalStart.isNight,
     isSaturday: curIntervalStart.isSaturday,
