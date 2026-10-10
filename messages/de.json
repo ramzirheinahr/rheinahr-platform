@@ -1663,7 +1663,11 @@
     "refreshSuccess": "Rechnung erfolgreich aktualisiert!",
     "showPdf": "PDF anzeigen",
     "cancelInvoice": "Rechnung stornieren",
-    "deleteInvoice": "Rechnung löschen"
+    "deleteInvoice": "Rechnung löschen",
+    "monthPreviewLoading": "Lade Schichtenvorschau für diesen Monat...",
+    "monthPreviewReady": "Vorschau: {count} bestätigte Schicht(en) bereit zur Abrechnung.",
+    "monthPreviewEmpty": "Keine abrechenbaren Schichten für diesen Monat gefunden.",
+    "monthPreviewRequiredError": "Vorschau wird noch geladen oder enthält keine Schichten."
   },
   "emails": {
     "title": "E-Mail-Ausgang",

@@ -24,6 +24,36 @@ export type EmailDispatchStatus =
   | "sent_but_record_failed"
   | "partially_sent_but_record_failed";
 
+export async function previewMonthInvoicing(
+  clientId: string,
+  year: number,
+  month: number
+): Promise<{ assignmentIds: string[]; count: number }> {
+  await requireRole("de", "admin");
+
+  const startDate = new Date(Date.UTC(year, month - 1, 1));
+  const endDate = new Date(Date.UTC(year, month, 1));
+
+  const unbilledMonthAssignments = await prisma.assignment.findMany({
+    where: {
+      order: {
+        clientId,
+        shiftDate: { gte: startDate, lt: endDate },
+      },
+      invoiceId: null,
+      status: "confirmed",
+    },
+    select: { id: true },
+    orderBy: { order: { shiftDate: "asc" } },
+  });
+
+  const assignmentIds = unbilledMonthAssignments.map((a) => a.id);
+  return {
+    assignmentIds,
+    count: assignmentIds.length,
+  };
+}
+
 export async function generateMonthInvoices(
   clientId: string,
   year: number,
@@ -49,6 +79,13 @@ export async function generateMonthInvoices(
 
   // Modern V2 Calculation & Issuance Branch
   if (isV2InvoiceIssuanceEnabled()) {
+    // Mandatory previewed set verification in V2
+    if (!options?.expectedAssignmentIds || options.expectedAssignmentIds.length === 0) {
+      throw new Error(
+        "[MONTH_PREVIEW_REQUIRED] Für die V2-Monatsabrechnung ist eine vorherige Schichtenvorschau erforderlich."
+      );
+    }
+
     const unbilledMonthAssignments = await prisma.assignment.findMany({
       where: {
         order: {
@@ -68,24 +105,23 @@ export async function generateMonthInvoices(
 
     const assignmentIds = unbilledMonthAssignments.map(a => a.id);
 
-    // Verify previewed assignment set consistency (Finding 4)
-    if (options?.expectedAssignmentIds) {
-      const currentSet = new Set(assignmentIds);
-      const expectedSet = new Set(options.expectedAssignmentIds);
-      const hasMismatch =
-        currentSet.size !== expectedSet.size ||
-        options.expectedAssignmentIds.some((id) => !currentSet.has(id));
-      if (hasMismatch) {
-        throw new Error(
-          `[MONTH_ASSIGNMENT_SET_MUTATED] Die Schichten für den Abrechnungsmonat (${month}/${year}) haben sich seit der Vorschau geändert (erwartet: ${options.expectedAssignmentIds.length}, aktuell: ${assignmentIds.length}). Bitte aktualisieren Sie die Monatsvorschau.`
-        );
-      }
+    // Verify previewed assignment set consistency (Finding 1)
+    const currentSet = new Set(assignmentIds);
+    const expectedSet = new Set(options.expectedAssignmentIds);
+    const hasMismatch =
+      currentSet.size !== expectedSet.size ||
+      options.expectedAssignmentIds.some((id) => !currentSet.has(id));
+    if (hasMismatch) {
+      throw new Error(
+        `[MONTH_ASSIGNMENT_SET_MUTATED] Die Schichten für den Abrechnungsmonat (${month}/${year}) haben sich seit der Vorschau geändert (erwartet: ${options.expectedAssignmentIds.length}, aktuell: ${assignmentIds.length}). Bitte aktualisieren Sie die Monatsvorschau.`
+      );
     }
 
     const issueRes = await issueV2Invoice({
       assignmentIds,
       customInvoiceNumber,
       expectedDraftHash: options?.expectedDraftHash,
+      expectedAssignmentIds: options.expectedAssignmentIds,
       monthScope: { clientId, year, month },
     });
 

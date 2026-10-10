@@ -1663,7 +1663,11 @@
     "refreshSuccess": "Invoice updated successfully!",
     "showPdf": "View PDF",
     "cancelInvoice": "Cancel invoice",
-    "deleteInvoice": "Delete invoice"
+    "deleteInvoice": "Delete invoice",
+    "monthPreviewLoading": "Loading shift preview for this month...",
+    "monthPreviewReady": "Preview: {count} confirmed shift(s) ready for invoicing.",
+    "monthPreviewEmpty": "No billable shifts found for this month.",
+    "monthPreviewRequiredError": "Preview is still loading or contains no shifts."
   },
   "emails": {
     "title": "Outgoing Emails",

@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { generateMonthInvoices } from "@/app/[locale]/admin/clients/[id]/schedule/invoice-actions";
+import { generateMonthInvoices, previewMonthInvoicing } from "@/app/[locale]/admin/clients/[id]/schedule/invoice-actions";
 import { deleteInvoice, cancelInvoice, sendInvoiceEmail, refreshInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { useTranslations } from "next-intl";
@@ -45,11 +45,36 @@ export function AdminInvoicesBanner({
   const [openDialog, setOpenDialog] = useState(false);
   const [customInvoiceNumber, setCustomInvoiceNumber] = useState("");
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewAssignmentIds, setPreviewAssignmentIds] = useState<string[] | null>(null);
+
+  const loadPreview = async () => {
+    setPreviewLoading(true);
+    try {
+      const res = await previewMonthInvoicing(clientId, year, month);
+      setPreviewAssignmentIds(res.assignmentIds);
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Fehler beim Laden der Monatsvorschau");
+      setPreviewAssignmentIds([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const handleGenerate = async () => {
+    if (previewAssignmentIds === null || previewLoading) {
+      toast.error(t("monthPreviewRequiredError"));
+      return;
+    }
+    if (previewAssignmentIds.length === 0) {
+      toast.error(t("monthPreviewEmpty"));
+      return;
+    }
     setGenerating(true);
     try {
-      await generateMonthInvoices(clientId, year, month, customInvoiceNumber);
+      await generateMonthInvoices(clientId, year, month, customInvoiceNumber, undefined, true, false, {
+        expectedAssignmentIds: previewAssignmentIds,
+      });
       toast.success("Rechnungen erfolgreich generiert!");
       setOpenDialog(false);
       router.refresh();
@@ -163,7 +188,12 @@ export function AdminInvoicesBanner({
           {hasUninvoicedShifts && (
             <Dialog open={openDialog} onOpenChange={(open) => {
               setOpenDialog(open);
-              if (open) setCustomInvoiceNumber("");
+              if (open) {
+                setCustomInvoiceNumber("");
+                loadPreview();
+              } else {
+                setPreviewAssignmentIds(null);
+              }
             }}>
               <DialogTrigger render={
                 <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
@@ -175,7 +205,11 @@ export function AdminInvoicesBanner({
                 <DialogHeader>
                   <DialogTitle>Rechnung erstellen</DialogTitle>
                   <DialogDescription>
-                    Erstellen Sie eine Rechnung für die bestätigten Schichten.
+                    {previewLoading
+                      ? t("monthPreviewLoading")
+                      : previewAssignmentIds && previewAssignmentIds.length > 0
+                      ? t("monthPreviewReady", { count: previewAssignmentIds.length })
+                      : t("monthPreviewEmpty")}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
@@ -192,7 +226,10 @@ export function AdminInvoicesBanner({
                   <Button variant="outline" onClick={() => setOpenDialog(false)} disabled={generating}>
                     Abbrechen
                   </Button>
-                  <Button onClick={handleGenerate} disabled={generating}>
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={generating || previewLoading || !previewAssignmentIds || previewAssignmentIds.length === 0}
+                  >
                     {generating ? "Generiere..." : "Generieren"}
                   </Button>
                 </DialogFooter>

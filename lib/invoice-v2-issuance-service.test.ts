@@ -24,7 +24,7 @@ import {
   refreshInvoice,
 } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { generateMonthInvoices } from "@/app/[locale]/admin/clients/[id]/schedule/invoice-actions";
-import { buildInvoicePdfData } from "./invoice-pdf-builder";
+import { buildInvoicePdfData, parseGermanCurrencyStringToCents } from "./invoice-pdf-builder";
 import { generateInvoicePdf, type InvoicePdfData } from "./pdf/invoice";
 import { resolveInvoiceSurchargePolicy, type FacilitySurchargePolicyRecord } from "./surcharge-policy";
 import type { PriceVersionRecord } from "./invoice-v2-draft-service";
@@ -293,6 +293,11 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
         total: "20,28 €",
         taxRatePercent: 19,
         isFrozen: true,
+        items: [
+          { pos: 1, hoursDisplay: "0,13", rateDisplay: "43,69", amountDisplay: "5,68 €", amountCents: 568 },
+          { pos: 2, hoursDisplay: "0,13", rateDisplay: "43,69", amountDisplay: "5,68 €", amountCents: 568 },
+          { pos: 3, hoursDisplay: "0,13", rateDisplay: "43,69", amountDisplay: "5,68 €", amountCents: 568 },
+        ],
         pdfItems: [
           { pos: 1, description: "Worker 1", hours: "0,13", rate: "43,69", amount: "5,68 €" },
           { pos: 2, description: "Worker 2", hours: "0,13", rate: "43,69", amount: "5,68 €" },
@@ -554,7 +559,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
           priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
           facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
           effectiveHoursResolver: mockDefaultHoursResolver as any,
-          auditFn: auditMock,
+          txAuditLogFn: auditMock,
           generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
         }
       );
@@ -589,7 +594,8 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
             userId: "admin-super",
             action: "invoice.generate_v2",
             entity: "Invoice",
-          })
+          }),
+          expect.anything()
         );
       }
     });
@@ -1000,6 +1006,206 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
         expect(res.code).toBe("TRANSACTION_FAILED");
       }
     });
+
+    it("aborts and rolls back when neither txAuditLogFn nor tx.auditLog.create is available (invariant: zero paths without audit)", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+
+      const mockPrisma = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1]),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        invoice: {
+          create: vi.fn().mockResolvedValue({ id: "inv-temp-1", invoiceNumber: "476-TF-0326" }),
+        },
+        // Deliberately NO auditLog property on tx
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+          // Deliberately NO txAuditLogFn in deps
+        }
+      );
+
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.code).toBe("TRANSACTION_FAILED");
+        expect(res.message).toContain("Kein transaktionaler Audit-Log-Handler verfügbar");
+      }
+    });
+
+    it("invokes lockAssignmentsFn during transaction to implement row locking protocol", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+      const lockMock = vi.fn().mockResolvedValue(undefined);
+
+      const mockPrisma = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1]),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        invoice: {
+          create: vi.fn().mockResolvedValue({ id: "inv-temp-1", invoiceNumber: "476-TF-0326" }),
+        },
+        auditLog: {
+          create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+          lockAssignmentsFn: lockMock,
+        }
+      );
+
+      expect(res.success).toBe(true);
+      expect(lockMock).toHaveBeenCalledWith(["assign-1"], mockPrisma);
+    });
+
+    it("aborts transaction when sourceConcurrencyGuardFn detects concurrent modification", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+      const guardMock = vi.fn().mockRejectedValue(new ConcurrentModificationError("Concurrent shift modification detected"));
+
+      const mockPrisma = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1]),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        invoice: {
+          create: vi.fn().mockResolvedValue({ id: "inv-temp-1", invoiceNumber: "476-TF-0326" }),
+        },
+        auditLog: {
+          create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+          sourceConcurrencyGuardFn: guardMock,
+        }
+      );
+
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.code).toBe("CONCURRENT_MODIFICATION");
+      }
+      expect(guardMock).toHaveBeenCalled();
+    });
+
+    it("maps Prisma P2034 serialization failure to CONCURRENT_MODIFICATION", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+
+      const mockPrisma = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1]),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          const p2034Err: any = new Error("Transaction failed due to a write conflict or a deadlock. Please retry your transaction");
+          p2034Err.code = "P2034";
+          throw p2034Err;
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+        }
+      );
+
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.code).toBe("CONCURRENT_MODIFICATION");
+      }
+    });
+
+    it("aborts transaction with MONTH_ASSIGNMENT_SET_MUTATED when a confirmed shift is added during transaction", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+      a1.order.shiftDate = new Date("2026-03-05T08:00:00Z");
+
+      const mockPrisma = {
+        assignment: {
+          findMany: vi.fn().mockImplementation((args: any) => {
+            if (args?.where?.order?.shiftDate?.gte) {
+              return Promise.resolve([{ id: "assign-1" }, { id: "assign-2" }]);
+            }
+            return Promise.resolve([a1]);
+          }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        invoice: {
+          create: vi.fn().mockResolvedValue({ id: "inv-temp-1", invoiceNumber: "476-TF-0326" }),
+        },
+        auditLog: {
+          create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1"],
+          monthScope: { clientId: "client-facility-1", year: 2026, month: 3 },
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+        }
+      );
+
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.code).toBe("MONTH_ASSIGNMENT_SET_MUTATED");
+      }
+    });
   });
 
   // =========================================================================
@@ -1299,6 +1505,29 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       expect(result.invoiceId).toBe("inv-month-notif-1");
       expect(result.notificationStatus).toBe("failed");
     });
+
+    it("generateMonthInvoices throws [MONTH_PREVIEW_REQUIRED] when expectedAssignmentIds is missing in V2 mode", async () => {
+      const { prisma } = await import("./prisma");
+      const mockClient = { id: "c1", userId: "u1" };
+      vi.spyOn(prisma.client, "findUnique").mockResolvedValue(mockClient as any);
+
+      await expect(
+        generateMonthInvoices("c1", 2026, 3, "INV-1")
+      ).rejects.toThrow("[MONTH_PREVIEW_REQUIRED]");
+    });
+
+    it("previewMonthInvoicing queries and returns unbilled confirmed shifts in month scope", async () => {
+      const { prisma } = await import("./prisma");
+      vi.spyOn(prisma.assignment, "findMany").mockResolvedValue([
+        { id: "shift-1" },
+        { id: "shift-2" },
+      ] as any);
+
+      const { previewMonthInvoicing } = await import("@/app/[locale]/admin/clients/[id]/schedule/invoice-actions");
+      const preview = await previewMonthInvoicing("c1", 2026, 3);
+      expect(preview.count).toBe(2);
+      expect(preview.assignmentIds).toEqual(["shift-1", "shift-2"]);
+    });
   });
 
   // =========================================================================
@@ -1314,6 +1543,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
         grossAmount: 47.6,
         snapshotData: {
           calculationVersion: "v2",
+          items: [{ pos: 1, hoursDisplay: "1,00", rateDisplay: "40,00", amountDisplay: "40,00 €", amountCents: 4000 }],
           // Notice rate has trailing "€"
           pdfItems: [{ pos: 1, description: "Rate With Euro", hours: "1,00", rate: "40,00 €", amount: "40,00 €" }],
           subtotalCents: 4000,
@@ -1374,6 +1604,131 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       expect(decompressed).toContain("5,68");
       expect(decompressed).not.toContain("17,03");
       expect(decompressed).not.toContain("€ €");
+    });
+  });
+
+  // =========================================================================
+  // Section 8: Strict Currency Parsing & PDF Snapshot Integrity
+  // =========================================================================
+  describe("8. Strict Currency Parsing & PDF Snapshot Integrity", () => {
+    it("parseGermanCurrencyStringToCents rejects 3-decimal strings such as '5,680 €'", () => {
+      expect(() => parseGermanCurrencyStringToCents("5,680 €")).toThrow(
+        /Ungültiges deutsches Währungsformat: "5,680 €"/
+      );
+    });
+
+    it("parseGermanCurrencyStringToCents rejects non-standard formats (1 decimal '5,6 €', dot format '5.68')", () => {
+      expect(() => parseGermanCurrencyStringToCents("5,6 €")).toThrow();
+      expect(() => parseGermanCurrencyStringToCents("5.68")).toThrow();
+      expect(() => parseGermanCurrencyStringToCents("abc")).toThrow();
+      expect(() => parseGermanCurrencyStringToCents("")).toThrow();
+    });
+
+    it("parseGermanCurrencyStringToCents accurately parses 2-decimal German currency without float error", () => {
+      expect(parseGermanCurrencyStringToCents("5,68 €")).toBe(568);
+      expect(parseGermanCurrencyStringToCents("1.234,56 €")).toBe(123456);
+      expect(parseGermanCurrencyStringToCents("0,05 €")).toBe(5);
+      expect(parseGermanCurrencyStringToCents("-10,50 €")).toBe(-1050);
+    });
+
+    it("buildInvoicePdfData rejects V2 invoice when snapshotData.items is missing or empty", () => {
+      const badInvoice = {
+        invoiceNumber: "INV-NO-ITEMS",
+        date: new Date(),
+        netAmount: 10,
+        vatAmount: 1.9,
+        grossAmount: 11.9,
+        snapshotData: {
+          calculationVersion: "v2",
+          subtotalCents: 1000,
+          taxAmountCents: 190,
+          totalCents: 1190,
+          subtotal: "10,00 €",
+          taxAmount: "1,90 €",
+          total: "11,90 €",
+          pdfItems: [{ pos: 1, description: "Item 1", hours: "1,00", rate: "10,00", amount: "10,00 €" }],
+          // items missing!
+        },
+      };
+
+      expect(() => buildInvoicePdfData(badInvoice as any, {} as any, [])).toThrow(
+        "snapshotData.items ist zwingend erforderlich und darf nicht fehlen oder leer sein"
+      );
+    });
+
+    it("buildInvoicePdfData rejects V2 invoice when amountCents is missing or non-integer in snapshotData.items", () => {
+      const badInvoice = {
+        invoiceNumber: "INV-NO-CENTS",
+        date: new Date(),
+        netAmount: 10,
+        vatAmount: 1.9,
+        grossAmount: 11.9,
+        snapshotData: {
+          calculationVersion: "v2",
+          subtotalCents: 1000,
+          taxAmountCents: 190,
+          totalCents: 1190,
+          subtotal: "10,00 €",
+          taxAmount: "1,90 €",
+          total: "11,90 €",
+          items: [{ pos: 1, hoursDisplay: "1,00", rateDisplay: "10,00" /* amountCents missing! */ }],
+          pdfItems: [{ pos: 1, description: "Item 1", hours: "1,00", rate: "10,00", amount: "10,00 €" }],
+        },
+      };
+
+      expect(() => buildInvoicePdfData(badInvoice as any, {} as any, [])).toThrow(
+        /snapshotData\.items\[0\]\.amountCents fehlt oder ist keine gültige Ganzzahl/
+      );
+    });
+
+    it("buildInvoicePdfData rejects V2 invoice when hours in pdfItems is tampered even if line amount matches", () => {
+      const badInvoice = {
+        invoiceNumber: "INV-TAMPER-HOURS",
+        date: new Date(),
+        netAmount: 10,
+        vatAmount: 1.9,
+        grossAmount: 11.9,
+        snapshotData: {
+          calculationVersion: "v2",
+          subtotalCents: 1000,
+          taxAmountCents: 190,
+          totalCents: 1190,
+          subtotal: "10,00 €",
+          taxAmount: "1,90 €",
+          total: "11,90 €",
+          items: [{ pos: 1, hoursDisplay: "1,00", rateDisplay: "10,00", amountCents: 1000 }],
+          pdfItems: [{ pos: 1, description: "Item 1", hours: "2,00" /* tampered! */, rate: "10,00", amount: "10,00 €" }],
+        },
+      };
+
+      expect(() => buildInvoicePdfData(badInvoice as any, {} as any, [])).toThrow(
+        /snapshotData\.items\.hoursDisplay \("1,00"\) does not match pdfItems hours \("2,00"\)/
+      );
+    });
+
+    it("buildInvoicePdfData rejects V2 invoice when rate in pdfItems is tampered even if line amount matches", () => {
+      const badInvoice = {
+        invoiceNumber: "INV-TAMPER-RATE",
+        date: new Date(),
+        netAmount: 10,
+        vatAmount: 1.9,
+        grossAmount: 11.9,
+        snapshotData: {
+          calculationVersion: "v2",
+          subtotalCents: 1000,
+          taxAmountCents: 190,
+          totalCents: 1190,
+          subtotal: "10,00 €",
+          taxAmount: "1,90 €",
+          total: "11,90 €",
+          items: [{ pos: 1, hoursDisplay: "1,00", rateDisplay: "10,00", amountCents: 1000 }],
+          pdfItems: [{ pos: 1, description: "Item 1", hours: "1,00", rate: "20,00" /* tampered! */, amount: "10,00 €" }],
+        },
+      };
+
+      expect(() => buildInvoicePdfData(badInvoice as any, {} as any, [])).toThrow(
+        /snapshotData\.items rate \("10,00"\) does not match pdfItems rate \("20,00"\)/
+      );
     });
   });
 });

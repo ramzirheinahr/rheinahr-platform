@@ -14,20 +14,32 @@ import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client"
 import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 
 export function parseGermanCurrencyStringToCents(val: unknown): number {
-  if (typeof val !== "string" && typeof val !== "number") {
-    throw new Error(`Ungültiger Betragswert (weder String noch Zahl): ${typeof val}`);
+  if (typeof val !== "string") {
+    throw new Error(
+      `Ungültiger Betragswert (erwartet String im deutschen Währungsformat mit Komma): ${typeof val}`
+    );
   }
-  const str = String(val).trim().replace(/\s*€$/, "").trim();
-  if (!str) {
+  const trimmed = val.trim();
+  if (!trimmed) {
     throw new Error("Leerer Betragswert kann nicht in Cent umgewandelt werden.");
   }
-  // Standard German number formatting: e.g. "1.234,56" or "5,68"
-  const normalized = str.replace(/\./g, "").replace(",", ".");
-  const num = Number(normalized);
-  if (!Number.isFinite(num)) {
-    throw new Error(`Ungültiger numerischer Betrag: "${val}"`);
+  // Strict German currency format: optional sign, digits with optional thousands dots, EXACTLY two decimal digits after comma, optional trailing €
+  const germanCurrencyRegex = /^(-)?(?:([0-9]{1,3}(?:\.[0-9]{3})*)|([0-9]+)),([0-9]{2})(?:\s*€)?$/;
+  const match = germanCurrencyRegex.exec(trimmed);
+  if (!match) {
+    throw new Error(
+      `Ungültiges deutsches Währungsformat: "${val}" (erwartet genau 2 Nachkommastellen mit Komma, z. B. '5,68 €').`
+    );
   }
-  return Math.round(num * 100);
+  const isNegative = Boolean(match[1]);
+  const euroPartStr = (match[2] ?? match[3]).replace(/\./g, "");
+  const centsPartStr = match[4];
+  const totalCentsBigInt = BigInt(euroPartStr) * BigInt(100) + BigInt(centsPartStr);
+  const totalCentsNum = Number(totalCentsBigInt);
+  if (!Number.isSafeInteger(totalCentsNum)) {
+    throw new Error(`Betrag überschreitet den sicheren Ganzzahlbereich: "${val}"`);
+  }
+  return isNegative ? -totalCentsNum : totalCentsNum;
 }
 
 export function buildInvoicePdfData(
@@ -157,24 +169,65 @@ export function buildInvoicePdfData(
       );
     }
 
-    // If snapshot.items exists, verify 1-to-1 parity between calculated items and pdfItems
-    if (Array.isArray(snapshot.items)) {
-      if (snapshot.items.length !== sanitizedItems.length) {
+    // Strict mandatory verification of frozen snapshotData.items for V2 invoices
+    if (!Array.isArray(snapshot.items) || snapshot.items.length === 0) {
+      throw new Error(
+        "Corrupted V2 invoice: snapshotData.items ist zwingend erforderlich und darf nicht fehlen oder leer sein."
+      );
+    }
+
+    if (snapshot.items.length !== sanitizedItems.length) {
+      throw new Error(
+        `Corrupted V2 invoice items count mismatch: snapshotData.items (${snapshot.items.length}) does not match pdfItems (${sanitizedItems.length}).`
+      );
+    }
+
+    for (let i = 0; i < sanitizedItems.length; i++) {
+      const snapItem = snapshot.items[i] as Record<string, unknown> | undefined;
+      const pdfItem = sanitizedItems[i];
+
+      if (!snapItem || typeof snapItem !== "object") {
+        throw new Error(`Corrupted V2 invoice: snapshotData.items[${i}] ist kein gültiges Objekt.`);
+      }
+
+      if (typeof snapItem.amountCents !== "number" || !Number.isSafeInteger(snapItem.amountCents)) {
         throw new Error(
-          `Corrupted V2 invoice items count mismatch: snapshotData.items (${snapshot.items.length}) does not match pdfItems (${sanitizedItems.length}).`
+          `Corrupted V2 invoice: snapshotData.items[${i}].amountCents fehlt oder ist keine gültige Ganzzahl.`
         );
       }
-      for (let i = 0; i < sanitizedItems.length; i++) {
-        const snapItem = snapshot.items[i] as Record<string, unknown> | undefined;
-        const pdfItem = sanitizedItems[i];
-        if (snapItem && typeof snapItem.amountCents === "number") {
-          const pdfItemCents = parseGermanCurrencyStringToCents(pdfItem.amount);
-          if (snapItem.amountCents !== pdfItemCents) {
-            throw new Error(
-              `Corrupted V2 invoice item amount mismatch at pos ${pdfItem.pos}: snapshotData.items.amountCents (${snapItem.amountCents}) does not match pdfItems amount (${pdfItemCents} Cent).`
-            );
-          }
-        }
+
+      if (typeof snapItem.pos !== "number" || snapItem.pos !== pdfItem.pos) {
+        throw new Error(
+          `Corrupted V2 invoice pos mismatch at index ${i}: snapshotData.items.pos (${snapItem.pos}) does not match pdfItems pos (${pdfItem.pos}).`
+        );
+      }
+
+      // Parity check for displayed hours
+      const snapHoursDisplay = typeof snapItem.hoursDisplay === "string" ? snapItem.hoursDisplay.trim() : "";
+      if (!snapHoursDisplay || snapHoursDisplay !== pdfItem.hours.trim()) {
+        throw new Error(
+          `Corrupted V2 invoice hours mismatch at pos ${pdfItem.pos}: snapshotData.items.hoursDisplay ("${snapHoursDisplay}") does not match pdfItems hours ("${pdfItem.hours}").`
+        );
+      }
+
+      // Parity check for displayed rate
+      const rawSnapRate = typeof snapItem.rateDisplay === "string"
+        ? snapItem.rateDisplay
+        : (typeof snapItem.rateDecimal === "string" ? snapItem.rateDecimal.replace(".", ",") : "");
+      const snapRateClean = rawSnapRate.replace(/\s*€$/, "").trim();
+      const pdfRateClean = pdfItem.rate.replace(/\s*€$/, "").trim();
+      if (!snapRateClean || snapRateClean !== pdfRateClean) {
+        throw new Error(
+          `Corrupted V2 invoice rate mismatch at pos ${pdfItem.pos}: snapshotData.items rate ("${snapRateClean}") does not match pdfItems rate ("${pdfRateClean}").`
+        );
+      }
+
+      // Parity check for line amount
+      const pdfItemCents = parseGermanCurrencyStringToCents(pdfItem.amount);
+      if (snapItem.amountCents !== pdfItemCents) {
+        throw new Error(
+          `Corrupted V2 invoice item amount mismatch at pos ${pdfItem.pos}: snapshotData.items.amountCents (${snapItem.amountCents}) does not match pdfItems amount (${pdfItemCents} Cent).`
+        );
       }
     }
 

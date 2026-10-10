@@ -1665,7 +1665,11 @@
     "refreshSuccess": "تم تحديث الفاتورة بنجاح!",
     "showPdf": "عرض PDF",
     "cancelInvoice": "إلغاء الفاتورة",
-    "deleteInvoice": "حذف الفاتورة"
+    "deleteInvoice": "حذف الفاتورة",
+    "monthPreviewLoading": "جارٍ تحميل معاينة الورديات لهذا الشهر...",
+    "monthPreviewReady": "المعاينة: {count} وردية مؤكدة جاهزة للفوترة.",
+    "monthPreviewEmpty": "لم يتم العثور على ورديات قابلة للفوترة لهذا الشهر.",
+    "monthPreviewRequiredError": "المعاينة ما زالت قيد التحميل أو لا تحتوي على ورديات."
   },
   "emails": {
     "title": "سجل البريد الصادر",

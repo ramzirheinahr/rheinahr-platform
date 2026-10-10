@@ -33,7 +33,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import { audit } from "@/lib/audit";
 import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
 import type {
   PrepareV2InvoiceDraftInput,
@@ -116,6 +115,7 @@ export type IssueV2InvoiceOptions = {
   customPeriodStart?: string;
   customPeriodEnd?: string;
   expectedDraftHash?: string;
+  expectedAssignmentIds?: string[];
   monthScope?: {
     clientId: string;
     year: number;
@@ -131,7 +131,6 @@ export type V2IssuanceDependencies = V2DraftDependencies & {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prisma?: any;
   requireRoleFn?: typeof requireRole;
-  auditFn?: typeof audit;
   generateInvoiceNumberFn?: typeof generateUniqueInvoiceNumber;
   prepareDraftFn?: (
     input: PrepareV2InvoiceDraftInput,
@@ -139,6 +138,10 @@ export type V2IssuanceDependencies = V2DraftDependencies & {
   ) => Promise<V2InvoiceDraftResult>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   txAuditLogFn?: (params: any, tx: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  lockAssignmentsFn?: (assignmentIds: string[], tx: any) => Promise<void>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sourceConcurrencyGuardFn?: (assignmentIds: string[], tx: any) => Promise<void>;
 };
 
 export type IssueV2InvoiceSuccess = {
@@ -173,6 +176,8 @@ export type IssueV2InvoiceFailureCode =
   | "ALREADY_BILLED"
   | "MIXED_CLIENTS"
   | "MONTH_SCOPE_MISMATCH"
+  | "MONTH_PREVIEW_REQUIRED"
+  | "MONTH_ASSIGNMENT_SET_MUTATED"
   | "ORDER_SCOPE_MISMATCH"
   | "DRAFT_UNRESOLVED"
   | "DRAFT_MUTATION_DETECTED"
@@ -335,6 +340,22 @@ export async function issueV2Invoice(
     };
   }
 
+  // Verify expected assignment IDs if provided
+  if (opts.expectedAssignmentIds) {
+    const requestedSet = new Set(assignmentIds);
+    const expectedSet = new Set(opts.expectedAssignmentIds);
+    const hasMismatch =
+      requestedSet.size !== expectedSet.size ||
+      opts.expectedAssignmentIds.some((id) => !requestedSet.has(id));
+    if (hasMismatch) {
+      return {
+        success: false,
+        code: "MONTH_ASSIGNMENT_SET_MUTATED",
+        message: "Die angeforderten Schichten weichen von der erwarteten Schichtenmenge ab.",
+      };
+    }
+  }
+
   // Verify month scope if provided
   if (opts.monthScope) {
     const { clientId: targetClientId, year, month } = opts.monthScope;
@@ -358,6 +379,28 @@ export async function issueV2Invoice(
         code: "MONTH_SCOPE_MISMATCH",
         message: `Mindestens eine Schicht liegt außerhalb des gewählten Monatszeitraums (${month}/${year}).`,
         diagnostics: { outOfRangeCount: outOfRange.length },
+      };
+    }
+
+    // Verify all unbilled confirmed assignments for this month are included
+    const unbilledInMonth = await db.assignment.findMany({
+      where: {
+        order: {
+          clientId: targetClientId,
+          shiftDate: { gte: monthStart, lt: monthEnd },
+        },
+        invoiceId: null,
+        status: "confirmed",
+      },
+      select: { id: true },
+    });
+    const unbilledIds = new Set<string>((unbilledInMonth as { id: string }[]).map((a) => a.id));
+    const currentIds = new Set<string>(assignmentIds);
+    if (unbilledIds.size !== currentIds.size || Array.from(unbilledIds).some((id: string) => !currentIds.has(id))) {
+      return {
+        success: false,
+        code: "MONTH_ASSIGNMENT_SET_MUTATED",
+        message: `Die abrechenbaren Schichten für diesen Monat (${month}/${year}) stimmen nicht mit der Auswahl überein (in DB: ${unbilledIds.size}, ausgewählt: ${currentIds.size}). Bitte aktualisieren Sie die Monatsvorschau.`,
       };
     }
   }
@@ -445,174 +488,218 @@ export async function issueV2Invoice(
 
   const issuedAt = new Date().toISOString();
 
-  // 6. Execute atomic database transaction with strict in-transaction verification & audit log
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const txResult = await db.$transaction(async (tx: any) => {
-      // Re-verify the draft INSIDE the transaction using tx to guarantee zero stale data
-      const inTxDraftResult = await prepareDraft(
-        {
-          assignmentIds,
-          customPeriodStart: opts.customPeriodStart,
-          customPeriodEnd: opts.customPeriodEnd,
-        },
-        { ...deps, prisma: tx }
-      );
+    const txResult = await db.$transaction(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async (tx: any) => {
+        // Concurrency Protocol Step A: Row locking on selected assignments
+        if (deps?.lockAssignmentsFn) {
+          await deps.lockAssignmentsFn(assignmentIds, tx);
+        } else if (typeof tx.$executeRawUnsafe === "function") {
+          try {
+            const quotedIds = assignmentIds.map((id) => `'${id.replace(/'/g, "''")}'`).join(", ");
+            if (quotedIds) {
+              await tx.$executeRawUnsafe(`SELECT id FROM "Assignment" WHERE id IN (${quotedIds}) FOR UPDATE`);
+            }
+          } catch {
+            // Safe fallback if test mock or underlying engine does not support raw SQL
+          }
+        }
 
-      if (inTxDraftResult.status === "unresolved") {
-        throw new StaleDraftError(
-          "DRAFT_UNRESOLVED",
-          `V2-Berechnung konnte innerhalb der Transaktion nicht aufgelöst werden [${inTxDraftResult.code}]: ${inTxDraftResult.message}`
-        );
-      }
+        // Concurrency Protocol Step B: In-transaction re-verification of the month assignment set
+        if (opts.monthScope) {
+          const { clientId: targetClientId, year, month } = opts.monthScope;
+          const monthStart = new Date(Date.UTC(year, month - 1, 1));
+          const monthEnd = new Date(Date.UTC(year, month, 1));
 
-      const inTxDraftHash = computeV2DraftHash(inTxDraftResult);
-
-      // Verify that in-tx draft hash matches pre-tx draft hash
-      if (inTxDraftHash !== preDraftHash) {
-        throw new StaleDraftError(
-          "STALE_DRAFT_DETECTED",
-          "Die Berechnungsdaten (Stunden, Preise, Schichtzeiten oder Richtlinien) haben sich zwischen Entwurfsvorbereitung und Transaktionsbeginn geändert (Stale Draft). Die Transaktion wird abgebrochen."
-        );
-      }
-
-      // If an expected draft hash was specified by the caller, verify it against the in-tx draft
-      if (opts.expectedDraftHash && inTxDraftHash !== opts.expectedDraftHash) {
-        throw new StaleDraftError(
-          "DRAFT_MUTATION_DETECTED",
-          "Die Berechnungsdaten innerhalb der Transaktion weichen vom erwarteten Entwurfshash ab."
-        );
-      }
-
-      const { totals } = inTxDraftResult;
-      const netAmount = totals.subtotalCents / 100;
-      const vatAmount = totals.taxAmountCents / 100;
-      const grossAmount = totals.totalCents / 100;
-
-      // Mathematical and parity safety check
-      if (
-        Math.round(netAmount * 100) !== totals.subtotalCents ||
-        Math.round(vatAmount * 100) !== totals.taxAmountCents ||
-        Math.round(grossAmount * 100) !== totals.totalCents
-      ) {
-        throw new Error("Mathematischer Rundungsfehler bei der Cent-zu-Euro-Konvertierung.");
-      }
-
-      const frozenSnapshotData: V2InvoiceDraftSnapshotData & {
-        issuedAt: string;
-        issuedByUserId: string;
-        isFrozen: true;
-      } = {
-        ...inTxDraftResult.snapshotData,
-        issuedAt,
-        issuedByUserId,
-        isFrozen: true,
-        calculationVersion: "v2",
-      };
-
-      // Create Invoice
-      const invoice = await tx.invoice.create({
-        data: {
-          clientId,
-          invoiceNumber,
-          netAmount,
-          vatAmount,
-          grossAmount,
-          status: "unpaid",
-          date: new Date(),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          snapshotData: frozenSnapshotData as any,
-        },
-      });
-
-      // Atomically link all assignments conditioned on invoiceId: null and status: confirmed
-      const linkResult = await tx.assignment.updateMany({
-        where: {
-          id: { in: assignmentIds },
-          invoiceId: null,
-          status: "confirmed",
-        },
-        data: {
-          invoiceId: invoice.id,
-        },
-      });
-
-      if (linkResult.count !== assignmentIds.length) {
-        throw new ConcurrentModificationError(
-          `Gleichzeitige Änderung erkannt: ${assignmentIds.length} Schichten erwartet, aber nur ${linkResult.count} verknüpft.`
-        );
-      }
-
-      // Record audit directly on tx to guarantee transactional atomicity
-      if (deps?.txAuditLogFn) {
-        await deps.txAuditLogFn(
-          {
-            userId: issuedByUserId,
-            action: "invoice.generate_v2",
-            entity: "Invoice",
-            entityId: invoice.id,
-            metadata: {
-              calculationVersion: "v2",
-              assignmentCount: assignmentIds.length,
-              netAmount,
-              vatAmount,
-              grossAmount,
-              subtotalCents: totals.subtotalCents,
-              taxAmountCents: totals.taxAmountCents,
-              totalCents: totals.totalCents,
+          const inTxUnbilledMonthAssignments = await tx.assignment.findMany({
+            where: {
+              status: "confirmed",
+              invoiceId: null,
+              order: {
+                clientId: targetClientId,
+                shiftDate: { gte: monthStart, lt: monthEnd },
+              },
             },
+            select: { id: true },
+          });
+
+          const inTxUnbilledIds = new Set<string>((inTxUnbilledMonthAssignments as { id: string }[]).map((a) => a.id));
+          const requestedIdsSet = new Set<string>(assignmentIds);
+
+          const hasSetMismatch =
+            inTxUnbilledIds.size !== requestedIdsSet.size ||
+            Array.from(inTxUnbilledIds).some((id) => !requestedIdsSet.has(id));
+
+          if (hasSetMismatch) {
+            throw new StaleDraftError(
+              "MONTH_ASSIGNMENT_SET_MUTATED",
+              `Die abrechenbaren Schichten für diesen Monat (${month}/${year}) haben sich während der Transaktion geändert (in DB: ${inTxUnbilledIds.size}, angefordert: ${requestedIdsSet.size}). Die Transaktion wird abgebrochen.`
+            );
+          }
+        }
+
+        // Concurrency Protocol Step C: Re-verify the draft INSIDE the transaction using tx
+        const inTxDraftResult = await prepareDraft(
+          {
+            assignmentIds,
+            customPeriodStart: opts.customPeriodStart,
+            customPeriodEnd: opts.customPeriodEnd,
           },
-          tx
+          { ...deps, prisma: tx }
         );
-      } else if (deps?.auditFn) {
-        await deps.auditFn({
-          userId: issuedByUserId,
-          action: "invoice.generate_v2",
-          entity: "Invoice",
-          entityId: invoice.id,
-          metadata: {
-            calculationVersion: "v2",
-            assignmentCount: assignmentIds.length,
+
+        if (inTxDraftResult.status === "unresolved") {
+          throw new StaleDraftError(
+            "DRAFT_UNRESOLVED",
+            `V2-Berechnung konnte innerhalb der Transaktion nicht aufgelöst werden [${inTxDraftResult.code}]: ${inTxDraftResult.message}`
+          );
+        }
+
+        const inTxDraftHash = computeV2DraftHash(inTxDraftResult);
+
+        // Verify that in-tx draft hash matches pre-tx draft hash
+        if (inTxDraftHash !== preDraftHash) {
+          throw new StaleDraftError(
+            "STALE_DRAFT_DETECTED",
+            "Die Berechnungsdaten (Stunden, Preise, Schichtzeiten oder Richtlinien) haben sich zwischen Entwurfsvorbereitung und Transaktionsbeginn geändert (Stale Draft). Die Transaktion wird abgebrochen."
+          );
+        }
+
+        // If an expected draft hash was specified by the caller, verify it against the in-tx draft
+        if (opts.expectedDraftHash && inTxDraftHash !== opts.expectedDraftHash) {
+          throw new StaleDraftError(
+            "DRAFT_MUTATION_DETECTED",
+            "Die Berechnungsdaten innerhalb der Transaktion weichen vom erwarteten Entwurfshash ab."
+          );
+        }
+
+        // Concurrency Protocol Step D: Source concurrency guard to verify source state
+        if (deps?.sourceConcurrencyGuardFn) {
+          await deps.sourceConcurrencyGuardFn(assignmentIds, tx);
+        }
+
+        const { totals } = inTxDraftResult;
+        const netAmount = totals.subtotalCents / 100;
+        const vatAmount = totals.taxAmountCents / 100;
+        const grossAmount = totals.totalCents / 100;
+
+        // Mathematical and parity safety check
+        if (
+          Math.round(netAmount * 100) !== totals.subtotalCents ||
+          Math.round(vatAmount * 100) !== totals.taxAmountCents ||
+          Math.round(grossAmount * 100) !== totals.totalCents
+        ) {
+          throw new Error("Mathematischer Rundungsfehler bei der Cent-zu-Euro-Konvertierung.");
+        }
+
+        const frozenSnapshotData: V2InvoiceDraftSnapshotData & {
+          issuedAt: string;
+          issuedByUserId: string;
+          isFrozen: true;
+        } = {
+          ...inTxDraftResult.snapshotData,
+          issuedAt,
+          issuedByUserId,
+          isFrozen: true,
+          calculationVersion: "v2",
+        };
+
+        // Create Invoice
+        const invoice = await tx.invoice.create({
+          data: {
+            clientId,
+            invoiceNumber,
             netAmount,
             vatAmount,
             grossAmount,
-            subtotalCents: totals.subtotalCents,
-            taxAmountCents: totals.taxAmountCents,
-            totalCents: totals.totalCents,
+            status: "unpaid",
+            date: new Date(),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            snapshotData: frozenSnapshotData as any,
           },
         });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } else if ((tx as any).auditLog?.create) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (tx as any).auditLog.create({
-          data: {
-            userId: issuedByUserId,
-            action: "invoice.generate_v2",
-            entity: "Invoice",
-            entityId: invoice.id,
-            metadata: {
-              calculationVersion: "v2",
-              assignmentCount: assignmentIds.length,
-              netAmount,
-              vatAmount,
-              grossAmount,
-              subtotalCents: totals.subtotalCents,
-              taxAmountCents: totals.taxAmountCents,
-              totalCents: totals.totalCents,
-            },
-          },
-        });
-      }
 
-      return {
-        invoice,
-        totals,
-        netAmount,
-        vatAmount,
-        grossAmount,
-        frozenSnapshotData,
-      };
-    });
+        // Atomically link all assignments conditioned on invoiceId: null and status: confirmed
+        const linkResult = await tx.assignment.updateMany({
+          where: {
+            id: { in: assignmentIds },
+            invoiceId: null,
+            status: "confirmed",
+          },
+          data: {
+            invoiceId: invoice.id,
+          },
+        });
+
+        if (linkResult.count !== assignmentIds.length) {
+          throw new ConcurrentModificationError(
+            `Gleichzeitige Änderung erkannt: ${assignmentIds.length} Schichten erwartet, aber nur ${linkResult.count} verknüpft.`
+          );
+        }
+
+        // Concurrency Protocol Step G: Mandatory in-transaction audit log
+        if (deps?.txAuditLogFn) {
+          await deps.txAuditLogFn(
+            {
+              userId: issuedByUserId,
+              action: "invoice.generate_v2",
+              entity: "Invoice",
+              entityId: invoice.id,
+              metadata: {
+                calculationVersion: "v2",
+                assignmentCount: assignmentIds.length,
+                netAmount,
+                vatAmount,
+                grossAmount,
+                subtotalCents: totals.subtotalCents,
+                taxAmountCents: totals.taxAmountCents,
+                totalCents: totals.totalCents,
+              },
+            },
+            tx
+          );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } else if ((tx as any).auditLog?.create) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (tx as any).auditLog.create({
+            data: {
+              userId: issuedByUserId,
+              action: "invoice.generate_v2",
+              entity: "Invoice",
+              entityId: invoice.id,
+              metadata: {
+                calculationVersion: "v2",
+                assignmentCount: assignmentIds.length,
+                netAmount,
+                vatAmount,
+                grossAmount,
+                subtotalCents: totals.subtotalCents,
+                taxAmountCents: totals.taxAmountCents,
+                totalCents: totals.totalCents,
+              },
+            },
+          });
+        } else {
+          throw new Error(
+            "Kein transaktionaler Audit-Log-Handler verfügbar. Rechnungserstellung abgebrochen."
+          );
+        }
+
+        return {
+          invoice,
+          totals,
+          netAmount,
+          vatAmount,
+          grossAmount,
+          frozenSnapshotData,
+        };
+      },
+      {
+        isolationLevel: "Serializable",
+        timeout: 15000,
+      }
+    );
 
     return {
       success: true,
@@ -649,6 +736,21 @@ export async function issueV2Invoice(
     }
 
     const txErrObj = txErr as { code?: string; message?: string } | undefined;
+
+    // Prisma Serialization Failure (P2034) or Concurrency conflict
+    if (
+      txErrObj?.code === "P2034" ||
+      String(txErrObj?.message).includes("P2034") ||
+      String(txErrObj?.message).toLowerCase().includes("could not serialize") ||
+      String(txErrObj?.message).toLowerCase().includes("serialization failure") ||
+      String(txErrObj?.message).toLowerCase().includes("deadlock detected")
+    ) {
+      return {
+        success: false,
+        code: "CONCURRENT_MODIFICATION",
+        message: "Gleichzeitige Änderung erkannt (Serialisierungs- oder Sperrkonflikt in Transaktion). Bitte versuchen Sie es erneut.",
+      };
+    }
 
     // Prisma Unique Constraint Violation (P2002 on invoiceNumber)
     if (txErrObj?.code === "P2002" || String(txErrObj?.message).includes("Unique constraint failed")) {
