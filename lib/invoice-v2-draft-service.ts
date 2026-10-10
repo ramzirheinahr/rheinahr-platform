@@ -107,6 +107,7 @@ export type PriceVersionRecord = {
   effectiveTo?: string | null; // YYYY-MM-DD
   contractId?: string | null;
   sourceReference: string;
+  sourceDocumentUrl?: string | null;
   verifiedAt: string;
   verifiedBy: string;
 };

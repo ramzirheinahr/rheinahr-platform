@@ -266,10 +266,6 @@ export async function resolveClientPriceVersion(
     }
 
     // Anti-tampering check: calculate canonical hash and compare
-    const docMatch = record.sourceReference.match(/^(.*?)\s*\[Doc:\s*(.*?)\]$/);
-    const cleanSourceRef = docMatch ? docMatch[1].trim() : record.sourceReference;
-    const docUrl = docMatch ? docMatch[2].trim() : null;
-
     const expectedHash = computeRateVersionCanonicalHash({
       clientId: record.clientId,
       clientContractId: record.clientContractId,
@@ -279,8 +275,8 @@ export async function resolveClientPriceVersion(
       effectiveFrom: fromIso,
       effectiveTo: toIso,
       sourceType: record.sourceType ?? "contract",
-      sourceReference: cleanSourceRef,
-      sourceDocumentUrl: docUrl,
+      sourceReference: record.sourceReference,
+      sourceDocumentUrl: record.sourceDocumentUrl ?? null,
     });
 
     if (record.frozenHash !== expectedHash) {
@@ -364,6 +360,7 @@ export async function resolveClientPriceVersion(
       effectiveTo: toIso,
       contractId: record.clientContractId,
       sourceReference: record.sourceReference,
+      sourceDocumentUrl: record.sourceDocumentUrl ?? null,
       verifiedAt: verifiedAtStr,
       verifiedBy,
     };

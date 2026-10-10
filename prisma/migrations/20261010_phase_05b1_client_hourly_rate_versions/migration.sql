@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS "client_hourly_rate_versions" (
     "effective_to" DATE,
     "source_type" TEXT NOT NULL DEFAULT 'contract',
     "source_reference" TEXT NOT NULL,
+    "source_document_url" TEXT,
     "is_frozen" BOOLEAN NOT NULL DEFAULT false,
     "frozen_at" TIMESTAMP(3),
     "frozen_hash" TEXT,

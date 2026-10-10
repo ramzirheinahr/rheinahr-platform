@@ -563,6 +563,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           effectiveTo: "2026-12-31",
           sourceType: "contract",
           sourceReference: "Vertrag Nr. 2026-01, § 4",
+          sourceDocumentUrl: "https://storage/contract.pdf",
         });
         expect(preview.integrity.canonicalHash).toBe(expectedHash);
       }
@@ -1266,7 +1267,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
     });
   });
 
-  describe("7. Codex Second Review Counterexamples & Documentary Integrity Proofs (Findings 1, 2, 3)", () => {
+  describe("7. Codex Reviews Counterexamples & Documentary Integrity Proofs (P1 Findings)", () => {
     const baseCounterInput: ClientHourlyRateInput = {
       clientId: "client-1",
       clientContractId: "contract-1",
@@ -1301,11 +1302,12 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         status: "signed",
         signedAt: new Date(),
         documentUrl: "stored-doc",
-      }
+      },
+      clientOverride: object = counterClient
     ) {
       return {
         user: { findUnique: vi.fn().mockResolvedValue(counterAdmin) },
-        client: { findUnique: vi.fn().mockResolvedValue(counterClient) },
+        client: { findUnique: vi.fn().mockResolvedValue(clientOverride) },
         clientContract: { findUnique: vi.fn().mockResolvedValue(contract) },
         clientHourlyRateVersion: {
           findMany: vi.fn().mockResolvedValue([]),
@@ -1335,7 +1337,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       }
     });
 
-    it("Countertest 2: rejects arbitrary general-scope URL with no stored document (P1 Finding 2)", async () => {
+    it("Countertest Review 3: rejects a syntactically plausible but unverified URL in a general rate (P1 Finding Review 3)", async () => {
       const prisma = counterDb();
       const result = await previewClientHourlyRate({
         prisma,
@@ -1343,51 +1345,129 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           ...baseCounterInput,
           clientContractId: null,
           sourceType: "framework_agreement",
-          sourceDocumentUrl: "made-up-document",
+          sourceDocumentUrl: "https://example.invalid/nonexistent.pdf",
         },
         actorUserId: "admin-1",
       });
       expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe("GENERAL_SCOPE_LACKS_DOCUMENTATION");
+      }
     });
 
-    it("Countertest 3: binds the preview hash to the document used for approval (P1 Finding 2)", async () => {
-      const prisma = counterDb();
-      const a = await previewClientHourlyRate({
+    it("rejects contract rate when supplied document URL differs from stored contract document (CONTRACT_DOCUMENT_MISMATCH)", async () => {
+      const prisma = counterDb({
+        id: "contract-1",
+        clientId: "client-1",
+        period: "2026",
+        status: "signed",
+        signedAt: new Date(),
+        documentUrl: "https://storage/contract-verified.pdf",
+      });
+      const result = await previewClientHourlyRate({
         prisma,
         input: {
           ...baseCounterInput,
-          clientContractId: null,
-          sourceType: "framework_agreement",
-          sourceDocumentUrl: "document-A",
+          sourceDocumentUrl: "https://storage/tampered-document.pdf",
         },
         actorUserId: "admin-1",
       });
-      const b = await previewClientHourlyRate({
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe("CONTRACT_DOCUMENT_MISMATCH");
+      }
+    });
+
+    it("rejects general rate when supplied document URL differs from stored framework agreement (FRAMEWORK_DOCUMENT_MISMATCH)", async () => {
+      const documentedClient = {
+        id: "client-1",
+        facilityName: "Facility",
+        shortCode: "FAC",
+        frameworkAgreementSignedAt: new Date("2026-01-01"),
+        frameworkAgreementUrl: "https://storage/framework-verified.pdf",
+      };
+      const prisma = counterDb(undefined, documentedClient);
+      const result = await previewClientHourlyRate({
         prisma,
         input: {
           ...baseCounterInput,
           clientContractId: null,
           sourceType: "framework_agreement",
-          sourceDocumentUrl: "document-B",
+          sourceDocumentUrl: "https://storage/unauthorized-link.pdf",
         },
+        actorUserId: "admin-1",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe("FRAMEWORK_DOCUMENT_MISMATCH");
+      }
+    });
+
+    it("rejects unsupported source types lacking structured record (UNSUPPORTED_SOURCE_TYPE)", async () => {
+      const prisma = counterDb();
+      const result = await previewClientHourlyRate({
+        prisma,
+        input: {
+          ...baseCounterInput,
+          sourceType: "court_settlement",
+        },
+        actorUserId: "admin-1",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe("UNSUPPORTED_SOURCE_TYPE");
+      }
+    });
+
+    it("binds preview hash to the verified contract document URL", async () => {
+      const prismaA = counterDb({
+        id: "contract-1",
+        clientId: "client-1",
+        period: "2026",
+        status: "signed",
+        signedAt: new Date(),
+        documentUrl: "https://storage/contract-A.pdf",
+      });
+      const prismaB = counterDb({
+        id: "contract-1",
+        clientId: "client-1",
+        period: "2026",
+        status: "signed",
+        signedAt: new Date(),
+        documentUrl: "https://storage/contract-B.pdf",
+      });
+
+      const a = await previewClientHourlyRate({
+        prisma: prismaA,
+        input: baseCounterInput,
+        actorUserId: "admin-1",
+      });
+      const b = await previewClientHourlyRate({
+        prisma: prismaB,
+        input: baseCounterInput,
         actorUserId: "admin-1",
       });
       expect(a.success && b.success).toBe(true);
       if (a.success && b.success) {
         expect(a.data.integrity.canonicalHash).not.toBe(b.data.integrity.canonicalHash);
+        expect(a.data.provenance.sourceDocumentUrl).toBe("https://storage/contract-A.pdf");
+        expect(b.data.provenance.sourceDocumentUrl).toBe("https://storage/contract-B.pdf");
       }
     });
 
     it("prevents post-preview document substitution during createAndFreezeClientHourlyRate", async () => {
-      const prisma = counterDb();
+      const contractA = {
+        id: "contract-1",
+        clientId: "client-1",
+        period: "2026",
+        status: "signed",
+        signedAt: new Date(),
+        documentUrl: "https://storage/contract-A.pdf",
+      };
+      const prisma = counterDb(contractA);
       const previewA = await previewClientHourlyRate({
         prisma,
-        input: {
-          ...baseCounterInput,
-          clientContractId: null,
-          sourceType: "framework_agreement",
-          sourceDocumentUrl: "document-A",
-        },
+        input: baseCounterInput,
         actorUserId: "admin-1",
       });
       expect(previewA.success).toBe(true);
@@ -1395,15 +1475,15 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
 
       const hashA = previewA.data.integrity.canonicalHash;
 
-      // Attempt to commit with document-B while passing hash for document-A
+      // Now contract on DB is changed to document B
+      const prismaTampered = counterDb({
+        ...contractA,
+        documentUrl: "https://storage/contract-B.pdf",
+      });
+
       const commitResult = await createAndFreezeClientHourlyRate({
-        prisma,
-        input: {
-          ...baseCounterInput,
-          clientContractId: null,
-          sourceType: "framework_agreement",
-          sourceDocumentUrl: "document-B",
-        },
+        prisma: prismaTampered,
+        input: baseCounterInput,
         actorUserId: "admin-1",
         expectedPreviewHash: hashA,
       });
@@ -1414,21 +1494,20 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       }
     });
 
-    it("permanently persists document reference in frozen record and verifies hash integrity in resolver", async () => {
+    it("permanently persists structural sourceDocumentUrl column and verifies hash integrity in resolver", async () => {
       let createdPayload: any = null;
+      const verifiedContract = {
+        id: "contract-1",
+        clientId: "client-1",
+        period: "2026",
+        status: "signed",
+        signedAt: new Date(),
+        documentUrl: "https://storage.example.com/agreements/contract-2026.pdf",
+      };
       const prisma = {
         user: { findUnique: vi.fn().mockResolvedValue(counterAdmin) },
         client: { findUnique: vi.fn().mockResolvedValue(counterClient) },
-        clientContract: {
-          findUnique: vi.fn().mockResolvedValue({
-            id: "contract-1",
-            clientId: "client-1",
-            period: "2026",
-            status: "signed",
-            signedAt: new Date(),
-            documentUrl: "stored-doc",
-          }),
-        },
+        clientContract: { findUnique: vi.fn().mockResolvedValue(verifiedContract) },
         clientHourlyRateVersion: {
           findMany: vi.fn().mockResolvedValue([]),
           create: vi.fn(async ({ data }: { data: any }) => {
@@ -1440,10 +1519,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
 
       const preview = await previewClientHourlyRate({
         prisma,
-        input: {
-          ...baseCounterInput,
-          sourceDocumentUrl: "https://storage.example.com/agreements/contract-2026.pdf",
-        },
+        input: baseCounterInput,
         actorUserId: "admin-1",
       });
       expect(preview.success).toBe(true);
@@ -1453,16 +1529,16 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
 
       const commit = await createAndFreezeClientHourlyRate({
         prisma,
-        input: {
-          ...baseCounterInput,
-          sourceDocumentUrl: "https://storage.example.com/agreements/contract-2026.pdf",
-        },
+        input: baseCounterInput,
         actorUserId: "admin-1",
         expectedPreviewHash: hash,
       });
       expect(commit.success).toBe(true);
       expect(createdPayload).not.toBeNull();
-      expect(createdPayload.sourceReference).toContain("[Doc: https://storage.example.com/agreements/contract-2026.pdf]");
+      // Structural column verification
+      expect(createdPayload.sourceDocumentUrl).toBe("https://storage.example.com/agreements/contract-2026.pdf");
+      // Clean sourceReference without artificial suffixes
+      expect(createdPayload.sourceReference).toBe("Vertrag §4");
 
       // Verify that resolveClientPriceVersion successfully verifies this record and its frozenHash
       const resolverPrisma = {
@@ -1488,6 +1564,36 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       if (resolved.status === "resolved") {
         expect(resolved.priceRecord.hourlyRateInCents).toBe(4000);
         expect(resolved.priceRecord.priceVersionId).toBe("rate-persisted-1");
+        expect(resolved.priceRecord.sourceDocumentUrl).toBe(
+          "https://storage.example.com/agreements/contract-2026.pdf"
+        );
+      }
+
+      // Negative check: Tampering with sourceDocumentUrl in database triggers integrity violation
+      const tamperedResolverPrisma = {
+        clientHourlyRateVersion: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              ...createdPayload,
+              sourceDocumentUrl: "https://storage.example.com/tampered.pdf",
+              verifiedByUser: counterAdmin,
+            },
+          ]),
+        },
+      };
+
+      const tamperedResolved = await resolveClientPriceVersion({
+        prisma: tamperedResolverPrisma,
+        clientId: "client-1",
+        qualification: "pflegefachkraft",
+        shiftDateIso: "2026-06-15",
+        contractId: "contract-1",
+      });
+
+      expect(tamperedResolved.status).toBe("unresolved");
+      if (tamperedResolved.status === "unresolved") {
+        expect(tamperedResolved.code).toBe("PRICE_UNRESOLVED");
+        expect(tamperedResolved.message).toContain("Integritätsverletzung");
       }
     });
 

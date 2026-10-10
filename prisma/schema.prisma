@@ -671,6 +671,7 @@ model ClientHourlyRateVersion {
   effectiveTo        DateTime?       @map("effective_to") @db.Date
   sourceType         String          @default("contract") @map("source_type")
   sourceReference    String          @map("source_reference")
+  sourceDocumentUrl  String?         @map("source_document_url")
   isFrozen           Boolean         @default(false) @map("is_frozen")
   frozenAt           DateTime?       @map("frozen_at")
   frozenHash         String?         @map("frozen_hash")

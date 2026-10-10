@@ -211,12 +211,6 @@ export function validateClientHourlyRateInput(
   if (input.sourceDocumentUrl !== undefined && input.sourceDocumentUrl !== null) {
     if (typeof input.sourceDocumentUrl === "string" && input.sourceDocumentUrl.trim()) {
       cleanSourceDocUrl = input.sourceDocumentUrl.trim();
-      const suspiciousPattern = /\b(made[-_ ]?up|arbitrary|placeholder|dummy|fake|unverified)\b/i;
-      if (suspiciousPattern.test(cleanSourceDocUrl)) {
-        errors.push(
-          `Dokumentenbeleg (sourceDocumentUrl: "${cleanSourceDocUrl}") ist ungültig oder willkürlich erzeugt. Platzhalter und fingierte Urkunden-URLs sind unzulässig.`
-        );
-      }
     }
   }
 
@@ -368,6 +362,16 @@ export async function previewClientHourlyRate(params: {
 
   // 5. Documentary backing verification
   let contractPeriod: string | null = null;
+  let resolvedDocumentUrl: string | null = null;
+
+  if (validated.sourceType === "court_settlement") {
+    return {
+      success: false,
+      code: "UNSUPPORTED_SOURCE_TYPE",
+      message: `Quelltyp "court_settlement" erfordert einen verifizierten Datensatz in der Datenbank und wird derzeit ohne strukturiertes Urkundenregister nicht unterstützt.`,
+    };
+  }
+
   if (validated.clientContractId) {
     // Contract-scoped rate: Contract must exist, belong to client, and be active/signed
     const contract = await prisma.clientContract.findUnique({
@@ -398,31 +402,52 @@ export async function previewClientHourlyRate(params: {
       };
     }
 
-    if (contract.status !== "signed" || !contract.signedAt || !contract.documentUrl) {
+    if (contract.status !== "signed" || !contract.signedAt || !contract.documentUrl || !contract.documentUrl.trim()) {
       return {
         success: false,
         code: "CONTRACT_NOT_SIGNED_OR_ACTIVE",
         message: `Vertrag "${validated.clientContractId}" ist nicht im Status "signed" (aktueller Status: "${contract.status}") oder verfügt über keine gültige Signatur/Urkunden-URL. Preise dürfen ausschließlich auf Grundlage wirksamer, unterzeichneter Verträge erfasst werden.`,
       };
     }
+
+    const contractDocUrl = contract.documentUrl.trim();
+
+    // If caller provided an explicit sourceDocumentUrl, it must match the verified contract document URL
+    if (validated.sourceDocumentUrl && validated.sourceDocumentUrl.trim() !== contractDocUrl) {
+      return {
+        success: false,
+        code: "CONTRACT_DOCUMENT_MISMATCH",
+        message: `Der angegebene Dokumentenbeleg ("${validated.sourceDocumentUrl}") weicht von der im Vertrag hinterlegten Urkunde ("${contractDocUrl}") ab. Willkürliche oder abweichende Urkunden-URLs sind unzulässig.`,
+      };
+    }
+
+    resolvedDocumentUrl = contractDocUrl;
     contractPeriod = contract.period ?? null;
   } else {
-    // General scope rate: Facility must have signed framework agreement or explicit archival document URL
-    const hasSignedFramework =
-      Boolean(client.frameworkAgreementSignedAt) && Boolean(client.frameworkAgreementUrl);
-    const hasArchivedDocUrl =
-      Boolean(validated.sourceDocumentUrl) &&
-      !/\b(made[-_ ]?up|arbitrary|placeholder|dummy|fake|unverified)\b/i.test(
-        validated.sourceDocumentUrl ?? ""
-      );
+    // General scope rate: Facility must have signed framework agreement in database with both signed date and document URL
+    const hasSignedDate = Boolean(client.frameworkAgreementSignedAt);
+    const hasDocUrl = Boolean(client.frameworkAgreementUrl && client.frameworkAgreementUrl.trim());
 
-    if (!hasSignedFramework && !hasArchivedDocUrl) {
+    if (!hasSignedDate || !hasDocUrl) {
       return {
         success: false,
         code: "GENERAL_SCOPE_LACKS_DOCUMENTATION",
-        message: `Für allgemeine Einrichtungspreise ohne Einzelvertrag muss eine vollständig nachgewiesene Rahmenvereinbarung der Einrichtung (sowohl frameworkAgreementSignedAt als auch frameworkAgreementUrl hinterlegt) oder ein gültiger, nachprüfbarer Dokumentennachweis (sourceDocumentUrl) vorliegen. Ein bloßer Freitext oder ungültiger/willkürlicher Beleg genügt nicht.`,
+        message: `Für allgemeine Einrichtungspreise ohne Einzelvertrag muss eine vollständig nachgewiesene Rahmenvereinbarung der Einrichtung in der Datenbank hinterlegt sein (sowohl frameworkAgreementSignedAt als auch frameworkAgreementUrl). Freie Texte oder ungesicherte externe Links ohne gespeichertes Einrichtungsdokument sind als Nachweis unzulässig.`,
       };
     }
+
+    const frameworkDocUrl = client.frameworkAgreementUrl.trim();
+
+    // If caller provided an explicit sourceDocumentUrl, it must match the facility's verified framework agreement URL
+    if (validated.sourceDocumentUrl && validated.sourceDocumentUrl.trim() !== frameworkDocUrl) {
+      return {
+        success: false,
+        code: "FRAMEWORK_DOCUMENT_MISMATCH",
+        message: `Der angegebene Dokumentenbeleg ("${validated.sourceDocumentUrl}") weicht von der in der Einrichtung hinterlegten Rahmenvereinbarung ("${frameworkDocUrl}") ab. Willkürliche oder abweichende Urkunden-URLs sind unzulässig.`,
+      };
+    }
+
+    resolvedDocumentUrl = frameworkDocUrl;
   }
 
   // 6. Check for overlaps and determine next version number
@@ -473,7 +498,7 @@ export async function previewClientHourlyRate(params: {
     effectiveTo: validated.effectiveTo,
     sourceType: validated.sourceType,
     sourceReference: validated.sourceReference,
-    sourceDocumentUrl: validated.sourceDocumentUrl ?? null,
+    sourceDocumentUrl: resolvedDocumentUrl,
   });
 
   const verifiedAtIso = new Date().toISOString();
@@ -499,7 +524,7 @@ export async function previewClientHourlyRate(params: {
     provenance: {
       sourceType: validated.sourceType,
       sourceReference: validated.sourceReference,
-      sourceDocumentUrl: validated.sourceDocumentUrl ?? null,
+      sourceDocumentUrl: resolvedDocumentUrl,
       verifyingUser: {
         id: verifier.id,
         fullName: verifier.fullName,
@@ -568,13 +593,6 @@ export async function createAndFreezeClientHourlyRate(params: {
     };
   }
 
-  // Preserve document link permanently in the database record source reference
-  const frozenSourceRef = p.provenance.sourceDocumentUrl
-    ? (p.provenance.sourceReference.includes(`[Doc: ${p.provenance.sourceDocumentUrl}]`)
-        ? p.provenance.sourceReference
-        : `${p.provenance.sourceReference} [Doc: ${p.provenance.sourceDocumentUrl}]`)
-    : p.provenance.sourceReference;
-
   // Insert frozen rate record into database with locked preview timestamp
   const createdRecord = await prisma.clientHourlyRateVersion.create({
     data: {
@@ -586,7 +604,8 @@ export async function createAndFreezeClientHourlyRate(params: {
       effectiveFrom: new Date(p.rateTerms.effectiveFrom),
       effectiveTo: new Date(p.rateTerms.effectiveTo),
       sourceType: p.provenance.sourceType,
-      sourceReference: frozenSourceRef,
+      sourceReference: p.provenance.sourceReference,
+      sourceDocumentUrl: p.provenance.sourceDocumentUrl,
       isFrozen: true,
       frozenAt: new Date(),
       frozenHash: p.integrity.canonicalHash,
