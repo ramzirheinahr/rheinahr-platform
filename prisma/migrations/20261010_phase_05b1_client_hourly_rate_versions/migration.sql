@@ -42,12 +42,16 @@ CREATE TABLE IF NOT EXISTS "client_hourly_rate_versions" (
     CONSTRAINT "client_hourly_rate_versions_pkey" PRIMARY KEY ("id")
 );
 
--- Basic Search Indexes
-CREATE INDEX IF NOT EXISTS "client_hourly_rate_versions_client_id_qualification_effective_from_effective_to_idx"
+-- Basic Search Indexes (matching Prisma PostgreSQL truncated identifier names)
+CREATE INDEX IF NOT EXISTS "client_hourly_rate_versions_client_id_qualification_effecti_idx"
 ON "client_hourly_rate_versions"("client_id", "qualification", "effective_from", "effective_to");
 
 CREATE INDEX IF NOT EXISTS "client_hourly_rate_versions_client_contract_id_idx"
 ON "client_hourly_rate_versions"("client_contract_id");
+
+-- Standard Prisma-Declared Unique Index (eliminating migration drift)
+CREATE UNIQUE INDEX IF NOT EXISTS "client_hourly_rate_versions_client_id_client_contract_id_qu_key"
+ON "client_hourly_rate_versions"("client_id", "client_contract_id", "qualification", "rate_version");
 
 -- Foreign Keys with Strict RESTRICT Deletion Policy
 ALTER TABLE "client_hourly_rate_versions"
