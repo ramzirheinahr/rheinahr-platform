@@ -42,7 +42,10 @@ vi.mock("@/lib/audit", () => ({
 
 vi.mock("@/lib/pdf/invoice", () => ({
   generateInvoicePdf: vi.fn().mockImplementation(async (data: any) => {
-    return Buffer.from(`%PDF-1.4 REGENERATED FOR ${data?.client?.facilityName || "UNKNOWN"}`);
+    return Buffer.concat([
+      Buffer.from(`%PDF-1.4 REGENERATED FOR ${data?.client?.facilityName || "UNKNOWN"}\n`),
+      Buffer.alloc(100, 32),
+    ]);
   }),
 }));
 
@@ -75,6 +78,7 @@ import {
   InsufficientSecretStrengthError,
   FreshV2InvoiceImmutableError,
   RevisionChainCorruptedError,
+  InvoiceRefreshError,
 } from "./invoice-v2-refresh-service";
 import {
   refreshInvoice,
@@ -611,101 +615,203 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
     });
 
     it("rejects refresh when snapshotData is incomplete (missing items description, hours, or amounts)", async () => {
-      const checkEmpty = isCompleteFrozenSnapshot({ items: [] });
+      const checkEmpty = await isCompleteFrozenSnapshot({ items: [] });
       expect(checkEmpty.complete).toBe(false);
 
-      const checkMissingDesc = isCompleteFrozenSnapshot({
+      const checkMissingDesc = await isCompleteFrozenSnapshot({
         facilityName: "Test Facility",
         address: "Teststr. 1",
         date: "2026-03-01",
         subtotal: "100.00 €",
+        taxAmount: "19.00 €",
+        total: "119.00 €",
         items: [{ hours: 1, total: "100.00 €" }], // missing description!
       });
       expect(checkMissingDesc.complete).toBe(false);
       expect(checkMissingDesc.reason).toMatch(/description fehlt/);
 
-      const checkMissingHours = isCompleteFrozenSnapshot({
+      const checkMissingHours = await isCompleteFrozenSnapshot({
         facilityName: "Test Facility",
         address: "Teststr. 1",
         date: "2026-03-01",
         subtotal: "100.00 €",
+        taxAmount: "19.00 €",
+        total: "119.00 €",
         items: [{ description: "Pflegefachkraft", total: "100.00 €" }], // missing hours!
       });
       expect(checkMissingHours.complete).toBe(false);
       expect(checkMissingHours.reason).toMatch(/Stunden oder Betrag fehlen/);
 
-      const checkMissingAmount = isCompleteFrozenSnapshot({
+      const checkMissingAmount = await isCompleteFrozenSnapshot({
         facilityName: "Test Facility",
         address: "Teststr. 1",
         date: "2026-03-01",
         subtotal: "100.00 €",
+        taxAmount: "19.00 €",
+        total: "119.00 €",
         items: [{ description: "Pflegefachkraft", hours: 2 }], // missing amount!
       });
       expect(checkMissingAmount.complete).toBe(false);
       expect(checkMissingAmount.reason).toMatch(/Stunden oder Betrag fehlen/);
 
-      const checkMissingFacility = isCompleteFrozenSnapshot({
+      const checkMissingFacility = await isCompleteFrozenSnapshot({
         address: "Teststr. 1",
         date: "2026-03-01",
         subtotal: "40.00 €",
+        taxAmount: "7.60 €",
+        total: "47.60 €",
         items: [{ description: "Pflegefachkraft", hours: 1, total: "40.00 €" }],
       });
       expect(checkMissingFacility.complete).toBe(false);
       expect(checkMissingFacility.reason).toMatch(/facilityName fehlt/);
 
-      const checkMissingAddress = isCompleteFrozenSnapshot({
+      const checkMissingAddress = await isCompleteFrozenSnapshot({
         facilityName: "Test Facility",
         date: "2026-03-01",
         subtotal: "40.00 €",
+        taxAmount: "7.60 €",
+        total: "47.60 €",
         items: [{ description: "Pflegefachkraft", hours: 1, total: "40.00 €" }],
       });
       expect(checkMissingAddress.complete).toBe(false);
       expect(checkMissingAddress.reason).toMatch(/address fehlt/);
 
-      const checkMissingDate = isCompleteFrozenSnapshot({
+      const checkMissingDate = await isCompleteFrozenSnapshot({
         facilityName: "Test Facility",
         address: "Teststr. 1",
         subtotal: "40.00 €",
+        taxAmount: "7.60 €",
+        total: "47.60 €",
         items: [{ description: "Pflegefachkraft", hours: 1, total: "40.00 €" }],
       });
       expect(checkMissingDate.complete).toBe(false);
       expect(checkMissingDate.reason).toMatch(/date fehlt/);
     });
 
-    it("rejects refresh when snapshot items sum does not match snapshot subtotal or database netAmount", async () => {
-      // Items sum: 40 € + 20 € = 60 €, but subtotal says 70 €!
-      const checkMismatchedSubtotal = isCompleteFrozenSnapshot({
+    it("rejects refresh when snapshot is missing mandatory totals (subtotal, taxAmount, or total)", async () => {
+      const baseSnap = {
         facilityName: "Test Facility",
         address: "Teststr. 1",
         date: "2026-03-01",
-        subtotal: "70.00 €",
+        items: [{ description: "Pflegefachkraft", hours: 1, total: "40.00 €" }],
+      };
+
+      const checkMissingSubtotal = await isCompleteFrozenSnapshot({
+        ...baseSnap,
+        taxAmount: "7.60 €",
+        total: "47.60 €",
+      });
+      expect(checkMissingSubtotal.complete).toBe(false);
+      expect(checkMissingSubtotal.reason).toMatch(/Zwischensumme \(subtotal fehlt\)/);
+
+      const checkMissingTax = await isCompleteFrozenSnapshot({
+        ...baseSnap,
+        subtotal: "40.00 €",
+        total: "47.60 €",
+      });
+      expect(checkMissingTax.complete).toBe(false);
+      expect(checkMissingTax.reason).toMatch(/Steuerbetrag \(taxAmount\/vatAmount fehlt\)/);
+
+      const checkMissingTotal = await isCompleteFrozenSnapshot({
+        ...baseSnap,
+        subtotal: "40.00 €",
+        taxAmount: "7.60 €",
+      });
+      expect(checkMissingTotal.complete).toBe(false);
+      expect(checkMissingTotal.reason).toMatch(/Gesamtbetrag \(total\/grossAmount fehlt\)/);
+    });
+
+    it("rejects refresh on arbitrary discrepancy (> 1 cent) between items sum and subtotal, but accepts documented 1-cent legacy rounding flaw", async () => {
+      // Counter-Test A: Arbitrary discrepancy (2 cents or more) is strictly rejected
+      // Items sum: 40.00 € + 20.00 € = 60.00 €, but subtotal says 60.05 € (5 cents discrepancy)
+      const checkArbitraryDiscrepancy = await isCompleteFrozenSnapshot({
+        facilityName: "Test Facility",
+        address: "Teststr. 1",
+        date: "2026-03-01",
+        subtotal: "60.05 €",
+        taxAmount: "11.41 €",
+        total: "71.46 €",
         items: [
           { description: "Posten 1", hours: 1, total: "40.00 €" },
           { description: "Posten 2", hours: 1, total: "20.00 €" },
         ],
       });
-      expect(checkMismatchedSubtotal.complete).toBe(false);
-      expect(checkMismatchedSubtotal.reason).toMatch(/Mathematische Inkonsistenz im Snapshot/);
+      expect(checkArbitraryDiscrepancy.complete).toBe(false);
+      expect(checkArbitraryDiscrepancy.reason).toMatch(/weicht um 5 Cent von der Zwischensumme.*ab \(keine bekannte 1-Cent-Rundungsdifferenz\)/);
 
-      // Items sum matches subtotal (60 €), but database invoice has netAmount = 80 €
-      const checkMismatchedDbNet = isCompleteFrozenSnapshot(
+      // Counter-Test B: Documented 1-cent historical rounding discrepancy is accepted and flagged
+      // Items sum: 5.67 + 5.68 + 5.68 = 17.03 €, subtotal printed as 17.04 € (discrepancy = -1 cent)
+      const checkOneCentDiscrepancy = await isCompleteFrozenSnapshot({
+        facilityName: "Test Facility",
+        address: "Teststr. 1",
+        date: "2026-03-01",
+        subtotal: "17.04 €",
+        taxAmount: "3.24 €",
+        total: "20.28 €",
+        items: [
+          { description: "Posten 1", hours: 1, total: "5.67 €" },
+          { description: "Posten 2", hours: 1, total: "5.68 €" },
+          { description: "Posten 3", hours: 1, total: "5.68 €" },
+        ],
+      });
+      expect(checkOneCentDiscrepancy.complete).toBe(true);
+      expect(checkOneCentDiscrepancy.hasKnownRoundingDiscrepancy).toBe(true);
+      expect(checkOneCentDiscrepancy.knownRoundingDiscrepancyCents).toBe(-1);
+
+      // Counter-Test C: Subtotal in snapshot MUST match DB netAmount exactly (0 cents tolerance)
+      const checkMismatchedDbNet = await isCompleteFrozenSnapshot(
         {
           facilityName: "Test Facility",
           address: "Teststr. 1",
           date: "2026-03-01",
           subtotal: "60.00 €",
+          taxAmount: "11.40 €",
+          total: "71.40 €",
           items: [
             { description: "Posten 1", hours: 1, total: "40.00 €" },
             { description: "Posten 2", hours: 1, total: "20.00 €" },
           ],
         },
-        { netAmount: 80.0 } as any
+        { netAmount: 60.01 } as any // 1 cent difference between subtotal and DB netAmount!
       );
       expect(checkMismatchedDbNet.complete).toBe(false);
-      expect(checkMismatchedDbNet.reason).toMatch(/Mathematische Inkonsistenz: Die Summe der Snapshot-Posten/);
+      expect(checkMismatchedDbNet.reason).toMatch(/stimmt nicht mit dem Netto-Rechnungsbetrag der Datenbank/);
     });
 
-    it("rejects stored PDF files that fail magic bytes check or lie outside allowed storage roots", () => {
+    it("rejects snapshot when pre-flight PDF simulation fails or returns invalid bytes", async () => {
+      const { generateInvoicePdf } = await import("@/lib/pdf/invoice");
+      const pdfMock = vi.mocked(generateInvoicePdf);
+
+      // Simulate renderer throwing an error
+      pdfMock.mockRejectedValueOnce(new Error("Renderer fatal crash"));
+      const failCrash = await isCompleteFrozenSnapshot({
+        facilityName: "Test Facility",
+        address: "Teststr. 1",
+        date: "2026-03-01",
+        subtotal: "40.00 €",
+        taxAmount: "7.60 €",
+        total: "47.60 €",
+        items: [{ description: "Pflegefachkraft", hours: 1, total: "40.00 €" }],
+      });
+      expect(failCrash.complete).toBe(false);
+      expect(failCrash.reason).toMatch(/Simulation der PDF-Erstellung aus dem Snapshot schlug fehl: Renderer fatal crash/);
+
+      // Simulate renderer producing too few bytes (< 100 bytes)
+      pdfMock.mockResolvedValueOnce(Buffer.from("%PDF-too-short"));
+      const failShort = await isCompleteFrozenSnapshot({
+        facilityName: "Test Facility",
+        address: "Teststr. 1",
+        date: "2026-03-01",
+        subtotal: "40.00 €",
+        taxAmount: "7.60 €",
+        total: "47.60 €",
+        items: [{ description: "Pflegefachkraft", hours: 1, total: "40.00 €" }],
+      });
+      expect(failShort.complete).toBe(false);
+      expect(failShort.reason).toMatch(/Pre-Flight-Prüfung der PDF-Generierung aus dem Snapshot ergab keine gültigen PDF-Bytes/);
+    });
+
+    it("rejects stored PDF files that fail magic bytes check or lie outside allowed storage roots (including public/)", () => {
       const storageDir = path.resolve(process.cwd(), "storage/invoices");
       if (!fs.existsSync(storageDir)) {
         fs.mkdirSync(storageDir, { recursive: true });
@@ -723,11 +829,26 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         if (fs.existsSync(fakePdfPath)) fs.unlinkSync(fakePdfPath);
       }
 
-      // Counter-Test B: Outside allowed invoice storage root (e.g. /etc/hosts or arbitrary cwd root)
+      // Counter-Test B: Outside allowed invoice storage root (e.g. package.json in cwd)
       const outsideFile = path.resolve(process.cwd(), "package.json");
       const outsideCheck = defaultFileVerifier(outsideFile);
       expect(outsideCheck.exists).toBe(false);
       expect(outsideCheck.reason).toMatch(/liegt außerhalb des zulässigen Rechnungs-Speicherbereichs/);
+
+      // Counter-Test C: Files in public/ directories are strictly rejected (no public web exposure)
+      const publicDir = path.resolve(process.cwd(), "public/invoices");
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+      const publicPdf = path.resolve(publicDir, "public-invoice.pdf");
+      fs.writeFileSync(publicPdf, Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(100, 32)]));
+      try {
+        const publicCheck = defaultFileVerifier(publicPdf);
+        expect(publicCheck.exists).toBe(false);
+        expect(publicCheck.reason).toMatch(/liegt außerhalb des zulässigen Rechnungs-Speicherbereichs/);
+      } finally {
+        if (fs.existsSync(publicPdf)) fs.unlinkSync(publicPdf);
+      }
     });
 
     it("accepts refresh when historical invoice has a verified stored PDF file on disk", async () => {
@@ -758,6 +879,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         address: "Musterstraße 12, 53474 Bad Neuenahr",
         date: "2026-03-01",
         subtotal: "40,00 €",
+        taxAmount: "7,60 €",
         total: "47,60 €",
         items: [
           {
@@ -797,6 +919,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
           address: "Musterstr. 12, 53474 Bad Neuenahr",
           date: "2026-03-01",
           subtotal: "40,00 €",
+          taxAmount: "7,60 €",
           total: "47,60 €",
           items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
         },
@@ -868,6 +991,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
           address: "Musterstr. 12, 53474 Bad Neuenahr",
           date: "2026-03-01",
           subtotal: "40,00 €",
+          taxAmount: "7,60 €",
           total: "47,60 €",
           items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
         },
@@ -937,6 +1061,85 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       expect(prevSnap.isByteForByteOriginalFile).toBe(false);
       expect(prevSnap.frozenSnapshotSha256).toBeDefined();
       expect(prevSnap.assignmentIds).toEqual(["assign-1"]);
+    });
+
+    it("fails closed with ORIGINAL_PDF_ARCHIVAL_FAILED and rolls back transaction when PDF archival fails", async () => {
+      process.env.FEATURE_INVOICE_V2_REFRESH = "true";
+      const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-arch-fail" });
+      const storageDir = path.resolve(process.cwd(), "storage/invoices");
+      if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+      const validPdf = path.resolve(storageDir, "valid-for-archive-fail.pdf");
+      const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(100, 32)]);
+      fs.writeFileSync(validPdf, pdfBytes);
+
+      try {
+        const mockInvoice = {
+          id: "inv-arch-fail",
+          invoiceNumber: "INV-ARCH-FAIL",
+          status: "unpaid",
+          date: new Date(),
+          netAmount: 40.0,
+          vatAmount: 7.6,
+          grossAmount: 47.6,
+          pdfUrl: validPdf,
+          snapshotData: null,
+          client: a1.order.client,
+          assignments: [a1],
+        };
+
+        const mockPrisma = {
+          $queryRaw: vi.fn().mockImplementation((query: any) => {
+            const sql = String(query.strings ? query.strings.join(" ") : query);
+            if (sql.includes("assignments")) return Promise.resolve([{ id: "assign-1" }]);
+            if (sql.includes("invoices")) return Promise.resolve([{ id: "inv-arch-fail" }]);
+            return Promise.resolve([]);
+          }),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue(mockInvoice),
+            update: vi.fn(),
+          },
+          assignment: {
+            findMany: vi.fn().mockResolvedValue([a1]),
+          },
+          invoiceRevision: {
+            count: vi.fn().mockResolvedValue(0),
+            findMany: vi.fn().mockResolvedValue([]),
+            create: vi.fn(),
+          },
+          auditLog: { create: vi.fn() },
+          $transaction: vi.fn().mockImplementation(async (cb: any) => await cb(mockPrisma)),
+        };
+
+        const deps = {
+          prisma: mockPrisma,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          archivePdfFn: vi.fn().mockImplementation(() => {
+            throw new InvoiceRefreshError(
+              "ORIGINAL_PDF_ARCHIVAL_FAILED",
+              "[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Simulierte E/A-Störung."
+            );
+          }),
+        };
+
+        const preview = await previewV2InvoiceRefresh("inv-arch-fail", { ...deps, adminId: "admin-super" });
+        await expect(
+          confirmV2InvoiceRefresh(
+            {
+              invoiceId: "inv-arch-fail",
+              previewToken: preview.previewToken,
+              performedByUserId: "admin-super",
+            },
+            deps
+          )
+        ).rejects.toThrow(/ORIGINAL_PDF_ARCHIVAL_FAILED/);
+
+        expect(mockPrisma.invoice.update).not.toHaveBeenCalled();
+        expect(mockPrisma.invoiceRevision.create).not.toHaveBeenCalled();
+      } finally {
+        if (fs.existsSync(validPdf)) fs.unlinkSync(validPdf);
+      }
     });
 
     it("serves exact original stored PDF file bytes when available for revision=0 route", async () => {
@@ -1115,6 +1318,64 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       expect(errText).toMatch(/nicht auf dem Server gefunden/);
     });
 
+    it("serves permanently archived copy from storage/archived-invoices for revision=0 even if original source file is deleted after refresh", async () => {
+      const archiveDir = path.resolve(process.cwd(), "storage/archived-invoices");
+      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+
+      const archivedPdfPath = path.resolve(archiveDir, "invoice-inv-del-rev0-test.pdf");
+      const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n%ARCHIVED ORIGINAL\n"), Buffer.alloc(80, 32)]);
+      const exactSha = createHash("sha256").update(pdfBytes).digest("hex");
+      fs.writeFileSync(archivedPdfPath, pdfBytes);
+
+      try {
+        const mockInvoice = {
+          id: "inv-del",
+          invoiceNumber: "RE-ARCH-DEL-01",
+          status: "unpaid",
+          date: new Date("2026-03-01"),
+          netAmount: 100,
+          vatAmount: 19,
+          grossAmount: 119,
+          client: { id: "c-1", facilityName: "Current Client" },
+          assignments: [],
+        };
+
+        const mockRev1 = {
+          id: "rev-1",
+          invoiceId: "inv-del",
+          revisionNumber: 1,
+          previousNetAmount: 100,
+          previousVatAmount: 19,
+          previousGrossAmount: 119,
+          previousSnapshotData: {
+            invoiceNumber: "RE-ARCH-DEL-01",
+            originReliability: "stored_pdf",
+            storedPdfInfo: {
+              path: "/storage/invoices/deleted-source-file.pdf", // deleted original source!
+              archivedPath: archivedPdfPath, // permanent archive copy!
+              sha256: exactSha,
+              byteLength: pdfBytes.length,
+            },
+            client: { facilityName: "Historical Client" },
+          },
+        };
+
+        (prisma.invoice.findUnique as any).mockResolvedValue(mockInvoice);
+        (prisma.invoiceRevision.findUnique as any).mockResolvedValue(mockRev1);
+
+        const req = new Request("http://localhost/api/invoices/inv-del/pdf?revision=0");
+        const res = await getInvoicePdfRoute(req, { params: Promise.resolve({ id: "inv-del" }) });
+
+        expect(res.status).toBe(200);
+        expect(res.headers.get("X-Document-Source")).toBe("stored_original_file");
+        expect(res.headers.get("X-Document-Checksum")).toBe(exactSha);
+        const returnedBuf = Buffer.from(await res.arrayBuffer());
+        expect(returnedBuf.equals(pdfBytes)).toBe(true);
+      } finally {
+        if (fs.existsSync(archivedPdfPath)) fs.unlinkSync(archivedPdfPath);
+      }
+    });
+
     it("regenerates PDF from frozen snapshot data for revision=0 without being affected by live client edits", async () => {
       const mockInvoice = {
         id: "inv-route-snap",
@@ -1151,6 +1412,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
             address: "Historical Address 1, 53474 Bad Neuenahr",
             date: "2026-03-01",
             subtotal: "40,00 €",
+            taxAmount: "7,60 €",
             total: "47,60 €",
             items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
           },
@@ -1200,6 +1462,8 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
           rawSnapshotData: {
             facilityName: "ORIGINAL FACILITY NAME",
             subtotal: "40,00 €",
+            taxAmount: "7,60 €",
+            total: "47,60 €",
             items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
           },
         },
@@ -1233,7 +1497,10 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         grossAmount: 119,
         snapshotData: {
           facilityName: "Test Facility",
+          address: "Teststr. 1",
+          date: "2026-03-01",
           subtotal: "100.00 €",
+          taxAmount: "19.00 €",
           total: "119.00 €",
           items: [{ description: "Posten 1", hours: 1, total: "100.00 €" }],
         },
@@ -1264,7 +1531,10 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         grossAmount: 47.6,
         snapshotData: {
           facilityName: "Test Facility",
+          address: "Teststr. 1",
+          date: "2026-03-01",
           subtotal: "40.00 €",
+          taxAmount: "7.60 €",
           total: "47.60 €",
           items: [{ description: "Posten 1", hours: 1, total: "40.00 €" }],
           emailSent: true, // Sent indicator!
@@ -1307,7 +1577,10 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         grossAmount: 47.6,
         snapshotData: {
           facilityName: "Test Facility",
+          address: "Teststr. 1",
+          date: "2026-03-01",
           subtotal: "40.00 €",
+          taxAmount: "7.60 €",
           total: "47.60 €",
           items: [{ description: "Posten 1", hours: 1, total: "40.00 €" }],
         },
@@ -1426,6 +1699,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
           address: "Musterstr. 12, 53474 Bad Neuenahr",
           date: "2026-03-01",
           subtotal: "40,00 €",
+          taxAmount: "7,60 €",
           total: "47,60 €",
           items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
         },
@@ -1636,6 +1910,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
           address: "Musterstr. 12, 53474 Bad Neuenahr",
           date: "2026-03-01",
           subtotal: "40,00 €",
+          taxAmount: "7,60 €",
           total: "47,60 €",
           items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
         },
@@ -1786,6 +2061,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
           address: "Musterstr. 12, 53474 Bad Neuenahr",
           date: "2026-03-10",
           subtotal: "17,03 €",
+          taxAmount: "3,24 €",
           total: "20,27 €",
           items: [
             { description: "Pflegehelfer", hours: 1, total: "5,67 €" },

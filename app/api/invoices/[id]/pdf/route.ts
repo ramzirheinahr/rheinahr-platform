@@ -80,6 +80,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       // Case A: Stored original PDF file verified and served as-is (exact original bytes)
       if (prevProvenance.originReliability === "stored_pdf") {
         const filePath =
+          prevProvenance.storedPdfInfo?.archivedPath ||
+          prevProvenance.archivedPdfRecord?.archivedPath ||
           prevProvenance.storedPdfInfo?.path ||
           prevProvenance.pdfUrl ||
           prevProvenance.rawSnapshotData?.pdfUrl ||
@@ -101,8 +103,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         }
 
         // Strict checksum and byte length verification against archived metadata
-        const expectedSha256 = prevProvenance.storedPdfInfo?.sha256;
-        const expectedByteLength = prevProvenance.storedPdfInfo?.byteLength;
+        const expectedSha256 = prevProvenance.storedPdfInfo?.sha256 || prevProvenance.archivedPdfRecord?.sha256;
+        const expectedByteLength = prevProvenance.storedPdfInfo?.byteLength || prevProvenance.archivedPdfRecord?.byteLength;
 
         if (expectedSha256 && fileCheck.sha256 !== expectedSha256) {
           return new NextResponse(

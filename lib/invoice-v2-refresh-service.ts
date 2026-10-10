@@ -47,6 +47,7 @@ import { isV2CalculationVersion } from "./invoice-calculation-version";
 import { formatCentsGerman } from "./invoice-exact-engine";
 import { computeV2DraftHash } from "./invoice-v2-issuance-service";
 import { buildInvoicePdfData } from "./invoice-pdf-builder";
+import { generateInvoicePdf } from "@/lib/pdf/invoice";
 
 // ============================================================================
 // Error Types
@@ -491,6 +492,7 @@ export type FileVerifier = (
 /**
  * Returns canonical list of directories permitted to store and serve invoice PDFs.
  * Protects against arbitrary file path traversal, unauthorized file disclosure, and symlink attacks.
+ * Strictly excludes web-exposed public directories (e.g. public/invoices).
  */
 export function getAllowedInvoiceStorageRoots(customRoots?: string[]): string[] {
   const roots: string[] = [];
@@ -500,12 +502,108 @@ export function getAllowedInvoiceStorageRoots(customRoots?: string[]): string[] 
   if (process.env.INVOICE_STORAGE_ROOT) {
     roots.push(path.resolve(process.env.INVOICE_STORAGE_ROOT));
   }
+  if (process.env.INVOICE_ARCHIVE_DIR) {
+    roots.push(path.resolve(process.env.INVOICE_ARCHIVE_DIR));
+  }
   roots.push(
     path.resolve(process.cwd(), "storage/invoices"),
-    path.resolve(process.cwd(), "public/invoices"),
-    path.resolve(process.cwd(), "public/uploads/invoices")
+    path.resolve(process.cwd(), "storage/archived-invoices")
   );
   return roots;
+}
+
+export function getArchivedInvoicesDirectory(): string {
+  if (process.env.INVOICE_ARCHIVE_DIR) {
+    return path.resolve(process.env.INVOICE_ARCHIVE_DIR);
+  }
+  return path.resolve(process.cwd(), "storage/archived-invoices");
+}
+
+export type ArchivedPdfResult = {
+  archivedPath: string;
+  sourceOriginalPath: string;
+  sha256: string;
+  byteLength: number;
+};
+
+/**
+ * Copies the verified original historical PDF to a dedicated, permanent private archive storage
+ * before performing the invoice update. Verifies read-back integrity immediately.
+ * Throws ORIGINAL_PDF_ARCHIVAL_FAILED on any error, causing complete transaction rollback.
+ */
+export async function persistArchivedOriginalPdf(
+  sourcePath: string,
+  invoiceId: string,
+  expectedSha256?: string,
+  verifier: FileVerifier = defaultFileVerifier
+): Promise<ArchivedPdfResult> {
+  const sourceCheck = await verifier(sourcePath);
+  if (!sourceCheck.exists || !sourceCheck.buffer || !sourceCheck.sha256 || !sourceCheck.byteLength) {
+    throw new InvoiceRefreshError(
+      "ORIGINAL_PDF_ARCHIVAL_FAILED",
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Quelldatei "${sourcePath}" konnte nicht verifiziert werden (${sourceCheck.reason || "Datei ungültig"}).`
+    );
+  }
+
+  if (expectedSha256 && sourceCheck.sha256 !== expectedSha256) {
+    throw new InvoiceRefreshError(
+      "ORIGINAL_PDF_ARCHIVAL_FAILED",
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Checksum der Quelldatei stimmt nicht mit der erwarteten Prüfsumme überein.`
+    );
+  }
+
+  const archiveDir = getArchivedInvoicesDirectory();
+  if (!fs.existsSync(archiveDir)) {
+    try {
+      fs.mkdirSync(archiveDir, { recursive: true, mode: 0o700 });
+    } catch (err) {
+      throw new InvoiceRefreshError(
+        "ORIGINAL_PDF_ARCHIVAL_FAILED",
+        `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Archivverzeichnis konnte nicht erstellt werden (${err instanceof Error ? err.message : String(err)}).`
+      );
+    }
+  }
+
+  const safeInvoiceId = invoiceId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const targetFilename = `invoice-${safeInvoiceId}-rev0-${sourceCheck.sha256.slice(0, 16)}.pdf`;
+  const targetPath = path.resolve(archiveDir, targetFilename);
+
+  try {
+    fs.writeFileSync(targetPath, sourceCheck.buffer, { mode: 0o600 });
+  } catch (err) {
+    throw new InvoiceRefreshError(
+      "ORIGINAL_PDF_ARCHIVAL_FAILED",
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Zieldatei konnte nicht geschrieben werden (${err instanceof Error ? err.message : String(err)}).`
+    );
+  }
+
+  // Strict read-back verification after write
+  const verifyArchived = defaultFileVerifier(targetPath, {
+    allowedRoots: [archiveDir, ...getAllowedInvoiceStorageRoots()],
+  });
+
+  if (
+    !verifyArchived.exists ||
+    verifyArchived.sha256 !== sourceCheck.sha256 ||
+    verifyArchived.byteLength !== sourceCheck.byteLength
+  ) {
+    try {
+      if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
+    } catch {
+      // ignore rollback deletion error
+    }
+    throw new InvoiceRefreshError(
+      "ORIGINAL_PDF_ARCHIVAL_FAILED",
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Die archivierte Kopie konnte nach dem Schreiben nicht verifiziert werden.`
+    );
+  }
+
+  return {
+    archivedPath: targetPath,
+    sourceOriginalPath: sourceCheck.realPath || sourcePath,
+    sha256: sourceCheck.sha256,
+    byteLength: sourceCheck.byteLength,
+  };
 }
 
 /**
@@ -549,9 +647,7 @@ export const defaultFileVerifier = (
     } else {
       candidates.push(
         path.resolve(process.cwd(), "storage/invoices", localPath.replace(/^\/+/, "")),
-        path.resolve(process.cwd(), "public/invoices", localPath.replace(/^\/+/, "")),
-        path.resolve(process.cwd(), "public/uploads/invoices", localPath.replace(/^\/+/, "")),
-        path.resolve(process.cwd(), "public", localPath.replace(/^\/+/, "")),
+        path.resolve(process.cwd(), "storage/archived-invoices", localPath.replace(/^\/+/, "")),
         path.resolve(process.cwd(), localPath)
       );
     }
@@ -676,7 +772,16 @@ export function parseCurrencyAmountToCents(val: unknown): number | null {
  * 4. Mandates facilityName, address, and invoice date.
  * 5. Runs a pre-flight simulation with buildInvoicePdfData to verify renderer viability.
  */
-export function isCompleteFrozenSnapshot(
+export type FrozenSnapshotVerificationResult = {
+  complete: boolean;
+  reason?: string;
+  sha256?: string;
+  hasKnownRoundingDiscrepancy?: boolean;
+  knownRoundingDiscrepancyCents?: number;
+  pdfByteLength?: number;
+};
+
+export async function isCompleteFrozenSnapshot(
   snap: unknown,
   invoiceContext?: {
     netAmount?: number;
@@ -685,11 +790,7 @@ export function isCompleteFrozenSnapshot(
     date?: Date | string;
     invoiceNumber?: string;
   }
-): {
-  complete: boolean;
-  reason?: string;
-  sha256?: string;
-} {
+): Promise<FrozenSnapshotVerificationResult> {
   if (!snap || typeof snap !== "object" || Array.isArray(snap)) {
     return { complete: false, reason: "Snapshot-Daten fehlen oder sind kein gültiges JSON-Objekt." };
   }
@@ -780,33 +881,77 @@ export function isCompleteFrozenSnapshot(
     return { complete: false, reason: "Snapshot enthält kein Rechnungsdatum (date fehlt)." };
   }
 
-  // Mathematical Integrity Check: Items Sum vs Snapshot Subtotal
+  // Mandatory Totals Check: subtotal, taxAmount, total
+  const hasRawSubtotal = s.subtotalCents !== undefined || s.subtotal !== undefined || s.netAmount !== undefined;
   const subtotalCents =
     typeof s.subtotalCents === "number" && !isNaN(s.subtotalCents)
       ? s.subtotalCents
       : parseCurrencyAmountToCents(s.subtotal ?? s.netAmount);
 
-  if (subtotalCents !== null) {
-    if (Math.abs(calculatedItemsNetCents - subtotalCents) > 2) {
+  if (!hasRawSubtotal || subtotalCents === null) {
+    return { complete: false, reason: "Snapshot enthält keine Zwischensumme (subtotal fehlt)." };
+  }
+
+  const hasRawTax =
+    s.taxAmountCents !== undefined ||
+    s.taxAmount !== undefined ||
+    s.vatAmount !== undefined ||
+    s.vatAmountCents !== undefined;
+  const taxAmountCents =
+    typeof s.taxAmountCents === "number" && !isNaN(s.taxAmountCents)
+      ? s.taxAmountCents
+      : parseCurrencyAmountToCents(s.taxAmount ?? s.vatAmount);
+
+  if (!hasRawTax || taxAmountCents === null) {
+    return { complete: false, reason: "Snapshot enthält keinen Steuerbetrag (taxAmount/vatAmount fehlt)." };
+  }
+
+  const hasRawTotal =
+    s.totalCents !== undefined ||
+    s.total !== undefined ||
+    s.grossAmount !== undefined ||
+    s.grossAmountCents !== undefined;
+  const totalCents =
+    typeof s.totalCents === "number" && !isNaN(s.totalCents)
+      ? s.totalCents
+      : parseCurrencyAmountToCents(s.total ?? s.grossAmount);
+
+  if (!hasRawTotal || totalCents === null) {
+    return { complete: false, reason: "Snapshot enthält keinen Gesamtbetrag (total/grossAmount fehlt)." };
+  }
+
+  // Mathematical Integrity Check: Items Sum vs Snapshot Subtotal
+  // Zero tolerance for arbitrary discrepancies. Exactly 1 cent discrepancy is documented legacy rounding flaw.
+  const discrepancyCents = calculatedItemsNetCents - subtotalCents;
+  let hasKnownRoundingDiscrepancy = false;
+  let knownRoundingDiscrepancyCents: number | undefined = undefined;
+
+  if (discrepancyCents !== 0) {
+    if (Math.abs(discrepancyCents) === 1) {
+      hasKnownRoundingDiscrepancy = true;
+      knownRoundingDiscrepancyCents = discrepancyCents;
+    } else {
       return {
         complete: false,
-        reason: `Mathematische Inkonsistenz im Snapshot: Die Summe der Posten (${(calculatedItemsNetCents / 100).toFixed(2)} €) weicht von der Zwischensumme (${(subtotalCents / 100).toFixed(2)} €) ab.`,
+        reason: `Mathematische Inkonsistenz im Snapshot: Die Summe der Posten (${(calculatedItemsNetCents / 100).toFixed(2)} €) weicht um ${Math.abs(discrepancyCents)} Cent von der Zwischensumme (${(subtotalCents / 100).toFixed(2)} €) ab (keine bekannte 1-Cent-Rundungsdifferenz).`,
       };
     }
   }
 
   // Mathematical Integrity Check: Snapshot vs DB Amounts (if provided)
+  // Subtotal in snapshot MUST match DB netAmount exactly (0 cents tolerance)
   if (invoiceContext?.netAmount !== undefined && invoiceContext.netAmount !== null) {
     const dbNetCents = Math.round(invoiceContext.netAmount * 100);
-    if (Math.abs(calculatedItemsNetCents - dbNetCents) > 5) {
+    if (subtotalCents !== dbNetCents) {
       return {
         complete: false,
-        reason: `Mathematische Inkonsistenz: Die Summe der Snapshot-Posten (${(calculatedItemsNetCents / 100).toFixed(2)} €) weicht vom Netto-Rechnungsbetrag der Datenbank (${invoiceContext.netAmount.toFixed(2)} €) ab.`,
+        reason: `Mathematische Inkonsistenz: Die Zwischensumme des Snapshots (${(subtotalCents / 100).toFixed(2)} €) stimmt nicht mit dem Netto-Rechnungsbetrag der Datenbank (${invoiceContext.netAmount.toFixed(2)} €) überein.`,
       };
     }
   }
 
   // Pre-flight PDF Renderer Simulation: verify PDF generation succeeds strictly from snapshot
+  let generatedPdfBuffer: Buffer;
   try {
     const dummyClient = {
       id: (clientObj?.id as string) || "c-hist",
@@ -834,9 +979,9 @@ export function isCompleteFrozenSnapshot(
     const dummyInvoice = {
       invoiceNumber: (s.invoiceNumber as string) || invoiceContext?.invoiceNumber || "HIST-INV",
       date: new Date(rawDate as string),
-      netAmount: (subtotalCents ?? calculatedItemsNetCents) / 100,
-      vatAmount: invoiceContext?.vatAmount ?? 0,
-      grossAmount: invoiceContext?.grossAmount ?? (subtotalCents ?? calculatedItemsNetCents) / 100,
+      netAmount: subtotalCents / 100,
+      vatAmount: taxAmountCents / 100,
+      grossAmount: totalCents / 100,
       snapshotData: s,
     };
 
@@ -845,7 +990,19 @@ export function isCompleteFrozenSnapshot(
     if (!built || !built.clientName || !built.items || built.items.length === 0) {
       return {
         complete: false,
-        reason: "Simulation der PDF-Erstellung aus dem historischen Snapshot schlug fehl.",
+        reason: "Simulation der PDF-Erstellung aus dem historischen Snapshot schlug fehl: Unvollständige PDF-Datenstruktur.",
+      };
+    }
+
+    generatedPdfBuffer = await generateInvoicePdf(built);
+    if (
+      !generatedPdfBuffer ||
+      generatedPdfBuffer.length < 100 ||
+      generatedPdfBuffer.toString("utf-8", 0, 5) !== "%PDF-"
+    ) {
+      return {
+        complete: false,
+        reason: "Pre-Flight-Prüfung der PDF-Generierung aus dem Snapshot ergab keine gültigen PDF-Bytes (Magic-Bytes '%PDF-' fehlen oder Puffer zu klein).",
       };
     }
   } catch (err) {
@@ -856,7 +1013,13 @@ export function isCompleteFrozenSnapshot(
   }
 
   const sha256 = createHash("sha256").update(JSON.stringify(snap)).digest("hex");
-  return { complete: true, sha256 };
+  return {
+    complete: true,
+    sha256,
+    hasKnownRoundingDiscrepancy,
+    knownRoundingDiscrepancyCents,
+    pdfByteLength: generatedPdfBuffer.length,
+  };
 }
 
 export async function checkReliableHistoricalOrigin(
@@ -882,6 +1045,9 @@ export async function checkReliableHistoricalOrigin(
     byteLength: number;
   };
   frozenSnapshotSha256?: string;
+  hasKnownRoundingDiscrepancy?: boolean;
+  knownRoundingDiscrepancyCents?: number;
+  pdfByteLength?: number;
 }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const snap = invoice.snapshotData as any;
@@ -906,12 +1072,15 @@ export async function checkReliableHistoricalOrigin(
     }
   }
 
-  const snapshotCheck = isCompleteFrozenSnapshot(invoice.snapshotData, invoice);
+  const snapshotCheck = await isCompleteFrozenSnapshot(invoice.snapshotData, invoice);
   if (snapshotCheck.complete) {
     return {
       reliable: true,
       source: "frozen_snapshot",
       frozenSnapshotSha256: snapshotCheck.sha256,
+      hasKnownRoundingDiscrepancy: snapshotCheck.hasKnownRoundingDiscrepancy,
+      knownRoundingDiscrepancyCents: snapshotCheck.knownRoundingDiscrepancyCents,
+      pdfByteLength: snapshotCheck.pdfByteLength,
     };
   }
 
@@ -926,7 +1095,7 @@ export async function checkReliableHistoricalOrigin(
   };
 }
 
-export function hasReliableHistoricalOrigin(invoice: {
+export async function hasReliableHistoricalOrigin(invoice: {
   id?: string;
   pdfUrl?: string | null;
   snapshotData?: unknown;
@@ -934,9 +1103,8 @@ export function hasReliableHistoricalOrigin(invoice: {
   grossAmount?: number;
   date?: Date | string;
   client?: { facilityName?: string; address?: string | null } | null;
-}): { reliable: boolean; source: "stored_pdf" | "frozen_snapshot" | "none"; reason?: string } {
-  // Synchronous convenience wrapper
-  const defaultCheck = isCompleteFrozenSnapshot(invoice.snapshotData, invoice);
+}): Promise<{ reliable: boolean; source: "stored_pdf" | "frozen_snapshot" | "none"; reason?: string }> {
+  const defaultCheck = await isCompleteFrozenSnapshot(invoice.snapshotData, invoice);
   if (defaultCheck.complete) {
     return { reliable: true, source: "frozen_snapshot" };
   }
@@ -1108,6 +1276,11 @@ export type V2RefreshDeps = {
   currentTime?: number;
   secret?: string;
   fileVerifier?: FileVerifier;
+  archivePdfFn?: (
+    sourcePath: string,
+    invoiceId: string,
+    expectedSha256?: string
+  ) => Promise<ArchivedPdfResult> | ArchivedPdfResult;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prisma?: any;
   priceVersionResolver?: PriceVersionResolver;
@@ -1490,6 +1663,25 @@ export async function confirmV2InvoiceRefresh(
 
         const tokenHash = maskTokenForAudit(input.previewToken);
 
+        // Archive original PDF prior to invoice update if originCheck is stored_pdf (Fail-Closed)
+        let archivedPdfRecord: ArchivedPdfResult | null = null;
+        if (originCheck.source === "stored_pdf" && originCheck.storedPdfInfo) {
+          if (deps?.archivePdfFn) {
+            archivedPdfRecord = await deps.archivePdfFn(
+              originCheck.storedPdfInfo.path,
+              invoice.id,
+              originCheck.storedPdfInfo.sha256
+            );
+          } else {
+            archivedPdfRecord = await persistArchivedOriginalPdf(
+              originCheck.storedPdfInfo.path,
+              invoice.id,
+              originCheck.storedPdfInfo.sha256,
+              deps?.fileVerifier
+            );
+          }
+        }
+
         // Complete Previous Provenance Record
         const previousProvenanceSnapshot = {
           invoiceNumber: invoice.invoiceNumber,
@@ -1535,13 +1727,20 @@ export async function confirmV2InvoiceRefresh(
           rawSnapshotData: invoice.snapshotData ?? null,
           hasStoredPdfFile: originCheck.source === "stored_pdf",
           pdfUrl:
+            archivedPdfRecord?.archivedPath ||
             originCheck.storedPdfInfo?.path ||
             invoice.pdfUrl ||
             (invoice.snapshotData && typeof invoice.snapshotData === "object" && "pdfUrl" in invoice.snapshotData && typeof (invoice.snapshotData as Record<string, unknown>).pdfUrl === "string"
               ? ((invoice.snapshotData as Record<string, unknown>).pdfUrl as string)
               : null),
           originReliability: originCheck.source,
-          storedPdfInfo: originCheck.storedPdfInfo || null,
+          storedPdfInfo: originCheck.storedPdfInfo
+            ? {
+                ...originCheck.storedPdfInfo,
+                archivedPath: archivedPdfRecord?.archivedPath ?? null,
+              }
+            : null,
+          archivedPdfRecord: archivedPdfRecord || null,
           frozenSnapshotSha256: originCheck.frozenSnapshotSha256 || null,
           isByteForByteOriginalFile: originCheck.source === "stored_pdf",
           isRegeneratedFromFrozenData: originCheck.source === "frozen_snapshot",
@@ -1578,7 +1777,13 @@ export async function confirmV2InvoiceRefresh(
             snapshotData: invoice.snapshotData ?? null,
             hasStoredPdfFile: originCheck.source === "stored_pdf",
             originReliability: originCheck.source,
-            storedPdfInfo: originCheck.storedPdfInfo || null,
+            storedPdfInfo: originCheck.storedPdfInfo
+              ? {
+                  ...originCheck.storedPdfInfo,
+                  archivedPath: archivedPdfRecord?.archivedPath ?? null,
+                }
+              : null,
+            archivedPdfRecord: archivedPdfRecord || null,
           },
           subtotalCents: inTxDraft.totals.subtotalCents,
           taxAmountCents: inTxDraft.totals.taxAmountCents,
