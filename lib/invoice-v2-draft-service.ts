@@ -165,6 +165,7 @@ export type PrepareV2InvoiceDraftInput = {
   customPeriodStart?: string;     // optional override (YYYY-MM-DD)
   customPeriodEnd?: string;       // optional override (YYYY-MM-DD)
   allowedQualifications?: readonly string[] | Set<string>;
+  allowBilledForInvoiceId?: string; // Phase 6: allows assignments already billed to this specific invoice
 };
 
 export type V2InvoiceDraftAssignmentProvenance = {
@@ -411,21 +412,42 @@ export async function prepareV2InvoiceDraft(
     };
   }
 
-  // Check that no assignment is already billed
-  const alreadyBilled = rawAssignments.filter((a) => a.invoiceId !== null);
-  if (alreadyBilled.length > 0) {
-    const first = alreadyBilled[0];
-    return {
-      status: "unresolved",
-      code: "ALREADY_BILLED",
-      message: `Schicht "${first.id}" ist bereits der Rechnung "${first.invoiceId}" zugewiesen. Eine doppelte Abrechnung ist unzulässig.`,
-      diagnostics: {
-        assignmentId: first.id,
-        workerId: first.workerId,
-        invoiceId: first.invoiceId,
-        alreadyBilledAssignmentIds: alreadyBilled.map((a) => a.id),
-      },
-    };
+  // Check billing status: if allowBilledForInvoiceId is passed (Phase 6 refresh),
+  // verify all assignments are linked to THAT invoice. Otherwise (issuance), verify none are billed.
+  if (input.allowBilledForInvoiceId) {
+    const unlinkedOrForeign = rawAssignments.filter(
+      (a) => a.invoiceId !== input.allowBilledForInvoiceId
+    );
+    if (unlinkedOrForeign.length > 0) {
+      const first = unlinkedOrForeign[0];
+      return {
+        status: "unresolved",
+        code: "ASSIGNMENT_NOT_LINKED_TO_INVOICE",
+        message: `Schicht "${first.id}" ist nicht der Zielrechnung "${input.allowBilledForInvoiceId}" zugewiesen (aktueller Status: ${first.invoiceId ?? "unabgerechnet"}). Eine Aktualisierung darf nur bereits verknüpfte Schichten umfassen.`,
+        diagnostics: {
+          assignmentId: first.id,
+          targetInvoiceId: input.allowBilledForInvoiceId,
+          actualInvoiceId: first.invoiceId,
+          unlinkedAssignmentIds: unlinkedOrForeign.map((a) => a.id),
+        },
+      };
+    }
+  } else {
+    const alreadyBilled = rawAssignments.filter((a) => a.invoiceId !== null);
+    if (alreadyBilled.length > 0) {
+      const first = alreadyBilled[0];
+      return {
+        status: "unresolved",
+        code: "ALREADY_BILLED",
+        message: `Schicht "${first.id}" ist bereits der Rechnung "${first.invoiceId}" zugewiesen. Eine doppelte Abrechnung ist unzulässig.`,
+        diagnostics: {
+          assignmentId: first.id,
+          workerId: first.workerId,
+          invoiceId: first.invoiceId,
+          alreadyBilledAssignmentIds: alreadyBilled.map((a) => a.id),
+        },
+      };
+    }
   }
 
   // Check that all assignments belong to the same client

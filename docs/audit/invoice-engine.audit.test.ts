@@ -273,23 +273,15 @@ describe("actual server actions with mocked external boundaries", () => {
     expect(last.emailSent.recipients).toContain("audit@example.invalid");
     results[`${kind}_email_snapshot_keys`] = { before: Object.keys(first), after: Object.keys(last) };
   });
-  it("refresh calculates old snapshot rates then archives new client rates", async () => {
+  it("refresh calculates old snapshot rates then archives new client rates (reproduction blocked in Phase 6)", async () => {
     const old = { ...invoice, snapshotData: { ...client, hourlyRates: { pflegefachkraft: 40 } } };
     const live = { ...client, hourlyRates: { pflegefachkraft: 60, pflegehelfer: 30 } };
     const as = [assignment("refresh", "2026-07-06", "10:00", "13:00")];
     mocks.prisma.invoice.findUnique.mockResolvedValue({ ...old, client: live, assignments: as });
-    await refreshInvoice(invoice.id);
-    const d = mocks.prisma.invoice.update.mock.calls[0][0].data;
-    expect(d.netAmount).toBe(120);
-    expect(d.snapshotData.items[0].rate).toBe("40,00");
-    expect(d.snapshotData.hourlyRates.pflegefachkraft).toBe(60);
-    results.refreshRates = d;
+    await expect(refreshInvoice(invoice.id)).rejects.toThrow(/\[FEATURE_DISABLED\]/);
   });
-  it("refresh ordinary case synchronizes money and snapshot", async () => {
-    await refreshInvoice(invoice.id);
-    const d = mocks.prisma.invoice.update.mock.calls[0][0].data;
-    expect([d.netAmount, d.vatAmount, d.grossAmount]).toEqual([927.7, 176.26, 1103.96]);
-    expect(d.snapshotData.isFrozen).toBe(true);
+  it("refresh ordinary case synchronizes money and snapshot (reproduction blocked in Phase 6)", async () => {
+    await expect(refreshInvoice(invoice.id)).rejects.toThrow(/\[FEATURE_DISABLED\]/);
   });
   it("adjustment changes DB while the existing frozen PDF stays unchanged", async () => {
     const d = build();
@@ -300,10 +292,9 @@ describe("actual server actions with mocked external boundaries", () => {
     expect(build(irregular, client, updated).subtotal).toBe("927,70 €");
     results.adjustment = { dbNet: updated.netAmount, pdf: summary(build(irregular, client, updated)), expectedCanonicalNet: "937,70 €" };
   });
-  it("paid invoices can be refreshed and old sent metadata is retained", async () => {
+  it("paid invoices can be refreshed and old sent metadata is retained (reproduction blocked in Phase 6)", async () => {
     mocks.prisma.invoice.findUnique.mockResolvedValue({ ...invoice, status: "paid", client, assignments: irregular, snapshotData: { emailSent: { sentAt: "2026-09-01" } } });
-    await refreshInvoice(invoice.id);
-    expect(mocks.prisma.invoice.update.mock.calls[0][0].data.snapshotData.emailSent.sentAt).toBe("2026-09-01");
+    await expect(refreshInvoice(invoice.id)).rejects.toThrow(/\[FEATURE_DISABLED\]/);
   });
   it("cancellation detaches all assignments without creating a reversal invoice", async () => {
     await cancelInvoice(invoice.id);

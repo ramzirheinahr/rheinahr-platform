@@ -599,48 +599,6 @@
       "emailSent"
     ]
   },
-  "refreshRates": {
-    "netAmount": 120,
-    "vatAmount": 22.8,
-    "grossAmount": 142.8,
-    "snapshotData": {
-      "id": "audit-client",
-      "userId": "audit-user",
-      "shortCode": "AUD",
-      "internalNumber": "TEST",
-      "facilityName": "Synthetic audit facility",
-      "address": "Synthetic address",
-      "billingEmail": "audit@example.invalid",
-      "billingInfo": null,
-      "hourlyRates": {
-        "pflegefachkraft": 60,
-        "pflegehelfer": 30
-      },
-      "surchargeSat": 0.3,
-      "surchargeSun": 0.5,
-      "surchargeHoliday": 1,
-      "surchargeNight": 0.25,
-      "nightStart": "22:00",
-      "nightEnd": "06:00",
-      "paymentTermsDays": 14,
-      "items": [
-        {
-          "pos": 1,
-          "description": "Oso, Majed (Pflegefachkraft) vom 06.07.2026 bis 06.07.2026",
-          "hours": "3,00",
-          "rate": "40,00",
-          "amount": "120,00 €"
-        }
-      ],
-      "subtotal": "120,00 €",
-      "taxAmount": "22,80 €",
-      "total": "142,80 €",
-      "periodStart": "06.07.2026",
-      "periodEnd": "06.07.2026",
-      "isFrozen": true,
-      "refreshedAt": "2026-10-08T12:00:00.000Z"
-    }
-  },
   "adjustment": {
     "dbNet": 937.43,
     "pdf": {

@@ -21,8 +21,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { generateMonthInvoices, previewMonthInvoicing } from "@/app/[locale]/admin/clients/[id]/schedule/invoice-actions";
-import { deleteInvoice, cancelInvoice, sendInvoiceEmail, refreshInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { deleteInvoice, cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
+import { InvoiceRefreshDialog } from "./invoice-refresh-dialog";
 import { useTranslations } from "next-intl";
 
 export function AdminInvoicesBanner({ 
@@ -47,6 +48,7 @@ export function AdminInvoicesBanner({
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewAssignmentIds, setPreviewAssignmentIds] = useState<string[] | null>(null);
+  const [refreshInvoiceId, setRefreshInvoiceId] = useState<string | null>(null);
 
   const loadPreview = async () => {
     setPreviewLoading(true);
@@ -107,14 +109,8 @@ export function AdminInvoicesBanner({
     }
   };
 
-  const handleRefresh = async (invoiceId: string) => {
-    try {
-      await refreshInvoice(invoiceId);
-      toast.success(t("refreshSuccess"));
-      router.refresh();
-    } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Aktualisieren der Rechnung");
-    }
+  const handleRefresh = (invoiceId: string) => {
+    setRefreshInvoiceId(invoiceId);
   };
 
   const handleSendEmail = async (recipients: string[], options?: { attachTimesheets?: boolean }) => {
@@ -248,6 +244,11 @@ export function AdminInvoicesBanner({
         clientId={clientId}
         invoiceId={emailInvoiceId || undefined}
         onSend={handleSendEmail}
+      />
+
+      <InvoiceRefreshDialog
+        invoiceId={refreshInvoiceId}
+        onClose={() => setRefreshInvoiceId(null)}
       />
     </>
   );

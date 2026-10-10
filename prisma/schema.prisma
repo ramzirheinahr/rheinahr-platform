@@ -230,6 +230,7 @@ model User {
   decidedHoursCorrections      WorkHoursCorrectionRequest[] @relation("CorrectionDecidedBy")
   verifiedSurchargePolicies    FacilitySurchargePolicy[]    @relation("PolicyVerifiedByUser")
   verifiedHourlyRateVersions   ClientHourlyRateVersion[]    @relation("RateVerifiedByUser")
+  refreshedInvoiceRevisions    InvoiceRevision[]            @relation("InvoiceRevisionCreatedBy")
 
   @@map("users")
 }
@@ -852,11 +853,38 @@ model Invoice {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   assignments Assignment[]
+  revisions   InvoiceRevision[]
 
   @@index([clientId, status])
   @@map("invoices")
+}
+
+model InvoiceRevision {
+  id                   String        @id @default(uuid())
+  invoiceId            String        @map("invoice_id")
+  revisionNumber       Int           @map("revision_number")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  createdById          String?       @map("created_by")
+  reason               String?
+  previousStatus       InvoiceStatus @map("previous_status")
+  previousNetAmount    Float         @map("previous_net_amount")
+  previousVatAmount    Float         @map("previous_vat_amount")
+  previousGrossAmount  Float         @map("previous_gross_amount")
+  previousSnapshotData Json?         @map("previous_snapshot_data")
+  newNetAmount         Float         @map("new_net_amount")
+  newVatAmount         Float         @map("new_vat_amount")
+  newGrossAmount       Float         @map("new_gross_amount")
+  newSnapshotData      Json?         @map("new_snapshot_data")
+  previewToken         String?       @map("preview_token")
+
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  createdBy User?   @relation("InvoiceRevisionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([invoiceId, revisionNumber])
+  @@index([invoiceId])
+  @@map("invoice_revisions")
 }
 
 model Appointment {

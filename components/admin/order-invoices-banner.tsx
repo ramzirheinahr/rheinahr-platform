@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Receipt, Plus, FileText, CheckCircle2, Mail, Trash2, Ban, RotateCw } from "lucide-react";
+import { Receipt, FileText, CheckCircle2, Mail, Trash2, Ban, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { generateOrderInvoices, sendInvoiceEmail, deleteInvoice, cancelInvoice, refreshInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { generateOrderInvoices, sendInvoiceEmail, deleteInvoice, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
+import { InvoiceRefreshDialog } from "./invoice-refresh-dialog";
 import { useTranslations } from "next-intl";
 
 import { SelectAssignmentsDialog, type SelectableAssignment } from "./select-assignments-dialog";
@@ -30,6 +31,7 @@ export function OrderInvoicesBanner({
   const router = useRouter();
   const t = useTranslations("emailDialog");
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
+  const [refreshInvoiceId, setRefreshInvoiceId] = useState<string | null>(null);
 
   const handleGenerate = async (selectedIds: string[], customInvoiceNumber?: string) => {
     try {
@@ -63,14 +65,8 @@ export function OrderInvoicesBanner({
     }
   };
 
-  const handleRefresh = async (invoiceId: string) => {
-    try {
-      await refreshInvoice(invoiceId);
-      toast.success(t("refreshSuccess"));
-      router.refresh();
-    } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Aktualisieren der Rechnung");
-    }
+  const handleRefresh = (invoiceId: string) => {
+    setRefreshInvoiceId(invoiceId);
   };
 
   const handleSendEmail = async (recipients: string[], options?: { attachTimesheets?: boolean }) => {
@@ -164,6 +160,11 @@ export function OrderInvoicesBanner({
         requestGroupId={requestGroupId}
         invoiceId={emailInvoiceId || undefined}
         onSend={handleSendEmail}
+      />
+
+      <InvoiceRefreshDialog
+        invoiceId={refreshInvoiceId}
+        onClose={() => setRefreshInvoiceId(null)}
       />
     </>
   );
