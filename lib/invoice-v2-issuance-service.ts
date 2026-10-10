@@ -32,6 +32,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
 import type {
@@ -238,6 +239,9 @@ export async function issueV2Invoice(
       },
     };
   }
+
+  // Sort IDs deterministically to prevent deadlocks across intersecting concurrent transactions
+  const sortedAssignmentIds = [...uniqueIds].sort();
 
   // 3. Derive administrator identity strictly on server
   let issuedByUserId: string;
@@ -492,18 +496,23 @@ export async function issueV2Invoice(
     const txResult = await db.$transaction(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       async (tx: any) => {
-        // Concurrency Protocol Step A: Row locking on selected assignments
+        // Concurrency Protocol Step A: Physical row locking on selected assignments
+        // Enforces deterministic ordering on "assignments" to prevent deadlocks and race conditions.
+        // Zero tolerance: Never swallows SQL failures, ensuring tx is not left in an aborted state.
         if (deps?.lockAssignmentsFn) {
-          await deps.lockAssignmentsFn(assignmentIds, tx);
-        } else if (typeof tx.$executeRawUnsafe === "function") {
-          try {
-            const quotedIds = assignmentIds.map((id) => `'${id.replace(/'/g, "''")}'`).join(", ");
-            if (quotedIds) {
-              await tx.$executeRawUnsafe(`SELECT id FROM "Assignment" WHERE id IN (${quotedIds}) FOR UPDATE`);
-            }
-          } catch {
-            // Safe fallback if test mock or underlying engine does not support raw SQL
+          await deps.lockAssignmentsFn(sortedAssignmentIds, tx);
+        } else if (typeof tx.$queryRaw === "function") {
+          const lockQuery = Prisma.sql`SELECT id FROM "assignments" WHERE id IN (${Prisma.join(sortedAssignmentIds)}) FOR UPDATE`;
+          const lockedRows = (await tx.$queryRaw(lockQuery)) as unknown as Array<{ id: string }>;
+          if (!Array.isArray(lockedRows) || lockedRows.length !== sortedAssignmentIds.length) {
+            throw new ConcurrentModificationError(
+              `Sperrkonflikt: Es konnten nur ${Array.isArray(lockedRows) ? lockedRows.length : 0} von ${sortedAssignmentIds.length} Schichten exklusiv gesperrt werden.`
+            );
           }
+        } else {
+          throw new Error(
+            "Keine Implementierung für die exklusive Schichtsperrung (FOR UPDATE) in der Transaktion verfügbar."
+          );
         }
 
         // Concurrency Protocol Step B: In-transaction re-verification of the month assignment set
@@ -574,9 +583,11 @@ export async function issueV2Invoice(
           );
         }
 
-        // Concurrency Protocol Step D: Source concurrency guard to verify source state
+        // Concurrency Protocol Step D: Test/simulator injection hook
+        // NOTE: This hook is an optional dependency for testing/simulating concurrent mutation rollbacks.
+        // In production, source mutations are detected via Serializable transaction isolation and in-tx draft hash check.
         if (deps?.sourceConcurrencyGuardFn) {
-          await deps.sourceConcurrencyGuardFn(assignmentIds, tx);
+          await deps.sourceConcurrencyGuardFn(sortedAssignmentIds, tx);
         }
 
         const { totals } = inTxDraftResult;
@@ -737,13 +748,17 @@ export async function issueV2Invoice(
 
     const txErrObj = txErr as { code?: string; message?: string } | undefined;
 
-    // Prisma Serialization Failure (P2034) or Concurrency conflict
+    // Prisma Serialization Failure (P2034) or Concurrency conflict / Lock Timeout / Deadlock
     if (
       txErrObj?.code === "P2034" ||
+      txErrObj?.code === "55P03" ||
+      txErrObj?.code === "40P01" ||
       String(txErrObj?.message).includes("P2034") ||
       String(txErrObj?.message).toLowerCase().includes("could not serialize") ||
       String(txErrObj?.message).toLowerCase().includes("serialization failure") ||
-      String(txErrObj?.message).toLowerCase().includes("deadlock detected")
+      String(txErrObj?.message).toLowerCase().includes("deadlock detected") ||
+      String(txErrObj?.message).toLowerCase().includes("could not obtain lock") ||
+      String(txErrObj?.message).toLowerCase().includes("lock_not_available")
     ) {
       return {
         success: false,

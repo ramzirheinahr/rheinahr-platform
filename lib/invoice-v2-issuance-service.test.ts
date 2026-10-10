@@ -542,6 +542,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
             return Promise.resolve(createdInvoiceRecord);
           }),
         },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         $transaction: vi.fn().mockImplementation(async (callback: any) => {
           return await callback(mockPrisma);
         }),
@@ -664,6 +665,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
         auditLog: {
           create: vi.fn().mockResolvedValue({ id: "audit-1" }),
         },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         $transaction: vi.fn().mockImplementation(async (callback: any) => {
           return await callback(mockPrisma);
         }),
@@ -740,6 +742,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
         auditLog: {
           create: vi.fn().mockResolvedValue({ id: "audit-1" }),
         },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         $transaction: vi.fn().mockImplementation(async (callback: any) => {
           return await callback(mockPrisma);
         }),
@@ -816,6 +819,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
         auditLog: {
           create: vi.fn().mockResolvedValue({ id: "audit-1" }),
         },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         $transaction: vi.fn().mockImplementation(async (callback: any) => {
           return await callback(mockPrisma);
         }),
@@ -853,6 +857,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       let createdInvoiceCount = 0;
 
       const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }, { id: "assign-2" }]),
         assignment: {
           findMany: vi.fn().mockResolvedValue([a1, a2]),
           updateMany: vi.fn().mockImplementation(() => {
@@ -931,6 +936,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       let linkedCount = 0;
 
       const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         assignment: {
           findMany: vi.fn().mockResolvedValue([a1]),
           updateMany: vi.fn().mockImplementation(() => {
@@ -974,6 +980,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       const a1 = createSyntheticAssignment("assign-1");
 
       const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         assignment: {
           findMany: vi.fn().mockResolvedValue([a1]),
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -1011,6 +1018,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       const a1 = createSyntheticAssignment("assign-1");
 
       const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         assignment: {
           findMany: vi.fn().mockResolvedValue([a1]),
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -1090,6 +1098,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       const guardMock = vi.fn().mockRejectedValue(new ConcurrentModificationError("Concurrent shift modification detected"));
 
       const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         assignment: {
           findMany: vi.fn().mockResolvedValue([a1]),
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -1166,6 +1175,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       a1.order.shiftDate = new Date("2026-03-05T08:00:00Z");
 
       const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
         assignment: {
           findMany: vi.fn().mockImplementation((args: any) => {
             if (args?.where?.order?.shiftDate?.gte) {
@@ -1204,6 +1214,200 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       expect(res.success).toBe(false);
       if (!res.success) {
         expect(res.code).toBe("MONTH_ASSIGNMENT_SET_MUTATED");
+      }
+    });
+
+    it("executes tx.$queryRaw with physical table 'assignments' and sorted IDs in production path", async () => {
+      const a1 = createSyntheticAssignment("assign-b");
+      const a2 = createSyntheticAssignment("assign-a");
+
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-a" }, { id: "assign-b" }]),
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1, a2]),
+          updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+        },
+        invoice: {
+          create: vi.fn().mockResolvedValue({ id: "inv-temp-1", invoiceNumber: "476-TF-0326" }),
+        },
+        auditLog: {
+          create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-b", "assign-a"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+        }
+      );
+
+      expect(res.success).toBe(true);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+
+      const rawSqlArg: any = mockPrisma.$queryRaw.mock.calls[0][0];
+      const fullSqlText = rawSqlArg.strings ? rawSqlArg.strings.join("?") : String(rawSqlArg);
+      expect(fullSqlText).toContain('SELECT id FROM "assignments" WHERE id IN');
+      expect(fullSqlText).toContain("FOR UPDATE");
+      expect(fullSqlText).not.toContain('"Assignment"');
+      if (rawSqlArg.values) {
+        expect(rawSqlArg.values).toEqual(["assign-a", "assign-b"]);
+      }
+    });
+
+    it("aborts transaction and rolls back with CONCURRENT_MODIFICATION when tx.$queryRaw locks fewer rows than requested", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+      const a2 = createSyntheticAssignment("assign-2");
+
+      let updatedCount = 0;
+      let createdInvoiceCount = 0;
+
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "assign-1" }]),
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1, a2]),
+          updateMany: vi.fn().mockImplementation(() => {
+            updatedCount++;
+            return Promise.resolve({ count: 2 });
+          }),
+        },
+        invoice: {
+          create: vi.fn().mockImplementation(() => {
+            createdInvoiceCount++;
+            return Promise.resolve({ id: "inv-temp-1", invoiceNumber: "476-TF-0326" });
+          }),
+        },
+        auditLog: {
+          create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1", "assign-2"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+        }
+      );
+
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.code).toBe("CONCURRENT_MODIFICATION");
+        expect(res.message).toContain("Sperrkonflikt");
+        expect(res.message).toContain("Es konnten nur 1 von 2 Schichten exklusiv gesperrt werden");
+      }
+      expect(createdInvoiceCount).toBe(0);
+      expect(updatedCount).toBe(0);
+    });
+
+    it("aborts transaction and maps lock timeout (55P03) or deadlock (40P01) in tx.$queryRaw to CONCURRENT_MODIFICATION", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+
+      const lockTimeoutErr: any = new Error("canceling statement due to lock timeout");
+      lockTimeoutErr.code = "55P03";
+
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockRejectedValue(lockTimeoutErr),
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1]),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+        }
+      );
+
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.code).toBe("CONCURRENT_MODIFICATION");
+      }
+
+      const deadlockErr: any = new Error("deadlock detected");
+      deadlockErr.code = "40P01";
+      mockPrisma.$queryRaw.mockRejectedValueOnce(deadlockErr);
+
+      const res2 = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+        }
+      );
+
+      expect(res2.success).toBe(false);
+      if (!res2.success) {
+        expect(res2.code).toBe("CONCURRENT_MODIFICATION");
+      }
+    });
+
+    it("aborts transaction when neither lockAssignmentsFn nor tx.$queryRaw is available", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+
+      const mockPrisma = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1]),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const res = await issueV2Invoice(
+        {
+          assignmentIds: ["assign-1"],
+        },
+        {
+          prisma: mockPrisma,
+          requireRoleFn: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }) as any,
+          priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+          facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+          effectiveHoursResolver: mockDefaultHoursResolver as any,
+          generateInvoiceNumberFn: vi.fn().mockResolvedValue("476-TF-0326"),
+        }
+      );
+
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.code).toBe("TRANSACTION_FAILED");
+        expect(res.message).toContain("Keine Implementierung für die exklusive Schichtsperrung (FOR UPDATE) in der Transaktion verfügbar");
       }
     });
   });
