@@ -41,13 +41,11 @@ export function InvoiceRefreshDialog({
   const [preview, setPreview] = useState<V2InvoiceRefreshPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  const [confirmSent, setConfirmSent] = useState(false);
 
   const handleClose = () => {
     setPreview(null);
     setError(null);
     setReason("");
-    setConfirmSent(false);
     onClose();
   };
 
@@ -87,7 +85,7 @@ export function InvoiceRefreshDialog({
 
     setConfirming(true);
     try {
-      await confirmInvoiceRefresh(invoiceId, preview.previewToken, reason, confirmSent);
+      await confirmInvoiceRefresh(invoiceId, preview.previewToken, reason);
       toast.success(t("successMessage"));
       handleClose();
       if (onSuccess) {
@@ -128,23 +126,9 @@ export function InvoiceRefreshDialog({
         {!loading && preview && (
           <div className="space-y-4 my-2">
             {preview.isSent && (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 space-y-2.5 text-xs">
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
-                  <p>{t("sentWarning")}</p>
-                </div>
-                <div className="flex items-center gap-2 pt-1 border-t border-amber-200/60">
-                  <input
-                    type="checkbox"
-                    id="confirm-sent-checkbox"
-                    checked={confirmSent}
-                    onChange={(e) => setConfirmSent(e.target.checked)}
-                    className="size-4 rounded border-amber-300 text-primary focus:ring-amber-500"
-                  />
-                  <Label htmlFor="confirm-sent-checkbox" className="text-xs cursor-pointer font-medium text-amber-950">
-                    {t("sentConfirmCheckbox")}
-                  </Label>
-                </div>
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-900 flex items-start gap-2.5 text-xs">
+                <AlertTriangle className="size-4 text-red-600 shrink-0 mt-0.5" />
+                <p className="font-medium">{t("sentBlockedNotice")}</p>
               </div>
             )}
 
@@ -245,7 +229,7 @@ export function InvoiceRefreshDialog({
             <Button
               size="sm"
               onClick={handleConfirm}
-              disabled={confirming || (preview.isSent && !confirmSent)}
+              disabled={confirming || preview.isSent}
               className="gap-1.5"
             >
               {confirming ? (

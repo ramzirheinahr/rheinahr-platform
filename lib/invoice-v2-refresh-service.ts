@@ -31,6 +31,8 @@
  *    When FEATURE_INVOICE_V2_REFRESH=false, operations fail explicitly without silent fallback.
  */
 
+import fs from "fs";
+import path from "path";
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -90,12 +92,54 @@ export class SentInvoiceConfirmationRequiredError extends InvoiceRefreshError {
   }
 }
 
+export class SentInvoiceRefreshNotPermittedError extends InvoiceRefreshError {
+  constructor(invoiceNumber: string) {
+    super(
+      "SENT_INVOICE_REFRESH_NOT_PERMITTED",
+      `Rechnung "${invoiceNumber}" wurde bereits an den Kunden versandt und kann nicht über die Einzelaktualisierung überschrieben werden (Fail-Closed-Schutz für versandte Rechnungen). Eine Korrektur erfordert ein separates Rechnungsberichtigungs- oder Stornierungsverfahren.`
+    );
+  }
+}
+
+export class FreshV2InvoiceImmutableError extends InvoiceRefreshError {
+  constructor(invoiceNumber: string) {
+    super(
+      "FRESH_V2_INVOICE_IMMUTABLE",
+      `Rechnung "${invoiceNumber}" wurde ursprünglich unter V2 ausgestellt und ist unveränderlich eingefroren. Eine Aktualisierung über diesen Altrechnungs-Revisionspfad ist ausgeschlossen.`
+    );
+  }
+}
+
+export class RevisionChainCorruptedError extends InvoiceRefreshError {
+  constructor(message: string) {
+    super("REVISION_CHAIN_CORRUPTED", message);
+  }
+}
+
+export class MissingRefreshSecretError extends InvoiceRefreshError {
+  constructor() {
+    super(
+      "MISSING_REFRESH_SECRET",
+      "Kein sicheres serverseitiges Geheimnis für V2-Vorschau-Tokens konfiguriert (INVOICE_REFRESH_SECRET oder NEXTAUTH_SECRET erforderlich)."
+    );
+  }
+}
+
+export class InsufficientSecretStrengthError extends InvoiceRefreshError {
+  constructor() {
+    super(
+      "INSUFFICIENT_SECRET_STRENGTH",
+      "Das serverseitige Signaturgeheimnis ist unzureichend (mindestens 32 Zeichen erforderlich)."
+    );
+  }
+}
+
 export class UnreliableHistoricalOriginError extends InvoiceRefreshError {
   constructor(invoiceId: string, message?: string) {
     super(
       "UNRELIABLE_HISTORICAL_DOCUMENT",
       message ||
-        `Historische Rechnung "${invoiceId}" verfügt weder über eine gespeicherte PDF-Datei noch über eingefrorene Postendaten im Snapshot. Eine Aktualisierung wird abgelehnt, um den Verlust der Originalfassung zu verhindern.`
+        `Historische Rechnung "${invoiceId}" verfügt weder über eine verifizierte PDF-Datei noch über einen vollständigen eingefrorenen Snapshot. Eine Aktualisierung wird abgelehnt, um den Verlust der Originalfassung zu verhindern.`
     );
   }
 }
@@ -147,12 +191,21 @@ export function isV2RefreshEnabled(): boolean {
   return process.env.FEATURE_INVOICE_V2_REFRESH === "true";
 }
 
-function getRefreshSecret(): string {
-  return (
+export function getRefreshSecret(explicitSecret?: string): string {
+  const secret =
+    explicitSecret ||
     process.env.INVOICE_REFRESH_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    "rheinahr-invoice-v2-secure-refresh-secret-key-2026"
-  );
+    process.env.NEXTAUTH_SECRET;
+
+  if (!secret || typeof secret !== "string" || secret.trim().length === 0) {
+    throw new MissingRefreshSecretError();
+  }
+
+  if (secret.trim().length < 32) {
+    throw new InsufficientSecretStrengthError();
+  }
+
+  return secret.trim();
 }
 
 export type RefreshPreviewTokenPayload = {
@@ -201,7 +254,7 @@ export function computeRefreshPreviewToken(params: {
   ttlMs?: number;
   secret?: string;
 }): string {
-  const secret = params.secret || getRefreshSecret();
+  const secret = getRefreshSecret(params.secret);
   const issuedAt = params.issuedAt ?? Date.now();
   const ttlMs = params.ttlMs ?? 15 * 60 * 1000; // 15 minutes TTL
   const expiresAt = issuedAt + ttlMs;
@@ -262,7 +315,25 @@ export function verifyRefreshPreviewToken(
   }
 
   const [, encodedPayload, signature] = parts;
-  const secret = expected.secret || getRefreshSecret();
+
+  let secret: string;
+  try {
+    secret = getRefreshSecret(expected.secret);
+  } catch (secErr) {
+    if (secErr instanceof InvoiceRefreshError) {
+      return {
+        valid: false,
+        code: secErr.code,
+        message: secErr.message,
+      };
+    }
+    return {
+      valid: false,
+      code: "MISSING_REFRESH_SECRET",
+      message: "Kein gültiges Signaturgeheimnis konfiguriert.",
+    };
+  }
+
   const expectedSignature = createHmac("sha256", secret).update(encodedPayload).digest("hex");
 
   const sigBuf = Buffer.from(signature, "hex");
@@ -289,6 +360,24 @@ export function verifyRefreshPreviewToken(
   }
 
   const now = expected.currentTime ?? Date.now();
+  const maxClockSkewMs = 5000; // 5 seconds allowable clock skew
+
+  if (payload.issuedAt > now + maxClockSkewMs) {
+    return {
+      valid: false,
+      code: "TOKEN_ISSUED_IN_FUTURE",
+      message: "Das Vorschau-Token weist einen ungültigen Ausstellungszeitpunkt in der Zukunft auf (Manipulationsversuch).",
+    };
+  }
+
+  if (payload.expiresAt <= payload.issuedAt) {
+    return {
+      valid: false,
+      code: "INVALID_TOKEN_TIMING",
+      message: "Das Vorschau-Token hat eine ungültige Gültigkeitsdauer.",
+    };
+  }
+
   if (now > payload.expiresAt) {
     return {
       valid: false,
@@ -374,44 +463,351 @@ function roundToCents(amount: number): number {
   return Math.round(amount * 100);
 }
 
-export function isInvoiceSent(invoice: { snapshotData?: unknown }): boolean {
+export function isInvoiceSent(invoice: {
+  status?: string;
+  snapshotData?: unknown;
+}): boolean {
+  if (invoice.status === "sent") return true;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const snap = invoice.snapshotData as any;
   if (!snap || typeof snap !== "object") return false;
-  return Boolean(snap.emailSent || snap.sentAt || snap.emailSentAt);
+  return Boolean(snap.emailSent || snap.sentAt || snap.emailSentAt || snap.sentTo);
+}
+
+export type FileVerificationResult = {
+  exists: boolean;
+  byteLength?: number;
+  sha256?: string;
+  buffer?: Buffer;
+  reason?: string;
+};
+
+export type FileVerifier = (
+  pathOrUrl: string
+) => Promise<FileVerificationResult> | FileVerificationResult;
+
+export const defaultFileVerifier = (pathOrUrl: string): FileVerificationResult => {
+  try {
+    if (!pathOrUrl || typeof pathOrUrl !== "string" || !pathOrUrl.trim()) {
+      return { exists: false, reason: "Dateipfad ist leer." };
+    }
+    const trimmed = pathOrUrl.trim();
+    let localPath = trimmed;
+    if (localPath.startsWith("file://")) {
+      try {
+        localPath = new URL(localPath).pathname;
+      } catch {
+        localPath = localPath.replace(/^file:\/\//, "");
+      }
+    }
+
+    // Remote URLs without a local mapped file cannot be verified on disk
+    if (/^https?:\/\//i.test(localPath)) {
+      return {
+        exists: false,
+        reason: `Entfernte URL "${trimmed}" kann ohne verifizierten lokalen Speicher nicht als vertrauenswürdiges Originaldokument bestätigt werden.`,
+      };
+    }
+
+    // 1. Direct absolute path or exact relative path
+    if (fs.existsSync(localPath)) {
+      const stat = fs.statSync(localPath);
+      if (stat.isFile() && stat.size > 0) {
+        const buf = fs.readFileSync(localPath);
+        const sha256 = createHash("sha256").update(buf).digest("hex");
+        return { exists: true, byteLength: stat.size, sha256, buffer: buf };
+      }
+    }
+
+    // 2. Relative to process.cwd() / public
+    const publicPath = path.resolve(process.cwd(), "public", localPath.replace(/^\/+/, ""));
+    if (fs.existsSync(publicPath)) {
+      const stat = fs.statSync(publicPath);
+      if (stat.isFile() && stat.size > 0) {
+        const buf = fs.readFileSync(publicPath);
+        const sha256 = createHash("sha256").update(buf).digest("hex");
+        return { exists: true, byteLength: stat.size, sha256, buffer: buf };
+      }
+    }
+
+    // 3. Relative to process.cwd()
+    const cwdPath = path.resolve(process.cwd(), localPath.replace(/^\/+/, ""));
+    if (fs.existsSync(cwdPath)) {
+      const stat = fs.statSync(cwdPath);
+      if (stat.isFile() && stat.size > 0) {
+        const buf = fs.readFileSync(cwdPath);
+        const sha256 = createHash("sha256").update(buf).digest("hex");
+        return { exists: true, byteLength: stat.size, sha256, buffer: buf };
+      }
+    }
+
+    return {
+      exists: false,
+      reason: `Datei "${trimmed}" existiert nicht im Dateisystem oder ist leer.`,
+    };
+  } catch (err) {
+    return {
+      exists: false,
+      reason: `Dateiprüfungsfehler: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+};
+
+export function isCompleteFrozenSnapshot(snap: unknown): {
+  complete: boolean;
+  reason?: string;
+  sha256?: string;
+} {
+  if (!snap || typeof snap !== "object" || Array.isArray(snap)) {
+    return { complete: false, reason: "Snapshot-Daten fehlen oder sind kein gültiges JSON-Objekt." };
+  }
+  const s = snap as Record<string, unknown>;
+
+  // Check items or pdfItems
+  const items =
+    Array.isArray(s.items) && s.items.length > 0
+      ? s.items
+      : Array.isArray(s.pdfItems) && s.pdfItems.length > 0
+      ? s.pdfItems
+      : null;
+
+  if (!items || items.length === 0) {
+    return {
+      complete: false,
+      reason: "Snapshot enthält keine eingefrorenen Rechnungsposten (items/pdfItems ist leer oder nicht vorhanden).",
+    };
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i] as Record<string, unknown>;
+    if (!it || typeof it !== "object") {
+      return { complete: false, reason: `Rechnungsposten #${i + 1} im Snapshot ist kein gültiges Objekt.` };
+    }
+    const desc = typeof it.description === "string" ? it.description.trim() : "";
+    if (!desc) {
+      return { complete: false, reason: `Rechnungsposten #${i + 1} hat keine Bezeichnung (description fehlt).` };
+    }
+    const hasHoursOrQty =
+      (typeof it.hours === "number" && !isNaN(it.hours)) ||
+      (typeof it.hours === "string" && it.hours.trim() !== "") ||
+      (typeof it.hoursDisplay === "string" && it.hoursDisplay.trim() !== "") ||
+      (typeof it.hoursDecimal === "string" && it.hoursDecimal.trim() !== "") ||
+      (typeof it.displayHourHundredths === "number" && !isNaN(it.displayHourHundredths)) ||
+      (typeof it.rawMinutes === "number" && !isNaN(it.rawMinutes)) ||
+      (typeof it.quantity === "number" && !isNaN(it.quantity)) ||
+      (typeof it.count === "number" && !isNaN(it.count));
+    const hasTotalOrRate =
+      typeof it.total === "string" ||
+      typeof it.total === "number" ||
+      typeof it.amount === "string" ||
+      typeof it.amountDisplay === "string" ||
+      typeof it.amountCents === "number" ||
+      typeof it.rate === "number" ||
+      typeof it.rate === "string" ||
+      typeof it.rateCents === "number" ||
+      typeof it.rateDisplay === "string" ||
+      typeof it.lineTotal === "number";
+
+    if (!hasHoursOrQty && !hasTotalOrRate) {
+      return { complete: false, reason: `Rechnungsposten #${i + 1} ist unvollständig (Stunden oder Betrag fehlen).` };
+    }
+  }
+
+  // Check client facility
+  const clientObj = s.client && typeof s.client === "object" ? (s.client as Record<string, unknown>) : null;
+  const facility =
+    (typeof s.facilityName === "string" ? s.facilityName.trim() : "") ||
+    (clientObj && typeof clientObj.facilityName === "string" ? clientObj.facilityName.trim() : "");
+
+  if (!facility) {
+    return { complete: false, reason: "Snapshot enthält keine Kundeneinrichtung (facilityName fehlt)." };
+  }
+
+  // Check totals
+  const hasTotals =
+    typeof s.subtotal === "string" ||
+    typeof s.subtotalCents === "number" ||
+    typeof s.netAmount === "number" ||
+    typeof s.grossAmount === "number" ||
+    typeof s.total === "string" ||
+    typeof s.totalCents === "number";
+
+  if (!hasTotals) {
+    return { complete: false, reason: "Snapshot enthält keine eingefrorenen Summenbeträge." };
+  }
+
+  const sha256 = createHash("sha256").update(JSON.stringify(snap)).digest("hex");
+  return { complete: true, sha256 };
+}
+
+export async function checkReliableHistoricalOrigin(
+  invoice: {
+    id: string;
+    pdfUrl?: string | null;
+    snapshotData?: unknown;
+  },
+  fileVerifier?: FileVerifier
+): Promise<{
+  reliable: boolean;
+  source: "stored_pdf" | "frozen_snapshot" | "none";
+  reason?: string;
+  storedPdfInfo?: {
+    path: string;
+    sha256: string;
+    byteLength: number;
+  };
+  frozenSnapshotSha256?: string;
+}> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const snap = invoice.snapshotData as any;
+  const candidatePdfUrl =
+    (typeof invoice.pdfUrl === "string" && invoice.pdfUrl.trim().length > 0 ? invoice.pdfUrl.trim() : null) ||
+    (snap && typeof snap.pdfUrl === "string" && snap.pdfUrl.trim().length > 0 ? snap.pdfUrl.trim() : null) ||
+    (snap && typeof snap.pdfFilePath === "string" && snap.pdfFilePath.trim().length > 0 ? snap.pdfFilePath.trim() : null);
+
+  if (candidatePdfUrl) {
+    const verifier = fileVerifier || defaultFileVerifier;
+    const fileCheck = await verifier(candidatePdfUrl);
+    if (fileCheck.exists && fileCheck.sha256 && fileCheck.byteLength) {
+      return {
+        reliable: true,
+        source: "stored_pdf",
+        storedPdfInfo: {
+          path: candidatePdfUrl,
+          sha256: fileCheck.sha256,
+          byteLength: fileCheck.byteLength,
+        },
+      };
+    }
+  }
+
+  const snapshotCheck = isCompleteFrozenSnapshot(invoice.snapshotData);
+  if (snapshotCheck.complete) {
+    return {
+      reliable: true,
+      source: "frozen_snapshot",
+      frozenSnapshotSha256: snapshotCheck.sha256,
+    };
+  }
+
+  const failureReason = candidatePdfUrl
+    ? `Die angegebene PDF-Datei "${candidatePdfUrl}" existiert nicht auf dem Server oder konnte nicht verifiziert werden, und es liegen keine vollständigen eingefrorenen Snapshot-Posten vor.`
+    : (snapshotCheck.reason || "Die Rechnung verfügt weder über eine verifizierte gespeicherte PDF-Datei noch über einen vollständigen eingefrorenen Snapshot.");
+
+  return {
+    reliable: false,
+    source: "none",
+    reason: failureReason,
+  };
 }
 
 export function hasReliableHistoricalOrigin(invoice: {
   pdfUrl?: string | null;
   snapshotData?: unknown;
 }): { reliable: boolean; source: "stored_pdf" | "frozen_snapshot" | "none"; reason?: string } {
-  if (typeof invoice.pdfUrl === "string" && invoice.pdfUrl.trim().length > 0) {
-    return { reliable: true, source: "stored_pdf" };
+  // Synchronous convenience wrapper using defaultFileVerifier
+  const defaultCheck = isCompleteFrozenSnapshot(invoice.snapshotData);
+  if (defaultCheck.complete) {
+    return { reliable: true, source: "frozen_snapshot" };
   }
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const snap = invoice.snapshotData as any;
-  if (snap && typeof snap === "object") {
-    if (typeof snap.pdfUrl === "string" && snap.pdfUrl.trim().length > 0) {
+  const rawUrl = invoice.pdfUrl || snap?.pdfUrl || snap?.pdfFilePath;
+  if (typeof rawUrl === "string" && rawUrl.trim().length > 0) {
+    const fileCheck = defaultFileVerifier(rawUrl.trim());
+    if (fileCheck.exists) {
       return { reliable: true, source: "stored_pdf" };
     }
-    if (isV2CalculationVersion(snap)) {
-      return { reliable: true, source: "frozen_snapshot" };
-    }
-    if (Array.isArray(snap.items) && snap.items.length > 0) {
-      return { reliable: true, source: "frozen_snapshot" };
-    }
-    if (Array.isArray(snap.pdfItems) && snap.pdfItems.length > 0) {
-      return { reliable: true, source: "frozen_snapshot" };
-    }
   }
-
   return {
     reliable: false,
     source: "none",
-    reason:
-      "Die Rechnung verfügt weder über eine hinterlegte PDF-Datei noch über eingefrorene Posten im Snapshot (snapshotData). Ein verlässliches historisches Dokument kann nicht garantiert werden.",
+    reason: defaultCheck.reason || "Weder verifizierte Datei noch vollständiger Snapshot vorhanden.",
   };
+}
+
+export type InvoiceRevisionState = {
+  mode: "legacy_initial" | "successive";
+  baseRevisionNumber: number;
+  targetRevisionNumber: number;
+  revisions: Array<{ id: string; revisionNumber: number }>;
+};
+
+export async function determineInvoiceRevisionState(
+  invoice: { id: string; invoiceNumber: string; snapshotData?: unknown },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dbOrTx: any
+): Promise<InvoiceRevisionState> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const snap = invoice.snapshotData as any;
+  const isV2 = isV2CalculationVersion(snap);
+
+  let revisions: Array<{ id: string; revisionNumber: number }> = [];
+  if (dbOrTx.invoiceRevision && typeof dbOrTx.invoiceRevision.findMany === "function") {
+    revisions = await dbOrTx.invoiceRevision.findMany({
+      where: { invoiceId: invoice.id },
+      select: { id: true, revisionNumber: true },
+      orderBy: { revisionNumber: "asc" },
+    });
+  } else if (dbOrTx.invoiceRevision && typeof dbOrTx.invoiceRevision.count === "function") {
+    const count = await dbOrTx.invoiceRevision.count({ where: { invoiceId: invoice.id } });
+    revisions = Array.from({ length: count }, (_, i) => ({ id: `rev-${i + 1}`, revisionNumber: i + 1 }));
+  }
+
+  const revisionCount = revisions.length;
+
+  // Case 1: Freshly issued V2 invoice without revision history -> Strictly IMMUTABLE
+  if (isV2 && revisionCount === 0) {
+    throw new FreshV2InvoiceImmutableError(invoice.invoiceNumber);
+  }
+
+  // Case 2: Legacy invoice entering Phase 6 refresh for the first time
+  if (!isV2 && revisionCount === 0) {
+    return {
+      mode: "legacy_initial",
+      baseRevisionNumber: 0,
+      targetRevisionNumber: 1,
+      revisions: [],
+    };
+  }
+
+  // Case 3: Successive revisions (Rev 1 -> Rev 2, Rev 2 -> Rev 3)
+  if (revisionCount > 0) {
+    if (!isV2) {
+      throw new RevisionChainCorruptedError(
+        `[REVISION_CHAIN_CORRUPTED] Rechnung "${invoice.invoiceNumber}" hat ${revisionCount} Revisionen, aber der Snapshot weist keine gültige V2-Berechnung auf.`
+      );
+    }
+
+    // Verify monotonic sequencing: 1, 2, 3...
+    for (let i = 0; i < revisions.length; i++) {
+      if (revisions[i].revisionNumber !== i + 1) {
+        throw new RevisionChainCorruptedError(
+          `[REVISION_CHAIN_CORRUPTED] Lücke oder Inkonsistenz in der Revisionskette von Rechnung "${invoice.invoiceNumber}": Revision ${i + 1} erwartet, aber ${revisions[i].revisionNumber} gefunden.`
+        );
+      }
+    }
+
+    const highestRevisionNumber = revisions[revisions.length - 1].revisionNumber;
+    const snapRevisionNumber = Number(snap?.revisionNumber);
+
+    if (isNaN(snapRevisionNumber) || snapRevisionNumber !== highestRevisionNumber) {
+      throw new RevisionChainCorruptedError(
+        `[REVISION_CHAIN_CORRUPTED] Inkonsistenz in der Revisionskette von Rechnung "${invoice.invoiceNumber}": Revisionsnummer im Snapshot (${snap?.revisionNumber}) stimmt nicht mit der höchsten gespeicherten Revision (${highestRevisionNumber}) überein.`
+      );
+    }
+
+    return {
+      mode: "successive",
+      baseRevisionNumber: highestRevisionNumber,
+      targetRevisionNumber: highestRevisionNumber + 1,
+      revisions,
+    };
+  }
+
+  throw new RevisionChainCorruptedError(
+    `[REVISION_CHAIN_CORRUPTED] Unbekannter Revisionszustand für Rechnung "${invoice.invoiceNumber}".`
+  );
 }
 
 // ============================================================================
@@ -481,6 +877,7 @@ export type V2RefreshDeps = {
   adminId?: string;
   currentTime?: number;
   secret?: string;
+  fileVerifier?: FileVerifier;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prisma?: any;
   priceVersionResolver?: PriceVersionResolver;
@@ -506,6 +903,9 @@ export async function previewV2InvoiceRefresh(
   const db = deps?.prisma || prisma;
   const adminId = deps?.adminId || "admin-system";
 
+  // 1. Strict secret pre-validation before preview
+  getRefreshSecret(deps?.secret);
+
   const invoice = await db.invoice.findUnique({
     where: { id: invoiceId },
     include: {
@@ -529,8 +929,13 @@ export async function previewV2InvoiceRefresh(
     throw new InvoiceAlreadyPaidError(invoiceId);
   }
 
+  // Sent invoices fail closed immediately
+  if (isInvoiceSent(invoice)) {
+    throw new SentInvoiceRefreshNotPermittedError(invoice.invoiceNumber);
+  }
+
   // Check historical origin reliability standard
-  const originCheck = hasReliableHistoricalOrigin(invoice);
+  const originCheck = await checkReliableHistoricalOrigin(invoice, deps?.fileVerifier);
   if (!originCheck.reliable) {
     throw new UnreliableHistoricalOriginError(invoiceId, originCheck.reason);
   }
@@ -541,17 +946,10 @@ export async function previewV2InvoiceRefresh(
 
   const assignmentIds = invoice.assignments.map((a: { id: string }) => a.id);
 
-  // Successive revision tracking
-  let baseRevisionNumber = 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const snap = invoice.snapshotData as any;
-  if (isV2CalculationVersion(snap)) {
-    baseRevisionNumber = Number(snap?.revisionNumber) || 1;
-  } else if (db.invoiceRevision && typeof db.invoiceRevision.count === "function") {
-    baseRevisionNumber = await db.invoiceRevision.count({ where: { invoiceId: invoice.id } });
-  }
-
-  const targetRevisionNumber = baseRevisionNumber + 1;
+  // Successive revision tracking and fresh V2 immutability guard
+  const revisionState = await determineInvoiceRevisionState(invoice, db);
+  const baseRevisionNumber = revisionState.baseRevisionNumber;
+  const targetRevisionNumber = revisionState.targetRevisionNumber;
 
   // Prepare V2 draft specifically bound to this invoice's assignments
   const { prepareV2InvoiceDraft, convertCalculatedLineItemsToPdfItems } = await import(
@@ -640,7 +1038,7 @@ export async function previewV2InvoiceRefresh(
       formattedVat: formatCentsGerman(roundToCents(invoice.vatAmount)),
       formattedGross: formatCentsGerman(roundToCents(invoice.grossAmount)),
       assignmentCount: invoice.assignments.length,
-      hasStoredPdfFile: Boolean(invoice.pdfUrl || snap?.pdfUrl),
+      hasStoredPdfFile: originCheck.source === "stored_pdf",
       originReliability: originCheck.source,
       snapshotData: invoice.snapshotData ?? null,
     },
@@ -699,6 +1097,9 @@ export async function confirmV2InvoiceRefresh(
   if (!isV2RefreshEnabled()) {
     throw new FeatureDisabledError();
   }
+
+  // 2. Strict HMAC Secret Guard before any DB transaction
+  getRefreshSecret(deps?.secret);
 
   const db = deps?.prisma || prisma;
   const issuedAt = new Date().toISOString();
@@ -776,28 +1177,20 @@ export async function confirmV2InvoiceRefresh(
           throw new InvoiceAlreadyPaidError(input.invoiceId);
         }
 
-        const originCheck = hasReliableHistoricalOrigin(invoice);
+        // Sent invoice protection: Fail-Closed
+        if (isInvoiceSent(invoice)) {
+          throw new SentInvoiceRefreshNotPermittedError(invoice.invoiceNumber);
+        }
+
+        const originCheck = await checkReliableHistoricalOrigin(invoice, deps?.fileVerifier);
         if (!originCheck.reliable) {
           throw new UnreliableHistoricalOriginError(input.invoiceId, originCheck.reason);
         }
 
-        // Check sent state protection
-        const isSent = isInvoiceSent(invoice);
-        if (isSent && !input.confirmSentInvoiceUpdate) {
-          throw new SentInvoiceConfirmationRequiredError(
-            `Rechnung "${invoice.invoiceNumber}" wurde bereits an den Kunden versandt. Eine Aktualisierung erfordert eine ausdrückliche Bestätigung (confirmSentInvoiceUpdate: true).`
-          );
-        }
-
-        // Determine base revision number from locked invoice
-        let baseRevisionNumber = 0;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const snap = invoice.snapshotData as any;
-        if (isV2CalculationVersion(snap)) {
-          baseRevisionNumber = Number(snap?.revisionNumber) || 1;
-        } else if (tx.invoiceRevision && typeof tx.invoiceRevision.count === "function") {
-          baseRevisionNumber = await tx.invoiceRevision.count({ where: { invoiceId: invoice.id } });
-        }
+        // Determine base revision number and verify revision chain
+        const revisionState = await determineInvoiceRevisionState(invoice, tx);
+        const baseRevisionNumber = revisionState.baseRevisionNumber;
+        const nextRevisionNumber = revisionState.targetRevisionNumber;
 
         // Concurrency Protocol Step C: In-transaction draft re-preparation
         const { prepareV2InvoiceDraft, convertCalculatedLineItemsToPdfItems } = await import(
@@ -861,11 +1254,6 @@ export async function confirmV2InvoiceRefresh(
           );
         }
 
-        const existingRevisionCount = await tx.invoiceRevision.count({
-          where: { invoiceId: invoice.id },
-        });
-        const nextRevisionNumber = existingRevisionCount + 1;
-
         const inTxNet = inTxDraft.totals.subtotalCents / 100;
         const inTxVat = inTxDraft.totals.taxAmountCents / 100;
         const inTxGross = inTxDraft.totals.totalCents / 100;
@@ -915,9 +1303,18 @@ export async function confirmV2InvoiceRefresh(
           archivedAt: issuedAt,
           archivedByUserId: input.performedByUserId,
           rawSnapshotData: invoice.snapshotData ?? null,
-          hasStoredPdfFile: Boolean(invoice.pdfUrl || snap?.pdfUrl),
-          pdfUrl: invoice.pdfUrl || snap?.pdfUrl || null,
+          hasStoredPdfFile: originCheck.source === "stored_pdf",
+          pdfUrl:
+            originCheck.storedPdfInfo?.path ||
+            invoice.pdfUrl ||
+            (invoice.snapshotData && typeof invoice.snapshotData === "object" && "pdfUrl" in invoice.snapshotData && typeof (invoice.snapshotData as Record<string, unknown>).pdfUrl === "string"
+              ? ((invoice.snapshotData as Record<string, unknown>).pdfUrl as string)
+              : null),
           originReliability: originCheck.source,
+          storedPdfInfo: originCheck.storedPdfInfo || null,
+          frozenSnapshotSha256: originCheck.frozenSnapshotSha256 || null,
+          isByteForByteOriginalFile: originCheck.source === "stored_pdf",
+          isRegeneratedFromFrozenData: originCheck.source === "frozen_snapshot",
         };
 
         // Build frozen snapshotData for V2 (ensuring all client attributes exist at top level for PDF builder)
@@ -949,7 +1346,9 @@ export async function confirmV2InvoiceRefresh(
             grossAmount: invoice.grossAmount,
             status: invoice.status,
             snapshotData: invoice.snapshotData ?? null,
-            hasStoredPdfFile: Boolean(invoice.pdfUrl || snap?.pdfUrl),
+            hasStoredPdfFile: originCheck.source === "stored_pdf",
+            originReliability: originCheck.source,
+            storedPdfInfo: originCheck.storedPdfInfo || null,
           },
           subtotalCents: inTxDraft.totals.subtotalCents,
           taxAmountCents: inTxDraft.totals.taxAmountCents,
@@ -1012,7 +1411,7 @@ export async function confirmV2InvoiceRefresh(
             diffGross: Number((inTxGross - invoice.grossAmount).toFixed(2)),
             diffNet: Number((inTxNet - invoice.netAmount).toFixed(2)),
             tokenHash,
-            isSentRevised: isSent,
+            isSentRevised: false,
             calculationVersion: "v2",
             assignmentCount: sortedAssignmentIds.length,
           },

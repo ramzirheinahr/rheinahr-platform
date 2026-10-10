@@ -199,8 +199,7 @@ export async function previewInvoiceRefresh(
 export async function confirmInvoiceRefresh(
   invoiceId: string,
   previewToken: string,
-  reason?: string,
-  confirmSentInvoiceUpdate?: boolean
+  reason?: string
 ) {
   const user = await requireRole("de", "admin");
   const result = await confirmV2InvoiceRefresh({
@@ -208,7 +207,6 @@ export async function confirmInvoiceRefresh(
     previewToken,
     reason,
     performedByUserId: user.id,
-    confirmSentInvoiceUpdate,
   });
   revalidatePath("/", "layout");
   return result;
@@ -216,7 +214,7 @@ export async function confirmInvoiceRefresh(
 
 export async function refreshInvoice(
   invoiceId: string,
-  options?: { previewToken?: string; reason?: string; confirmSentInvoiceUpdate?: boolean }
+  options?: { previewToken?: string; reason?: string }
 ) {
   await requireRole("de", "admin");
 
@@ -256,8 +254,7 @@ export async function refreshInvoice(
   return await confirmInvoiceRefresh(
     invoiceId,
     options.previewToken,
-    options.reason,
-    options.confirmSentInvoiceUpdate
+    options.reason
   );
 }
 

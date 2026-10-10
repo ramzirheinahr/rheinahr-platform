@@ -1736,6 +1736,7 @@
     "loadingPreview": "Berechnungsvorschau wird geladen...",
     "sentWarning": "Achtung: Diese Rechnung wurde bereits versendet. Eine Aktualisierung ist ein buchhalterisch sensibler Vorgang. Es wird kein Dokument automatisch versendet.",
     "sentConfirmCheckbox": "Ich bestätige ausdrücklich, dass diese bereits versandte Rechnung aktualisiert werden soll. Ein neuer E-Mail-Versand erfolgt nicht automatisch.",
+    "sentBlockedNotice": "Diese Rechnung wurde bereits an den Kunden versandt. Ein direktes Überschreiben ist zur Gewährleistung der Revisionssicherheit gesperrt. Bitte nutzen Sie das Korrektur-/Stornoverfahren.",
     "invoiceNumber": "Rechnungsnummer",
     "facility": "Einrichtung",
     "revision": "Revision",

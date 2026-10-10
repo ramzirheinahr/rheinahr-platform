@@ -3,15 +3,18 @@
  * RheinAhr Dienstleistungen GmbH - Invoice Engine Modernization (Phase 6)
  *
  * Comprehensive Test Suite: V2 Single-Invoice Explicit Refresh & Revision Preservation Service
- * Covers all 5 Codex Independent Review Findings:
- * 1. HMAC-SHA256 preview token with 15-min TTL, admin binding, server secret, and anti-tamper.
- * 2. Mandatory fail-closed revision creation with complete identity/provenance and reliable document check.
- * 3. Strict protection against paid invoices and explicit confirmation guard for sent invoices (emailSent).
+ * Covers all Codex Independent Review Findings:
+ * 1. HMAC-SHA256 preview token with 15-min TTL, admin binding, mandatory server secret, clock skew/future tamper protection.
+ * 2. Reliable document origin standard (stored_pdf verified on disk vs complete frozen_snapshot), fail-closed revision archiving, and revision PDF retrieval.
+ * 3. Strict fail-closed protection for sent invoices (SENT_INVOICE_REFRESH_NOT_PERMITTED) and paid invoices (INVOICE_ALREADY_PAID).
  * 4. Frozen root client fields in V2 snapshot (facilityName, address, billingInfo) preserving PDF immutability.
- * 5. Authentic successive revisions workflow (Legacy -> Rev 1 -> Rev 2) with monotonic sequencing.
+ * 5. Strict rejection of fresh V2 invoices (FRESH_V2_INVOICE_IMMUTABLE) and corrupted revision chains (REVISION_CHAIN_CORRUPTED), with authentic successive revisions (Legacy -> Rev 1 -> Rev 2).
  */
 
+import fs from "fs";
+import path from "path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), useRouter: vi.fn() }));
@@ -20,8 +23,29 @@ vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/lib/auth", () => ({
   requireRole: vi.fn(async () => ({ id: "admin-super", role: "admin" })),
   getCurrentUser: vi.fn(async () => ({ id: "admin-super", role: "admin" })),
-  roleSatisfies: vi.fn(() => true),
+  roleSatisfies: vi.fn((role: string, allowed: string[]) => allowed.includes(role)),
 }));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    invoice: { findUnique: vi.fn(), update: vi.fn() },
+    invoiceRevision: { findUnique: vi.fn(), count: vi.fn(), create: vi.fn() },
+    auditLog: { create: vi.fn() },
+    assignment: { findMany: vi.fn() },
+  },
+}));
+
+vi.mock("@/lib/audit", () => ({
+  audit: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/pdf/invoice", () => ({
+  generateInvoicePdf: vi.fn().mockImplementation(async (data: any) => {
+    return Buffer.from(`%PDF-1.4 REGENERATED FOR ${data?.client?.facilityName || "UNKNOWN"}`);
+  }),
+}));
+
+import { prisma } from "@/lib/prisma";
 import {
   isV2RefreshEnabled,
   previewV2InvoiceRefresh,
@@ -31,16 +55,25 @@ import {
   computeInvoiceStateHash,
   maskTokenForAudit,
   hasReliableHistoricalOrigin,
+  checkReliableHistoricalOrigin,
+  determineInvoiceRevisionState,
   isInvoiceSent,
+  isCompleteFrozenSnapshot,
+  getRefreshSecret,
+  defaultFileVerifier,
   FeatureDisabledError,
   InvoiceNotFoundError,
   InvoiceCancelledError,
   InvoiceAlreadyPaidError,
-  SentInvoiceConfirmationRequiredError,
+  SentInvoiceRefreshNotPermittedError,
   UnreliableHistoricalOriginError,
   NoAssignmentsLinkedError,
   StalePreviewError,
   ConcurrentModificationError,
+  MissingRefreshSecretError,
+  InsufficientSecretStrengthError,
+  FreshV2InvoiceImmutableError,
+  RevisionChainCorruptedError,
 } from "./invoice-v2-refresh-service";
 import {
   refreshInvoice,
@@ -49,10 +82,13 @@ import {
 } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { buildInvoicePdfData } from "./invoice-pdf-builder";
 import { resolveInvoiceSurchargePolicy, type FacilitySurchargePolicyRecord } from "./surcharge-policy";
+import { GET as getInvoicePdfRoute } from "@/app/api/invoices/[id]/pdf/route";
 
 // ============================================================================
 // Synthetic Test Fixtures
 // ============================================================================
+
+const TEST_SECRET = "super-secret-refresh-key-32-chars-long-minimum!";
 
 const STANDARD_PRICE_VERSION = {
   priceVersionId: "pv-std-2026",
@@ -80,7 +116,7 @@ const BENCHMARK_PRICE_VERSION = {
   verifiedBy: "admin-verifier",
 };
 
-function createTestFrozenPolicy(): any {
+function createTestFrozenPolicy(refDate: string = "2026-03-01"): any {
   const baseRecord: FacilitySurchargePolicyRecord = {
     clientId: "client-1",
     clientContractId: null,
@@ -97,26 +133,30 @@ function createTestFrozenPolicy(): any {
     combinationRule: "highest_non_night_plus_night",
     sourceType: "contract",
     sourceReference: "Rahmenvertrag § 7 vom 01.01.2026",
-    verifiedByUserId: "admin-verifier",
-    verifiedAt: "2026-01-01T00:00:00Z",
     effectiveFrom: "2026-01-01",
     effectiveTo: null,
     isFrozen: false,
     frozenHash: "",
+    verifiedByUserId: "admin-verifier",
+    verifiedAt: new Date("2026-01-01T00:00:00Z"),
   };
 
   const resolved = resolveInvoiceSurchargePolicy({
     policy: baseRecord,
-    referenceDate: "2026-03-01",
+    referenceDate: refDate,
   });
+
+  if (resolved.status !== "resolved") {
+    throw new Error(`Failed to resolve base policy: ${resolved.message}`);
+  }
 
   const frozenRes = resolveInvoiceSurchargePolicy({
     policy: {
       ...baseRecord,
       isFrozen: true,
-      frozenHash: (resolved as any).frozenHash,
+      frozenHash: resolved.frozenHash,
     },
-    referenceDate: "2026-03-01",
+    referenceDate: refDate,
   });
 
   if (frozenRes.status !== "resolved") {
@@ -128,52 +168,37 @@ function createTestFrozenPolicy(): any {
 
 const FROZEN_POLICY = createTestFrozenPolicy();
 
-function createSyntheticAssignment(
-  id: string,
-  opts?: {
-    invoiceId?: string | null;
-    shiftDate?: string;
-    startTime?: string;
-    endTime?: string;
-    qualification?: string;
-    workerName?: string;
-    status?: string;
-  }
-): any {
+function createSyntheticAssignment(id: string, opts?: { invoiceId?: string; qualification?: string; hours?: number; shiftDate?: string }) {
   return {
     id,
-    orderId: `order-${id}`,
-    workerId: `worker-${id}`,
-    invoiceId: opts && "invoiceId" in opts ? opts.invoiceId : "inv-target-1",
-    status: opts?.status || "confirmed",
-    hours: 1.0,
+    orderId: `ord-${id}`,
+    workerId: `wrk-${id}`,
+    invoiceId: opts?.invoiceId || "inv-1",
+    status: "confirmed",
+    hours: opts?.hours ?? 1.0,
     order: {
-      id: `order-${id}`,
+      id: `ord-${id}`,
       clientId: "client-1",
-      shiftDate: new Date(opts?.shiftDate || "2026-03-02T08:00:00.000Z"),
-      startTime: opts?.startTime || "08:00",
-      endTime: opts?.endTime || "09:00",
+      shiftDate: new Date(opts?.shiftDate || "2026-03-02T08:00:00Z"),
+      startTime: "08:00",
+      endTime: "09:00",
       breakMinutes: 0,
       requiredQualification: opts?.qualification || "pflegefachkraft",
       client: {
         id: "client-1",
         facilityName: "Seniorenresidenz RheinAhr",
-        shortCode: "SR-RA",
-        internalNumber: "RA-100",
+        shortCode: "RA-100",
+        internalNumber: "INT-999",
         address: "Musterstr. 12, 53474 Bad Neuenahr",
-        billingEmail: "buchhaltung@rheinahr.de",
+        billingEmail: "buchhaltung@rheinahr.example.com",
         billingInfo: "Zentrale Faktura",
         paymentTermsDays: 14,
-        state: "RP",
-        municipalityAgs: "07131007",
       },
     },
     worker: {
-      id: `worker-${id}`,
-      fullName: opts?.workerName || "Maria Muster",
-      qualification: opts?.qualification || "pflegefachkraft",
+      id: `wrk-${id}`,
+      fullName: `Musterpfleger ${id}`,
     },
-    confirmation: null,
   };
 }
 
@@ -199,6 +224,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.FEATURE_INVOICE_V2_REFRESH;
+    process.env.INVOICE_REFRESH_SECRET = TEST_SECRET;
   });
 
   // =========================================================================
@@ -230,23 +256,54 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       process.env.FEATURE_INVOICE_V2_REFRESH = "false";
 
       await expect(
-        refreshInvoice("inv-1", { previewToken: "tok-123" })
-      ).rejects.toThrow(/\[FEATURE_DISABLED\]/);
+        refreshInvoice("inv-1", { previewToken: "v1.abc.123" })
+      ).rejects.toThrow(/FEATURE_DISABLED/);
     });
 
     it("rejects action refreshInvoice when previewToken is missing (mandates preview flow)", async () => {
       process.env.FEATURE_INVOICE_V2_REFRESH = "true";
 
-      await expect(
-        refreshInvoice("inv-1")
-      ).rejects.toThrow(/\[PREVIEW_REQUIRED\]/);
+      await expect(refreshInvoice("inv-1")).rejects.toThrow(/PREVIEW_REQUIRED/);
     });
   });
 
   // =========================================================================
-  // Section 2: Finding 1 - HMAC Token, 15-Minute Expiry, Admin Binding & Anti-Tamper
+  // Section 2: HMAC Preview Token Security & Secret Requirement (Finding 1)
   // =========================================================================
-  describe("2. HMAC Preview Token Security & Verification (Finding 1)", () => {
+  describe("2. HMAC Preview Token Security & Secret Requirement (Finding 1)", () => {
+    it("throws MissingRefreshSecretError when neither INVOICE_REFRESH_SECRET nor NEXTAUTH_SECRET is set", () => {
+      delete process.env.INVOICE_REFRESH_SECRET;
+      delete process.env.NEXTAUTH_SECRET;
+
+      expect(() => getRefreshSecret()).toThrow(MissingRefreshSecretError);
+    });
+
+    it("throws InsufficientSecretStrengthError when secret is shorter than 32 characters", () => {
+      process.env.INVOICE_REFRESH_SECRET = "weak-secret-too-short-123";
+      expect(() => getRefreshSecret()).toThrow(InsufficientSecretStrengthError);
+    });
+
+    it("rejects previewV2InvoiceRefresh immediately if secret is missing", async () => {
+      delete process.env.INVOICE_REFRESH_SECRET;
+      delete process.env.NEXTAUTH_SECRET;
+
+      await expect(previewV2InvoiceRefresh("inv-1")).rejects.toThrow(MissingRefreshSecretError);
+    });
+
+    it("rejects confirmV2InvoiceRefresh immediately if secret is missing", async () => {
+      process.env.FEATURE_INVOICE_V2_REFRESH = "true";
+      delete process.env.INVOICE_REFRESH_SECRET;
+      delete process.env.NEXTAUTH_SECRET;
+
+      await expect(
+        confirmV2InvoiceRefresh({
+          invoiceId: "inv-1",
+          previewToken: "v1.dummy.token",
+          performedByUserId: "admin-1",
+        })
+      ).rejects.toThrow(MissingRefreshSecretError);
+    });
+
     it("generates an HMAC-SHA256 signed token with 15-minute TTL bound to adminId and draftHash", () => {
       const now = Date.now();
       const token = computeRefreshPreviewToken({
@@ -260,7 +317,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         assignmentIds: ["assign-2", "assign-1"],
         issuedAt: now,
         ttlMs: 900000, // 15 mins
-        secret: "super-secret-key",
+        secret: TEST_SECRET,
       });
 
       expect(token).toMatch(/^v1\.[A-Za-z0-9_-]+\.[a-f0-9]{64}$/);
@@ -275,13 +332,47 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         baseRevisionNumber: 0,
         assignmentIds: ["assign-1", "assign-2"],
         currentTime: now + 60000, // 1 min later
-        secret: "super-secret-key",
+        secret: TEST_SECRET,
       });
 
       expect(verification.valid).toBe(true);
       if (verification.valid) {
         expect(verification.payload.adminId).toBe("admin-alice");
         expect(verification.payload.expiresAt).toBe(now + 900000);
+      }
+    });
+
+    it("rejects preview token with future issuedAt (clock skew / timing manipulation attempt)", () => {
+      const now = Date.now();
+      const token = computeRefreshPreviewToken({
+        invoiceId: "inv-100",
+        adminId: "admin-alice",
+        previousGrossCents: 10000,
+        newGrossCents: 12000,
+        invoiceStateHash: "state-hash-abc",
+        draftHash: "draft-hash-xyz",
+        baseRevisionNumber: 0,
+        assignmentIds: ["assign-1"],
+        issuedAt: now + 60000, // 1 minute into the future!
+        secret: TEST_SECRET,
+      });
+
+      const verification = verifyRefreshPreviewToken(token, {
+        invoiceId: "inv-100",
+        adminId: "admin-alice",
+        previousGrossCents: 10000,
+        newGrossCents: 12000,
+        invoiceStateHash: "state-hash-abc",
+        draftHash: "draft-hash-xyz",
+        baseRevisionNumber: 0,
+        assignmentIds: ["assign-1"],
+        currentTime: now,
+        secret: TEST_SECRET,
+      });
+
+      expect(verification.valid).toBe(false);
+      if (!verification.valid) {
+        expect(verification.code).toBe("TOKEN_ISSUED_IN_FUTURE");
       }
     });
 
@@ -297,7 +388,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         baseRevisionNumber: 0,
         assignmentIds: ["assign-1"],
         issuedAt: now,
-        secret: "secret-key",
+        secret: TEST_SECRET,
       });
 
       const verification = verifyRefreshPreviewToken(token, {
@@ -310,7 +401,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         baseRevisionNumber: 0,
         assignmentIds: ["assign-1"],
         currentTime: now + 5000,
-        secret: "secret-key",
+        secret: TEST_SECRET,
       });
 
       expect(verification.valid).toBe(false);
@@ -332,7 +423,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         assignmentIds: ["assign-1"],
         issuedAt: now,
         ttlMs: 900000, // 15 mins
-        secret: "secret-key",
+        secret: TEST_SECRET,
       });
 
       const verification = verifyRefreshPreviewToken(token, {
@@ -345,7 +436,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         baseRevisionNumber: 0,
         assignmentIds: ["assign-1"],
         currentTime: now + 900001, // 15 min + 1 ms!
-        secret: "secret-key",
+        secret: TEST_SECRET,
       });
 
       expect(verification.valid).toBe(false);
@@ -366,7 +457,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         baseRevisionNumber: 0,
         assignmentIds: ["assign-1"],
         issuedAt: now,
-        secret: "secret-key",
+        secret: TEST_SECRET,
       });
 
       const parts = token.split(".");
@@ -382,7 +473,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         baseRevisionNumber: 0,
         assignmentIds: ["assign-1"],
         currentTime: now + 1000,
-        secret: "secret-key",
+        secret: TEST_SECRET,
       });
 
       expect(verification.valid).toBe(false);
@@ -403,7 +494,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         baseRevisionNumber: 0,
         assignmentIds: ["assign-1"],
         issuedAt: now,
-        secret: "secret-key",
+        secret: TEST_SECRET,
       });
 
       const verification = verifyRefreshPreviewToken(token, {
@@ -416,7 +507,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         baseRevisionNumber: 0,
         assignmentIds: ["assign-1"],
         currentTime: now + 1000,
-        secret: "secret-key",
+        secret: TEST_SECRET,
       });
 
       expect(verification.valid).toBe(false);
@@ -434,9 +525,9 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
   });
 
   // =========================================================================
-  // Section 3: Finding 2 - Mandatory Fail-Closed Revision & Historical Origin Standard
+  // Section 3: Finding 2 - Reliable Document Origin Standard & Revision PDF
   // =========================================================================
-  describe("3. Mandatory Fail-Closed Revision & Reliable Document Standard (Finding 2)", () => {
+  describe("3. Reliable Document Origin Standard & Historical PDF (Finding 2)", () => {
     it("rejects refresh preview when historical invoice has snapshotData=null and no pdfUrl (UNRELIABLE_HISTORICAL_DOCUMENT)", async () => {
       const a1 = createSyntheticAssignment("assign-1");
       const mockUnreliableInvoice = {
@@ -464,22 +555,124 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       ).rejects.toThrow(UnreliableHistoricalOriginError);
     });
 
-    it("accepts refresh when historical invoice has a verifiable static PDF url", () => {
-      const origin = hasReliableHistoricalOrigin({
-        pdfUrl: "https://example.com/invoices/inv-static.pdf",
+    it("rejects refresh when pdfUrl points to a non-existent file on disk and snapshotData is empty", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+      const mockInvoice = {
+        id: "inv-missing-file",
+        invoiceNumber: "INV-MISSING-01",
+        status: "unpaid",
+        date: new Date(),
+        netAmount: 100,
+        vatAmount: 19,
+        grossAmount: 119,
+        pdfUrl: "/non/existent/path/to/invoice.pdf",
         snapshotData: null,
-      });
-      expect(origin.reliable).toBe(true);
-      expect(origin.source).toBe("stored_pdf");
+        client: a1.order.client,
+        assignments: [a1],
+      };
+
+      const mockPrisma = {
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(mockInvoice),
+        },
+      };
+
+      await expect(
+        previewV2InvoiceRefresh("inv-missing-file", { prisma: mockPrisma })
+      ).rejects.toThrow(UnreliableHistoricalOriginError);
     });
 
-    it("accepts refresh when historical invoice has a frozen items array in snapshotData", () => {
-      const origin = hasReliableHistoricalOrigin({
-        pdfUrl: null,
-        snapshotData: { items: [{ pos: 1, amount: "10.00 €" }] },
+    it("rejects refresh when pdfUrl is an arbitrary remote link without verified local file and snapshotData is empty", async () => {
+      const a1 = createSyntheticAssignment("assign-1");
+      const mockInvoice = {
+        id: "inv-arbitrary-url",
+        invoiceNumber: "INV-ARB-01",
+        status: "unpaid",
+        date: new Date(),
+        netAmount: 100,
+        vatAmount: 19,
+        grossAmount: 119,
+        pdfUrl: "https://arbitrary.invalid/invoice-not-verified.pdf",
+        snapshotData: null,
+        client: a1.order.client,
+        assignments: [a1],
+      };
+
+      const mockPrisma = {
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(mockInvoice),
+        },
+      };
+
+      await expect(
+        previewV2InvoiceRefresh("inv-arbitrary-url", { prisma: mockPrisma })
+      ).rejects.toThrow(UnreliableHistoricalOriginError);
+    });
+
+    it("rejects refresh when snapshotData is incomplete (missing items description or amounts)", async () => {
+      const checkEmpty = isCompleteFrozenSnapshot({ items: [] });
+      expect(checkEmpty.complete).toBe(false);
+
+      const checkIncompleteItem = isCompleteFrozenSnapshot({
+        facilityName: "Test Facility",
+        subtotal: "100.00 €",
+        items: [{ hours: 1 }], // missing description!
       });
-      expect(origin.reliable).toBe(true);
-      expect(origin.source).toBe("frozen_snapshot");
+      expect(checkIncompleteItem.complete).toBe(false);
+
+      const checkMissingFacility = isCompleteFrozenSnapshot({
+        subtotal: "100.00 €",
+        items: [{ description: "Pflegefachkraft", hours: 1, total: "40.00 €" }],
+      });
+      expect(checkMissingFacility.complete).toBe(false);
+    });
+
+    it("accepts refresh when historical invoice has a verified stored PDF file on disk", async () => {
+      // Mock a verified file on disk
+      const mockVerifier = vi.fn().mockResolvedValue({
+        exists: true,
+        sha256: "aabbcc11223344556677889900aabbcc11223344556677889900aabbcc112233",
+        byteLength: 45678,
+      });
+
+      const check = await checkReliableHistoricalOrigin(
+        {
+          id: "inv-stored",
+          pdfUrl: "/uploads/invoices/inv-stored.pdf",
+          snapshotData: null,
+        },
+        mockVerifier
+      );
+
+      expect(check.reliable).toBe(true);
+      expect(check.source).toBe("stored_pdf");
+      expect(check.storedPdfInfo?.sha256).toBe("aabbcc11223344556677889900aabbcc11223344556677889900aabbcc112233");
+    });
+
+    it("accepts refresh when historical invoice has a complete frozen snapshot in snapshotData", async () => {
+      const completeSnapshot = {
+        facilityName: "Seniorenresidenz RheinAhr",
+        subtotal: "40,00 €",
+        total: "47,60 €",
+        items: [
+          {
+            description: "Pflegefachkraft Schichtdienst",
+            hours: 1.0,
+            rate: "40,00 €",
+            total: "40,00 €",
+          },
+        ],
+      };
+
+      const check = await checkReliableHistoricalOrigin({
+        id: "inv-frozen",
+        pdfUrl: null,
+        snapshotData: completeSnapshot,
+      });
+
+      expect(check.reliable).toBe(true);
+      expect(check.source).toBe("frozen_snapshot");
+      expect(check.frozenSnapshotSha256).toBeDefined();
     });
 
     it("fails closed when tx.invoiceRevision delegate is missing or create fails", async () => {
@@ -494,7 +687,12 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         netAmount: 40.0,
         vatAmount: 7.6,
         grossAmount: 47.6,
-        snapshotData: { items: [{ pos: 1, amount: "47.60 €" }] },
+        snapshotData: {
+          facilityName: "Seniorenresidenz RheinAhr",
+          subtotal: "40,00 €",
+          total: "47,60 €",
+          items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
+        },
         client: a1.order.client,
         assignments: [a1],
       };
@@ -520,21 +718,20 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       };
 
       const deps = {
-        adminId: "admin-1",
         prisma: mockPrisma,
         priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
         facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
         effectiveHoursResolver: mockDefaultHoursResolver as any,
       };
 
-      const preview = await previewV2InvoiceRefresh("inv-fail-closed", deps);
+      const preview = await previewV2InvoiceRefresh("inv-fail-closed", { ...deps, adminId: "admin-super" });
 
       await expect(
         confirmV2InvoiceRefresh(
           {
             invoiceId: "inv-fail-closed",
             previewToken: preview.previewToken,
-            performedByUserId: "admin-1",
+            performedByUserId: "admin-super",
           },
           deps
         )
@@ -543,28 +740,34 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       expect(mockPrisma.invoice.update).not.toHaveBeenCalled();
     });
 
-    it("records full invoice provenance including invoiceNumber, dates, client attributes, and assignment mappings in revision", async () => {
+    it("records full invoice provenance including reliable origin standard and client identity in revision", async () => {
       process.env.FEATURE_INVOICE_V2_REFRESH = "true";
 
       const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-prov-1" });
       const mockInvoice = {
         id: "inv-prov-1",
-        invoiceNumber: "INV-PROVENANCE-2026",
+        invoiceNumber: "INV-PROV-100",
         status: "unpaid",
-        date: new Date("2026-03-01"),
-        dueDate: new Date("2026-03-15"),
-        clientId: "client-1",
+        date: new Date("2026-03-01T10:00:00Z"),
+        dueDate: new Date("2026-03-15T10:00:00Z"),
         netAmount: 40.0,
         vatAmount: 7.6,
         grossAmount: 47.6,
         taxRate: 0.19,
-        pdfUrl: "https://example.com/invoices/inv-prov-1.pdf",
-        snapshotData: { items: [{ pos: 1, amount: "47.60 €" }] },
+        clientId: "client-1",
+        pdfUrl: null,
+        snapshotData: {
+          facilityName: "Seniorenresidenz RheinAhr",
+          subtotal: "40,00 €",
+          total: "47,60 €",
+          items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
+        },
         client: a1.order.client,
         assignments: [a1],
       };
 
-      let savedRevision: any = null;
+      let capturedRevisionData: any = null;
+
       const mockPrisma = {
         $queryRaw: vi.fn().mockImplementation((query: any) => {
           const sql = String(query.strings ? query.strings.join(" ") : query);
@@ -581,13 +784,14 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         },
         invoiceRevision: {
           count: vi.fn().mockResolvedValue(0),
+          findMany: vi.fn().mockResolvedValue([]),
           create: vi.fn().mockImplementation((args: any) => {
-            savedRevision = args.data;
-            return Promise.resolve({ id: "rev-1", ...args.data });
+            capturedRevisionData = args.data;
+            return Promise.resolve({ id: "rev-prov-1", ...args.data });
           }),
         },
         auditLog: {
-          create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+          create: vi.fn().mockResolvedValue({ id: "audit-prov-1" }),
         },
         $transaction: vi.fn().mockImplementation(async (callback: any) => {
           return await callback(mockPrisma);
@@ -595,40 +799,148 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       };
 
       const deps = {
-        adminId: "admin-super",
         prisma: mockPrisma,
         priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
         facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
         effectiveHoursResolver: mockDefaultHoursResolver as any,
       };
 
-      const preview = await previewV2InvoiceRefresh("inv-prov-1", deps);
-      const res = await confirmV2InvoiceRefresh(
+      const preview = await previewV2InvoiceRefresh("inv-prov-1", { ...deps, adminId: "admin-alice" });
+      await confirmV2InvoiceRefresh(
         {
           invoiceId: "inv-prov-1",
           previewToken: preview.previewToken,
-          performedByUserId: "admin-super",
-          reason: "Provenance preservation test",
+          performedByUserId: "admin-alice",
+          reason: "Provenance verification test",
         },
         deps
       );
 
-      expect(res.success).toBe(true);
-      expect(savedRevision).toBeDefined();
-      const prevProv = savedRevision.previousSnapshotData;
-      expect(prevProv.invoiceNumber).toBe("INV-PROVENANCE-2026");
-      expect(prevProv.dueDate).toBeDefined();
-      expect(prevProv.client.facilityName).toBe("Seniorenresidenz RheinAhr");
-      expect(prevProv.client.address).toBe("Musterstr. 12, 53474 Bad Neuenahr");
-      expect(prevProv.assignments).toHaveLength(1);
-      expect(prevProv.assignments[0].id).toBe("assign-1");
-      expect(prevProv.originReliability).toBe("stored_pdf");
-      expect(prevProv.hasStoredPdfFile).toBe(true);
+      expect(capturedRevisionData).toBeDefined();
+      expect(capturedRevisionData.revisionNumber).toBe(1);
+
+      const prevSnap = capturedRevisionData.previousSnapshotData;
+      expect(prevSnap.invoiceNumber).toBe("INV-PROV-100");
+      expect(prevSnap.client.facilityName).toBe("Seniorenresidenz RheinAhr");
+      expect(prevSnap.client.shortCode).toBe("RA-100");
+      expect(prevSnap.originReliability).toBe("frozen_snapshot");
+      expect(prevSnap.isRegeneratedFromFrozenData).toBe(true);
+      expect(prevSnap.isByteForByteOriginalFile).toBe(false);
+      expect(prevSnap.frozenSnapshotSha256).toBeDefined();
+      expect(prevSnap.assignmentIds).toEqual(["assign-1"]);
+    });
+
+    it("serves exact original stored PDF file bytes when available for revision=0 route", async () => {
+      // Create a temporary dummy PDF file on disk
+      const tempPdfPath = path.resolve(process.cwd(), "temp-test-invoice.pdf");
+      const pdfBytes = Buffer.from("%PDF-1.4 TEST ORIGINAL BYTES DUMMY CONTENT");
+      fs.writeFileSync(tempPdfPath, pdfBytes);
+
+      try {
+        const mockInvoice = {
+          id: "inv-route-pdf",
+          invoiceNumber: "RE-2026-PDF",
+          status: "unpaid",
+          date: new Date("2026-03-01"),
+          netAmount: 100,
+          vatAmount: 19,
+          grossAmount: 119,
+          client: { id: "c-1", userId: "u-1", facilityName: "Current Live Client Name" },
+          assignments: [],
+        };
+
+        const mockRev1 = {
+          id: "rev-1",
+          invoiceId: "inv-route-pdf",
+          revisionNumber: 1,
+          previousNetAmount: 100,
+          previousVatAmount: 19,
+          previousGrossAmount: 119,
+          previousSnapshotData: {
+            invoiceNumber: "RE-2026-PDF",
+            originReliability: "stored_pdf",
+            storedPdfInfo: {
+              path: tempPdfPath,
+              sha256: "fake-sha-256",
+              byteLength: pdfBytes.length,
+            },
+            client: { facilityName: "Historical Client Name" },
+          },
+        };
+
+        (prisma.invoice.findUnique as any).mockResolvedValue(mockInvoice);
+        (prisma.invoiceRevision.findUnique as any).mockResolvedValue(mockRev1);
+
+        const req = new Request("http://localhost/api/invoices/inv-route-pdf/pdf?revision=0");
+        const res = await getInvoicePdfRoute(req, { params: Promise.resolve({ id: "inv-route-pdf" }) });
+
+        expect(res.status).toBe(200);
+        expect(res.headers.get("X-Document-Source")).toBe("stored_original_file");
+        expect(res.headers.get("Content-Type")).toBe("application/pdf");
+
+        const bodyBytes = Buffer.from(await res.arrayBuffer());
+        expect(bodyBytes.toString()).toBe(pdfBytes.toString());
+      } finally {
+        if (fs.existsSync(tempPdfPath)) {
+          fs.unlinkSync(tempPdfPath);
+        }
+      }
+    });
+
+    it("regenerates PDF from frozen snapshot data for revision=0 without being affected by live client edits", async () => {
+      const mockInvoice = {
+        id: "inv-route-snap",
+        invoiceNumber: "RE-2026-SNAP",
+        status: "unpaid",
+        date: new Date("2026-03-01"),
+        netAmount: 40,
+        vatAmount: 7.6,
+        grossAmount: 47.6,
+        // Live client has been renamed in DB!
+        client: { id: "c-1", userId: "u-1", facilityName: "MUTATED LIVE NAME IN DATABASE" },
+        assignments: [],
+      };
+
+      const mockRev1 = {
+        id: "rev-1",
+        invoiceId: "inv-route-snap",
+        revisionNumber: 1,
+        previousNetAmount: 40,
+        previousVatAmount: 7.6,
+        previousGrossAmount: 47.6,
+        previousSnapshotData: {
+          invoiceNumber: "RE-2026-SNAP",
+          originReliability: "frozen_snapshot",
+          // Historical snapshot preserved original facilityName
+          client: {
+            id: "c-1",
+            facilityName: "ORIGINAL HISTORICAL FACILITY NAME",
+            address: "Historical Address 1",
+            billingInfo: "Faktura Hist",
+          },
+          rawSnapshotData: {
+            facilityName: "ORIGINAL HISTORICAL FACILITY NAME",
+            subtotal: "40,00 €",
+            total: "47,60 €",
+            items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
+          },
+        },
+      };
+
+      (prisma.invoice.findUnique as any).mockResolvedValue(mockInvoice);
+      (prisma.invoiceRevision.findUnique as any).mockResolvedValue(mockRev1);
+
+      const req = new Request("http://localhost/api/invoices/inv-route-snap/pdf?revision=0");
+      const res = await getInvoicePdfRoute(req, { params: Promise.resolve({ id: "inv-route-snap" }) });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Document-Source")).toBe("regenerated_from_frozen_snapshot");
+      expect(res.headers.get("X-Document-Is-Byte-Original")).toBe("false");
     });
   });
 
   // =========================================================================
-  // Section 4: Finding 3 - Protection for Paid and Sent Invoices
+  // Section 4: Finding 3 - Protection for Paid and Sent Invoices (Fail-Closed)
   // =========================================================================
   describe("4. Protection for Paid and Sent Invoices (Finding 3)", () => {
     it("rejects preview and confirm when target invoice is paid (INVOICE_ALREADY_PAID)", async () => {
@@ -641,7 +953,12 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         netAmount: 100,
         vatAmount: 19,
         grossAmount: 119,
-        snapshotData: { items: [{ pos: 1, amount: "119.00 €" }] },
+        snapshotData: {
+          facilityName: "Test Facility",
+          subtotal: "100.00 €",
+          total: "119.00 €",
+          items: [{ description: "Posten 1", hours: 1, total: "100.00 €" }],
+        },
         client: a1.order.client,
         assignments: [a1],
       };
@@ -657,7 +974,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       ).rejects.toThrow(InvoiceAlreadyPaidError);
     });
 
-    it("flags isSent=true in preview when invoice has emailSent in snapshotData", async () => {
+    it("rejects preview with SentInvoiceRefreshNotPermittedError when invoice has emailSent in snapshotData (Fail-Closed)", async () => {
       const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-sent" });
       const mockSentInvoice = {
         id: "inv-sent",
@@ -668,8 +985,11 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         vatAmount: 7.6,
         grossAmount: 47.6,
         snapshotData: {
-          items: [{ pos: 1, amount: "47.60 €" }],
-          emailSent: true, // Actual sent indicator written by sendInvoiceEmail
+          facilityName: "Test Facility",
+          subtotal: "40.00 €",
+          total: "47.60 €",
+          items: [{ description: "Posten 1", hours: 1, total: "40.00 €" }],
+          emailSent: true, // Sent indicator!
           sentAt: "2026-03-02T10:00:00Z",
         },
         client: a1.order.client,
@@ -692,11 +1012,53 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         effectiveHoursResolver: mockDefaultHoursResolver as any,
       };
 
-      const preview = await previewV2InvoiceRefresh("inv-sent", deps);
-      expect(preview.isSent).toBe(true);
+      await expect(
+        previewV2InvoiceRefresh("inv-sent", deps)
+      ).rejects.toThrow(SentInvoiceRefreshNotPermittedError);
     });
 
-    it("rejects confirm on sent invoice when confirmSentInvoiceUpdate is not true (SENT_INVOICE_REQUIRES_EXPLICIT_CONFIRMATION)", async () => {
+    it("rejects preview with SentInvoiceRefreshNotPermittedError when invoice has status 'sent'", async () => {
+      const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-sent-status" });
+      const mockSentInvoice = {
+        id: "inv-sent-status",
+        invoiceNumber: "INV-SENT-STATUS",
+        status: "sent", // status is sent!
+        date: new Date(),
+        netAmount: 40,
+        vatAmount: 7.6,
+        grossAmount: 47.6,
+        snapshotData: {
+          facilityName: "Test Facility",
+          subtotal: "40.00 €",
+          total: "47.60 €",
+          items: [{ description: "Posten 1", hours: 1, total: "40.00 €" }],
+        },
+        client: a1.order.client,
+        assignments: [a1],
+      };
+
+      const mockPrisma = {
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(mockSentInvoice),
+        },
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1]),
+        },
+      };
+
+      const deps = {
+        prisma: mockPrisma,
+        priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+        facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+        effectiveHoursResolver: mockDefaultHoursResolver as any,
+      };
+
+      await expect(
+        previewV2InvoiceRefresh("inv-sent-status", deps)
+      ).rejects.toThrow(SentInvoiceRefreshNotPermittedError);
+    });
+
+    it("rejects confirm on sent invoice unconditionally (Fail-Closed, zero overwrite, no silent bypass)", async () => {
       process.env.FEATURE_INVOICE_V2_REFRESH = "true";
 
       const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-sent" });
@@ -709,7 +1071,10 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         vatAmount: 7.6,
         grossAmount: 47.6,
         snapshotData: {
-          items: [{ pos: 1, amount: "47.60 €" }],
+          facilityName: "Test Facility",
+          subtotal: "40.00 €",
+          total: "47.60 €",
+          items: [{ description: "Posten 1", hours: 1, total: "40.00 €" }],
           emailSent: true,
         },
         client: a1.order.client,
@@ -732,6 +1097,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         },
         invoiceRevision: {
           count: vi.fn().mockResolvedValue(0),
+          findMany: vi.fn().mockResolvedValue([]),
           create: vi.fn(),
         },
         $transaction: vi.fn().mockImplementation(async (callback: any) => {
@@ -746,133 +1112,61 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         effectiveHoursResolver: mockDefaultHoursResolver as any,
       };
 
-      const preview = await previewV2InvoiceRefresh("inv-sent", deps);
-
-      // Attempt confirm WITHOUT confirmSentInvoiceUpdate: true
       await expect(
         confirmV2InvoiceRefresh(
           {
             invoiceId: "inv-sent",
-            previewToken: preview.previewToken,
+            previewToken: "v1.dummy.token",
             performedByUserId: "admin-super",
           },
           deps
         )
-      ).rejects.toThrow(SentInvoiceConfirmationRequiredError);
+      ).rejects.toThrow(SentInvoiceRefreshNotPermittedError);
 
       expect(mockPrisma.invoice.update).not.toHaveBeenCalled();
-    });
-
-    it("succeeds on sent invoice when confirmSentInvoiceUpdate: true is provided and logs audit trail without external dispatch", async () => {
-      process.env.FEATURE_INVOICE_V2_REFRESH = "true";
-
-      const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-sent" });
-      const mockSentInvoice = {
-        id: "inv-sent",
-        invoiceNumber: "INV-SENT-01",
-        status: "unpaid",
-        date: new Date(),
-        netAmount: 40,
-        vatAmount: 7.6,
-        grossAmount: 47.6,
-        snapshotData: {
-          items: [{ pos: 1, amount: "47.60 €" }],
-          emailSent: true,
-        },
-        client: a1.order.client,
-        assignments: [a1],
-      };
-
-      let auditLoggedData: any = null;
-      const mockPrisma = {
-        $queryRaw: vi.fn().mockImplementation((query: any) => {
-          const sql = String(query.strings ? query.strings.join(" ") : query);
-          if (sql.includes("assignments")) return Promise.resolve([{ id: "assign-1" }]);
-          if (sql.includes("invoices")) return Promise.resolve([{ id: "inv-sent" }]);
-          return Promise.resolve([]);
-        }),
-        invoice: {
-          findUnique: vi.fn().mockResolvedValue(mockSentInvoice),
-          update: vi.fn().mockResolvedValue(mockSentInvoice),
-        },
-        assignment: {
-          findMany: vi.fn().mockResolvedValue([a1]),
-        },
-        invoiceRevision: {
-          count: vi.fn().mockResolvedValue(0),
-          create: vi.fn().mockResolvedValue({ id: "rev-1" }),
-        },
-        auditLog: {
-          create: vi.fn().mockImplementation((args: any) => {
-            auditLoggedData = args.data;
-            return Promise.resolve({ id: "audit-1" });
-          }),
-        },
-        $transaction: vi.fn().mockImplementation(async (callback: any) => {
-          return await callback(mockPrisma);
-        }),
-      };
-
-      const deps = {
-        adminId: "admin-super",
-        prisma: mockPrisma,
-        priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
-        facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
-        effectiveHoursResolver: mockDefaultHoursResolver as any,
-      };
-
-      const preview = await previewV2InvoiceRefresh("inv-sent", deps);
-
-      const res = await confirmV2InvoiceRefresh(
-        {
-          invoiceId: "inv-sent",
-          previewToken: preview.previewToken,
-          performedByUserId: "admin-super",
-          confirmSentInvoiceUpdate: true, // Explicit confirmation!
-        },
-        deps
-      );
-
-      expect(res.success).toBe(true);
-      expect(mockPrisma.invoice.update).toHaveBeenCalled();
-      expect(auditLoggedData.metadata.isSentRevised).toBe(true);
     });
   });
 
   // =========================================================================
-  // Section 5: Finding 4 - Frozen Root Client Fields & PDF Builder Immunity
+  // Section 5: Frozen Root Client Fields in Snapshot (Finding 4)
   // =========================================================================
   describe("5. Frozen Root Client Fields in Snapshot & PDF Immutability (Finding 4)", () => {
     it("freezes facilityName, address, billingInfo at the root level of snapshotData and proves PDF immunity when client is mutated", async () => {
       process.env.FEATURE_INVOICE_V2_REFRESH = "true";
 
-      const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-client-freeze" });
-      const mockInvoice = {
-        id: "inv-client-freeze",
-        invoiceNumber: "INV-FREEZE-001",
+      const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-freeze" });
+      const initialInvoice = {
+        id: "inv-freeze",
+        invoiceNumber: "INV-FREEZE-2026",
         status: "unpaid",
         date: new Date("2026-03-01"),
         netAmount: 40.0,
         vatAmount: 7.6,
         grossAmount: 47.6,
-        snapshotData: { items: [{ pos: 1, amount: "47.60 €" }] },
+        snapshotData: {
+          facilityName: "Seniorenresidenz RheinAhr",
+          subtotal: "40,00 €",
+          total: "47,60 €",
+          items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
+        },
         client: a1.order.client,
         assignments: [a1],
       };
 
-      let capturedFrozenSnapshot: any = null;
+      let updatedInvoiceRecord: any = null;
+
       const mockPrisma = {
         $queryRaw: vi.fn().mockImplementation((query: any) => {
           const sql = String(query.strings ? query.strings.join(" ") : query);
           if (sql.includes("assignments")) return Promise.resolve([{ id: "assign-1" }]);
-          if (sql.includes("invoices")) return Promise.resolve([{ id: "inv-client-freeze" }]);
+          if (sql.includes("invoices")) return Promise.resolve([{ id: "inv-freeze" }]);
           return Promise.resolve([]);
         }),
         invoice: {
-          findUnique: vi.fn().mockResolvedValue(mockInvoice),
+          findUnique: vi.fn().mockResolvedValue(initialInvoice),
           update: vi.fn().mockImplementation((args: any) => {
-            capturedFrozenSnapshot = args.data.snapshotData;
-            return Promise.resolve(mockInvoice);
+            updatedInvoiceRecord = { ...initialInvoice, ...args.data };
+            return Promise.resolve(updatedInvoiceRecord);
           }),
         },
         assignment: {
@@ -880,10 +1174,11 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         },
         invoiceRevision: {
           count: vi.fn().mockResolvedValue(0),
-          create: vi.fn().mockResolvedValue({ id: "rev-1" }),
+          findMany: vi.fn().mockResolvedValue([]),
+          create: vi.fn().mockResolvedValue({ id: "rev-freeze-1" }),
         },
         auditLog: {
-          create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+          create: vi.fn().mockResolvedValue({ id: "audit-freeze-1" }),
         },
         $transaction: vi.fn().mockImplementation(async (callback: any) => {
           return await callback(mockPrisma);
@@ -891,64 +1186,156 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       };
 
       const deps = {
-        adminId: "admin-super",
         prisma: mockPrisma,
         priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
         facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
         effectiveHoursResolver: mockDefaultHoursResolver as any,
       };
 
-      const preview = await previewV2InvoiceRefresh("inv-client-freeze", deps);
+      const preview = await previewV2InvoiceRefresh("inv-freeze", { ...deps, adminId: "admin-super" });
       await confirmV2InvoiceRefresh(
         {
-          invoiceId: "inv-client-freeze",
+          invoiceId: "inv-freeze",
           previewToken: preview.previewToken,
           performedByUserId: "admin-super",
         },
         deps
       );
 
-      // Verify root client attributes are frozen on snapshotData
-      expect(capturedFrozenSnapshot).toBeDefined();
-      expect(capturedFrozenSnapshot.facilityName).toBe("Seniorenresidenz RheinAhr");
-      expect(capturedFrozenSnapshot.address).toBe("Musterstr. 12, 53474 Bad Neuenahr");
-      expect(capturedFrozenSnapshot.internalNumber).toBe("RA-100");
-      expect(capturedFrozenSnapshot.billingInfo).toBe("Zentrale Faktura");
+      expect(updatedInvoiceRecord).toBeDefined();
+      const snap = updatedInvoiceRecord.snapshotData;
 
-      // COUNTER-TEST: Now simulate mutating live client in the database
+      // Assert that frozen root fields exist directly on snap
+      expect(snap.facilityName).toBe("Seniorenresidenz RheinAhr");
+      expect(snap.address).toBe("Musterstr. 12, 53474 Bad Neuenahr");
+      expect(snap.shortCode).toBe("RA-100");
+      expect(snap.internalNumber).toBe("INT-999");
+      expect(snap.billingEmail).toBe("buchhaltung@rheinahr.example.com");
+      expect(snap.billingInfo).toBe("Zentrale Faktura");
+      expect(snap.paymentTermsDays).toBe(14);
+      expect(snap.isFrozen).toBe(true);
+
+      // Mutate the live client record in database
       const mutatedLiveClient = {
-        id: "client-1",
+        ...a1.order.client,
         facilityName: "VÖLLIG ANDERE EINRICHTUNG GMBH",
-        address: "Ganz Neue Straße 999, 10115 Berlin",
-        internalNumber: "MUTATED-999",
-        billingInfo: "Mutierte Faktura",
+        address: "Ganz andere Straße 999, 12345 Berlin",
+        shortCode: "DIFF-000",
+        billingInfo: "Veränderte Faktura",
       };
 
-      const invoiceWithSnapshot = {
-        invoiceNumber: "INV-FREEZE-001",
-        date: new Date("2026-03-01"),
-        netAmount: 40.0,
-        vatAmount: 7.6,
-        grossAmount: 47.6,
-        snapshotData: capturedFrozenSnapshot,
-      };
+      // Generate PDF data: must strictly read frozen snapshot values
+      const pdfData = buildInvoicePdfData(updatedInvoiceRecord, mutatedLiveClient as any, [a1] as any);
 
-      // Render PDF Data using mutated client
-      const pdfData = buildInvoicePdfData(invoiceWithSnapshot as any, mutatedLiveClient as any, []);
-
-      // The PDF MUST strictly reflect the frozen snapshot, NOT the mutated client!
       expect(pdfData.clientName).toBe("Seniorenresidenz RheinAhr");
       expect(pdfData.clientAddress).toBe("Musterstr. 12, 53474 Bad Neuenahr");
-      expect(pdfData.clientId).toBe("RA-100");
+      expect(pdfData.clientId).toBe("INT-999");
       expect(pdfData.billingInfo).toBe("Zentrale Faktura");
       expect(pdfData.clientName).not.toBe("VÖLLIG ANDERE EINRICHTUNG GMBH");
     });
   });
 
   // =========================================================================
-  // Section 6: Finding 5 - Authentic Multi-Step Successive Revisions Workflow
+  // Section 6: Fresh V2 Immutability & Successive Revisions (Finding 4 & 5)
   // =========================================================================
-  describe("6. Authentic Multi-Step Successive Revisions Workflow (Finding 5)", () => {
+  describe("6. Fresh V2 Immutability & Successive Revisions (Finding 4 & 5)", () => {
+    it("rejects fresh V2 invoice without revision history with FreshV2InvoiceImmutableError", async () => {
+      const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-fresh-v2" });
+      const mockFreshV2Invoice = {
+        id: "inv-fresh-v2",
+        invoiceNumber: "INV-FRESH-V2-01",
+        status: "unpaid",
+        date: new Date(),
+        netAmount: 40,
+        vatAmount: 7.6,
+        grossAmount: 47.6,
+        snapshotData: {
+          calculationVersion: "v2", // Freshly issued under V2!
+          facilityName: "Test Facility",
+          subtotalCents: 4000,
+          taxAmountCents: 760,
+          totalCents: 4760,
+          pdfItems: [{ pos: 1, description: "Pflegefachkraft", hours: 1, rate: "40,00 €", amount: "40,00 €" }],
+          items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
+        },
+        client: a1.order.client,
+        assignments: [a1],
+      };
+
+      const mockPrisma = {
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(mockFreshV2Invoice),
+        },
+        invoiceRevision: {
+          findMany: vi.fn().mockResolvedValue([]), // Zero revisions!
+          count: vi.fn().mockResolvedValue(0),
+        },
+      };
+
+      const deps = {
+        prisma: mockPrisma,
+        priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+        facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+        effectiveHoursResolver: mockDefaultHoursResolver as any,
+      };
+
+      await expect(
+        previewV2InvoiceRefresh("inv-fresh-v2", deps)
+      ).rejects.toThrow(FreshV2InvoiceImmutableError);
+
+      await expect(
+        determineInvoiceRevisionState(mockFreshV2Invoice, mockPrisma)
+      ).rejects.toThrow(FreshV2InvoiceImmutableError);
+    });
+
+    it("rejects corrupted revision chain when snapshot revisionNumber contradicts database revisions", async () => {
+      const mockCorruptedInvoice = {
+        id: "inv-corrupt",
+        invoiceNumber: "INV-CORRUPT-01",
+        snapshotData: {
+          calculationVersion: "v2",
+          revisionNumber: 5, // claims revision 5, but DB only has 1!
+        },
+      };
+
+      const mockPrisma = {
+        invoiceRevision: {
+          findMany: vi.fn().mockResolvedValue([
+            { id: "rev-1", revisionNumber: 1 },
+          ]),
+          count: vi.fn().mockResolvedValue(1),
+        },
+      };
+
+      await expect(
+        determineInvoiceRevisionState(mockCorruptedInvoice, mockPrisma)
+      ).rejects.toThrow(RevisionChainCorruptedError);
+    });
+
+    it("rejects corrupted revision chain when revisions in DB have gaps (e.g. rev 1, rev 3)", async () => {
+      const mockGapInvoice = {
+        id: "inv-gap",
+        invoiceNumber: "INV-GAP-01",
+        snapshotData: {
+          calculationVersion: "v2",
+          revisionNumber: 3,
+        },
+      };
+
+      const mockPrisma = {
+        invoiceRevision: {
+          findMany: vi.fn().mockResolvedValue([
+            { id: "rev-1", revisionNumber: 1 },
+            { id: "rev-3", revisionNumber: 3 }, // Gap! Missing revision 2
+          ]),
+        },
+      };
+
+      await expect(
+        determineInvoiceRevisionState(mockGapInvoice, mockPrisma)
+      ).rejects.toThrow(RevisionChainCorruptedError);
+    });
+
     it("executes an authentic two-step successive revision workflow (Legacy -> Rev 1 -> Rev 2) incrementing revisionNumber monotonically", async () => {
       process.env.FEATURE_INVOICE_V2_REFRESH = "true";
 
@@ -965,8 +1352,10 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         vatAmount: 7.6,
         grossAmount: 47.6,
         snapshotData: {
-          legacyNote: "Initial legacy state",
-          items: [{ pos: 1, amount: "47.60 €" }],
+          facilityName: "Seniorenresidenz RheinAhr",
+          subtotal: "40,00 €",
+          total: "47,60 €",
+          items: [{ description: "Pflegefachkraft", hours: 1, total: "40,00 €" }],
         },
         client: a1.order.client,
         assignments: [a1],
@@ -996,6 +1385,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
           findMany: vi.fn().mockImplementation(() => Promise.resolve(currentInvoiceRecord.assignments)),
         },
         invoiceRevision: {
+          findMany: vi.fn().mockImplementation(() => Promise.resolve(revisionsStore)),
           count: vi.fn().mockImplementation(() => Promise.resolve(revisionsStore.length)),
           create: vi.fn().mockImplementation((args: any) => {
             const rev = { id: `rev-${revisionsStore.length + 1}`, ...args.data };
@@ -1049,7 +1439,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       currentInvoiceRecord.assignments = [a1, a2]; // Now 2 assignments (80.00 €)
 
       const preview2 = await previewV2InvoiceRefresh("inv-successive", deps);
-      // Notice: Preview must recognize current invoice is at revision 1 and target is revision 2!
+      // Notice: Preview recognizes current invoice is at revision 1 and target is revision 2!
       expect(preview2.baseRevisionNumber).toBe(1);
       expect(preview2.targetRevisionNumber).toBe(2);
       expect(preview2.proposed.grossAmount).toBe(95.2); // 80.00 € + 19% VAT = 95.20 €
@@ -1078,52 +1468,81 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
   });
 
   // =========================================================================
-  // Section 7: Acceptance Benchmark & Single-Engine Parity (17,04 €)
+  // Section 7: Acceptance Benchmark & Single-Engine Parity - 17,04 €
   // =========================================================================
-  describe("7. Acceptance Benchmark & Single-Engine Parity (17,04 €)", () => {
+  describe("7. Acceptance Benchmark & Single-Engine Parity - 17,04 €", () => {
     it("Benchmark: refreshes legacy invoice with three 5.678 € raw lines to display 5,68 € and exactly Summe 17,04 € (not 17,03 €)", async () => {
       process.env.FEATURE_INVOICE_V2_REFRESH = "true";
 
-      const a1 = createSyntheticAssignment("assign-1", { invoiceId: "inv-benchmark-1", startTime: "08:00", endTime: "09:00", qualification: "pflegehelfer" });
-      const a2 = createSyntheticAssignment("assign-2", { invoiceId: "inv-benchmark-1", startTime: "09:00", endTime: "10:00", qualification: "pflegehelfer" });
-      const a3 = createSyntheticAssignment("assign-3", { invoiceId: "inv-benchmark-1", startTime: "10:00", endTime: "11:00", qualification: "pflegehelfer" });
+      const a1 = createSyntheticAssignment("bench-1", {
+        invoiceId: "inv-bench",
+        qualification: "pflegehelfer",
+        shiftDate: "2026-03-02",
+      });
+      const a2 = createSyntheticAssignment("bench-2", {
+        invoiceId: "inv-bench",
+        qualification: "pflegehelfer",
+        shiftDate: "2026-03-03",
+      });
+      const a3 = createSyntheticAssignment("bench-3", {
+        invoiceId: "inv-bench",
+        qualification: "pflegehelfer",
+        shiftDate: "2026-03-04",
+      });
 
       const mockLegacyInvoice = {
-        id: "inv-benchmark-1",
-        invoiceNumber: "INV-2026-BENCH",
+        id: "inv-bench",
+        invoiceNumber: "INV-BENCH-2026",
         status: "unpaid",
-        date: new Date("2026-03-01"),
-        netAmount: 17.03, // Legacy flaw: was 17,03 €
+        date: new Date("2026-03-10"),
+        netAmount: 17.03, // Legacy flaw: 17.03 € instead of display sum 17.04 €
         vatAmount: 3.24,
         grossAmount: 20.27,
-        pdfUrl: "https://example.com/invoices/inv-bench.pdf",
+        pdfUrl: null,
         snapshotData: {
-          items: [{ pos: 1, amount: "17.03 €" }],
+          facilityName: "Seniorenresidenz RheinAhr",
+          subtotal: "17,03 €",
+          total: "20,27 €",
+          items: [
+            { description: "Pflegehelfer", hours: 1, total: "5,67 €" },
+            { description: "Pflegehelfer", hours: 1, total: "5,68 €" },
+            { description: "Pflegehelfer", hours: 1, total: "5,68 €" },
+          ],
         },
         client: a1.order.client,
         assignments: [a1, a2, a3],
       };
 
+      let updatedInvoiceResult: any = null;
+      let archivedRevisionResult: any = null;
+
       const mockPrisma = {
         $queryRaw: vi.fn().mockImplementation((query: any) => {
           const sql = String(query.strings ? query.strings.join(" ") : query);
-          if (sql.includes("assignments")) return Promise.resolve([{ id: "assign-1" }, { id: "assign-2" }, { id: "assign-3" }]);
-          if (sql.includes("invoices")) return Promise.resolve([{ id: "inv-benchmark-1" }]);
+          if (sql.includes("assignments")) return Promise.resolve([{ id: "bench-1" }, { id: "bench-2" }, { id: "bench-3" }]);
+          if (sql.includes("invoices")) return Promise.resolve([{ id: "inv-bench" }]);
           return Promise.resolve([]);
         }),
         invoice: {
           findUnique: vi.fn().mockResolvedValue(mockLegacyInvoice),
-          update: vi.fn().mockResolvedValue(mockLegacyInvoice),
+          update: vi.fn().mockImplementation((args: any) => {
+            updatedInvoiceResult = { ...mockLegacyInvoice, ...args.data };
+            return Promise.resolve(updatedInvoiceResult);
+          }),
         },
         assignment: {
           findMany: vi.fn().mockResolvedValue([a1, a2, a3]),
         },
         invoiceRevision: {
           count: vi.fn().mockResolvedValue(0),
-          create: vi.fn().mockResolvedValue({ id: "rev-1" }),
+          findMany: vi.fn().mockResolvedValue([]),
+          create: vi.fn().mockImplementation((args: any) => {
+            archivedRevisionResult = args.data;
+            return Promise.resolve({ id: "rev-bench-1", ...args.data });
+          }),
         },
         auditLog: {
-          create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+          create: vi.fn().mockResolvedValue({ id: "audit-bench-1" }),
         },
         $transaction: vi.fn().mockImplementation(async (callback: any) => {
           return await callback(mockPrisma);
@@ -1131,30 +1550,45 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       };
 
       const deps = {
-        adminId: "admin-user",
         prisma: mockPrisma,
         priceVersionResolver: vi.fn().mockResolvedValue(BENCHMARK_PRICE_VERSION),
         facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
         effectiveHoursResolver: mockDefaultHoursResolver as any,
       };
 
-      const preview = await previewV2InvoiceRefresh("inv-benchmark-1", deps);
-      expect(preview.proposed.formattedNet).toBe("17,04 €");
-      expect(preview.proposed.formattedGross).toBe("20,28 €");
+      const preview = await previewV2InvoiceRefresh("inv-bench", { ...deps, adminId: "admin-benchmark" });
 
-      const res = await confirmV2InvoiceRefresh(
+      // Verify display-anchored single-engine benchmark totals in preview
+      expect(preview.proposed.formattedNet).toBe("17,04 €");
+      expect(preview.proposed.formattedVat).toBe("3,24 €");
+      expect(preview.proposed.formattedGross).toBe("20,28 €");
+      expect(preview.proposed.netAmount).toBe(17.04);
+      expect(preview.proposed.grossAmount).toBe(20.28);
+
+      const confirm = await confirmV2InvoiceRefresh(
         {
-          invoiceId: "inv-benchmark-1",
+          invoiceId: "inv-bench",
           previewToken: preview.previewToken,
-          performedByUserId: "admin-user",
+          performedByUserId: "admin-benchmark",
+          reason: "Fix benchmark display parity to exactly 17,04 €",
         },
         deps
       );
 
-      expect(res.success).toBe(true);
-      expect(res.netAmount).toBe(17.04);
-      expect(res.vatAmount).toBe(3.24);
-      expect(res.grossAmount).toBe(20.28);
+      expect(confirm.success).toBe(true);
+      expect(confirm.netAmount).toBe(17.04);
+      expect(confirm.vatAmount).toBe(3.24);
+      expect(confirm.grossAmount).toBe(20.28);
+
+      expect(updatedInvoiceResult.netAmount).toBe(17.04);
+      expect(updatedInvoiceResult.grossAmount).toBe(20.28);
+      expect(updatedInvoiceResult.snapshotData.subtotal).toBe("17,04 €");
+      expect(updatedInvoiceResult.snapshotData.total).toBe("20,28 €");
+
+      expect(archivedRevisionResult.previousNetAmount).toBe(17.03);
+      expect(archivedRevisionResult.previousGrossAmount).toBe(20.27);
+      expect(archivedRevisionResult.newNetAmount).toBe(17.04);
+      expect(archivedRevisionResult.newGrossAmount).toBe(20.28);
     });
   });
 });

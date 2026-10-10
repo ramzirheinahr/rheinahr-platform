@@ -1736,6 +1736,7 @@
     "loadingPreview": "Loading calculation preview...",
     "sentWarning": "Warning: This invoice was already sent. Updating it is an accounting-sensitive operation. No document will be sent automatically.",
     "sentConfirmCheckbox": "I explicitly confirm that this previously sent invoice should be updated. No new email will be sent automatically.",
+    "sentBlockedNotice": "This invoice has already been sent to the client. Direct overwriting is locked for audit compliance. Please use the correction/cancellation procedure.",
     "invoiceNumber": "Invoice Number",
     "facility": "Facility",
     "revision": "Revision",
