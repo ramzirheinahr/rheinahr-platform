@@ -229,6 +229,7 @@ model User {
   requestedHoursCorrections    WorkHoursCorrectionRequest[] @relation("CorrectionRequestedBy")
   decidedHoursCorrections      WorkHoursCorrectionRequest[] @relation("CorrectionDecidedBy")
   verifiedSurchargePolicies    FacilitySurchargePolicy[]    @relation("PolicyVerifiedByUser")
+  verifiedHourlyRateVersions   ClientHourlyRateVersion[]    @relation("RateVerifiedByUser")
 
   @@map("users")
 }
@@ -421,6 +422,7 @@ model Client {
   invoices          Invoice[]
   appointments      Appointment[]
   surchargePolicies FacilitySurchargePolicy[]
+  hourlyRateVersions ClientHourlyRateVersion[]
 
   @@map("clients")
 }
@@ -616,6 +618,7 @@ model ClientContract {
   client            Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   assignments       Assignment[]
   surchargePolicies FacilitySurchargePolicy[]
+  hourlyRateVersions ClientHourlyRateVersion[]
 
   @@index([clientId, status])
   @@map("client_contracts")
@@ -655,6 +658,34 @@ model FacilitySurchargePolicy {
   @@unique([clientId, policyVersion])
   @@index([clientId, effectiveFrom, effectiveTo])
   @@map("facility_surcharge_policies")
+}
+
+model ClientHourlyRateVersion {
+  id                 String          @id @default(uuid())
+  clientId           String          @map("client_id")
+  clientContractId   String?         @map("client_contract_id")
+  rateVersion        Int             @default(1) @map("rate_version")
+  qualification      String          @map("qualification")
+  hourlyRateInCents  Int             @map("hourly_rate_in_cents")
+  effectiveFrom      DateTime        @map("effective_from") @db.Date
+  effectiveTo        DateTime?       @map("effective_to") @db.Date
+  sourceType         String          @default("contract") @map("source_type")
+  sourceReference    String          @map("source_reference")
+  isFrozen           Boolean         @default(false) @map("is_frozen")
+  frozenAt           DateTime?       @map("frozen_at")
+  frozenHash         String?         @map("frozen_hash")
+  verifiedByUserId   String?         @map("verified_by_user_id")
+  verifiedAt         DateTime?       @map("verified_at")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  client             Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientContract     ClientContract? @relation(fields: [clientContractId], references: [id], onDelete: SetNull)
+  verifiedByUser     User?           @relation("RateVerifiedByUser", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([clientId, qualification, effectiveFrom, effectiveTo])
+  @@index([clientContractId])
+  @@map("client_hourly_rate_versions")
 }
 
 model ServiceConfirmation {

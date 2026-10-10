@@ -47,6 +47,7 @@ import {
   type ResolvedSurchargePolicySuccess,
 } from "./surcharge-policy";
 import { getAssignmentEffectiveWorkHours } from "./confirmation-evidence-service";
+import { resolveClientPriceVersion } from "./client-price-resolver";
 import { prisma } from "./prisma";
 
 function pad2(n: number): string {
@@ -529,14 +530,17 @@ export async function prepareV2InvoiceDraft(
       };
     }
 
-    // Determine shift span (overnight determination)
+    // Determine shift span in half-open interval [start, end)
     const [startH, startMin] = effectiveHoursData.effectiveStartTime.split(":").map(Number);
     const [endH, endMin] = effectiveHoursData.effectiveEndTime.split(":").map(Number);
     const startTotalMin = startH * 60 + startMin;
     const endTotalMin = endH * 60 + endMin;
-    const isOvernight = endTotalMin <= startTotalMin;
-    const endShiftDateIso = isOvernight ? advanceCalendarDay(shiftDateIso) : shiftDateIso;
-    const spannedDates = isOvernight ? [shiftDateIso, endShiftDateIso] : [shiftDateIso];
+    // In [start, end), a shift only spans into the next day if it contains billable minutes on Day 2 (endTotalMin > 0).
+    // Shifts ending at 00:00 (e.g. 23:00–00:00 or 00:00–00:00 per 24h duration contract) end at the Day 1 midnight boundary [startTotalMin, 1440)
+    // with 0 minutes on Day 2. Only shifts with endTotalMin > 0 (e.g. 23:00–00:01) enter Day 2 [0, endTotalMin).
+    const spansIntoNextDay = endTotalMin <= startTotalMin && endTotalMin > 0;
+    const endShiftDateIso = spansIntoNextDay ? advanceCalendarDay(shiftDateIso) : shiftDateIso;
+    const spannedDates = spansIntoNextDay ? [shiftDateIso, endShiftDateIso] : [shiftDateIso];
 
     // B. Phase 4a Surcharge Policy Resolution
     let resolvedPolicy: ResolvedSurchargePolicy | null = null;
@@ -578,7 +582,7 @@ export async function prepareV2InvoiceDraft(
         if (matchingPolicies.length === 1) {
           const policyRecord = matchingPolicies[0];
 
-          if (isOvernight) {
+          if (spansIntoNextDay) {
             const matchingPoliciesEnd = await tx.facilitySurchargePolicy.findMany({
               where: {
                 clientId,
@@ -667,7 +671,7 @@ export async function prepareV2InvoiceDraft(
     }
 
     // Verify policy date validity across midnight rollover
-    if (isOvernight && policySuccess.effectiveTo && policySuccess.effectiveTo < endShiftDateIso) {
+    if (spansIntoNextDay && policySuccess.effectiveTo && policySuccess.effectiveTo < endShiftDateIso) {
       return {
         status: "unresolved",
         code: "POLICY_UNRESOLVED",
@@ -684,50 +688,65 @@ export async function prepareV2InvoiceDraft(
     }
 
     // C. Verifiable Dated Price Version Resolution
-    if (!deps?.priceVersionResolver) {
-      return {
-        status: "unresolved",
-        code: "PRICE_UNRESOLVED",
-        message: `Kein verifizierbarer Preisversions-Resolver bereitgestellt für Schicht "${assignment.id}". Das Verwenden unversionierter Live-Kundenpreise ist unzulässig.`,
-        diagnostics: {
-          assignmentId: assignment.id,
-          clientId,
-          qualification,
-          shiftDateIso,
-        },
-      };
-    }
-
     let priceRecord: PriceVersionRecord | null = null;
-    try {
-      priceRecord = await deps.priceVersionResolver({
-        clientId,
-        qualification,
-        shiftDateIso,
-        contractId: assignment.contractId,
-      });
-    } catch (err) {
-      return {
-        status: "unresolved",
-        code: "PRICE_UNRESOLVED",
-        message: `Fehler beim Auflösen der Preisversion für Schicht "${assignment.id}": ${err instanceof Error ? err.message : String(err)}`,
-        diagnostics: { assignmentId: assignment.id, clientId, qualification, shiftDateIso, details: err },
-      };
-    }
-
-    if (!priceRecord) {
-      return {
-        status: "unresolved",
-        code: "PRICE_UNRESOLVED",
-        message: `Keine gültige, datierte Preisversion für Kunde "${clientId}", Qualifikation "${qualification}" zum Datum "${shiftDateIso}" gefunden. Ein Fallback auf unversionierte Live-Kundenpreise ist unzulässig.`,
-        diagnostics: {
-          assignmentId: assignment.id,
+    if (deps?.priceVersionResolver) {
+      try {
+        priceRecord = await deps.priceVersionResolver({
           clientId,
           qualification,
           shiftDateIso,
           contractId: assignment.contractId,
-        },
-      };
+        });
+      } catch (err) {
+        return {
+          status: "unresolved",
+          code: "PRICE_UNRESOLVED",
+          message: `Fehler beim Auflösen der Preisversion für Schicht "${assignment.id}": ${err instanceof Error ? err.message : String(err)}`,
+          diagnostics: { assignmentId: assignment.id, clientId, qualification, shiftDateIso, details: err },
+        };
+      }
+
+      if (!priceRecord) {
+        return {
+          status: "unresolved",
+          code: "PRICE_UNRESOLVED",
+          message: `Keine gültige, datierte Preisversion für Kunde "${clientId}", Qualifikation "${qualification}" zum Datum "${shiftDateIso}" gefunden. Ein Fallback auf unversionierte Live-Kundenpreise ist unzulässig.`,
+          diagnostics: {
+            assignmentId: assignment.id,
+            clientId,
+            qualification,
+            shiftDateIso,
+            contractId: assignment.contractId,
+          },
+        };
+      }
+    } else {
+      // Default database resolver using verified dated prices from ClientHourlyRateVersion
+      const resolvedDbPrice = await resolveClientPriceVersion({
+        prisma: tx,
+        clientId,
+        qualification,
+        shiftDateIso,
+        contractId: assignment.contractId,
+        spansIntoNextDay,
+        endShiftDateIso,
+      });
+
+      if (resolvedDbPrice.status !== "resolved") {
+        return {
+          status: "unresolved",
+          code: resolvedDbPrice.code === "AMBIGUOUS_PRICE_OVERLAP" ? "AMBIGUOUS_PRICE_OVERLAP" : "PRICE_UNRESOLVED",
+          message: resolvedDbPrice.message,
+          diagnostics: {
+            assignmentId: assignment.id,
+            clientId,
+            qualification,
+            shiftDateIso,
+            ...resolvedDbPrice.diagnostics,
+          },
+        };
+      }
+      priceRecord = resolvedDbPrice.priceRecord;
     }
 
     // 1. Validate price record clientId (Finding 1)

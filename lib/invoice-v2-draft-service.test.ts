@@ -14,6 +14,7 @@ import {
   type ResolvedSurchargePolicySuccess,
 } from "./surcharge-policy";
 import type { VerifiedContractBreakAllocationClause } from "./shift-minute-splitter";
+import { computeRateVersionCanonicalHash } from "./client-price-resolver";
 
 // Deterministic mock policy builder with authentic canonical hash
 function createTestFrozenPolicy(
@@ -87,7 +88,7 @@ const STANDARD_PRICE_VERSION: PriceVersionRecord = {
 
 // Helper to create mock database client with pure synthetic records
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createMockPrisma(assignments: any[]) {
+function createMockPrisma(assignments: any[], dbRateVersions: any[] = []) {
   return {
     assignment: {
       findMany: vi.fn().mockResolvedValue(assignments),
@@ -102,6 +103,15 @@ function createMockPrisma(assignments: any[]) {
     },
     facilitySurchargePolicy: {
       findFirst: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      findMany: vi.fn().mockResolvedValue([FROZEN_NRW_POLICY]),
+    },
+    clientHourlyRateVersion: {
+      findMany: vi.fn().mockImplementation((args: { where?: Record<string, unknown> }) => {
+        if (typeof dbRateVersions === "function") return dbRateVersions(args);
+        return Promise.resolve(dbRateVersions);
+      }),
+      create: vi.fn(),
+      update: vi.fn(),
     },
   };
 }
@@ -1662,5 +1672,446 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     }, 0);
 
     expect(subtotalFromPdf).toBe(totals.subtotalCents);
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Phase 5b-1 Tests: Half-Open Midnight Interval & DB Price Resolver
+  // ─────────────────────────────────────────────────────────────
+
+  it("handles shift 23:00–00:00 as ending at Day 1 midnight (0 min on Day 2), succeeding when price expires on Day 1 (Phase 5b-1)", async () => {
+    const shiftDateIso = "2026-03-02";
+    const mockAssignment = {
+      id: "asg-midnight-boundary-1",
+      orderId: "ord-midnight-boundary-1",
+      workerId: "w-1",
+      contractId: "contract-1",
+      invoiceId: null,
+      status: "confirmed",
+      worker: { id: "w-1", fullName: "Erika Musterfrau", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-midnight-boundary-1",
+        clientId: "client-facility-1",
+        shiftDate: new Date(`${shiftDateIso}T00:00:00.000Z`),
+        startTime: "23:00",
+        endTime: "00:00",
+        breakMinutes: 0,
+        requiredQualification: "pflegefachkraft",
+        client: {
+          id: "client-facility-1",
+          facilityName: "Seniorenresidenz Rheinblick",
+          paymentTermsDays: 14,
+        },
+      },
+    };
+
+    const mockPrisma = createMockPrisma([mockAssignment]);
+
+    // Price version expires exactly on Day 1 (2026-03-02)
+    const expiringPriceVersion: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-03-02",
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: mockPrisma,
+      priceVersionResolver: vi.fn().mockResolvedValue(expiringPriceVersion),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-midnight-boundary-1",
+        effectiveHours: 1.0,
+        effectiveStartTime: "23:00",
+        effectiveEndTime: "00:00",
+        effectiveBreakMinutes: 0,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft(
+      { assignmentIds: ["asg-midnight-boundary-1"] },
+      deps
+    );
+
+    // In half-open interval [23:00, 24:00), all minutes belong to Day 1, so price expiring on Day 1 is completely valid!
+    expect(result.status).toBe("resolved");
+    if (result.status === "resolved") {
+      expect(result.items).toHaveLength(2); // Base + Night
+      expect(result.periodStart).toBe("2026-03-02");
+      expect(result.periodEnd).toBe("2026-03-02");
+    }
+  });
+
+  it("handles shift 23:00–00:01 as spanning into Day 2 (1 min on Day 2), failing when price expires on Day 1 (Phase 5b-1)", async () => {
+    const shiftDateIso = "2026-03-02";
+    const mockAssignment = {
+      id: "asg-midnight-boundary-2",
+      orderId: "ord-midnight-boundary-2",
+      workerId: "w-1",
+      contractId: "contract-1",
+      invoiceId: null,
+      status: "confirmed",
+      worker: { id: "w-1", fullName: "Erika Musterfrau", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-midnight-boundary-2",
+        clientId: "client-facility-1",
+        shiftDate: new Date(`${shiftDateIso}T00:00:00.000Z`),
+        startTime: "23:00",
+        endTime: "00:01",
+        breakMinutes: 0,
+        requiredQualification: "pflegefachkraft",
+        client: {
+          id: "client-facility-1",
+          facilityName: "Seniorenresidenz Rheinblick",
+          paymentTermsDays: 14,
+        },
+      },
+    };
+
+    const mockPrisma = createMockPrisma([mockAssignment]);
+
+    // Price version expires on Day 1 (2026-03-02), does NOT cover Day 2 (2026-03-03)
+    const expiringPriceVersion: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-03-02",
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: mockPrisma,
+      priceVersionResolver: vi.fn().mockResolvedValue(expiringPriceVersion),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-midnight-boundary-2",
+        effectiveHours: 61 / 60,
+        effectiveStartTime: "23:00",
+        effectiveEndTime: "00:01",
+        effectiveBreakMinutes: 0,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft(
+      { assignmentIds: ["asg-midnight-boundary-2"] },
+      deps
+    );
+
+    // Because 23:00–00:01 includes 1 minute on Day 2 (2026-03-03), it must fail closed!
+    expect(result.status).toBe("unresolved");
+    if (result.status === "unresolved") {
+      expect(result.code).toBe("PRICE_UNRESOLVED");
+      expect(result.message).toContain("2026-03-03");
+    }
+  });
+
+  it("handles shift 00:00–00:00 per 24h duration contract as having 0 minutes on Day 2, succeeding when price is valid on Day 1 (Phase 5b-1)", async () => {
+    const shiftDateIso = "2026-03-02";
+    const mockAssignment = {
+      id: "asg-24h-shift-1",
+      orderId: "ord-24h-shift-1",
+      workerId: "w-1",
+      contractId: "contract-1",
+      invoiceId: null,
+      status: "confirmed",
+      worker: { id: "w-1", fullName: "Erika Musterfrau", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-24h-shift-1",
+        clientId: "client-facility-1",
+        shiftDate: new Date(`${shiftDateIso}T00:00:00.000Z`),
+        startTime: "00:00",
+        endTime: "00:00",
+        breakMinutes: 0,
+        requiredQualification: "pflegefachkraft",
+        client: {
+          id: "client-facility-1",
+          facilityName: "Seniorenresidenz Rheinblick",
+          paymentTermsDays: 14,
+        },
+      },
+    };
+
+    const mockPrisma = createMockPrisma([mockAssignment]);
+
+    // Price version expires on Day 1 (2026-03-02)
+    const expiringPriceVersion: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-03-02",
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: mockPrisma,
+      priceVersionResolver: vi.fn().mockResolvedValue(expiringPriceVersion),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-24h-shift-1",
+        effectiveHours: 24.0,
+        effectiveStartTime: "00:00",
+        effectiveEndTime: "00:00",
+        effectiveBreakMinutes: 0,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft(
+      { assignmentIds: ["asg-24h-shift-1"] },
+      deps
+    );
+
+    // 00:00–00:00 is [0, 1440) on Day 1. Day 2 has 0 minutes.
+    expect(result.status).toBe("resolved");
+    if (result.status === "resolved") {
+      expect(result.periodStart).toBe("2026-03-02");
+      expect(result.periodEnd).toBe("2026-03-02");
+    }
+  });
+
+  it("resolves dated price version from database via ClientHourlyRateVersion when deps.priceVersionResolver is omitted (Phase 5b-1)", async () => {
+    const shiftDateIso = "2026-03-02";
+    const mockAssignment = {
+      id: "asg-db-rate-1",
+      orderId: "ord-db-rate-1",
+      workerId: "w-1",
+      contractId: "contract-1",
+      invoiceId: null,
+      status: "confirmed",
+      worker: { id: "w-1", fullName: "Erika Musterfrau", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-db-rate-1",
+        clientId: "client-facility-1",
+        shiftDate: new Date(`${shiftDateIso}T00:00:00.000Z`),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: {
+          id: "client-facility-1",
+          facilityName: "Seniorenresidenz Rheinblick",
+          paymentTermsDays: 14,
+        },
+      },
+    };
+
+    // Authentic frozen rate record in database
+    const dbRate = {
+      id: "rate-db-101",
+      clientId: "client-facility-1",
+      clientContractId: "contract-1",
+      rateVersion: 1,
+      qualification: "pflegefachkraft",
+      hourlyRateInCents: 4200,
+      effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+      effectiveTo: new Date("2026-12-31T00:00:00.000Z"),
+      sourceType: "contract",
+      sourceReference: "Vertrag 2026 § 5",
+      isFrozen: true,
+      frozenAt: new Date("2026-01-01T00:00:00.000Z"),
+      frozenHash: "",
+      verifiedByUserId: "user-auditor-1",
+      verifiedAt: new Date("2026-01-01T12:00:00.000Z"),
+      verifiedByUser: { fullName: "Stefan Auditor" },
+    };
+    dbRate.frozenHash = computeRateVersionCanonicalHash({
+      clientId: dbRate.clientId,
+      clientContractId: dbRate.clientContractId,
+      rateVersion: dbRate.rateVersion,
+      qualification: dbRate.qualification,
+      hourlyRateInCents: dbRate.hourlyRateInCents,
+      effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-12-31",
+      sourceType: dbRate.sourceType,
+      sourceReference: dbRate.sourceReference,
+    });
+
+    const mockPrisma = createMockPrisma([mockAssignment], [dbRate]);
+
+    const deps: V2DraftDependencies = {
+      prisma: mockPrisma,
+      // priceVersionResolver is intentionally OMITTED!
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-db-rate-1",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-db-rate-1"] }, deps);
+
+    expect(result.status).toBe("resolved");
+    if (result.status === "resolved") {
+      expect(result.provenance.assignments[0].priceVersionId).toBe("rate-db-101");
+      expect(result.provenance.assignments[0].baseHourlyRateCents).toBe(4200);
+      expect(result.items[0].rateCents).toBe(4200);
+    }
+  });
+
+  it("fails with AMBIGUOUS_PRICE_OVERLAP when multiple active price versions exist in database without resolver override (Phase 5b-1)", async () => {
+    const shiftDateIso = "2026-03-02";
+    const mockAssignment = {
+      id: "asg-db-overlap-1",
+      orderId: "ord-db-overlap-1",
+      workerId: "w-1",
+      contractId: "contract-1",
+      invoiceId: null,
+      status: "confirmed",
+      worker: { id: "w-1", fullName: "Erika Musterfrau", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-db-overlap-1",
+        clientId: "client-facility-1",
+        shiftDate: new Date(`${shiftDateIso}T00:00:00.000Z`),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: {
+          id: "client-facility-1",
+          facilityName: "Seniorenresidenz Rheinblick",
+          paymentTermsDays: 14,
+        },
+      },
+    };
+
+    const dbRate1 = {
+      id: "rate-db-101",
+      clientId: "client-facility-1",
+      clientContractId: "contract-1",
+      rateVersion: 1,
+      qualification: "pflegefachkraft",
+      hourlyRateInCents: 4200,
+      effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+      effectiveTo: new Date("2026-12-31T00:00:00.000Z"),
+      sourceType: "contract",
+      sourceReference: "Vertrag 2026 § 5",
+      isFrozen: true,
+      frozenAt: new Date("2026-01-01T00:00:00.000Z"),
+      frozenHash: "hash1",
+      verifiedByUserId: "user-1",
+      verifiedAt: new Date("2026-01-01T12:00:00.000Z"),
+      verifiedByUser: { fullName: "Auditor 1" },
+    };
+    const dbRate2 = {
+      ...dbRate1,
+      id: "rate-db-102",
+      hourlyRateInCents: 4500,
+      frozenHash: "hash2",
+    };
+
+    const mockPrisma = createMockPrisma([mockAssignment], [dbRate1, dbRate2]);
+
+    const deps: V2DraftDependencies = {
+      prisma: mockPrisma,
+      // priceVersionResolver is intentionally OMITTED!
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-db-overlap-1",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-db-overlap-1"] }, deps);
+
+    expect(result.status).toBe("unresolved");
+    if (result.status === "unresolved") {
+      expect(result.code).toBe("AMBIGUOUS_PRICE_OVERLAP");
+    }
+  });
+
+  it("guarantees 0 database mutations during entire resolution and draft preparation without resolver (Phase 5b-1)", async () => {
+    const shiftDateIso = "2026-03-02";
+    const mockAssignment = {
+      id: "asg-zero-mut-1",
+      orderId: "ord-zero-mut-1",
+      workerId: "w-1",
+      contractId: "contract-1",
+      invoiceId: null,
+      status: "confirmed",
+      worker: { id: "w-1", fullName: "Erika Musterfrau", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-zero-mut-1",
+        clientId: "client-facility-1",
+        shiftDate: new Date(`${shiftDateIso}T00:00:00.000Z`),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: {
+          id: "client-facility-1",
+          facilityName: "Seniorenresidenz Rheinblick",
+          paymentTermsDays: 14,
+        },
+      },
+    };
+
+    const dbRate = {
+      id: "rate-db-mut-1",
+      clientId: "client-facility-1",
+      clientContractId: "contract-1",
+      rateVersion: 1,
+      qualification: "pflegefachkraft",
+      hourlyRateInCents: 4200,
+      effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+      effectiveTo: new Date("2026-12-31T00:00:00.000Z"),
+      sourceType: "contract",
+      sourceReference: "Vertrag 2026 § 5",
+      isFrozen: true,
+      frozenAt: new Date("2026-01-01T00:00:00.000Z"),
+      frozenHash: "",
+      verifiedByUserId: "user-auditor-1",
+      verifiedAt: new Date("2026-01-01T12:00:00.000Z"),
+      verifiedByUser: { fullName: "Stefan Auditor" },
+    };
+    dbRate.frozenHash = computeRateVersionCanonicalHash({
+      clientId: dbRate.clientId,
+      clientContractId: dbRate.clientContractId,
+      rateVersion: dbRate.rateVersion,
+      qualification: dbRate.qualification,
+      hourlyRateInCents: dbRate.hourlyRateInCents,
+      effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-12-31",
+      sourceType: dbRate.sourceType,
+      sourceReference: dbRate.sourceReference,
+    });
+
+    const mockPrisma = createMockPrisma([mockAssignment], [dbRate]);
+
+    const deps: V2DraftDependencies = {
+      prisma: mockPrisma,
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-zero-mut-1",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    await prepareV2InvoiceDraft({ assignmentIds: ["asg-zero-mut-1"] }, deps);
+
+    expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
+    expect(mockPrisma.invoice.update).not.toHaveBeenCalled();
+    expect(mockPrisma.assignment.update).not.toHaveBeenCalled();
+    expect(mockPrisma.clientHourlyRateVersion.create).not.toHaveBeenCalled();
+    expect(mockPrisma.clientHourlyRateVersion.update).not.toHaveBeenCalled();
   });
 });
