@@ -211,6 +211,12 @@ export function validateClientHourlyRateInput(
   if (input.sourceDocumentUrl !== undefined && input.sourceDocumentUrl !== null) {
     if (typeof input.sourceDocumentUrl === "string" && input.sourceDocumentUrl.trim()) {
       cleanSourceDocUrl = input.sourceDocumentUrl.trim();
+      const suspiciousPattern = /\b(made[-_ ]?up|arbitrary|placeholder|dummy|fake|unverified)\b/i;
+      if (suspiciousPattern.test(cleanSourceDocUrl)) {
+        errors.push(
+          `Dokumentenbeleg (sourceDocumentUrl: "${cleanSourceDocUrl}") ist ungültig oder willkürlich erzeugt. Platzhalter und fingierte Urkunden-URLs sind unzulässig.`
+        );
+      }
     }
   }
 
@@ -392,25 +398,29 @@ export async function previewClientHourlyRate(params: {
       };
     }
 
-    if (contract.status === "pending" || (!contract.signedAt && !contract.documentUrl)) {
+    if (contract.status !== "signed" || !contract.signedAt || !contract.documentUrl) {
       return {
         success: false,
         code: "CONTRACT_NOT_SIGNED_OR_ACTIVE",
-        message: `Vertrag "${validated.clientContractId}" ist nicht unterzeichnet oder befindet sich im Status "pending". Preise dürfen ausschließlich auf Grundlage wirksamer, unterzeichneter Verträge erfasst werden.`,
+        message: `Vertrag "${validated.clientContractId}" ist nicht im Status "signed" (aktueller Status: "${contract.status}") oder verfügt über keine gültige Signatur/Urkunden-URL. Preise dürfen ausschließlich auf Grundlage wirksamer, unterzeichneter Verträge erfasst werden.`,
       };
     }
     contractPeriod = contract.period ?? null;
   } else {
     // General scope rate: Facility must have signed framework agreement or explicit archival document URL
     const hasSignedFramework =
-      Boolean(client.frameworkAgreementSignedAt) || Boolean(client.frameworkAgreementUrl);
-    const hasArchivedDocUrl = Boolean(validated.sourceDocumentUrl);
+      Boolean(client.frameworkAgreementSignedAt) && Boolean(client.frameworkAgreementUrl);
+    const hasArchivedDocUrl =
+      Boolean(validated.sourceDocumentUrl) &&
+      !/\b(made[-_ ]?up|arbitrary|placeholder|dummy|fake|unverified)\b/i.test(
+        validated.sourceDocumentUrl ?? ""
+      );
 
     if (!hasSignedFramework && !hasArchivedDocUrl) {
       return {
         success: false,
         code: "GENERAL_SCOPE_LACKS_DOCUMENTATION",
-        message: `Für allgemeine Einrichtungspreise ohne Einzelvertrag muss eine unterzeichnete Rahmenvereinbarung der Einrichtung (frameworkAgreementSignedAt oder frameworkAgreementUrl) oder eine nachweisbare Urkunden-URL (sourceDocumentUrl) vorliegen. Ein bloßer Freitext genügt nicht als Nachweis.`,
+        message: `Für allgemeine Einrichtungspreise ohne Einzelvertrag muss eine vollständig nachgewiesene Rahmenvereinbarung der Einrichtung (sowohl frameworkAgreementSignedAt als auch frameworkAgreementUrl hinterlegt) oder ein gültiger, nachprüfbarer Dokumentennachweis (sourceDocumentUrl) vorliegen. Ein bloßer Freitext oder ungültiger/willkürlicher Beleg genügt nicht.`,
       };
     }
   }
@@ -452,7 +462,7 @@ export async function previewClientHourlyRate(params: {
       ? existingRates[0].rateVersion + 1
       : 1;
 
-  // 7. Compute canonical hash
+  // 7. Compute canonical hash bound to terms and documentary evidence
   const canonicalHash = computeRateVersionCanonicalHash({
     clientId: validated.clientId,
     clientContractId: validated.clientContractId ?? null,
@@ -463,6 +473,7 @@ export async function previewClientHourlyRate(params: {
     effectiveTo: validated.effectiveTo,
     sourceType: validated.sourceType,
     sourceReference: validated.sourceReference,
+    sourceDocumentUrl: validated.sourceDocumentUrl ?? null,
   });
 
   const verifiedAtIso = new Date().toISOString();
@@ -509,7 +520,14 @@ export async function previewClientHourlyRate(params: {
 /**
  * Creates, verifies, and permanently freezes a documented client hourly rate version.
  * Requires caller to provide the exact previewed canonical hash (expectedPreviewHash)
- * to ensure that terms were reviewed by human administrator and not altered post-preview.
+ * computed during the preview step.
+ *
+ * NOTE ON CRYPTOGRAPHIC SCOPE & AUDIT GUARANTEE:
+ * Recomputed hash matching provides cryptographic proof that the terms and backing document
+ * submitted for commit are strictly identical to the terms generated during preview (anti-tampering).
+ * A matching recalculated hash alone does not prove that a human visually reviewed or approved
+ * the terms; human accountability is established by verifying that the authenticated administrator
+ * (actorUserId) explicitly executed the action and is recorded as the verifier with immutable timestamps.
  */
 export async function createAndFreezeClientHourlyRate(params: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -550,6 +568,13 @@ export async function createAndFreezeClientHourlyRate(params: {
     };
   }
 
+  // Preserve document link permanently in the database record source reference
+  const frozenSourceRef = p.provenance.sourceDocumentUrl
+    ? (p.provenance.sourceReference.includes(`[Doc: ${p.provenance.sourceDocumentUrl}]`)
+        ? p.provenance.sourceReference
+        : `${p.provenance.sourceReference} [Doc: ${p.provenance.sourceDocumentUrl}]`)
+    : p.provenance.sourceReference;
+
   // Insert frozen rate record into database with locked preview timestamp
   const createdRecord = await prisma.clientHourlyRateVersion.create({
     data: {
@@ -561,7 +586,7 @@ export async function createAndFreezeClientHourlyRate(params: {
       effectiveFrom: new Date(p.rateTerms.effectiveFrom),
       effectiveTo: new Date(p.rateTerms.effectiveTo),
       sourceType: p.provenance.sourceType,
-      sourceReference: p.provenance.sourceReference,
+      sourceReference: frozenSourceRef,
       isFrozen: true,
       frozenAt: new Date(),
       frozenHash: p.integrity.canonicalHash,

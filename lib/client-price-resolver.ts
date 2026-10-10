@@ -101,6 +101,7 @@ export function computeRateVersionCanonicalHash(terms: {
   effectiveTo: string | null; // YYYY-MM-DD
   sourceType: string;
   sourceReference: string;
+  sourceDocumentUrl?: string | null;
 }): string {
   const canonicalObject = {
     clientId: terms.clientId,
@@ -110,6 +111,7 @@ export function computeRateVersionCanonicalHash(terms: {
     hourlyRateInCents: terms.hourlyRateInCents,
     qualification: terms.qualification.trim().toLowerCase(),
     rateVersion: terms.rateVersion,
+    sourceDocumentUrl: terms.sourceDocumentUrl ? terms.sourceDocumentUrl.trim() : null,
     sourceReference: terms.sourceReference.trim(),
     sourceType: terms.sourceType,
   };
@@ -264,6 +266,10 @@ export async function resolveClientPriceVersion(
     }
 
     // Anti-tampering check: calculate canonical hash and compare
+    const docMatch = record.sourceReference.match(/^(.*?)\s*\[Doc:\s*(.*?)\]$/);
+    const cleanSourceRef = docMatch ? docMatch[1].trim() : record.sourceReference;
+    const docUrl = docMatch ? docMatch[2].trim() : null;
+
     const expectedHash = computeRateVersionCanonicalHash({
       clientId: record.clientId,
       clientContractId: record.clientContractId,
@@ -273,7 +279,8 @@ export async function resolveClientPriceVersion(
       effectiveFrom: fromIso,
       effectiveTo: toIso,
       sourceType: record.sourceType ?? "contract",
-      sourceReference: record.sourceReference,
+      sourceReference: cleanSourceRef,
+      sourceDocumentUrl: docUrl,
     });
 
     if (record.frozenHash !== expectedHash) {

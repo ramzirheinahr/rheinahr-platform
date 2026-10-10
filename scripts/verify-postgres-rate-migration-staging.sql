@@ -80,7 +80,7 @@ INSERT INTO "clients" (
 INSERT INTO "client_contracts" (
     "id", "client_id", "status", "period", "signed_at", "document_url", "created_at", "updated_at"
 ) VALUES (
-    'test-contract-staging-5b2a', 'test-client-staging-5b2a', 'active', '2026-Q1/Q2', NOW(), 'https://storage/contract.pdf', NOW(), NOW()
+    'test-contract-staging-5b2a', 'test-client-staging-5b2a', 'signed', '2026-Q1/Q2', NOW(), 'https://storage/contract.pdf', NOW(), NOW()
 ) ON CONFLICT ("id") DO NOTHING;
 
 -- 4. Test Case 1: Insert valid frozen rate for contract scope
