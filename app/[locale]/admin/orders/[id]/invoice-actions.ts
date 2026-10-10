@@ -94,7 +94,7 @@ export async function sendInvoiceEmail({
   });
 
   // Track email dispatch in snapshotData
-  const currentSnapshot = (invoice.snapshotData as any) || {};
+  const currentSnapshot = (invoice.snapshotData as Record<string, unknown>) || {};
   await prisma.invoice.update({
     where: { id: invoice.id },
     data: {
@@ -228,7 +228,7 @@ export async function refreshInvoice(invoiceId: string) {
   const vatAmount = parseAmt(pdfData.taxAmount);
   const grossAmount = parseAmt(pdfData.total);
 
-  const currentSnapshot = (invoice.snapshotData as any) || {};
+  const currentSnapshot = (invoice.snapshotData as Record<string, unknown>) || {};
 
   await prisma.invoice.update({
     where: { id: invoiceId },
@@ -332,16 +332,23 @@ export async function generateOrderInvoices(
       periodLabel = `${formatDate(firstDate)} – ${formatDate(lastDate)}`;
     }
 
-    // In-app notification
-    await prisma.notification.create({
-      data: {
-        userId: client.userId,
-        type: "order_status_changed",
-        channel: "in_app",
-        content: `Eine neue Rechnung (${invoice.invoiceNumber}) für die Bestellung (${periodLabel}) steht zur Verfügung.`,
-        link: requestGroupId ? `/client/orders/${requestGroupId}` : "/client/invoices",
-      },
-    });
+    // In-app notification (isolated from invoice commit)
+    let notificationStatus: "sent" | "failed" | "skipped" = "skipped";
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: client.userId,
+          type: "order_status_changed",
+          channel: "in_app",
+          content: `Eine neue Rechnung (${invoice.invoiceNumber}) für die Bestellung (${periodLabel}) steht zur Verfügung.`,
+          link: requestGroupId ? `/client/orders/${requestGroupId}` : "/client/invoices",
+        },
+      });
+      notificationStatus = "sent";
+    } catch (notifErr) {
+      notificationStatus = "failed";
+      console.error("Fehler beim Erstellen der In-App-Benachrichtigung:", notifErr);
+    }
 
     // Email dispatch strictly AFTER successful transaction commit
     let emailDispatchStatus: EmailDispatchStatus = "not_requested";
@@ -420,7 +427,7 @@ export async function generateOrderInvoices(
     }
 
     revalidatePath("/", "layout");
-    return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport };
+    return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport, notificationStatus };
   }
 
   // Find all invoiceable assignments
@@ -512,6 +519,7 @@ export async function generateOrderInvoices(
         nightEnd: client.nightEnd,
         paymentTermsDays: client.paymentTermsDays,
         calculationVersion: CALCULATION_VERSIONS.LEGACY_V1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any
     }
   });
@@ -555,6 +563,7 @@ export async function generateOrderInvoices(
         isFrozen: true,
         frozenAt: new Date().toISOString(),
         calculationVersion: CALCULATION_VERSIONS.LEGACY_V1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any
     }
   });

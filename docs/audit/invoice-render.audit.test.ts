@@ -25,7 +25,13 @@ const base: InvoicePdfData = {
 };
 const scratchPath = mkdtempSync(join(tmpdir(), "rheinahr-invoice-audit-"));
 const directory = pathToFileURL(scratchPath + "/");
-afterAll(() => rmSync(scratchPath, { recursive: true }));
+afterAll(() => {
+  try {
+    rmSync(scratchPath, { recursive: true, force: true });
+  } catch {
+    // Ignore cleanup errors in restricted review environments
+  }
+});
 describe("actual invoice template rendering", () => {
   it("renders the irregular-minute sample", async () => {
     mkdirSync(directory, { recursive: true });

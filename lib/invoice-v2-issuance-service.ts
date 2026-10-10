@@ -63,6 +63,53 @@ export class ConcurrentModificationError extends Error {
   }
 }
 
+export class StaleDraftError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "StaleDraftError";
+    this.code = code;
+  }
+}
+
+export function computeV2DraftHash(draftResult: V2InvoiceDraftResult): string {
+  if (draftResult.status !== "resolved") return "";
+  const parts: string[] = [];
+  for (const a of draftResult.provenance.assignments) {
+    parts.push(
+      [
+        a.assignmentId,
+        a.orderId,
+        a.workerId,
+        a.qualification,
+        a.effectiveHoursVersion,
+        a.effectiveHours,
+        a.effectiveStartTime,
+        a.effectiveEndTime,
+        a.effectiveBreakMinutes,
+        a.priceVersionId,
+        a.policyFrozenHash,
+      ].join(":")
+    );
+  }
+  for (const item of draftResult.items) {
+    parts.push(
+      [
+        item.pos,
+        item.workerId,
+        item.hoursDisplay,
+        item.rateCents,
+        item.amountCents,
+        item.amountDisplay,
+      ].join(":")
+    );
+  }
+  parts.push(`subtotal:${draftResult.totals.subtotalCents}`);
+  parts.push(`tax:${draftResult.totals.taxAmountCents}`);
+  parts.push(`total:${draftResult.totals.totalCents}`);
+  return parts.join("|");
+}
+
 export type IssueV2InvoiceOptions = {
   assignmentIds: string[];
   customInvoiceNumber?: string;
@@ -90,6 +137,8 @@ export type V2IssuanceDependencies = V2DraftDependencies & {
     input: PrepareV2InvoiceDraftInput,
     deps?: V2DraftDependencies
   ) => Promise<V2InvoiceDraftResult>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  txAuditLogFn?: (params: any, tx: any) => Promise<any>;
 };
 
 export type IssueV2InvoiceSuccess = {
@@ -127,6 +176,7 @@ export type IssueV2InvoiceFailureCode =
   | "ORDER_SCOPE_MISMATCH"
   | "DRAFT_UNRESOLVED"
   | "DRAFT_MUTATION_DETECTED"
+  | "STALE_DRAFT_DETECTED"
   | "CONCURRENT_MODIFICATION"
   | "INVOICE_NUMBER_CONFLICT"
   | "TRANSACTION_FAILED";
@@ -149,7 +199,6 @@ export async function issueV2Invoice(
 ): Promise<IssueV2InvoiceResult> {
   const db = deps.prisma ?? prisma;
   const roleChecker = deps.requireRoleFn ?? requireRole;
-  const auditLogger = deps.auditFn ?? audit;
   const numGenerator = deps.generateInvoiceNumberFn ?? generateUniqueInvoiceNumber;
 
   // 1. Check feature flag
@@ -339,11 +388,11 @@ export async function issueV2Invoice(
     }
   }
 
-  // 5. Prepare modern V2 draft purely in read-only mode
+  // 5. Prepare modern V2 draft initially in read-only mode (pre-transaction check)
   const prepareDraft =
     deps?.prepareDraftFn ??
     (await import("@/lib/invoice-v2-draft-service")).prepareV2InvoiceDraft;
-  const draftResult: V2InvoiceDraftResult = await prepareDraft(
+  const preDraftResult: V2InvoiceDraftResult = await prepareDraft(
     {
       assignmentIds,
       customPeriodStart: opts.customPeriodStart,
@@ -352,47 +401,24 @@ export async function issueV2Invoice(
     deps
   );
 
-  if (draftResult.status === "unresolved") {
+  if (preDraftResult.status === "unresolved") {
     return {
       success: false,
       code: "DRAFT_UNRESOLVED",
-      message: `V2-Berechnung konnte nicht aufgelöst werden [${draftResult.code}]: ${draftResult.message}`,
-      diagnostics: draftResult.diagnostics,
+      message: `V2-Berechnung konnte nicht aufgelöst werden [${preDraftResult.code}]: ${preDraftResult.message}`,
+      diagnostics: preDraftResult.diagnostics,
     };
   }
 
-  // If a draft hash was expected from a previous preview, verify anti-mutation integrity
-  if (opts.expectedDraftHash) {
-    // Generate simple deterministic representation or compare directly
-    const computedHash = draftResult.provenance.assignments
-      .map((a) => `${a.assignmentId}:${a.effectiveHoursVersion}:${a.priceVersionId}:${a.policyFrozenHash}`)
-      .join("|");
-    if (computedHash !== opts.expectedDraftHash) {
-      return {
-        success: false,
-        code: "DRAFT_MUTATION_DETECTED",
-        message:
-          "Die Berechnungsdaten (Stunden, Preise oder Richtlinien) haben sich seit der Vorschau geändert. Bitte neu prüfen.",
-      };
-    }
-  }
+  const preDraftHash = computeV2DraftHash(preDraftResult);
 
-  // 6. Compute exact invoice numbers and amounts
-  const { totals } = draftResult;
-  const netAmount = totals.subtotalCents / 100;
-  const vatAmount = totals.taxAmountCents / 100;
-  const grossAmount = totals.totalCents / 100;
-
-  // Mathematical and parity safety check
-  if (
-    Math.round(netAmount * 100) !== totals.subtotalCents ||
-    Math.round(vatAmount * 100) !== totals.taxAmountCents ||
-    Math.round(grossAmount * 100) !== totals.totalCents
-  ) {
+  // If a draft hash was expected from a previous preview, verify anti-mutation integrity upfront
+  if (opts.expectedDraftHash && opts.expectedDraftHash !== preDraftHash) {
     return {
       success: false,
-      code: "TRANSACTION_FAILED",
-      message: "Mathematischer Rundungsfehler bei der Cent-zu-Euro-Konvertierung.",
+      code: "STALE_DRAFT_DETECTED",
+      message:
+        "Die Berechnungsdaten (Stunden, Preise oder Richtlinien) haben sich seit der Vorschau geändert. Bitte neu prüfen.",
     };
   }
 
@@ -418,22 +444,72 @@ export async function issueV2Invoice(
   }
 
   const issuedAt = new Date().toISOString();
-  const frozenSnapshotData: V2InvoiceDraftSnapshotData & {
-    issuedAt: string;
-    issuedByUserId: string;
-    isFrozen: true;
-  } = {
-    ...draftResult.snapshotData,
-    issuedAt,
-    issuedByUserId,
-    isFrozen: true,
-    calculationVersion: "v2",
-  };
 
-  // 7. Execute atomic database transaction
+  // 6. Execute atomic database transaction with strict in-transaction verification & audit log
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const createdInvoice = await db.$transaction(async (tx: any) => {
+    const txResult = await db.$transaction(async (tx: any) => {
+      // Re-verify the draft INSIDE the transaction using tx to guarantee zero stale data
+      const inTxDraftResult = await prepareDraft(
+        {
+          assignmentIds,
+          customPeriodStart: opts.customPeriodStart,
+          customPeriodEnd: opts.customPeriodEnd,
+        },
+        { ...deps, prisma: tx }
+      );
+
+      if (inTxDraftResult.status === "unresolved") {
+        throw new StaleDraftError(
+          "DRAFT_UNRESOLVED",
+          `V2-Berechnung konnte innerhalb der Transaktion nicht aufgelöst werden [${inTxDraftResult.code}]: ${inTxDraftResult.message}`
+        );
+      }
+
+      const inTxDraftHash = computeV2DraftHash(inTxDraftResult);
+
+      // Verify that in-tx draft hash matches pre-tx draft hash
+      if (inTxDraftHash !== preDraftHash) {
+        throw new StaleDraftError(
+          "STALE_DRAFT_DETECTED",
+          "Die Berechnungsdaten (Stunden, Preise, Schichtzeiten oder Richtlinien) haben sich zwischen Entwurfsvorbereitung und Transaktionsbeginn geändert (Stale Draft). Die Transaktion wird abgebrochen."
+        );
+      }
+
+      // If an expected draft hash was specified by the caller, verify it against the in-tx draft
+      if (opts.expectedDraftHash && inTxDraftHash !== opts.expectedDraftHash) {
+        throw new StaleDraftError(
+          "DRAFT_MUTATION_DETECTED",
+          "Die Berechnungsdaten innerhalb der Transaktion weichen vom erwarteten Entwurfshash ab."
+        );
+      }
+
+      const { totals } = inTxDraftResult;
+      const netAmount = totals.subtotalCents / 100;
+      const vatAmount = totals.taxAmountCents / 100;
+      const grossAmount = totals.totalCents / 100;
+
+      // Mathematical and parity safety check
+      if (
+        Math.round(netAmount * 100) !== totals.subtotalCents ||
+        Math.round(vatAmount * 100) !== totals.taxAmountCents ||
+        Math.round(grossAmount * 100) !== totals.totalCents
+      ) {
+        throw new Error("Mathematischer Rundungsfehler bei der Cent-zu-Euro-Konvertierung.");
+      }
+
+      const frozenSnapshotData: V2InvoiceDraftSnapshotData & {
+        issuedAt: string;
+        issuedByUserId: string;
+        isFrozen: true;
+      } = {
+        ...inTxDraftResult.snapshotData,
+        issuedAt,
+        issuedByUserId,
+        isFrozen: true,
+        calculationVersion: "v2",
+      };
+
       // Create Invoice
       const invoice = await tx.invoice.create({
         data: {
@@ -467,45 +543,103 @@ export async function issueV2Invoice(
         );
       }
 
-      // Record audit within transaction
-      await auditLogger({
-        userId: issuedByUserId,
-        action: "invoice.generate_v2",
-        entity: "Invoice",
-        entityId: invoice.id,
-        metadata: {
-          calculationVersion: "v2",
-          assignmentCount: assignmentIds.length,
-          netAmount,
-          vatAmount,
-          grossAmount,
-          subtotalCents: totals.subtotalCents,
-          taxAmountCents: totals.taxAmountCents,
-          totalCents: totals.totalCents,
-        },
-      });
+      // Record audit directly on tx to guarantee transactional atomicity
+      if (deps?.txAuditLogFn) {
+        await deps.txAuditLogFn(
+          {
+            userId: issuedByUserId,
+            action: "invoice.generate_v2",
+            entity: "Invoice",
+            entityId: invoice.id,
+            metadata: {
+              calculationVersion: "v2",
+              assignmentCount: assignmentIds.length,
+              netAmount,
+              vatAmount,
+              grossAmount,
+              subtotalCents: totals.subtotalCents,
+              taxAmountCents: totals.taxAmountCents,
+              totalCents: totals.totalCents,
+            },
+          },
+          tx
+        );
+      } else if (deps?.auditFn) {
+        await deps.auditFn({
+          userId: issuedByUserId,
+          action: "invoice.generate_v2",
+          entity: "Invoice",
+          entityId: invoice.id,
+          metadata: {
+            calculationVersion: "v2",
+            assignmentCount: assignmentIds.length,
+            netAmount,
+            vatAmount,
+            grossAmount,
+            subtotalCents: totals.subtotalCents,
+            taxAmountCents: totals.taxAmountCents,
+            totalCents: totals.totalCents,
+          },
+        });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } else if ((tx as any).auditLog?.create) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (tx as any).auditLog.create({
+          data: {
+            userId: issuedByUserId,
+            action: "invoice.generate_v2",
+            entity: "Invoice",
+            entityId: invoice.id,
+            metadata: {
+              calculationVersion: "v2",
+              assignmentCount: assignmentIds.length,
+              netAmount,
+              vatAmount,
+              grossAmount,
+              subtotalCents: totals.subtotalCents,
+              taxAmountCents: totals.taxAmountCents,
+              totalCents: totals.totalCents,
+            },
+          },
+        });
+      }
 
-      return invoice;
+      return {
+        invoice,
+        totals,
+        netAmount,
+        vatAmount,
+        grossAmount,
+        frozenSnapshotData,
+      };
     });
 
     return {
       success: true,
-      invoiceId: createdInvoice.id,
-      invoiceNumber: createdInvoice.invoiceNumber,
+      invoiceId: txResult.invoice.id,
+      invoiceNumber: txResult.invoice.invoiceNumber,
       clientId,
-      netAmount,
-      vatAmount,
-      grossAmount,
-      subtotalCents: totals.subtotalCents,
-      taxAmountCents: totals.taxAmountCents,
-      totalCents: totals.totalCents,
+      netAmount: txResult.netAmount,
+      vatAmount: txResult.vatAmount,
+      grossAmount: txResult.grossAmount,
+      subtotalCents: txResult.totals.subtotalCents,
+      taxAmountCents: txResult.totals.taxAmountCents,
+      totalCents: txResult.totals.totalCents,
       assignmentCount: assignmentIds.length,
       calculationVersion: "v2",
       issuedAt,
       issuedByUserId,
-      snapshotData: frozenSnapshotData,
+      snapshotData: txResult.frozenSnapshotData,
     };
   } catch (txErr: unknown) {
+    if (txErr instanceof StaleDraftError) {
+      return {
+        success: false,
+        code: txErr.code as IssueV2InvoiceFailureCode,
+        message: txErr.message,
+      };
+    }
+
     if (txErr instanceof ConcurrentModificationError) {
       return {
         success: false,

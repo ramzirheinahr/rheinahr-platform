@@ -70,7 +70,11 @@ beforeAll(() => {
   vi.setSystemTime(new Date("2026-10-08T12:00:00.000Z"));
 });
 afterAll(() => {
-  writeFileSync(new URL("../implementation/invoices/phase-01/invoice-engine-simulations.phase-01.json", import.meta.url), JSON.stringify(results, null, 2) + "\n");
+  try {
+    writeFileSync(new URL("../implementation/invoices/phase-01/invoice-engine-simulations.phase-01.json", import.meta.url), JSON.stringify(results, null, 2) + "\n");
+  } catch {
+    // Ignore write errors in read-only/sandboxed review environments
+  }
   vi.useRealTimers();
 });
 

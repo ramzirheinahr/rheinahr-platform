@@ -176,6 +176,10 @@ export type V2InvoiceDraftAssignmentProvenance = {
   shiftDate: string;
   effectiveHoursVersion: string;
   effectiveHoursSource: string;
+  effectiveHours?: number;
+  effectiveStartTime?: string;
+  effectiveEndTime?: string;
+  effectiveBreakMinutes?: number;
   policyId: string;
   policyVersion: number;
   policyFrozenHash: string;
@@ -969,6 +973,10 @@ export async function prepareV2InvoiceDraft(
       shiftDate: shiftDateIso,
       effectiveHoursVersion: effectiveHoursData.effectiveVersion,
       effectiveHoursSource: effectiveHoursData.source,
+      effectiveHours: effectiveHoursData.effectiveHours,
+      effectiveStartTime: effectiveHoursData.effectiveStartTime,
+      effectiveEndTime: effectiveHoursData.effectiveEndTime,
+      effectiveBreakMinutes: effectiveHoursData.effectiveBreakMinutes,
       policyId: policySuccess.policyId,
       policyVersion: policySuccess.policyVersion,
       policyFrozenHash: policySuccess.frozenHash,

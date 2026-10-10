@@ -31,7 +31,11 @@ export async function generateMonthInvoices(
   customInvoiceNumber?: string,
   recipients?: string[],
   attachTimesheets: boolean = true,
-  sendEmail: boolean = false
+  sendEmail: boolean = false,
+  options?: {
+    expectedAssignmentIds?: string[];
+    expectedDraftHash?: string;
+  }
 ) {
   const user = await requireRole("de", "admin"); // Locale doesn't matter for role check here
   
@@ -63,9 +67,25 @@ export async function generateMonthInvoices(
     }
 
     const assignmentIds = unbilledMonthAssignments.map(a => a.id);
+
+    // Verify previewed assignment set consistency (Finding 4)
+    if (options?.expectedAssignmentIds) {
+      const currentSet = new Set(assignmentIds);
+      const expectedSet = new Set(options.expectedAssignmentIds);
+      const hasMismatch =
+        currentSet.size !== expectedSet.size ||
+        options.expectedAssignmentIds.some((id) => !currentSet.has(id));
+      if (hasMismatch) {
+        throw new Error(
+          `[MONTH_ASSIGNMENT_SET_MUTATED] Die Schichten für den Abrechnungsmonat (${month}/${year}) haben sich seit der Vorschau geändert (erwartet: ${options.expectedAssignmentIds.length}, aktuell: ${assignmentIds.length}). Bitte aktualisieren Sie die Monatsvorschau.`
+        );
+      }
+    }
+
     const issueRes = await issueV2Invoice({
       assignmentIds,
       customInvoiceNumber,
+      expectedDraftHash: options?.expectedDraftHash,
       monthScope: { clientId, year, month },
     });
 
@@ -93,16 +113,23 @@ export async function generateMonthInvoices(
 
     const monthStr = String(month).padStart(2, "0");
 
-    // In-app notification
-    await prisma.notification.create({
-      data: {
-        userId: client.userId,
-        type: "order_status_changed",
-        channel: "in_app",
-        content: `Eine neue Monatsrechnung (${invoice.invoiceNumber}) für ${monthStr}/${year} steht zur Verfügung.`,
-        link: "/client/invoices"
-      }
-    });
+    // In-app notification (isolated from invoice commit)
+    let notificationStatus: "sent" | "failed" | "skipped" = "skipped";
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: client.userId,
+          type: "order_status_changed",
+          channel: "in_app",
+          content: `Eine neue Monatsrechnung (${invoice.invoiceNumber}) für ${monthStr}/${year} steht zur Verfügung.`,
+          link: "/client/invoices"
+        }
+      });
+      notificationStatus = "sent";
+    } catch (notifErr) {
+      notificationStatus = "failed";
+      console.error("Fehler beim Erstellen der In-App-Benachrichtigung:", notifErr);
+    }
 
     // Email dispatch strictly AFTER successful commit
     let emailDispatchStatus: EmailDispatchStatus = "not_requested";
@@ -180,7 +207,7 @@ export async function generateMonthInvoices(
     }
 
     revalidatePath("/", "layout");
-    return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport };
+    return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport, notificationStatus };
   }
 
   // We only invoice shifts that are confirmed and have NO invoice yet.
@@ -254,6 +281,7 @@ export async function generateMonthInvoices(
         nightEnd: client.nightEnd,
         paymentTermsDays: client.paymentTermsDays,
         calculationVersion: CALCULATION_VERSIONS.LEGACY_V1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any
     }
   });
@@ -296,6 +324,7 @@ export async function generateMonthInvoices(
         isFrozen: true,
         frozenAt: new Date().toISOString(),
         calculationVersion: CALCULATION_VERSIONS.LEGACY_V1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any
     }
   });

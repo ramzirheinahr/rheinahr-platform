@@ -13,6 +13,23 @@ import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client"
 
 import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 
+export function parseGermanCurrencyStringToCents(val: unknown): number {
+  if (typeof val !== "string" && typeof val !== "number") {
+    throw new Error(`Ungültiger Betragswert (weder String noch Zahl): ${typeof val}`);
+  }
+  const str = String(val).trim().replace(/\s*€$/, "").trim();
+  if (!str) {
+    throw new Error("Leerer Betragswert kann nicht in Cent umgewandelt werden.");
+  }
+  // Standard German number formatting: e.g. "1.234,56" or "5,68"
+  const normalized = str.replace(/\./g, "").replace(",", ".");
+  const num = Number(normalized);
+  if (!Number.isFinite(num)) {
+    throw new Error(`Ungültiger numerischer Betrag: "${val}"`);
+  }
+  return Math.round(num * 100);
+}
+
 export function buildInvoicePdfData(
   invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount"> & {
     snapshotData?: unknown;
@@ -72,14 +89,94 @@ export function buildInvoicePdfData(
       );
     }
 
-    // Clean items so rate never has duplicate €
-    const sanitizedItems = (snapshot.pdfItems as Record<string, unknown>[]).map((item) => ({
-      pos: Number(item.pos),
-      description: String(item.description),
-      hours: String(item.hours),
-      rate: typeof item.rate === "string" ? item.rate.replace(/\s*€$/, "").trim() : String(item.rate),
-      amount: typeof item.amount === "string" ? item.amount.trim() : String(item.amount),
-    }));
+    // Parity check between string representations and cent values
+    if (
+      typeof snapshot.subtotal !== "string" ||
+      parseGermanCurrencyStringToCents(snapshot.subtotal) !== subtotalCents
+    ) {
+      throw new Error(
+        `Corrupted V2 invoice: snapshotData.subtotal ("${snapshot.subtotal}") stimmt nicht mit subtotalCents (${subtotalCents}) überein.`
+      );
+    }
+    if (
+      typeof snapshot.taxAmount !== "string" ||
+      parseGermanCurrencyStringToCents(snapshot.taxAmount) !== taxAmountCents
+    ) {
+      throw new Error(
+        `Corrupted V2 invoice: snapshotData.taxAmount ("${snapshot.taxAmount}") stimmt nicht mit taxAmountCents (${taxAmountCents}) überein.`
+      );
+    }
+    if (
+      typeof snapshot.total !== "string" ||
+      parseGermanCurrencyStringToCents(snapshot.total) !== totalCents
+    ) {
+      throw new Error(
+        `Corrupted V2 invoice: snapshotData.total ("${snapshot.total}") stimmt nicht mit totalCents (${totalCents}) überein.`
+      );
+    }
+
+    // Clean items and verify row amounts
+    let sumPdfItemsCents = 0;
+    const sanitizedItems = (snapshot.pdfItems as Record<string, unknown>[]).map((item, idx) => {
+      const pos = Number(item.pos);
+      if (!Number.isSafeInteger(pos) || pos <= 0) {
+        throw new Error(`Corrupted V2 invoice: Ungültige Zeilenposition in pdfItems an Index ${idx}: ${item.pos}`);
+      }
+      const desc = String(item.description || "").trim();
+      if (!desc) {
+        throw new Error(`Corrupted V2 invoice: Fehlende Zeilenbeschreibung in pdfItems bei Position ${pos}.`);
+      }
+      const hours = String(item.hours || "").trim();
+      if (!hours) {
+        throw new Error(`Corrupted V2 invoice: Fehlende Stundenangabe in pdfItems bei Position ${pos}.`);
+      }
+      const rate = typeof item.rate === "string" ? item.rate.replace(/\s*€$/, "").trim() : String(item.rate ?? "").trim();
+      if (!rate) {
+        throw new Error(`Corrupted V2 invoice: Fehlender Stundensatz in pdfItems bei Position ${pos}.`);
+      }
+      const amountStr = typeof item.amount === "string" ? item.amount.trim() : String(item.amount ?? "").trim();
+      if (!amountStr) {
+        throw new Error(`Corrupted V2 invoice: Fehlender Betrag in pdfItems bei Position ${pos}.`);
+      }
+
+      const itemCents = parseGermanCurrencyStringToCents(amountStr);
+      sumPdfItemsCents += itemCents;
+
+      return {
+        pos,
+        description: desc,
+        hours,
+        rate,
+        amount: amountStr,
+      };
+    });
+
+    if (sumPdfItemsCents !== subtotalCents) {
+      throw new Error(
+        `Corrupted V2 invoice line item sum mismatch: sum of pdfItems amounts (${sumPdfItemsCents} Cent) does not match frozen subtotalCents (${subtotalCents} Cent).`
+      );
+    }
+
+    // If snapshot.items exists, verify 1-to-1 parity between calculated items and pdfItems
+    if (Array.isArray(snapshot.items)) {
+      if (snapshot.items.length !== sanitizedItems.length) {
+        throw new Error(
+          `Corrupted V2 invoice items count mismatch: snapshotData.items (${snapshot.items.length}) does not match pdfItems (${sanitizedItems.length}).`
+        );
+      }
+      for (let i = 0; i < sanitizedItems.length; i++) {
+        const snapItem = snapshot.items[i] as Record<string, unknown> | undefined;
+        const pdfItem = sanitizedItems[i];
+        if (snapItem && typeof snapItem.amountCents === "number") {
+          const pdfItemCents = parseGermanCurrencyStringToCents(pdfItem.amount);
+          if (snapItem.amountCents !== pdfItemCents) {
+            throw new Error(
+              `Corrupted V2 invoice item amount mismatch at pos ${pdfItem.pos}: snapshotData.items.amountCents (${snapItem.amountCents}) does not match pdfItems amount (${pdfItemCents} Cent).`
+            );
+          }
+        }
+      }
+    }
 
     return {
       invoiceNumber: invoice.invoiceNumber,
