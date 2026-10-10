@@ -64,8 +64,17 @@ function advanceCalendarDay(dateIso: string): string {
 
 function isValidIsoDateString(d: unknown): boolean {
   if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
-  const parsed = Date.parse(d);
-  return !isNaN(parsed);
+  const [yStr, mStr, dStr] = d.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  const day = Number(dStr);
+  if (m < 1 || m > 12 || day < 1 || day > 31) return false;
+  const date = new Date(Date.UTC(y, m - 1, day));
+  return (
+    date.getUTCFullYear() === y &&
+    date.getUTCMonth() === m - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
 export type V2InvoicePdfItem = {
@@ -754,19 +763,20 @@ export async function prepareV2InvoiceDraft(
       };
     }
 
-    // 3. Validate price record contractId (Finding 1)
-    if (
-      (assignment.contractId && priceRecord.contractId && assignment.contractId !== priceRecord.contractId) ||
-      (!assignment.contractId && priceRecord.contractId)
-    ) {
+    // 3. Symmetrical validation of contractId
+    const assignmentContractId = assignment.contractId?.trim() || null;
+    const priceContractId = priceRecord.contractId?.trim() || null;
+    if (assignmentContractId !== priceContractId) {
       return {
         status: "unresolved",
         code: "PRICE_UNRESOLVED",
-        message: `Vertragskonflikt bei Preisversion "${priceRecord.priceVersionId}": Preisvertrag "${priceRecord.contractId}" stimmt nicht mit Schichtvertrag "${assignment.contractId || "keiner"}" überein.`,
+        message: assignmentContractId
+          ? `Vertragskonflikt bei Preisversion "${priceRecord.priceVersionId}": Schicht ist an Vertrag "${assignmentContractId}" gebunden, die Preisversion hat jedoch ${priceContractId ? `Vertrag "${priceContractId}"` : "keinen Vertrag"}. Ein preislicher Fallback auf vertragslose Preise ist unzulässig.`
+          : `Vertragskonflikt bei Preisversion "${priceRecord.priceVersionId}": Preisversion ist an Vertrag "${priceContractId}" gebunden, die Schicht hat jedoch keinen Vertrag.`,
         diagnostics: {
           assignmentId: assignment.id,
-          assignmentContractId: assignment.contractId,
-          priceContractId: priceRecord.contractId,
+          assignmentContractId,
+          priceContractId,
           priceVersionId: priceRecord.priceVersionId,
         },
       };

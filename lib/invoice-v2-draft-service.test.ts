@@ -1137,6 +1137,55 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     expect(result.diagnostics.priceContractId).toBe("contract-B");
   });
 
+  it("rejects price record with null contractId for a contract-bound assignment (Codex Review 2 - Finding 1)", async () => {
+    const mockAssignment = {
+      id: "asg-price-ctr-null-mismatch",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1", // ASSIGNMENT IS BOUND TO CONTRACT-1!
+      worker: { id: "w-pcn", fullName: "Vertragspflege Vera", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-pcn",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const contractlessPrice: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      contractId: null, // PRICE HAS NULL CONTRACT!
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(contractlessPrice),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-price-ctr-null-mismatch",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-price-ctr-null-mismatch"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("PRICE_UNRESOLVED");
+    expect(result.diagnostics.assignmentContractId).toBe("contract-1");
+    expect(result.diagnostics.priceContractId).toBe(null);
+  });
+
   it("rejects price record with invalid verification metadata (Finding 1)", async () => {
     const mockAssignment = {
       id: "asg-price-meta-invalid",
@@ -1374,6 +1423,114 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     if (result.status !== "unresolved") return;
 
     expect(result.code).toBe("PRICE_UNRESOLVED");
+  });
+
+  it("rejects impossible calendar dates in price effectiveFrom and effectiveTo (Codex Review 2 - Finding 2)", async () => {
+    const mockAssignment = {
+      id: "asg-impossible-date",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-imp", fullName: "Kalender Klaus", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-imp",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const impossibleTestCases = [
+      { effectiveFrom: "2026-02-31", effectiveTo: null },          // Feb 31 does not exist
+      { effectiveFrom: "2026-02-29", effectiveTo: null },          // 2026 is non-leap year
+      { effectiveFrom: "2026-04-31", effectiveTo: null },          // April 31 does not exist
+      { effectiveFrom: "2026-01-01", effectiveTo: "2026-02-31" },  // Impossible effectiveTo
+      { effectiveFrom: "2026-11-31", effectiveTo: null },          // Nov 31 does not exist
+      { effectiveFrom: "2026-06-31", effectiveTo: null },          // June 31 does not exist
+    ];
+
+    for (const tc of impossibleTestCases) {
+      const badPrice: PriceVersionRecord = {
+        ...STANDARD_PRICE_VERSION,
+        effectiveFrom: tc.effectiveFrom,
+        effectiveTo: tc.effectiveTo,
+      };
+
+      const deps: V2DraftDependencies = {
+        prisma: createMockPrisma([mockAssignment]),
+        priceVersionResolver: vi.fn().mockResolvedValue(badPrice),
+        facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+        effectiveHoursResolver: vi.fn().mockResolvedValue({
+          assignmentId: "asg-impossible-date",
+          effectiveHours: 8.0,
+          effectiveStartTime: "08:00",
+          effectiveEndTime: "16:30",
+          effectiveBreakMinutes: 30,
+          source: "scheduled",
+          effectiveVersion: "v1",
+          isCorrected: false,
+        }),
+      };
+
+      const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-impossible-date"] }, deps);
+      expect(result.status).toBe("unresolved");
+      if (result.status !== "unresolved") continue;
+
+      expect(result.code).toBe("PRICE_UNRESOLVED");
+    }
+  });
+
+  it("accepts valid leap year February 29th in price validity (Codex Review 2 - Finding 2)", async () => {
+    const mockAssignment = {
+      id: "asg-leap-date",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-leap", fullName: "Schaltjahr Sepp", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-leap",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2024-02-29T00:00:00.000Z"), // Leap year shift!
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const leapPrice: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      effectiveFrom: "2024-02-29", // Valid leap day!
+      effectiveTo: "2024-02-29",
+    };
+
+    const leapPolicy = createTestFrozenPolicy({
+      effectiveFrom: "2024-01-01",
+    });
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(leapPrice),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(leapPolicy),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-leap-date",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-leap-date"] }, deps);
+    expect(result.status).toBe("resolved");
   });
 
   // ─────────────────────────────────────────────────────────────
