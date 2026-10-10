@@ -77,6 +77,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       }
 
       // Case A: Stored original PDF file verified and served as-is (exact original bytes)
+      // Case A: Stored original PDF file verified and served as-is (exact original bytes)
       if (prevProvenance.originReliability === "stored_pdf") {
         const filePath =
           prevProvenance.storedPdfInfo?.path ||
@@ -84,72 +85,133 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
           prevProvenance.rawSnapshotData?.pdfUrl ||
           prevProvenance.rawSnapshotData?.pdfFilePath;
 
-        if (filePath && typeof filePath === "string") {
-          const fileCheck = defaultFileVerifier(filePath);
-          if (fileCheck.exists && fileCheck.buffer) {
-            await audit({
-              userId: user.id,
-              action: "invoice.pdf_revision",
-              entity: "InvoiceRevision",
-              entityId: rev1.id,
-              metadata: { invoiceId: id, revisionNumber: 0, source: "stored_original_file" },
-            });
-
-            return new NextResponse(new Uint8Array(fileCheck.buffer), {
-              headers: {
-                "Content-Type": "application/pdf",
-                "Content-Disposition": `${disposition}; filename="Rechnung-${prevProvenance.invoiceNumber || invoice.invoiceNumber}-Original.pdf"`,
-                "X-Document-Source": "stored_original_file",
-                "X-Document-Checksum": prevProvenance.storedPdfInfo?.sha256 || fileCheck.sha256 || "",
-                "Cache-Control": "no-store",
-              },
-            });
-          }
+        if (!filePath || typeof filePath !== "string") {
+          return new NextResponse(
+            "Das archivierte Originaldokument hat keinen hinterlegten Dateipfad.",
+            { status: 409 }
+          );
         }
+
+        const fileCheck = defaultFileVerifier(filePath);
+        if (!fileCheck.exists || !fileCheck.buffer || !fileCheck.sha256 || !fileCheck.byteLength) {
+          return new NextResponse(
+            `Das archivierte Originaldokument wurde nicht auf dem Server gefunden oder ist ungültig: ${fileCheck.reason || "Datei nicht lesbar"}`,
+            { status: 409 }
+          );
+        }
+
+        // Strict checksum and byte length verification against archived metadata
+        const expectedSha256 = prevProvenance.storedPdfInfo?.sha256;
+        const expectedByteLength = prevProvenance.storedPdfInfo?.byteLength;
+
+        if (expectedSha256 && fileCheck.sha256 !== expectedSha256) {
+          return new NextResponse(
+            `Das archivierte Originaldokument wurde auf dem Server verändert oder ist beschädigt (Checksum-Mismatch: erwartet ${expectedSha256}, vorgefunden ${fileCheck.sha256}).`,
+            { status: 409 }
+          );
+        }
+
+        if (expectedByteLength && fileCheck.byteLength !== expectedByteLength) {
+          return new NextResponse(
+            `Das archivierte Originaldokument hat eine abweichende Dateigröße (Größen-Mismatch: erwartet ${expectedByteLength} Bytes, vorgefunden ${fileCheck.byteLength} Bytes).`,
+            { status: 409 }
+          );
+        }
+
+        await audit({
+          userId: user.id,
+          action: "invoice.pdf_revision",
+          entity: "InvoiceRevision",
+          entityId: rev1.id,
+          metadata: { invoiceId: id, revisionNumber: 0, source: "stored_original_file", sha256: fileCheck.sha256 },
+        });
+
+        return new NextResponse(new Uint8Array(fileCheck.buffer), {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `${disposition}; filename="Rechnung-${prevProvenance.invoiceNumber || invoice.invoiceNumber}-Original.pdf"`,
+            "X-Document-Source": "stored_original_file",
+            "X-Document-Checksum": fileCheck.sha256,
+            "Cache-Control": "no-store",
+          },
+        });
       }
 
       // Case B: Regenerated strictly from frozen snapshot data (independent of live client modifications)
-      const frozenClient = prevProvenance.client || {
-        id: invoice.client.id,
-        shortCode: invoice.client.shortCode,
-        internalNumber: invoice.client.internalNumber,
-        facilityName: invoice.client.facilityName,
-        address: invoice.client.address,
-        billingEmail: invoice.client.billingEmail,
-        billingInfo: invoice.client.billingInfo,
-        paymentTermsDays: invoice.client.paymentTermsDays,
-      };
+      if (prevProvenance.originReliability === "frozen_snapshot") {
+        const rawSnap = prevProvenance.rawSnapshotData || prevProvenance;
+        const facilityName =
+          prevProvenance.client?.facilityName ||
+          rawSnap.facilityName ||
+          rawSnap.client?.facilityName;
 
-      const invoiceForRevision = {
-        invoiceNumber: prevProvenance.invoiceNumber || invoice.invoiceNumber,
-        date: prevProvenance.date ? new Date(prevProvenance.date) : invoice.date,
-        netAmount: rev1.previousNetAmount,
-        vatAmount: rev1.previousVatAmount,
-        grossAmount: rev1.previousGrossAmount,
-        snapshotData: prevProvenance.rawSnapshotData || prevProvenance,
-      };
+        const address =
+          prevProvenance.client?.address ||
+          rawSnap.address ||
+          rawSnap.client?.address;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfData = buildInvoicePdfData(invoiceForRevision as any, frozenClient as any, []);
-      const pdfBuffer = await generateInvoicePdf(pdfData);
+        if (!facilityName || !address) {
+          return new NextResponse(
+            "Historische Ausgangsversion unvollständig: Mandantendaten (facilityName oder address) fehlen im archivierten Snapshot.",
+            { status: 422 }
+          );
+        }
 
-      await audit({
-        userId: user.id,
-        action: "invoice.pdf_revision",
-        entity: "InvoiceRevision",
-        entityId: rev1.id,
-        metadata: { invoiceId: id, revisionNumber: 0, source: "regenerated_from_frozen_snapshot" },
-      });
+        const frozenClient = {
+          id: prevProvenance.client?.id || prevProvenance.clientId || "HISTORICAL-CLIENT",
+          shortCode: prevProvenance.client?.shortCode || rawSnap.shortCode || null,
+          internalNumber: prevProvenance.client?.internalNumber || rawSnap.internalNumber || null,
+          facilityName,
+          address,
+          billingEmail: prevProvenance.client?.billingEmail || rawSnap.billingEmail || null,
+          billingInfo: prevProvenance.client?.billingInfo || rawSnap.billingInfo || null,
+          paymentTermsDays: prevProvenance.client?.paymentTermsDays ?? rawSnap.paymentTermsDays ?? 14,
+          hourlyRates: {},
+          surchargeSat: 0,
+          surchargeSun: 0,
+          surchargeHoliday: 0,
+          surchargeNight: 0,
+          nightStart: "22:00",
+          nightEnd: "06:00",
+        };
 
-      return new NextResponse(new Uint8Array(pdfBuffer), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `${disposition}; filename="Rechnung-${prevProvenance.invoiceNumber || invoice.invoiceNumber}-Rev0.pdf"`,
-          "X-Document-Source": "regenerated_from_frozen_snapshot",
-          "X-Document-Is-Byte-Original": "false",
-          "Cache-Control": "no-store",
-        },
-      });
+        const invoiceForRevision = {
+          invoiceNumber: prevProvenance.invoiceNumber || rawSnap.invoiceNumber || invoice.invoiceNumber,
+          date: prevProvenance.date ? new Date(prevProvenance.date) : (rawSnap.date ? new Date(rawSnap.date) : invoice.date),
+          netAmount: rev1.previousNetAmount,
+          vatAmount: rev1.previousVatAmount,
+          grossAmount: rev1.previousGrossAmount,
+          snapshotData: rawSnap,
+        };
+
+        // Strict: Never pass live client or live assignments
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pdfData = buildInvoicePdfData(invoiceForRevision as any, frozenClient as any, []);
+        const pdfBuffer = await generateInvoicePdf(pdfData);
+
+        await audit({
+          userId: user.id,
+          action: "invoice.pdf_revision",
+          entity: "InvoiceRevision",
+          entityId: rev1.id,
+          metadata: { invoiceId: id, revisionNumber: 0, source: "regenerated_from_frozen_snapshot" },
+        });
+
+        return new NextResponse(new Uint8Array(pdfBuffer), {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `${disposition}; filename="Rechnung-${invoiceForRevision.invoiceNumber}-Rev0.pdf"`,
+            "X-Document-Source": "regenerated_from_frozen_snapshot",
+            "X-Document-Is-Byte-Original": "false",
+            "Cache-Control": "no-store",
+          },
+        });
+      }
+
+      return new NextResponse(
+        "Keine verlässliche historische Ausgangsversion (weder gültige Originaldatei noch vollständiger Snapshot).",
+        { status: 422 }
+      );
     }
 
     // Successive Revisions (revisionNumber >= 1)

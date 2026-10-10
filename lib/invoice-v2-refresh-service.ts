@@ -46,6 +46,7 @@ import type {
 import { isV2CalculationVersion } from "./invoice-calculation-version";
 import { formatCentsGerman } from "./invoice-exact-engine";
 import { computeV2DraftHash } from "./invoice-v2-issuance-service";
+import { buildInvoicePdfData } from "./invoice-pdf-builder";
 
 // ============================================================================
 // Error Types
@@ -479,6 +480,7 @@ export type FileVerificationResult = {
   byteLength?: number;
   sha256?: string;
   buffer?: Buffer;
+  realPath?: string;
   reason?: string;
 };
 
@@ -486,7 +488,38 @@ export type FileVerifier = (
   pathOrUrl: string
 ) => Promise<FileVerificationResult> | FileVerificationResult;
 
-export const defaultFileVerifier = (pathOrUrl: string): FileVerificationResult => {
+/**
+ * Returns canonical list of directories permitted to store and serve invoice PDFs.
+ * Protects against arbitrary file path traversal, unauthorized file disclosure, and symlink attacks.
+ */
+export function getAllowedInvoiceStorageRoots(customRoots?: string[]): string[] {
+  const roots: string[] = [];
+  if (customRoots && customRoots.length > 0) {
+    roots.push(...customRoots.map((r) => path.resolve(r)));
+  }
+  if (process.env.INVOICE_STORAGE_ROOT) {
+    roots.push(path.resolve(process.env.INVOICE_STORAGE_ROOT));
+  }
+  roots.push(
+    path.resolve(process.cwd(), "storage/invoices"),
+    path.resolve(process.cwd(), "public/invoices"),
+    path.resolve(process.cwd(), "public/uploads/invoices")
+  );
+  return roots;
+}
+
+/**
+ * Validates whether a file is a genuine, safely stored invoice PDF:
+ * 1. Resolves path safely, strips file://, and rejects arbitrary remote URLs without local storage.
+ * 2. Follows symlinks via fs.realpathSync and verifies that target is inside allowed invoice storage roots.
+ * 3. Enforces size bounds: minimum 100 bytes (smallest valid PDF header+trailer), maximum 25 MB.
+ * 4. Enforces PDF magic bytes check (%PDF-).
+ * 5. Calculates deterministic SHA-256 and byte length.
+ */
+export const defaultFileVerifier = (
+  pathOrUrl: string,
+  options?: { allowedRoots?: string[] }
+): FileVerificationResult => {
   try {
     if (!pathOrUrl || typeof pathOrUrl !== "string" || !pathOrUrl.trim()) {
       return { exists: false, reason: "Dateipfad ist leer." };
@@ -509,41 +542,97 @@ export const defaultFileVerifier = (pathOrUrl: string): FileVerificationResult =
       };
     }
 
-    // 1. Direct absolute path or exact relative path
-    if (fs.existsSync(localPath)) {
-      const stat = fs.statSync(localPath);
-      if (stat.isFile() && stat.size > 0) {
-        const buf = fs.readFileSync(localPath);
-        const sha256 = createHash("sha256").update(buf).digest("hex");
-        return { exists: true, byteLength: stat.size, sha256, buffer: buf };
+    // Candidate paths to check
+    const candidates: string[] = [];
+    if (path.isAbsolute(localPath)) {
+      candidates.push(localPath);
+    } else {
+      candidates.push(
+        path.resolve(process.cwd(), "storage/invoices", localPath.replace(/^\/+/, "")),
+        path.resolve(process.cwd(), "public/invoices", localPath.replace(/^\/+/, "")),
+        path.resolve(process.cwd(), "public/uploads/invoices", localPath.replace(/^\/+/, "")),
+        path.resolve(process.cwd(), "public", localPath.replace(/^\/+/, "")),
+        path.resolve(process.cwd(), localPath)
+      );
+    }
+
+    let existingCandidate: string | null = null;
+    for (const cand of candidates) {
+      if (fs.existsSync(cand)) {
+        existingCandidate = cand;
+        break;
       }
     }
 
-    // 2. Relative to process.cwd() / public
-    const publicPath = path.resolve(process.cwd(), "public", localPath.replace(/^\/+/, ""));
-    if (fs.existsSync(publicPath)) {
-      const stat = fs.statSync(publicPath);
-      if (stat.isFile() && stat.size > 0) {
-        const buf = fs.readFileSync(publicPath);
-        const sha256 = createHash("sha256").update(buf).digest("hex");
-        return { exists: true, byteLength: stat.size, sha256, buffer: buf };
-      }
+    if (!existingCandidate) {
+      return {
+        exists: false,
+        reason: `Datei "${trimmed}" existiert nicht im Dateisystem oder ist nicht erreichbar.`,
+      };
     }
 
-    // 3. Relative to process.cwd()
-    const cwdPath = path.resolve(process.cwd(), localPath.replace(/^\/+/, ""));
-    if (fs.existsSync(cwdPath)) {
-      const stat = fs.statSync(cwdPath);
-      if (stat.isFile() && stat.size > 0) {
-        const buf = fs.readFileSync(cwdPath);
-        const sha256 = createHash("sha256").update(buf).digest("hex");
-        return { exists: true, byteLength: stat.size, sha256, buffer: buf };
-      }
+    // Security Check: Symlink resolution & storage boundary containment
+    let realPath: string;
+    try {
+      realPath = fs.realpathSync(existingCandidate);
+    } catch {
+      return {
+        exists: false,
+        reason: `Datei "${trimmed}" konnte nicht im Dateisystem aufgelöst werden.`,
+      };
     }
+
+    const allowedRoots = options?.allowedRoots || getAllowedInvoiceStorageRoots();
+    const isWithinAllowedRoot = allowedRoots.some((root) => {
+      const normalizedRoot = path.normalize(root);
+      return realPath === normalizedRoot || realPath.startsWith(normalizedRoot + path.sep);
+    });
+
+    if (!isWithinAllowedRoot) {
+      return {
+        exists: false,
+        reason: `Pfad "${trimmed}" liegt außerhalb des zulässigen Rechnungs-Speicherbereichs.`,
+      };
+    }
+
+    const stat = fs.statSync(realPath);
+    if (!stat.isFile()) {
+      return { exists: false, reason: `Pfad "${trimmed}" ist keine reguläre Datei.` };
+    }
+
+    // PDF Size bounds (100 Bytes to 25 MB)
+    if (stat.size < 100) {
+      return { exists: false, reason: "Datei ist zu klein für ein gültiges PDF-Dokument (unter 100 Bytes)." };
+    }
+    if (stat.size > 25 * 1024 * 1024) {
+      return { exists: false, reason: "Datei überschreitet die maximale zulässige Dateigröße von 25 MB." };
+    }
+
+    // PDF Magic Bytes Check (%PDF-)
+    const fd = fs.openSync(realPath, "r");
+    const headerBuf = Buffer.alloc(5);
+    try {
+      fs.readSync(fd, headerBuf, 0, 5, 0);
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    if (headerBuf.toString("utf-8") !== "%PDF-") {
+      return {
+        exists: false,
+        reason: "Datei ist kein valides PDF-Dokument (ungültige PDF-Magic-Bytes; Header '%PDF-' fehlt).",
+      };
+    }
+
+    const fullBuf = fs.readFileSync(realPath);
+    const sha256 = createHash("sha256").update(fullBuf).digest("hex");
 
     return {
-      exists: false,
-      reason: `Datei "${trimmed}" existiert nicht im Dateisystem oder ist leer.`,
+      exists: true,
+      byteLength: stat.size,
+      sha256,
+      buffer: fullBuf,
+      realPath,
     };
   } catch (err) {
     return {
@@ -553,7 +642,50 @@ export const defaultFileVerifier = (pathOrUrl: string): FileVerificationResult =
   }
 };
 
-export function isCompleteFrozenSnapshot(snap: unknown): {
+/**
+ * Safely parses any currency amount (German formatted string, decimal string, or number) into integer cents.
+ */
+export function parseCurrencyAmountToCents(val: unknown): number | null {
+  if (typeof val === "number" && !isNaN(val)) {
+    return Math.round(val * 100);
+  }
+  if (typeof val === "string") {
+    const cleaned = val.replace(/\s*€\s*$/, "").trim();
+    if (!cleaned) return null;
+    // German format: 1.234,56 or 1234,56
+    if (/^-?\d{1,3}(\.\d{3})*,\d{2}$/.test(cleaned) || /^-?\d+,\d{2}$/.test(cleaned)) {
+      const euroStr = cleaned.split(",")[0].replace(/\./g, "");
+      const centStr = cleaned.split(",")[1];
+      const sign = cleaned.startsWith("-") ? -1 : 1;
+      return sign * (Math.abs(parseInt(euroStr, 10)) * 100 + parseInt(centStr, 10));
+    }
+    // Decimal format: 1234.56
+    if (/^-?\d+(\.\d{1,2})?$/.test(cleaned)) {
+      return Math.round(parseFloat(cleaned) * 100);
+    }
+  }
+  return null;
+}
+
+/**
+ * Validates that a frozen snapshot is 100% complete, mathematically consistent,
+ * and guaranteed to produce a reproducible PDF without relying on live DB entities:
+ * 1. Every line item must have description, valid positive hours/quantity, and valid positive amount.
+ * 2. Sum of line item amounts must match snapshot subtotal (tolerance <= 2 cents).
+ * 3. Sum of line item amounts must match database netAmount if provided (tolerance <= 5 cents).
+ * 4. Mandates facilityName, address, and invoice date.
+ * 5. Runs a pre-flight simulation with buildInvoicePdfData to verify renderer viability.
+ */
+export function isCompleteFrozenSnapshot(
+  snap: unknown,
+  invoiceContext?: {
+    netAmount?: number;
+    vatAmount?: number;
+    grossAmount?: number;
+    date?: Date | string;
+    invoiceNumber?: string;
+  }
+): {
   complete: boolean;
   reason?: string;
   sha256?: string;
@@ -578,6 +710,8 @@ export function isCompleteFrozenSnapshot(snap: unknown): {
     };
   }
 
+  let calculatedItemsNetCents = 0;
+
   for (let i = 0; i < items.length; i++) {
     const it = items[i] as Record<string, unknown>;
     if (!it || typeof it !== "object") {
@@ -587,33 +721,33 @@ export function isCompleteFrozenSnapshot(snap: unknown): {
     if (!desc) {
       return { complete: false, reason: `Rechnungsposten #${i + 1} hat keine Bezeichnung (description fehlt).` };
     }
-    const hasHoursOrQty =
-      (typeof it.hours === "number" && !isNaN(it.hours)) ||
-      (typeof it.hours === "string" && it.hours.trim() !== "") ||
-      (typeof it.hoursDisplay === "string" && it.hoursDisplay.trim() !== "") ||
-      (typeof it.hoursDecimal === "string" && it.hoursDecimal.trim() !== "") ||
-      (typeof it.displayHourHundredths === "number" && !isNaN(it.displayHourHundredths)) ||
-      (typeof it.rawMinutes === "number" && !isNaN(it.rawMinutes)) ||
-      (typeof it.quantity === "number" && !isNaN(it.quantity)) ||
-      (typeof it.count === "number" && !isNaN(it.count));
-    const hasTotalOrRate =
-      typeof it.total === "string" ||
-      typeof it.total === "number" ||
-      typeof it.amount === "string" ||
-      typeof it.amountDisplay === "string" ||
-      typeof it.amountCents === "number" ||
-      typeof it.rate === "number" ||
-      typeof it.rate === "string" ||
-      typeof it.rateCents === "number" ||
-      typeof it.rateDisplay === "string" ||
-      typeof it.lineTotal === "number";
 
-    if (!hasHoursOrQty && !hasTotalOrRate) {
-      return { complete: false, reason: `Rechnungsposten #${i + 1} ist unvollständig (Stunden oder Betrag fehlen).` };
+    const hasHours =
+      (typeof it.hours === "number" && !isNaN(it.hours) && it.hours > 0) ||
+      (typeof it.hours === "string" && it.hours.trim() !== "" && (parseCurrencyAmountToCents(it.hours) ?? 0) > 0) ||
+      (typeof it.hoursDisplay === "string" && it.hoursDisplay.trim() !== "") ||
+      (typeof it.hoursDecimal === "string" && it.hoursDecimal.trim() !== "" && parseFloat(it.hoursDecimal) > 0) ||
+      (typeof it.displayHourHundredths === "number" && !isNaN(it.displayHourHundredths) && it.displayHourHundredths > 0) ||
+      (typeof it.rawMinutes === "number" && !isNaN(it.rawMinutes) && it.rawMinutes > 0) ||
+      (typeof it.quantity === "number" && !isNaN(it.quantity) && it.quantity > 0) ||
+      (typeof it.count === "number" && !isNaN(it.count) && it.count > 0);
+
+    let itemAmountCents: number | null = null;
+    if (typeof it.amountCents === "number" && !isNaN(it.amountCents)) {
+      itemAmountCents = it.amountCents;
+    } else {
+      const rawAmount = it.amount ?? it.total ?? it.lineTotal;
+      itemAmountCents = parseCurrencyAmountToCents(rawAmount);
     }
+
+    if (!hasHours || itemAmountCents === null || itemAmountCents <= 0) {
+      return { complete: false, reason: `Rechnungsposten #${i + 1} ist unvollständig (Stunden oder Betrag fehlen oder sind ungültig).` };
+    }
+
+    calculatedItemsNetCents += itemAmountCents;
   }
 
-  // Check client facility
+  // Client Facility Name
   const clientObj = s.client && typeof s.client === "object" ? (s.client as Record<string, unknown>) : null;
   const facility =
     (typeof s.facilityName === "string" ? s.facilityName.trim() : "") ||
@@ -623,17 +757,102 @@ export function isCompleteFrozenSnapshot(snap: unknown): {
     return { complete: false, reason: "Snapshot enthält keine Kundeneinrichtung (facilityName fehlt)." };
   }
 
-  // Check totals
-  const hasTotals =
-    typeof s.subtotal === "string" ||
-    typeof s.subtotalCents === "number" ||
-    typeof s.netAmount === "number" ||
-    typeof s.grossAmount === "number" ||
-    typeof s.total === "string" ||
-    typeof s.totalCents === "number";
+  // Client Address (Mandatory for Reproducible PDF)
+  const address =
+    (typeof s.address === "string" ? s.address.trim() : "") ||
+    (clientObj && typeof clientObj.address === "string" ? clientObj.address.trim() : "");
 
-  if (!hasTotals) {
-    return { complete: false, reason: "Snapshot enthält keine eingefrorenen Summenbeträge." };
+  if (!address) {
+    return { complete: false, reason: "Snapshot enthält keine Kundenadresse (address fehlt)." };
+  }
+
+  // Invoice Date (Mandatory for Reproducible PDF)
+  const rawDate =
+    s.date ||
+    s.invoiceDate ||
+    (invoiceContext?.date
+      ? invoiceContext.date instanceof Date
+        ? invoiceContext.date.toISOString()
+        : String(invoiceContext.date)
+      : null);
+
+  if (!rawDate) {
+    return { complete: false, reason: "Snapshot enthält kein Rechnungsdatum (date fehlt)." };
+  }
+
+  // Mathematical Integrity Check: Items Sum vs Snapshot Subtotal
+  const subtotalCents =
+    typeof s.subtotalCents === "number" && !isNaN(s.subtotalCents)
+      ? s.subtotalCents
+      : parseCurrencyAmountToCents(s.subtotal ?? s.netAmount);
+
+  if (subtotalCents !== null) {
+    if (Math.abs(calculatedItemsNetCents - subtotalCents) > 2) {
+      return {
+        complete: false,
+        reason: `Mathematische Inkonsistenz im Snapshot: Die Summe der Posten (${(calculatedItemsNetCents / 100).toFixed(2)} €) weicht von der Zwischensumme (${(subtotalCents / 100).toFixed(2)} €) ab.`,
+      };
+    }
+  }
+
+  // Mathematical Integrity Check: Snapshot vs DB Amounts (if provided)
+  if (invoiceContext?.netAmount !== undefined && invoiceContext.netAmount !== null) {
+    const dbNetCents = Math.round(invoiceContext.netAmount * 100);
+    if (Math.abs(calculatedItemsNetCents - dbNetCents) > 5) {
+      return {
+        complete: false,
+        reason: `Mathematische Inkonsistenz: Die Summe der Snapshot-Posten (${(calculatedItemsNetCents / 100).toFixed(2)} €) weicht vom Netto-Rechnungsbetrag der Datenbank (${invoiceContext.netAmount.toFixed(2)} €) ab.`,
+      };
+    }
+  }
+
+  // Pre-flight PDF Renderer Simulation: verify PDF generation succeeds strictly from snapshot
+  try {
+    const dummyClient = {
+      id: (clientObj?.id as string) || "c-hist",
+      facilityName: facility,
+      address,
+      billingEmail: (clientObj?.billingEmail as string) || null,
+      billingInfo: (s.billingInfo as string) || (clientObj?.billingInfo as string) || null,
+      shortCode: (clientObj?.shortCode as string) || null,
+      internalNumber: (clientObj?.internalNumber as string) || null,
+      paymentTermsDays:
+        typeof s.paymentTermsDays === "number"
+          ? s.paymentTermsDays
+          : typeof clientObj?.paymentTermsDays === "number"
+          ? clientObj.paymentTermsDays
+          : 14,
+      hourlyRates: {},
+      surchargeSat: 0,
+      surchargeSun: 0,
+      surchargeHoliday: 0,
+      surchargeNight: 0,
+      nightStart: "22:00",
+      nightEnd: "06:00",
+    };
+
+    const dummyInvoice = {
+      invoiceNumber: (s.invoiceNumber as string) || invoiceContext?.invoiceNumber || "HIST-INV",
+      date: new Date(rawDate as string),
+      netAmount: (subtotalCents ?? calculatedItemsNetCents) / 100,
+      vatAmount: invoiceContext?.vatAmount ?? 0,
+      grossAmount: invoiceContext?.grossAmount ?? (subtotalCents ?? calculatedItemsNetCents) / 100,
+      snapshotData: s,
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const built = buildInvoicePdfData(dummyInvoice as any, dummyClient as any, []);
+    if (!built || !built.clientName || !built.items || built.items.length === 0) {
+      return {
+        complete: false,
+        reason: "Simulation der PDF-Erstellung aus dem historischen Snapshot schlug fehl.",
+      };
+    }
+  } catch (err) {
+    return {
+      complete: false,
+      reason: `Simulation der PDF-Erstellung aus dem Snapshot schlug fehl: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 
   const sha256 = createHash("sha256").update(JSON.stringify(snap)).digest("hex");
@@ -643,8 +862,14 @@ export function isCompleteFrozenSnapshot(snap: unknown): {
 export async function checkReliableHistoricalOrigin(
   invoice: {
     id: string;
+    invoiceNumber?: string;
     pdfUrl?: string | null;
     snapshotData?: unknown;
+    netAmount?: number;
+    vatAmount?: number;
+    grossAmount?: number;
+    date?: Date | string;
+    client?: { facilityName?: string; address?: string | null } | null;
   },
   fileVerifier?: FileVerifier
 ): Promise<{
@@ -673,7 +898,7 @@ export async function checkReliableHistoricalOrigin(
         reliable: true,
         source: "stored_pdf",
         storedPdfInfo: {
-          path: candidatePdfUrl,
+          path: fileCheck.realPath || candidatePdfUrl,
           sha256: fileCheck.sha256,
           byteLength: fileCheck.byteLength,
         },
@@ -681,7 +906,7 @@ export async function checkReliableHistoricalOrigin(
     }
   }
 
-  const snapshotCheck = isCompleteFrozenSnapshot(invoice.snapshotData);
+  const snapshotCheck = isCompleteFrozenSnapshot(invoice.snapshotData, invoice);
   if (snapshotCheck.complete) {
     return {
       reliable: true,
@@ -691,7 +916,7 @@ export async function checkReliableHistoricalOrigin(
   }
 
   const failureReason = candidatePdfUrl
-    ? `Die angegebene PDF-Datei "${candidatePdfUrl}" existiert nicht auf dem Server oder konnte nicht verifiziert werden, und es liegen keine vollständigen eingefrorenen Snapshot-Posten vor.`
+    ? `Die angegebene PDF-Datei "${candidatePdfUrl}" existiert nicht auf dem Server, liegt außerhalb des sicheren Speichers oder konnte nicht verifiziert werden, und es liegen keine vollständigen eingefrorenen Snapshot-Posten vor.`
     : (snapshotCheck.reason || "Die Rechnung verfügt weder über eine verifizierte gespeicherte PDF-Datei noch über einen vollständigen eingefrorenen Snapshot.");
 
   return {
@@ -702,11 +927,16 @@ export async function checkReliableHistoricalOrigin(
 }
 
 export function hasReliableHistoricalOrigin(invoice: {
+  id?: string;
   pdfUrl?: string | null;
   snapshotData?: unknown;
+  netAmount?: number;
+  grossAmount?: number;
+  date?: Date | string;
+  client?: { facilityName?: string; address?: string | null } | null;
 }): { reliable: boolean; source: "stored_pdf" | "frozen_snapshot" | "none"; reason?: string } {
-  // Synchronous convenience wrapper using defaultFileVerifier
-  const defaultCheck = isCompleteFrozenSnapshot(invoice.snapshotData);
+  // Synchronous convenience wrapper
+  const defaultCheck = isCompleteFrozenSnapshot(invoice.snapshotData, invoice);
   if (defaultCheck.complete) {
     return { reliable: true, source: "frozen_snapshot" };
   }
@@ -934,22 +1164,22 @@ export async function previewV2InvoiceRefresh(
     throw new SentInvoiceRefreshNotPermittedError(invoice.invoiceNumber);
   }
 
+  if (invoice.assignments.length === 0) {
+    throw new NoAssignmentsLinkedError(invoiceId);
+  }
+
+  // Successive revision tracking and fresh V2 immutability guard
+  const revisionState = await determineInvoiceRevisionState(invoice, db);
+  const baseRevisionNumber = revisionState.baseRevisionNumber;
+  const targetRevisionNumber = revisionState.targetRevisionNumber;
+
   // Check historical origin reliability standard
   const originCheck = await checkReliableHistoricalOrigin(invoice, deps?.fileVerifier);
   if (!originCheck.reliable) {
     throw new UnreliableHistoricalOriginError(invoiceId, originCheck.reason);
   }
 
-  if (invoice.assignments.length === 0) {
-    throw new NoAssignmentsLinkedError(invoiceId);
-  }
-
   const assignmentIds = invoice.assignments.map((a: { id: string }) => a.id);
-
-  // Successive revision tracking and fresh V2 immutability guard
-  const revisionState = await determineInvoiceRevisionState(invoice, db);
-  const baseRevisionNumber = revisionState.baseRevisionNumber;
-  const targetRevisionNumber = revisionState.targetRevisionNumber;
 
   // Prepare V2 draft specifically bound to this invoice's assignments
   const { prepareV2InvoiceDraft, convertCalculatedLineItemsToPdfItems } = await import(
@@ -1182,15 +1412,15 @@ export async function confirmV2InvoiceRefresh(
           throw new SentInvoiceRefreshNotPermittedError(invoice.invoiceNumber);
         }
 
+        // Determine base revision number and verify revision chain (fresh V2 immutability guard)
+        const revisionState = await determineInvoiceRevisionState(invoice, tx);
+        const baseRevisionNumber = revisionState.baseRevisionNumber;
+        const nextRevisionNumber = revisionState.targetRevisionNumber;
+
         const originCheck = await checkReliableHistoricalOrigin(invoice, deps?.fileVerifier);
         if (!originCheck.reliable) {
           throw new UnreliableHistoricalOriginError(input.invoiceId, originCheck.reason);
         }
-
-        // Determine base revision number and verify revision chain
-        const revisionState = await determineInvoiceRevisionState(invoice, tx);
-        const baseRevisionNumber = revisionState.baseRevisionNumber;
-        const nextRevisionNumber = revisionState.targetRevisionNumber;
 
         // Concurrency Protocol Step C: In-transaction draft re-preparation
         const { prepareV2InvoiceDraft, convertCalculatedLineItemsToPdfItems } = await import(
