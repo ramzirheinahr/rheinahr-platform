@@ -106,10 +106,7 @@ function createMockPrisma(assignments: any[], dbRateVersions: any[] = []) {
       findMany: vi.fn().mockResolvedValue([FROZEN_NRW_POLICY]),
     },
     clientHourlyRateVersion: {
-      findMany: vi.fn().mockImplementation((args: { where?: Record<string, unknown> }) => {
-        if (typeof dbRateVersions === "function") return dbRateVersions(args);
-        return Promise.resolve(dbRateVersions);
-      }),
+      findMany: vi.fn().mockResolvedValue(dbRateVersions),
       create: vi.fn(),
       update: vi.fn(),
     },
