@@ -29,6 +29,7 @@
 
 import {
   calculateExactInvoice,
+  formatHundredthsGerman,
   type CalculatedLineItem,
   type CalculatedInvoiceTotals,
   type RawWorkLineInput,
@@ -47,6 +48,45 @@ import {
 } from "./surcharge-policy";
 import { getAssignmentEffectiveWorkHours } from "./confirmation-evidence-service";
 import { prisma } from "./prisma";
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function advanceCalendarDay(dateIso: string): string {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  const nextDate = new Date(Date.UTC(y, m - 1, d + 1));
+  const ny = nextDate.getUTCFullYear();
+  const nm = pad2(nextDate.getUTCMonth() + 1);
+  const nd = pad2(nextDate.getUTCDate());
+  return `${ny}-${nm}-${nd}`;
+}
+
+function isValidIsoDateString(d: unknown): boolean {
+  if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const parsed = Date.parse(d);
+  return !isNaN(parsed);
+}
+
+export type V2InvoicePdfItem = {
+  pos: number;
+  description: string;
+  hours: string;
+  rate: string;
+  amount: string;
+};
+
+export function convertCalculatedLineItemsToPdfItems(
+  items: CalculatedLineItem[]
+): V2InvoicePdfItem[] {
+  return items.map((item) => ({
+    pos: item.pos,
+    description: item.description,
+    hours: item.hoursDisplay,
+    rate: formatHundredthsGerman(item.rateCents),
+    amount: item.amountDisplay,
+  }));
+}
 
 export type PriceVersionRecord = {
   priceVersionId: string;
@@ -146,6 +186,7 @@ export type V2InvoiceDraftSnapshotData = {
   periodStart: string;
   periodEnd: string;
   items: CalculatedLineItem[];
+  pdfItems: V2InvoicePdfItem[];
   subtotal: string;
   taxAmount: string;
   total: string;
@@ -208,6 +249,7 @@ export type V2InvoiceDraftSuccess = {
   };
 
   items: CalculatedLineItem[];
+  pdfItems: V2InvoicePdfItem[];
   totals: CalculatedInvoiceTotals;
   snapshotData: V2InvoiceDraftSnapshotData;
 };
@@ -219,11 +261,15 @@ export type V2InvoiceDraftUnresolvedCode =
   | "ASSIGNMENT_NOT_CONFIRMED"
   | "ALREADY_BILLED"
   | "MIXED_CLIENTS"
+  | "MISSING_QUALIFICATION"
+  | "QUALIFICATION_CONFLICT"
   | "PRICE_UNRESOLVED"
+  | "PRICE_VERSION_EXPIRED_MID_SHIFT"
   | "UNVERIFIED_BREAK_CLAUSE"
   | "UNRESOLVED_BREAK_ALLOCATION"
   | "POLICY_UNRESOLVED"
   | "POLICY_NOT_FROZEN"
+  | "AMBIGUOUS_POLICY_OVERLAP"
   | "EFFECTIVE_HOURS_MISMATCH"
   | "INVALID_EFFECTIVE_HOURS"
   | "DST_GAP"
@@ -409,10 +455,39 @@ export async function prepareV2InvoiceDraft(
         ? assignment.order.shiftDate.toISOString().slice(0, 10)
         : String(assignment.order.shiftDate).slice(0, 10);
 
-    const qualification =
-      assignment.order.requiredQualification ||
-      assignment.worker.qualification ||
-      "pflegefachkraft";
+    // 1. Qualification resolution & validation (Finding 2)
+    const reqQual = assignment.order.requiredQualification?.trim() || null;
+    const workQual = assignment.worker.qualification?.trim() || null;
+
+    if (!reqQual && !workQual) {
+      return {
+        status: "unresolved",
+        code: "MISSING_QUALIFICATION",
+        message: `Schicht "${assignment.id}" (${assignment.worker.fullName}, ${shiftDateIso}) kann nicht abgerechnet werden: Weder im Auftrag noch beim Mitarbeiter ist eine Qualifikation hinterlegt. Ein stillschweigender Fallback auf "Pflegefachkraft" ist unzulässig.`,
+        diagnostics: {
+          assignmentId: assignment.id,
+          workerId: assignment.worker.id,
+          orderId: assignment.order.id,
+        },
+      };
+    }
+
+    if (reqQual && workQual && reqQual.toLowerCase() !== workQual.toLowerCase()) {
+      return {
+        status: "unresolved",
+        code: "QUALIFICATION_CONFLICT",
+        message: `Schicht "${assignment.id}" (${assignment.worker.fullName}, ${shiftDateIso}) weist einen Qualifikationskonflikt auf: Auftrag verlangt "${reqQual}", Mitarbeiter hat "${workQual}".`,
+        diagnostics: {
+          assignmentId: assignment.id,
+          workerId: assignment.worker.id,
+          orderId: assignment.order.id,
+          requiredQualification: reqQual,
+          workerQualification: workQual,
+        },
+      };
+    }
+
+    const qualification = (reqQual || workQual)!;
 
     // A. Phase 3c Effective Work Hours
     let effectiveHoursData: {
@@ -445,6 +520,15 @@ export async function prepareV2InvoiceDraft(
       };
     }
 
+    // Determine shift span (overnight determination)
+    const [startH, startMin] = effectiveHoursData.effectiveStartTime.split(":").map(Number);
+    const [endH, endMin] = effectiveHoursData.effectiveEndTime.split(":").map(Number);
+    const startTotalMin = startH * 60 + startMin;
+    const endTotalMin = endH * 60 + endMin;
+    const isOvernight = endTotalMin <= startTotalMin;
+    const endShiftDateIso = isOvernight ? advanceCalendarDay(shiftDateIso) : shiftDateIso;
+    const spannedDates = isOvernight ? [shiftDateIso, endShiftDateIso] : [shiftDateIso];
+
     // B. Phase 4a Surcharge Policy Resolution
     let resolvedPolicy: ResolvedSurchargePolicy | null = null;
     if (deps?.facilityPolicyResolver) {
@@ -453,9 +537,9 @@ export async function prepareV2InvoiceDraft(
         shiftDateIso,
       });
     } else {
-      // Direct database resolution for frozen policy
+      // Direct database resolution for frozen policy with strict ambiguity check
       try {
-        const policyRecord = await tx.facilitySurchargePolicy.findFirst({
+        const matchingPolicies = await tx.facilitySurchargePolicy.findMany({
           where: {
             clientId,
             effectiveFrom: { lte: new Date(shiftDateIso) },
@@ -465,10 +549,70 @@ export async function prepareV2InvoiceDraft(
             ],
             isFrozen: true,
           },
-          orderBy: { policyVersion: "desc" },
         });
 
-        if (policyRecord) {
+        if (matchingPolicies.length > 1) {
+          return {
+            status: "unresolved",
+            code: "AMBIGUOUS_POLICY_OVERLAP",
+            message: `Mehrdeutige Zuschlagsrichtlinien für Kunde "${clientId}" zum Datum "${shiftDateIso}": Es wurden ${matchingPolicies.length} aktive eingefrorene Richtlinien gefunden (Versionen: ${matchingPolicies.map((p: { policyVersion: number }) => p.policyVersion).join(", ")}).`,
+            diagnostics: {
+              assignmentId: assignment.id,
+              clientId,
+              shiftDateIso,
+              matchingPolicyIds: matchingPolicies.map((p: { id: string }) => p.id),
+              policyVersions: matchingPolicies.map((p: { policyVersion: number }) => p.policyVersion),
+            },
+          };
+        }
+
+        if (matchingPolicies.length === 1) {
+          const policyRecord = matchingPolicies[0];
+
+          if (isOvernight) {
+            const matchingPoliciesEnd = await tx.facilitySurchargePolicy.findMany({
+              where: {
+                clientId,
+                effectiveFrom: { lte: new Date(endShiftDateIso) },
+                OR: [
+                  { effectiveTo: null },
+                  { effectiveTo: { gte: new Date(endShiftDateIso) } },
+                ],
+                isFrozen: true,
+              },
+            });
+
+            if (matchingPoliciesEnd.length > 1) {
+              return {
+                status: "unresolved",
+                code: "AMBIGUOUS_POLICY_OVERLAP",
+                message: `Mehrdeutige Zuschlagsrichtlinien für Kunde "${clientId}" zum Datum des Schichtendes "${endShiftDateIso}": Es wurden ${matchingPoliciesEnd.length} aktive eingefrorene Richtlinien gefunden.`,
+                diagnostics: {
+                  assignmentId: assignment.id,
+                  clientId,
+                  shiftDateIso,
+                  endShiftDateIso,
+                  matchingPolicyIds: matchingPoliciesEnd.map((p: { id: string }) => p.id),
+                  policyVersions: matchingPoliciesEnd.map((p: { policyVersion: number }) => p.policyVersion),
+                },
+              };
+            }
+
+            if (matchingPoliciesEnd.length === 0 || matchingPoliciesEnd[0].id !== policyRecord.id) {
+              return {
+                status: "unresolved",
+                code: "POLICY_UNRESOLVED",
+                message: `Die Zuschlagsrichtlinie für Schicht "${assignment.id}" deckt das Schichtende am "${endShiftDateIso}" nicht konsistent durch dieselbe Richtlinie ab.`,
+                diagnostics: {
+                  assignmentId: assignment.id,
+                  clientId,
+                  shiftDateIso,
+                  endShiftDateIso,
+                },
+              };
+            }
+          }
+
           resolvedPolicy = resolveInvoiceSurchargePolicy({
             policy: policyRecord,
             referenceDate: shiftDateIso,
@@ -509,6 +653,23 @@ export async function prepareV2InvoiceDraft(
           assignmentId: assignment.id,
           policyId: policySuccess.policyId,
           policyVersion: policySuccess.policyVersion,
+        },
+      };
+    }
+
+    // Verify policy date validity across midnight rollover
+    if (isOvernight && policySuccess.effectiveTo && policySuccess.effectiveTo < endShiftDateIso) {
+      return {
+        status: "unresolved",
+        code: "POLICY_UNRESOLVED",
+        message: `Die Zuschlagsrichtlinie (Version ${policySuccess.policyVersion}) für Schicht "${assignment.id}" läuft während der Nachtschicht ab (gültig bis ${policySuccess.effectiveTo}, Schichtende am ${endShiftDateIso}).`,
+        diagnostics: {
+          assignmentId: assignment.id,
+          clientId,
+          shiftDateIso,
+          endShiftDateIso,
+          policyId: policySuccess.policyId,
+          effectiveTo: policySuccess.effectiveTo,
         },
       };
     }
@@ -560,14 +721,63 @@ export async function prepareV2InvoiceDraft(
       };
     }
 
-    // Validate price record fields
+    // 1. Validate price record clientId (Finding 1)
+    if (priceRecord.clientId !== clientId) {
+      return {
+        status: "unresolved",
+        code: "PRICE_UNRESOLVED",
+        message: `Die aufgelöste Preisversion "${priceRecord.priceVersionId}" gehört zu Kunde "${priceRecord.clientId}", erwartet wurde aber Kunde "${clientId}".`,
+        diagnostics: {
+          assignmentId: assignment.id,
+          expectedClientId: clientId,
+          actualClientId: priceRecord.clientId,
+          priceVersionId: priceRecord.priceVersionId,
+        },
+      };
+    }
+
+    // 2. Validate price record qualification (Finding 1)
+    if (
+      !priceRecord.qualification ||
+      priceRecord.qualification.trim().toLowerCase() !== qualification.trim().toLowerCase()
+    ) {
+      return {
+        status: "unresolved",
+        code: "PRICE_UNRESOLVED",
+        message: `Die Preisversion "${priceRecord.priceVersionId}" gilt für Qualifikation "${priceRecord.qualification}", für Schicht "${assignment.id}" wird jedoch "${qualification}" benötigt.`,
+        diagnostics: {
+          assignmentId: assignment.id,
+          expectedQualification: qualification,
+          actualQualification: priceRecord.qualification,
+          priceVersionId: priceRecord.priceVersionId,
+        },
+      };
+    }
+
+    // 3. Validate price record contractId (Finding 1)
+    if (
+      (assignment.contractId && priceRecord.contractId && assignment.contractId !== priceRecord.contractId) ||
+      (!assignment.contractId && priceRecord.contractId)
+    ) {
+      return {
+        status: "unresolved",
+        code: "PRICE_UNRESOLVED",
+        message: `Vertragskonflikt bei Preisversion "${priceRecord.priceVersionId}": Preisvertrag "${priceRecord.contractId}" stimmt nicht mit Schichtvertrag "${assignment.contractId || "keiner"}" überein.`,
+        diagnostics: {
+          assignmentId: assignment.id,
+          assignmentContractId: assignment.contractId,
+          priceContractId: priceRecord.contractId,
+          priceVersionId: priceRecord.priceVersionId,
+        },
+      };
+    }
+
+    // 4. Validate price record rate and id
     if (
       !priceRecord.priceVersionId ||
       !priceRecord.priceVersionId.trim() ||
       !Number.isSafeInteger(priceRecord.hourlyRateInCents) ||
-      priceRecord.hourlyRateInCents < 0 ||
-      !priceRecord.sourceReference ||
-      !priceRecord.sourceReference.trim()
+      priceRecord.hourlyRateInCents < 0
     ) {
       return {
         status: "unresolved",
@@ -580,58 +790,91 @@ export async function prepareV2InvoiceDraft(
       };
     }
 
-    // Check price date validity interval
+    // 5. Validate verification metadata (Finding 1)
+    const isValidDateString = (dStr: unknown): boolean =>
+      typeof dStr === "string" && dStr.trim().length > 0 && !isNaN(Date.parse(dStr));
+
     if (
-      priceRecord.effectiveFrom > shiftDateIso ||
-      (priceRecord.effectiveTo && priceRecord.effectiveTo < shiftDateIso)
+      typeof priceRecord.verifiedBy !== "string" ||
+      !priceRecord.verifiedBy.trim() ||
+      !isValidDateString(priceRecord.verifiedAt) ||
+      typeof priceRecord.sourceReference !== "string" ||
+      !priceRecord.sourceReference.trim()
     ) {
       return {
         status: "unresolved",
         code: "PRICE_UNRESOLVED",
-        message: `Die Preisversion "${priceRecord.priceVersionId}" ist zum Datum "${shiftDateIso}" nicht gültig (Gültigkeit: ${priceRecord.effectiveFrom} bis ${priceRecord.effectiveTo || "unbegrenzt"}).`,
+        message: `Die Preisversion "${priceRecord.priceVersionId}" verfügt über unzureichende oder unbestätigte Verifizierungs-Metadaten (verifiedBy, verifiedAt oder sourceReference fehlen oder sind ungültig).`,
         diagnostics: {
           assignmentId: assignment.id,
-          shiftDateIso,
+          priceVersionId: priceRecord.priceVersionId,
+          verifiedBy: priceRecord.verifiedBy,
+          verifiedAt: priceRecord.verifiedAt,
+          sourceReference: priceRecord.sourceReference,
+        },
+      };
+    }
+
+    // 6. Validate price date intervals and format (Finding 3)
+    if (
+      !isValidIsoDateString(priceRecord.effectiveFrom) ||
+      (priceRecord.effectiveTo != null && !isValidIsoDateString(priceRecord.effectiveTo))
+    ) {
+      return {
+        status: "unresolved",
+        code: "PRICE_UNRESOLVED",
+        message: `Die Preisversion "${priceRecord.priceVersionId}" enthält ungültige Datumsformate für den Gültigkeitszeitraum.`,
+        diagnostics: {
+          assignmentId: assignment.id,
           effectiveFrom: priceRecord.effectiveFrom,
           effectiveTo: priceRecord.effectiveTo,
         },
       };
     }
 
-    // D. Contractual Break Clause Gateway
-    let verifiedBreakClause: VerifiedContractBreakAllocationClause | undefined = undefined;
-    let contractualBreakAllocationRule: "proportional" | null = null;
-    let breakAllocationSourceReference: string | undefined = undefined;
+    if (priceRecord.effectiveTo && priceRecord.effectiveFrom > priceRecord.effectiveTo) {
+      return {
+        status: "unresolved",
+        code: "PRICE_UNRESOLVED",
+        message: `Invertierter Gültigkeitszeitraum in Preisversion "${priceRecord.priceVersionId}": effectiveFrom (${priceRecord.effectiveFrom}) liegt nach effectiveTo (${priceRecord.effectiveTo}).`,
+        diagnostics: {
+          assignmentId: assignment.id,
+          effectiveFrom: priceRecord.effectiveFrom,
+          effectiveTo: priceRecord.effectiveTo,
+        },
+      };
+    }
 
-    if (deps?.verifiedBreakClauseResolver && assignment.contractId) {
-      try {
-        const candidateClause = await deps.verifiedBreakClauseResolver({
-          clientId,
-          clientContractId: assignment.contractId,
-          policyVersion: policySuccess.policyVersion,
-        });
-
-        // Strict verification: must match clientId, contractId, policyVersion, and have valid fields
-        if (
-          candidateClause &&
-          candidateClause.clientId === clientId &&
-          candidateClause.clientContractId === assignment.contractId &&
-          candidateClause.policyVersion === policySuccess.policyVersion &&
-          candidateClause.rule === "proportional" &&
-          typeof candidateClause.clauseReference === "string" &&
-          candidateClause.clauseReference.trim().length > 0 &&
-          typeof candidateClause.verifiedAt === "string" &&
-          typeof candidateClause.verifiedBy === "string"
-        ) {
-          verifiedBreakClause = candidateClause;
-          contractualBreakAllocationRule = "proportional";
-          breakAllocationSourceReference = candidateClause.clauseReference;
-        }
-      } catch {
-        // If resolver throws, leave unverified so engine fails safely
-        verifiedBreakClause = undefined;
+    // Check validity across all calendar days spanned by shift (including midnight rollover)
+    for (const checkDate of spannedDates) {
+      if (
+        priceRecord.effectiveFrom > checkDate ||
+        (priceRecord.effectiveTo && priceRecord.effectiveTo < checkDate)
+      ) {
+        return {
+          status: "unresolved",
+          code: "PRICE_UNRESOLVED",
+          message: `Die Preisversion "${priceRecord.priceVersionId}" ist zum Datum "${checkDate}" nicht gültig (Gültigkeit: ${priceRecord.effectiveFrom} bis ${priceRecord.effectiveTo || "unbegrenzt"}). Die Schicht "${assignment.id}" erstreckt sich über dieses Datum.`,
+          diagnostics: {
+            assignmentId: assignment.id,
+            shiftDateIso,
+            endShiftDateIso,
+            failedDateIso: checkDate,
+            effectiveFrom: priceRecord.effectiveFrom,
+            effectiveTo: priceRecord.effectiveTo,
+          },
+        };
       }
     }
+
+    // D. Contractual Break Clause Gateway (Finding 4)
+    // In Phase 5a, no authentic database table/model exists for ContractBreakClause.
+    // To prevent arbitrary, fabricated, or synthetic in-memory break clause objects from
+    // bypassing statutory rules, proportional break allocation across surcharge boundaries
+    // must strictly fail closed with UNRESOLVED_BREAK_ALLOCATION.
+    const verifiedBreakClause: VerifiedContractBreakAllocationClause | undefined = undefined;
+    const contractualBreakAllocationRule: "proportional" | null = null;
+    const breakAllocationSourceReference: string | undefined = undefined;
 
     // E. Phase 4b Minute Splitting
     const splitterInput: ShiftMinuteSplitterInput = {
@@ -768,6 +1011,8 @@ export async function prepareV2InvoiceDraft(
     0
   );
 
+  const pdfItems = convertCalculatedLineItemsToPdfItems(calculationResult.items);
+
   const snapshotData: V2InvoiceDraftSnapshotData = {
     calculationVersion: "v2",
     facilityName: client.facilityName,
@@ -780,6 +1025,7 @@ export async function prepareV2InvoiceDraft(
     periodStart,
     periodEnd,
     items: calculationResult.items,
+    pdfItems,
     subtotal: calculationResult.totals.subtotalDisplay,
     taxAmount: calculationResult.totals.taxAmountDisplay,
     total: calculationResult.totals.totalDisplay,
@@ -818,6 +1064,7 @@ export async function prepareV2InvoiceDraft(
       priceVersions: uniquePriceVersions,
     },
     items: calculationResult.items,
+    pdfItems,
     totals: calculationResult.totals,
     snapshotData,
   };

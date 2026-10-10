@@ -782,12 +782,12 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
   // ─────────────────────────────────────────────────────────────
   // 11. Fabricated contract reference for break rejected
   // ─────────────────────────────────────────────────────────────
-  it("proves that a fabricated or mismatched contract break clause does NOT bypass the gateway", async () => {
+  it("proves that a fabricated contract break clause with 100% matching values fails closed with UNRESOLVED_BREAK_ALLOCATION", async () => {
     const mockAssignment = {
       id: "asg-fab-clause",
       status: "confirmed",
       invoiceId: null,
-      contractId: "contract-real-123",
+      contractId: "contract-1",
       worker: { id: "w-fab", fullName: "Klaus Klein", qualification: "pflegefachkraft" },
       order: {
         id: "ord-fab",
@@ -801,12 +801,12 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
       },
     };
 
-    // Fabricated break clause with mismatched contractId or policyVersion
+    // Fabricated break clause with 100% matching fields
     const fabricatedBreakClause: VerifiedContractBreakAllocationClause = {
       clientId: "client-facility-1",
-      clientContractId: "contract-different-456", // MISMATCH!
+      clientContractId: "contract-1",
       policyVersion: 1,
-      clauseReference: "Erfundene Klausel",
+      clauseReference: "Erfundene Klausel § 4 Abs. 2",
       rule: "proportional",
       verifiedAt: "2026-01-01T00:00:00.000Z",
       verifiedBy: "someone",
@@ -833,7 +833,7 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     expect(result.status).toBe("unresolved");
     if (result.status !== "unresolved") return;
 
-    // Must be rejected as UNRESOLVED_BREAK_ALLOCATION because the fabricated clause was ignored!
+    // Must be rejected as UNRESOLVED_BREAK_ALLOCATION because Phase 5a strictly fails closed against synthetic in-memory clauses!
     expect(result.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
   });
 
@@ -985,5 +985,525 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     expect(mockPrisma.invoice.delete).toHaveBeenCalledTimes(0);
     expect(mockPrisma.assignment.update).toHaveBeenCalledTimes(0);
     expect(mockPrisma.assignment.updateMany).toHaveBeenCalledTimes(0);
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // 14. Codex Review Finding 1 Countertests: Price Record Validation
+  // ─────────────────────────────────────────────────────────────
+  it("rejects price record with mismatched clientId (Finding 1)", async () => {
+    const mockAssignment = {
+      id: "asg-price-client-mismatch",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-pcm", fullName: "Klaus Test", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-pcm",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const wrongClientPrice: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      clientId: "client-facility-999", // FOREIGN CLIENT ID!
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(wrongClientPrice),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-price-client-mismatch",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-price-client-mismatch"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("PRICE_UNRESOLVED");
+    expect(result.diagnostics.actualClientId).toBe("client-facility-999");
+    expect(result.diagnostics.expectedClientId).toBe("client-facility-1");
+  });
+
+  it("rejects price record with mismatched qualification (Finding 1)", async () => {
+    const mockAssignment = {
+      id: "asg-price-qual-mismatch",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-pqm", fullName: "Anna Pflege", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-pqm",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const wrongQualPrice: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      qualification: "pflegehelfer", // WRONG QUALIFICATION!
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(wrongQualPrice),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-price-qual-mismatch",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-price-qual-mismatch"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("PRICE_UNRESOLVED");
+    expect(result.diagnostics.actualQualification).toBe("pflegehelfer");
+    expect(result.diagnostics.expectedQualification).toBe("pflegefachkraft");
+  });
+
+  it("rejects price record with mismatched contractId (Finding 1)", async () => {
+    const mockAssignment = {
+      id: "asg-price-ctr-mismatch",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-A",
+      worker: { id: "w-pctr", fullName: "Bernd Contract", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-pctr",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const wrongContractPrice: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      contractId: "contract-B", // MISMATCHED CONTRACT!
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(wrongContractPrice),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-price-ctr-mismatch",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-price-ctr-mismatch"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("PRICE_UNRESOLVED");
+    expect(result.diagnostics.assignmentContractId).toBe("contract-A");
+    expect(result.diagnostics.priceContractId).toBe("contract-B");
+  });
+
+  it("rejects price record with invalid verification metadata (Finding 1)", async () => {
+    const mockAssignment = {
+      id: "asg-price-meta-invalid",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-pm", fullName: "Meta Tester", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-pm",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const emptyVerifiedByPrice: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      verifiedBy: "   ", // EMPTY VERIFIED BY!
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(emptyVerifiedByPrice),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-price-meta-invalid",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-price-meta-invalid"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("PRICE_UNRESOLVED");
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // 15. Codex Review Finding 2 Countertests: Qualification Resolution
+  // ─────────────────────────────────────────────────────────────
+  it("rejects shift when both order and worker qualifications are missing (Finding 2 - no default to Fachkraft)", async () => {
+    const mockAssignment = {
+      id: "asg-missing-qual",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-mq", fullName: "Unqualifizierte Hilfskraft", qualification: null }, // NULL QUALIFICATION!
+      order: {
+        id: "ord-mq",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: null, // NULL REQUIRED QUALIFICATION!
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-missing-qual",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-missing-qual"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("MISSING_QUALIFICATION");
+    expect(result.diagnostics.assignmentId).toBe("asg-missing-qual");
+  });
+
+  it("rejects shift when order requiredQualification and worker qualification conflict (Finding 2)", async () => {
+    const mockAssignment = {
+      id: "asg-qual-conflict",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-qc", fullName: "Helfer Hans", qualification: "pflegehelfer" }, // WORKER IS HELFER
+      order: {
+        id: "ord-qc",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft", // ORDER DEMANDS FACHKRAFT
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-qual-conflict",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-qual-conflict"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("QUALIFICATION_CONFLICT");
+    expect(result.diagnostics.requiredQualification).toBe("pflegefachkraft");
+    expect(result.diagnostics.workerQualification).toBe("pflegehelfer");
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // 16. Codex Review Finding 3 Countertests: Overnight Shift Price Validity
+  // ─────────────────────────────────────────────────────────────
+  it("rejects overnight shift when price version expires at midnight mid-shift (Finding 3)", async () => {
+    // Overnight shift: 2026-03-31 23:00 to 01:00 (crosses to 2026-04-01)
+    const mockAssignment = {
+      id: "asg-overnight-midshift-expire",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-on", fullName: "Nachtwache Nora", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-on",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-31T00:00:00.000Z"),
+        startTime: "23:00",
+        endTime: "01:00", // Overnight! Ends on 2026-04-01
+        breakMinutes: 0,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    // Price version expires on 2026-03-31 (does not cover 2026-04-01!)
+    const expiringPrice: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-03-31", // EXPIRES ON DAY 1!
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(expiringPrice),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-overnight-midshift-expire",
+        effectiveHours: 2.0,
+        effectiveStartTime: "23:00",
+        effectiveEndTime: "01:00",
+        effectiveBreakMinutes: 0,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-overnight-midshift-expire"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("PRICE_UNRESOLVED");
+    expect(result.diagnostics.failedDateIso).toBe("2026-04-01");
+  });
+
+  it("rejects price version with inverted effective dates (Finding 3)", async () => {
+    const mockAssignment = {
+      id: "asg-inverted-dates",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-inv", fullName: "Invert Tester", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-inv",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const invertedPrice: PriceVersionRecord = {
+      ...STANDARD_PRICE_VERSION,
+      effectiveFrom: "2026-05-01",
+      effectiveTo: "2026-01-01", // INVERTED: effectiveFrom > effectiveTo!
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(invertedPrice),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-inverted-dates",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-inverted-dates"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("PRICE_UNRESOLVED");
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // 17. Codex Review Finding 6 Countertests: Policy Overlap Ambiguity
+  // ─────────────────────────────────────────────────────────────
+  it("rejects preparation when multiple frozen policies overlap on the same shift date (Finding 6)", async () => {
+    const mockAssignment = {
+      id: "asg-policy-overlap",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-po", fullName: "Overlap Tester", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-po",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const mockPrisma = {
+      ...createMockPrisma([mockAssignment]),
+      facilitySurchargePolicy: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: "pol-1", policyVersion: 1, isFrozen: true, effectiveFrom: new Date("2026-01-01"), effectiveTo: null },
+          { id: "pol-2", policyVersion: 2, isFrozen: true, effectiveFrom: new Date("2026-01-01"), effectiveTo: null },
+        ]),
+      },
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: mockPrisma,
+      priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+      // No facilityPolicyResolver override, forces database lookup
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-policy-overlap",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-policy-overlap"] }, deps);
+    expect(result.status).toBe("unresolved");
+    if (result.status !== "unresolved") return;
+
+    expect(result.code).toBe("AMBIGUOUS_POLICY_OVERLAP");
+    expect(result.diagnostics.matchingPolicyIds).toEqual(["pol-1", "pol-2"]);
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // 18. Codex Review Finding 5 Tests: Snapshot vs PDF Parity
+  // ─────────────────────────────────────────────────────────────
+  it("guarantees 100% mathematical and formatting parity between calculatedLineItems and pdfItems (Finding 5)", async () => {
+    const mockAssignment = {
+      id: "asg-pdf-parity",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-pdf", fullName: "Parity Tester", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-pdf",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-07T00:00:00.000Z"), // Saturday
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
+      },
+    };
+
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: "asg-pdf-parity",
+        effectiveHours: 8.0,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-pdf-parity"] }, deps);
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+
+    const { items, pdfItems, snapshotData, totals } = result;
+
+    // Must be present in both top-level and snapshotData
+    expect(pdfItems).toBeDefined();
+    expect(snapshotData.pdfItems).toEqual(pdfItems);
+    expect(pdfItems).toHaveLength(items.length);
+
+    // Verify 100% item-by-item contract parity
+    for (let i = 0; i < items.length; i++) {
+      const line = items[i];
+      const pdf = pdfItems[i];
+
+      expect(pdf.pos).toBe(line.pos);
+      expect(pdf.description).toBe(line.description);
+      expect(pdf.hours).toBe(line.hoursDisplay); // e.g. "8,00"
+
+      // rate in pdf must NOT contain "€" symbol (to avoid "€ €" double-suffix in PDF renderer)
+      expect(pdf.rate).not.toContain("€");
+      expect(pdf.rate).toBe(line.rateDisplay.replace(" €", ""));
+
+      // amount in pdf must match line.amountDisplay
+      expect(pdf.amount).toBe(line.amountDisplay);
+    }
+
+    // Verify mathematical subtotal sum
+    const subtotalFromPdf = pdfItems.reduce((acc, p) => {
+      const clean = p.amount.replace(" €", "").replace(/\./g, "").replace(",", ".");
+      return acc + Math.round(parseFloat(clean) * 100);
+    }, 0);
+
+    expect(subtotalFromPdf).toBe(totals.subtotalCents);
   });
 });
