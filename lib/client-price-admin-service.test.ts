@@ -23,6 +23,7 @@ import { resolveInvoiceSurchargePolicy } from "./surcharge-policy";
 describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () => {
   // Common test fixtures
   const adminActorId = "user-admin-01";
+  const otherAdminId = "user-admin-other";
   const nonAdminActorId = "user-worker-01";
   const clientId = "client-facility-alpha";
   const clientContractId = "contract-alpha-2026";
@@ -31,6 +32,14 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
     id: adminActorId,
     email: "admin@rheinahr.de",
     fullName: "Admin Officer",
+    role: "admin",
+    active: true,
+  };
+
+  const mockOtherAdminUser = {
+    id: otherAdminId,
+    email: "other.admin@rheinahr.de",
+    fullName: "Other Admin",
     role: "admin",
     active: true,
   };
@@ -45,15 +54,19 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
 
   const mockClient = {
     id: clientId,
-    name: "Seniorenresidenz Rheinblick",
+    facilityName: "Seniorenresidenz Rheinblick",
     shortCode: "SR-RB",
+    frameworkAgreementSignedAt: new Date("2026-01-01T00:00:00Z"),
+    frameworkAgreementUrl: "https://storage/framework.pdf",
   };
 
   const mockContract = {
     id: clientContractId,
     clientId,
     period: "2026-Q1/Q4",
-    status: "pending",
+    status: "active",
+    signedAt: new Date("2026-01-01T00:00:00Z"),
+    documentUrl: "https://storage/contract.pdf",
   };
 
   const createMockPrisma = (options?: {
@@ -65,6 +78,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
   }) => {
     const usersMap: Record<string, unknown> = {
       [adminActorId]: mockAdminUser,
+      [otherAdminId]: mockOtherAdminUser,
       [nonAdminActorId]: mockWorkerUser,
       ...(options?.users ?? {}),
     };
@@ -110,7 +124,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
   };
 
   describe("1. Pure Input Validation & Business Rule Guards", () => {
-    it("accepts valid input with complete contractual metadata", () => {
+    it("accepts valid input with complete contractual metadata and closed interval", () => {
       const input: ClientHourlyRateInput = {
         clientId,
         clientContractId,
@@ -120,6 +134,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         effectiveTo: "2026-12-31",
         sourceType: "contract",
         sourceReference: "Vertrag Nr. 2026-01, § 4 Abs. 2",
+        sourceDocumentUrl: null,
         verifyingUserId: adminActorId,
       };
 
@@ -129,14 +144,14 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       expect(result.validatedInput).toEqual(input);
     });
 
-    it("accepts valid input for general scope (clientContractId = null)", () => {
+    it("accepts valid input for general scope (clientContractId = null) with closed interval", () => {
       const input: ClientHourlyRateInput = {
         clientId,
         clientContractId: null,
         qualification: "pflegehelfer",
         hourlyRateInCents: 2900,
         effectiveFrom: "2026-01-01",
-        effectiveTo: null,
+        effectiveTo: "2026-12-31",
         sourceType: "framework_agreement",
         sourceReference: "Rahmenvereinbarung 2026, Anlage 1",
         verifyingUserId: adminActorId,
@@ -145,7 +160,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       const result = validateClientHourlyRateInput(input);
       expect(result.isValid).toBe(true);
       expect(result.validatedInput?.clientContractId).toBeNull();
-      expect(result.validatedInput?.effectiveTo).toBeNull();
+      expect(result.validatedInput?.effectiveTo).toBe("2026-12-31");
     });
 
     it("rejects non-object or null input", () => {
@@ -159,6 +174,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 3500,
         effectiveFrom: "2026-01-01",
+        effectiveTo: "2026-12-31",
         sourceType: "contract",
         sourceReference: "Vertrag §4",
         verifyingUserId: adminActorId,
@@ -174,6 +190,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           qualification: "pflegefachkraft",
           hourlyRateInCents: badRate,
           effectiveFrom: "2026-01-01",
+          effectiveTo: "2026-12-31",
           sourceType: "contract",
           sourceReference: "Vertrag §4",
           verifyingUserId: adminActorId,
@@ -190,6 +207,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           qualification: "pflegefachkraft",
           hourlyRateInCents: 3500,
           effectiveFrom: badDate,
+          effectiveTo: "2026-12-31",
           sourceType: "contract",
           sourceReference: "Vertrag §4",
           verifyingUserId: adminActorId,
@@ -197,6 +215,22 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         expect(result.isValid).toBe(false);
         expect(result.errors.some((e) => e.includes("effectiveFrom"))).toBe(true);
       }
+    });
+
+    it("rejects open-ended validity period (effectiveTo: null) to avoid unresolvable overlap (Finding 4)", () => {
+      const result = validateClientHourlyRateInput({
+        clientId,
+        qualification: "pflegefachkraft",
+        hourlyRateInCents: 3500,
+        effectiveFrom: "2026-01-01",
+        effectiveTo: null,
+        sourceType: "contract",
+        sourceReference: "Vertrag §4",
+        verifyingUserId: adminActorId,
+      });
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.includes("effectiveTo"))).toBe(true);
+      expect(result.errors.some((e) => e.includes("Unbefristete Zeiträume"))).toBe(true);
     });
 
     it("rejects inverted interval where effectiveFrom > effectiveTo", () => {
@@ -226,6 +260,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           qualification: "pflegefachkraft",
           hourlyRateInCents: 3500,
           effectiveFrom: "2026-01-01",
+          effectiveTo: "2026-12-31",
           sourceType: forbidden as any,
           sourceReference: "Altdaten",
           verifyingUserId: adminActorId,
@@ -241,6 +276,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 3500,
         effectiveFrom: "2026-01-01",
+        effectiveTo: "2026-12-31",
         sourceType: "contract",
         sourceReference: "V1",
         verifyingUserId: adminActorId,
@@ -267,12 +303,12 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       // Overlapping with open-ended: [2026-01-01 .. null] vs [2026-05-01 .. 2026-12-31]
       expect(doIntervalsOverlap("2026-01-01", null, "2026-05-01", "2026-12-31")).toBe(true);
 
-      // Non-overlapping before start: [2025-01-01 .. 2025-12-31] vs [2026-01-01 .. null]
-      expect(doIntervalsOverlap("2025-01-01", "2025-12-31", "2026-01-01", null)).toBe(false);
+      // Non-overlapping before start: [2025-01-01 .. 2025-12-31] vs [2026-01-01 .. "2026-12-31"]
+      expect(doIntervalsOverlap("2025-01-01", "2025-12-31", "2026-01-01", "2026-12-31")).toBe(false);
     });
   });
 
-  describe("3. Pre-Freeze Preview & Review Summary", () => {
+  describe("3. Pre-Freeze Preview, Verifier Identity & Documentary Proof (Findings 1, 2, 4)", () => {
     it("rejects preview when acting user is not an administrator", async () => {
       const prisma = createMockPrisma();
       const result = await previewClientHourlyRate({
@@ -282,6 +318,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           qualification: "pflegefachkraft",
           hourlyRateInCents: 3500,
           effectiveFrom: "2026-01-01",
+          effectiveTo: "2026-12-31",
           sourceType: "contract",
           sourceReference: "Vertrag §4",
           verifyingUserId: adminActorId,
@@ -295,6 +332,30 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       }
     });
 
+    it("rejects preview when verifyingUserId does not match acting user (FORGED_VERIFIER_IDENTITY)", async () => {
+      const prisma = createMockPrisma();
+      const result = await previewClientHourlyRate({
+        prisma,
+        input: {
+          clientId,
+          clientContractId,
+          qualification: "pflegefachkraft",
+          hourlyRateInCents: 3500,
+          effectiveFrom: "2026-01-01",
+          effectiveTo: "2026-12-31",
+          sourceType: "contract",
+          sourceReference: "Vertrag §4",
+          verifyingUserId: otherAdminId, // Different admin ID than actor!
+        },
+        actorUserId: adminActorId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe("FORGED_VERIFIER_IDENTITY");
+      }
+    });
+
     it("rejects preview when client does not exist", async () => {
       const prisma = createMockPrisma({ client: null });
       const result = await previewClientHourlyRate({
@@ -304,6 +365,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           qualification: "pflegefachkraft",
           hourlyRateInCents: 3500,
           effectiveFrom: "2026-01-01",
+          effectiveTo: "2026-12-31",
           sourceType: "contract",
           sourceReference: "Vertrag §4",
           verifyingUserId: adminActorId,
@@ -323,6 +385,9 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           id: clientContractId,
           clientId: "different-client-id",
           period: "2026-Q1",
+          status: "active",
+          signedAt: new Date(),
+          documentUrl: "https://storage/contract.pdf",
         },
       });
 
@@ -334,6 +399,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
           qualification: "pflegefachkraft",
           hourlyRateInCents: 3500,
           effectiveFrom: "2026-01-01",
+          effectiveTo: "2026-12-31",
           sourceType: "contract",
           sourceReference: "Vertrag §4",
           verifyingUserId: adminActorId,
@@ -344,6 +410,73 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.code).toBe("CONTRACT_CLIENT_MISMATCH");
+      }
+    });
+
+    it("rejects preview when contract is pending or unsigned (CONTRACT_NOT_SIGNED_OR_ACTIVE)", async () => {
+      const unsignedContract = {
+        id: clientContractId,
+        clientId,
+        period: "2026-Q1",
+        status: "pending", // Pending contract!
+        signedAt: null,
+        documentUrl: null,
+      };
+
+      const prisma = createMockPrisma({ contract: unsignedContract });
+
+      const result = await previewClientHourlyRate({
+        prisma,
+        input: {
+          clientId,
+          clientContractId,
+          qualification: "pflegefachkraft",
+          hourlyRateInCents: 3500,
+          effectiveFrom: "2026-01-01",
+          effectiveTo: "2026-12-31",
+          sourceType: "contract",
+          sourceReference: "Vertrag §4",
+          verifyingUserId: adminActorId,
+        },
+        actorUserId: adminActorId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe("CONTRACT_NOT_SIGNED_OR_ACTIVE");
+      }
+    });
+
+    it("rejects general-scoped rate when facility lacks framework agreement and archival URL (GENERAL_SCOPE_LACKS_DOCUMENTATION)", async () => {
+      const undocumentedClient = {
+        id: "client-undocumented",
+        facilityName: "Undocumented Facility",
+        shortCode: "UF",
+        frameworkAgreementSignedAt: null,
+        frameworkAgreementUrl: null,
+      };
+
+      const prisma = createMockPrisma({ client: undocumentedClient });
+
+      const result = await previewClientHourlyRate({
+        prisma,
+        input: {
+          clientId: "client-undocumented",
+          clientContractId: null,
+          qualification: "pflegefachkraft",
+          hourlyRateInCents: 3500,
+          effectiveFrom: "2026-01-01",
+          effectiveTo: "2026-12-31",
+          sourceType: "framework_agreement",
+          sourceReference: "Nur mündliche Absprache",
+          verifyingUserId: adminActorId,
+        },
+        actorUserId: adminActorId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe("GENERAL_SCOPE_LACKS_DOCUMENTATION");
       }
     });
 
@@ -382,7 +515,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       }
     });
 
-    it("generates a complete, verifiable preview summary and computes matching canonical hash", async () => {
+    it("generates a complete, verifiable preview summary with facilityName and computes matching canonical hash", async () => {
       const prisma = createMockPrisma({ rates: [] });
 
       const input: ClientHourlyRateInput = {
@@ -408,7 +541,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         const preview = result.data;
         expect(preview.isValid).toBe(true);
         expect(preview.scope.clientId).toBe(clientId);
-        expect(preview.scope.clientName).toBe("Seniorenresidenz Rheinblick");
+        expect(preview.scope.facilityName).toBe("Seniorenresidenz Rheinblick");
         expect(preview.scope.isGeneralScope).toBe(false);
         expect(preview.rateTerms.qualification).toBe("Pflegefachkraft");
         expect(preview.rateTerms.normalizedQualification).toBe("pflegefachkraft");
@@ -434,8 +567,8 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
     });
   });
 
-  describe("4. Ingestion, Freezing & Immutability Enforcement", () => {
-    it("creates and immediately freezes a new rate record with verifier stamp and hash", async () => {
+  describe("4. Ingestion, Freezing & Hash Binding Enforcement (Findings 2, 4)", () => {
+    it("creates and immediately freezes a new rate record when expectedPreviewHash matches", async () => {
       let createdData: any = null;
       const prisma = createMockPrisma({
         rates: [],
@@ -456,18 +589,66 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         verifyingUserId: adminActorId,
       };
 
+      // 1. First run preview
+      const preview = await previewClientHourlyRate({ prisma, input, actorUserId: adminActorId });
+      expect(preview.success).toBe(true);
+      if (!preview.success) return;
+
+      const previewHash = preview.data.integrity.canonicalHash;
+
+      // 2. Commit with expected preview hash
       const result = await createAndFreezeClientHourlyRate({
         prisma,
         input,
         actorUserId: adminActorId,
+        expectedPreviewHash: previewHash,
       });
 
       expect(result.success).toBe(true);
       expect(createdData).not.toBeNull();
       expect(createdData.isFrozen).toBe(true);
       expect(createdData.verifiedByUserId).toBe(adminActorId);
-      expect(createdData.frozenHash).toBeDefined();
-      expect(typeof createdData.frozenHash).toBe("string");
+      expect(createdData.frozenHash).toBe(previewHash);
+    });
+
+    it("rejects commit when expectedPreviewHash is missing or does not match (post-preview alteration)", async () => {
+      const prisma = createMockPrisma({ rates: [] });
+
+      const input: ClientHourlyRateInput = {
+        clientId,
+        clientContractId,
+        qualification: "pflegefachkraft",
+        hourlyRateInCents: 4100,
+        effectiveFrom: "2026-01-01",
+        effectiveTo: "2026-12-31",
+        sourceType: "contract",
+        sourceReference: "Hauptvertrag 2026",
+        verifyingUserId: adminActorId,
+      };
+
+      // Missing expected preview hash
+      const resMissing = await createAndFreezeClientHourlyRate({
+        prisma,
+        input,
+        actorUserId: adminActorId,
+        expectedPreviewHash: "",
+      });
+      expect(resMissing.success).toBe(false);
+      if (!resMissing.success) {
+        expect(resMissing.code).toBe("MISSING_PREVIEW_HASH");
+      }
+
+      // Mismatched expected preview hash (tampered post-preview)
+      const resMismatch = await createAndFreezeClientHourlyRate({
+        prisma,
+        input,
+        actorUserId: adminActorId,
+        expectedPreviewHash: "stale-or-tampered-preview-hash-1234567890",
+      });
+      expect(resMismatch.success).toBe(false);
+      if (!resMismatch.success) {
+        expect(resMismatch.code).toBe("PREVIEW_HASH_MISMATCH");
+      }
     });
 
     it("rejects modifying (update) a frozen rate record", async () => {
@@ -510,7 +691,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       }
     });
 
-    it("supersedes a frozen record with a successor version (rateVersion = 2) for the same scope", async () => {
+    it("supersedes a frozen record with a successor version (rateVersion = 2) starting after prior effectiveTo", async () => {
       const existingRate = {
         id: "rate-v1",
         clientId,
@@ -535,18 +716,28 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         clientContractId,
         qualification: "pflegefachkraft",
         hourlyRateInCents: 4300,
-        effectiveFrom: "2026-07-01",
+        effectiveFrom: "2026-07-01", // starts day after 2026-06-30
         effectiveTo: "2026-12-31",
         sourceType: "contract_amendment",
         sourceReference: "Vertragsnachtrag Nr. 1 vom 15.06.2026",
         verifyingUserId: adminActorId,
       };
 
+      // Preview successor
+      const prevSucc = await previewClientHourlyRate({
+        prisma,
+        input: newRateInput,
+        actorUserId: adminActorId,
+      });
+      expect(prevSucc.success).toBe(true);
+      if (!prevSucc.success) return;
+
       const result = await supersedeClientHourlyRate({
         prisma,
         existingRateId: "rate-v1",
         newRateInput,
         actorUserId: adminActorId,
+        expectedPreviewHash: prevSucc.data.integrity.canonicalHash,
       });
 
       expect(result.success).toBe(true);
@@ -554,6 +745,46 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
       expect(createdSuccessor.rateVersion).toBe(2);
       expect(createdSuccessor.hourlyRateInCents).toBe(4300);
       expect(createdSuccessor.isFrozen).toBe(true);
+    });
+
+    it("rejects superseding when new version starts before or on prior effectiveTo (OVERLAPPING_SUCCESSOR_START)", async () => {
+      const existingRate = {
+        id: "rate-v1",
+        clientId,
+        clientContractId,
+        rateVersion: 1,
+        qualification: "pflegefachkraft",
+        effectiveFrom: new Date("2026-01-01"),
+        effectiveTo: new Date("2026-06-30"),
+        isFrozen: true,
+      };
+
+      const prisma = createMockPrisma({ rates: [existingRate] });
+
+      const overlappingInput: ClientHourlyRateInput = {
+        clientId,
+        clientContractId,
+        qualification: "pflegefachkraft",
+        hourlyRateInCents: 4300,
+        effectiveFrom: "2026-06-15", // overlaps!
+        effectiveTo: "2026-12-31",
+        sourceType: "contract_amendment",
+        sourceReference: "Nachtrag 1",
+        verifyingUserId: adminActorId,
+      };
+
+      const result = await supersedeClientHourlyRate({
+        prisma,
+        existingRateId: "rate-v1",
+        newRateInput: overlappingInput,
+        actorUserId: adminActorId,
+        expectedPreviewHash: "hash-any",
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.code).toBe("OVERLAPPING_SUCCESSOR_START");
+      }
     });
   });
 
@@ -796,7 +1027,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 3700,
         effectiveFrom: "2026-01-01",
-        effectiveTo: null,
+        effectiveTo: "2026-12-31",
         sourceType: "framework_agreement",
         sourceReference: "Rahmenvertrag 2026",
       });
@@ -809,7 +1040,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 3700,
         effectiveFrom: new Date("2026-01-01"),
-        effectiveTo: null,
+        effectiveTo: new Date("2026-12-31"),
         sourceType: "framework_agreement",
         sourceReference: "Rahmenvertrag 2026",
         isFrozen: true,
@@ -844,7 +1075,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 4000,
         effectiveFrom: "2026-01-01",
-        effectiveTo: null,
+        effectiveTo: "2026-12-31",
         sourceType: "contract",
         sourceReference: "Vertrag Alpha",
       });
@@ -857,7 +1088,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 4000,
         effectiveFrom: new Date("2026-01-01"),
-        effectiveTo: null,
+        effectiveTo: new Date("2026-12-31"),
         sourceType: "contract",
         sourceReference: "Vertrag Alpha",
         isFrozen: true,
@@ -900,7 +1131,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 4000,
         effectiveFrom: "2026-01-01",
-        effectiveTo: null,
+        effectiveTo: "2026-12-31",
         sourceType: "contract",
         sourceReference: "Vertrag §4",
       });
@@ -913,7 +1144,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 4000,
         effectiveFrom: new Date("2026-01-01"),
-        effectiveTo: null,
+        effectiveTo: new Date("2026-12-31"),
         sourceType: "contract",
         sourceReference: "Vertrag §4",
         isFrozen: true,
@@ -956,7 +1187,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "Pflegefachkraft",
         hourlyRateInCents: 4000,
         effectiveFrom: "2026-01-01",
-        effectiveTo: null,
+        effectiveTo: "2026-12-31",
         sourceType: "contract",
         sourceReference: "Vertrag §4",
       });
@@ -969,7 +1200,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "Pflegefachkraft",
         hourlyRateInCents: 4000,
         effectiveFrom: new Date("2026-01-01"),
-        effectiveTo: null,
+        effectiveTo: new Date("2026-12-31"),
         sourceType: "contract",
         sourceReference: "Vertrag §4",
         isFrozen: true,
@@ -1005,7 +1236,7 @@ describe("ClientPriceAdminService & Ingestion Verification (Phase 5b-2a)", () =>
         qualification: "pflegefachkraft",
         hourlyRateInCents: 4000,
         effectiveFrom: new Date("2026-01-01"),
-        effectiveTo: null,
+        effectiveTo: new Date("2026-12-31"),
         sourceType: "contract",
         sourceReference: "   ", // blank source reference!
         isFrozen: true,

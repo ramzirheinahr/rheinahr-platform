@@ -3,7 +3,10 @@
 -- Phase 5b-2a: PostgreSQL Staging Migration & Constraint Verification Script
 -- ============================================================================
 -- This script performs physical verification of:
--- 1. Foreign Key RESTRICT deletion policies on client, contract, and verifier
+-- 1. Foreign Key RESTRICT deletion policies on:
+--    - client ("clients")
+--    - clientContract ("client_contracts")
+--    - verifiedByUser ("users")
 -- 2. btree_gist physical EXCLUDE constraint rejecting overlapping date ranges
 --    both in contract-specific scopes and in NULL general scopes
 -- 3. Normalized Unique Scope & Version index handling NULL contracts and case sensitivity
@@ -49,19 +52,36 @@ BEGIN
     END IF;
 END $$;
 
--- 3. Setup Test Fixtures
+-- 3. Setup Test Fixtures (Strict adherence to Prisma schema foreign keys and column names)
 SELECT 'Setting up test entities...' AS step;
-INSERT INTO "clients" ("id", "name", "address", "hourly_rate", "payment_terms_days", "short_code", "created_at", "updated_at")
-VALUES ('test-client-staging-5b2a', 'Seniorenresidenz Staging GmbH', 'Rheinweg 1, 53424 Remagen', 35.0, 14, 'SR-STG', NOW(), NOW())
-ON CONFLICT ("id") DO NOTHING;
 
+-- Insert Verifier Admin User
 INSERT INTO "users" ("id", "email", "password_hash", "role", "active", "full_name", "created_at", "updated_at")
 VALUES ('test-user-admin-5b2a', 'admin.staging@rheinahr.de', 'hash', 'admin', true, 'Staging Admin Verifier', NOW(), NOW())
 ON CONFLICT ("id") DO NOTHING;
 
-INSERT INTO "client_contracts" ("id", "client_id", "status", "period", "created_at", "updated_at")
-VALUES ('test-contract-staging-5b2a', 'test-client-staging-5b2a', 'pending', '2026-Q1/Q2', NOW(), NOW())
+-- Insert Client Primary User
+INSERT INTO "users" ("id", "email", "password_hash", "role", "active", "full_name", "created_at", "updated_at")
+VALUES ('test-user-client-5b2a', 'client.staging@rheinahr.de', 'hash', 'client', true, 'Staging Client User', NOW(), NOW())
 ON CONFLICT ("id") DO NOTHING;
+
+-- Insert Client Facility
+INSERT INTO "clients" (
+    "id", "user_id", "facility_name", "facility_type", "address",
+    "payment_terms_days", "short_code", "framework_agreement_signed_at",
+    "created_at", "updated_at"
+) VALUES (
+    'test-client-staging-5b2a', 'test-user-client-5b2a', 'Seniorenresidenz Staging GmbH', 'pflegeheim',
+    'Rheinweg 1, 53424 Remagen', 14, 'SR-STG', NOW(),
+    NOW(), NOW()
+) ON CONFLICT ("id") DO NOTHING;
+
+-- Insert Client Contract
+INSERT INTO "client_contracts" (
+    "id", "client_id", "status", "period", "signed_at", "document_url", "created_at", "updated_at"
+) VALUES (
+    'test-contract-staging-5b2a', 'test-client-staging-5b2a', 'active', '2026-Q1/Q2', NOW(), 'https://storage/contract.pdf', NOW(), NOW()
+) ON CONFLICT ("id") DO NOTHING;
 
 -- 4. Test Case 1: Insert valid frozen rate for contract scope
 SELECT 'Test 1: Inserting valid frozen rate for contract scope...' AS step;
@@ -189,6 +209,32 @@ BEGIN
 EXCEPTION
     WHEN foreign_key_violation THEN
         RAISE NOTICE 'SUCCESS: Foreign Key RESTRICT successfully blocked deletion of referenced client.';
+END $$;
+
+-- 12. Test Case 9: Verify Foreign Key RESTRICT on deleting referenced Contract
+SELECT 'Test 9: Expecting failure on DELETE of referenced ClientContract...' AS step;
+DO $$
+BEGIN
+    DELETE FROM "client_contracts"
+    WHERE "id" = 'test-contract-staging-5b2a';
+
+    RAISE EXCEPTION 'CRITICAL FAILURE: Deleting client contract with dependent rate versions was NOT prevented by RESTRICT!';
+EXCEPTION
+    WHEN foreign_key_violation THEN
+        RAISE NOTICE 'SUCCESS: Foreign Key RESTRICT successfully blocked deletion of referenced contract.';
+END $$;
+
+-- 13. Test Case 10: Verify Foreign Key RESTRICT on deleting referenced Verifying User
+SELECT 'Test 10: Expecting failure on DELETE of referenced Verifying User...' AS step;
+DO $$
+BEGIN
+    DELETE FROM "users"
+    WHERE "id" = 'test-user-admin-5b2a';
+
+    RAISE EXCEPTION 'CRITICAL FAILURE: Deleting verifying user with dependent rate versions was NOT prevented by RESTRICT!';
+EXCEPTION
+    WHEN foreign_key_violation THEN
+        RAISE NOTICE 'SUCCESS: Foreign Key RESTRICT successfully blocked deletion of referenced verifying user.';
 END $$;
 
 SELECT 'ALL STAGING PHYSICAL CHECKS COMPLETED SUCCESSFULLY.' AS final_status;

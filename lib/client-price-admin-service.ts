@@ -7,15 +7,30 @@
  *    Rates can ONLY be ingested from authentic signed contracts, amendments, framework agreements,
  *    or judicial settlements. Automatic extraction from unversioned live fields (e.g. Client.hourlyRates)
  *    is strictly prohibited and rejected.
- * 2. Immutable Pre-Freeze Verification & Canonical Hash:
+ * 2. Mandatory Documentary Backing & Verifier Proof:
+ *    Every rate version must be backed by an active, signed contract (for contract scopes) or a signed
+ *    facility framework agreement / verified archived document URL (for general scopes).
+ *    Free-text references without documentary proof are strictly rejected.
+ *    The verifier identity must match the authenticated acting administrator session.
+ * 3. Immutable Pre-Freeze Verification & Canonical Hash Binding:
  *    Provides a structured, human-auditable preview of all rate terms, scope, validity interval,
- *    and source references before freezing. Computes the canonical SHA-256 hash across stored terms.
- * 3. Total Immutability Post-Freeze:
+ *    and source references before freezing. Committing/freezing requires passing the exact previewed
+ *    canonical SHA-256 hash; any discrepancy or post-preview modification is rejected.
+ * 4. Closed Interval Policy (Addressing Open-Ended Overlaps):
+ *    All rate versions must have a definitive effectiveTo date matching the contractual or tariff period.
+ *    Indefinite intervals (effectiveTo = null) are strictly prohibited to prevent unresolvable physical
+ *    exclusion conflicts with future successor versions while preserving frozen immutability.
+ * 5. Total Immutability Post-Freeze:
  *    Once frozen (isFrozen = true), price amount, contractual scope, qualification, validity interval,
  *    and source references cannot be modified or deleted. Corrections must be issued as a new rate version
- *    following a non-overlapping validity policy.
- * 4. Strict Role-Based Administrative Authorization:
- *    Ingestion, review, and freezing require verified active administrative credentials (admin or super_admin).
+ *    (rateVersion = old + 1) starting strictly after the prior version's effectiveTo.
+ *
+ * Trust Boundary & Server Architecture:
+ * - This service represents an internal, domain-level administrative engine.
+ * - In server actions / API endpoints, actorUserId must be derived directly from the verified cryptographic
+ *   session token (e.g. Supabase Auth / NextAuth / IronSession).
+ * - This service documents and cryptographically locks human administrative verification; it does not claim
+ *   magical automated interpretation of unstructured document contents.
  */
 
 import {
@@ -39,9 +54,10 @@ export type ClientHourlyRateInput = {
   qualification: string;
   hourlyRateInCents: number;
   effectiveFrom: string; // YYYY-MM-DD
-  effectiveTo?: string | null; // YYYY-MM-DD or null
+  effectiveTo: string; // YYYY-MM-DD (mandatory closed interval)
   sourceType: DocumentedPriceSourceType;
   sourceReference: string;
+  sourceDocumentUrl?: string | null;
   verifyingUserId: string;
 };
 
@@ -49,7 +65,7 @@ export type RateVersionPreviewSummary = {
   isValid: boolean;
   scope: {
     clientId: string;
-    clientName: string;
+    facilityName: string;
     clientContractId: string | null;
     contractPeriod: string | null;
     isGeneralScope: boolean;
@@ -60,12 +76,13 @@ export type RateVersionPreviewSummary = {
     hourlyRateInCents: number;
     hourlyRateFormattedEur: string;
     effectiveFrom: string;
-    effectiveTo: string | null;
+    effectiveTo: string;
     rateVersion: number;
   };
   provenance: {
     sourceType: DocumentedPriceSourceType;
     sourceReference: string;
+    sourceDocumentUrl: string | null;
     verifyingUser: {
       id: string;
       fullName: string | null;
@@ -143,25 +160,27 @@ export function validateClientHourlyRateInput(
     }
   }
 
-  // Effective To
+  // Effective To (Mandatory closed interval policy to prevent unresolvable overlap with successor versions)
   let cleanEffectiveTo: string | null = null;
-  if (input.effectiveTo !== undefined && input.effectiveTo !== null && input.effectiveTo !== "") {
-    if (!isValidIsoDateString(input.effectiveTo)) {
-      errors.push(
-        `Gültig-Bis-Datum (effectiveTo: "${input.effectiveTo}") ist ungültig. Erwartet wird ein valides ISO-Datum (YYYY-MM-DD).`
-      );
-    } else {
-      cleanEffectiveTo = input.effectiveTo;
-      const year = Number(input.effectiveTo.slice(0, 4));
-      if (year < 2000 || year > 2100) {
-        errors.push(`Gültig-Bis-Datum ("${input.effectiveTo}") liegt außerhalb des zulässigen Bereichs (2000–2100).`);
-      }
-      if (input.effectiveFrom && isValidIsoDateString(input.effectiveFrom)) {
-        if (input.effectiveFrom > input.effectiveTo) {
-          errors.push(
-            `Invertierter Gültigkeitszeitraum: effectiveFrom ("${input.effectiveFrom}") liegt nach effectiveTo ("${input.effectiveTo}").`
-          );
-        }
+  if (!input.effectiveTo || typeof input.effectiveTo !== "string" || !input.effectiveTo.trim()) {
+    errors.push(
+      "Ein konkretes Gültigkeitsende (effectiveTo) ist zwingend erforderlich. Unbefristete Zeiträume (effectiveTo = null) sind unzulässig, da eingefrorene Sätze unveränderlich sind und eine spätere Nachfolgeversion durch den Ausschluss-Constraint physisch blockiert würde. Bitte erfassen Sie das vertraglich vereinbarte Laufzeitende (z. B. zum Jahresende oder Vertragsablauf)."
+    );
+  } else if (!isValidIsoDateString(input.effectiveTo)) {
+    errors.push(
+      `Gültig-Bis-Datum (effectiveTo: "${input.effectiveTo}") ist ungültig. Erwartet wird ein valides ISO-Datum (YYYY-MM-DD).`
+    );
+  } else {
+    cleanEffectiveTo = input.effectiveTo.trim();
+    const year = Number(cleanEffectiveTo.slice(0, 4));
+    if (year < 2000 || year > 2100) {
+      errors.push(`Gültig-Bis-Datum ("${cleanEffectiveTo}") liegt außerhalb des zulässigen Bereichs (2000–2100).`);
+    }
+    if (input.effectiveFrom && isValidIsoDateString(input.effectiveFrom)) {
+      if (input.effectiveFrom > cleanEffectiveTo) {
+        errors.push(
+          `Invertierter Gültigkeitszeitraum: effectiveFrom ("${input.effectiveFrom}") liegt nach effectiveTo ("${cleanEffectiveTo}").`
+        );
       }
     }
   }
@@ -187,6 +206,14 @@ export function validateClientHourlyRateInput(
     );
   }
 
+  // Source Document URL / Path (optional string or null)
+  let cleanSourceDocUrl: string | null = null;
+  if (input.sourceDocumentUrl !== undefined && input.sourceDocumentUrl !== null) {
+    if (typeof input.sourceDocumentUrl === "string" && input.sourceDocumentUrl.trim()) {
+      cleanSourceDocUrl = input.sourceDocumentUrl.trim();
+    }
+  }
+
   // Verifying User ID
   if (!input.verifyingUserId || typeof input.verifyingUserId !== "string" || !input.verifyingUserId.trim()) {
     errors.push("Prüfer-ID (verifyingUserId) ist erforderlich.");
@@ -205,9 +232,10 @@ export function validateClientHourlyRateInput(
       qualification: input.qualification!.trim(),
       hourlyRateInCents: input.hourlyRateInCents!,
       effectiveFrom: input.effectiveFrom!,
-      effectiveTo: cleanEffectiveTo,
+      effectiveTo: cleanEffectiveTo!,
       sourceType: input.sourceType as DocumentedPriceSourceType,
       sourceReference: input.sourceReference!.trim(),
+      sourceDocumentUrl: cleanSourceDocUrl,
       verifyingUserId: input.verifyingUserId!.trim(),
     },
   };
@@ -287,6 +315,7 @@ export async function previewClientHourlyRate(params: {
   if (!actorCheck.success) {
     return actorCheck;
   }
+  const actor = actorCheck.user;
 
   // 2. Syntactic validation of input
   const valResult = validateClientHourlyRateInput(input);
@@ -301,17 +330,26 @@ export async function previewClientHourlyRate(params: {
 
   const validated = valResult.validatedInput;
 
-  // 3. Verifier user existence & privilege check
-  const verifierCheck = await verifyAdminUser(prisma, validated.verifyingUserId);
-  if (!verifierCheck.success) {
-    return verifierCheck;
+  // 3. Verifier identity binding: Actor must be the verifier (prevent forging another admin's identity)
+  if (validated.verifyingUserId !== actorUserId) {
+    return {
+      success: false,
+      code: "FORGED_VERIFIER_IDENTITY",
+      message: `Der angemeldete Administrator ("${actor.email}") kann keine Preisversion im Namen eines abweichenden Prüfers ("${validated.verifyingUserId}") verifizieren. Die Prüferidentität muss mit der authentifizierten Sitzung übereinstimmen.`,
+    };
   }
-  const verifier = verifierCheck.user;
+  const verifier = actor;
 
-  // 4. Verify Client existence
+  // 4. Verify Client existence & framework agreement status
   const client = await prisma.client.findUnique({
     where: { id: validated.clientId },
-    select: { id: true, name: true, shortCode: true },
+    select: {
+      id: true,
+      facilityName: true,
+      shortCode: true,
+      frameworkAgreementSignedAt: true,
+      frameworkAgreementUrl: true,
+    },
   });
 
   if (!client) {
@@ -322,12 +360,20 @@ export async function previewClientHourlyRate(params: {
     };
   }
 
-  // 5. Verify Contract existence and client parity (if contract-scoped)
+  // 5. Documentary backing verification
   let contractPeriod: string | null = null;
   if (validated.clientContractId) {
+    // Contract-scoped rate: Contract must exist, belong to client, and be active/signed
     const contract = await prisma.clientContract.findUnique({
       where: { id: validated.clientContractId },
-      select: { id: true, clientId: true, period: true, status: true },
+      select: {
+        id: true,
+        clientId: true,
+        period: true,
+        status: true,
+        signedAt: true,
+        documentUrl: true,
+      },
     });
 
     if (!contract) {
@@ -345,7 +391,28 @@ export async function previewClientHourlyRate(params: {
         message: `Vertrag "${validated.clientContractId}" gehört zu Kunde "${contract.clientId}", nicht zu dem angegebenen Kunden "${validated.clientId}".`,
       };
     }
+
+    if (contract.status === "pending" || (!contract.signedAt && !contract.documentUrl)) {
+      return {
+        success: false,
+        code: "CONTRACT_NOT_SIGNED_OR_ACTIVE",
+        message: `Vertrag "${validated.clientContractId}" ist nicht unterzeichnet oder befindet sich im Status "pending". Preise dürfen ausschließlich auf Grundlage wirksamer, unterzeichneter Verträge erfasst werden.`,
+      };
+    }
     contractPeriod = contract.period ?? null;
+  } else {
+    // General scope rate: Facility must have signed framework agreement or explicit archival document URL
+    const hasSignedFramework =
+      Boolean(client.frameworkAgreementSignedAt) || Boolean(client.frameworkAgreementUrl);
+    const hasArchivedDocUrl = Boolean(validated.sourceDocumentUrl);
+
+    if (!hasSignedFramework && !hasArchivedDocUrl) {
+      return {
+        success: false,
+        code: "GENERAL_SCOPE_LACKS_DOCUMENTATION",
+        message: `Für allgemeine Einrichtungspreise ohne Einzelvertrag muss eine unterzeichnete Rahmenvereinbarung der Einrichtung (frameworkAgreementSignedAt oder frameworkAgreementUrl) oder eine nachweisbare Urkunden-URL (sourceDocumentUrl) vorliegen. Ein bloßer Freitext genügt nicht als Nachweis.`,
+      };
+    }
   }
 
   // 6. Check for overlaps and determine next version number
@@ -364,11 +431,11 @@ export async function previewClientHourlyRate(params: {
     const exFrom = toIsoDay(existing.effectiveFrom);
     const exTo = toIsoDay(existing.effectiveTo);
     if (exFrom) {
-      if (doIntervalsOverlap(validated.effectiveFrom, validated.effectiveTo ?? null, exFrom, exTo)) {
+      if (doIntervalsOverlap(validated.effectiveFrom, validated.effectiveTo, exFrom, exTo)) {
         return {
           success: false,
           code: "OVERLAPPING_VALIDITY_INTERVAL",
-          message: `Gültigkeitszeitraum [${validated.effectiveFrom} .. ${validated.effectiveTo ?? "unbefristet"}] überschneidet sich mit bestehender Preisversion "${existing.id}" (v${existing.rateVersion}: [${exFrom} .. ${exTo ?? "unbefristet"}]).`,
+          message: `Gültigkeitszeitraum [${validated.effectiveFrom} .. ${validated.effectiveTo}] überschneidet sich mit bestehender Preisversion "${existing.id}" (v${existing.rateVersion}: [${exFrom} .. ${exTo ?? "unbefristet"}]).`,
           details: {
             conflictingRateId: existing.id,
             conflictingVersion: existing.rateVersion,
@@ -393,7 +460,7 @@ export async function previewClientHourlyRate(params: {
     qualification: validated.qualification,
     hourlyRateInCents: validated.hourlyRateInCents,
     effectiveFrom: validated.effectiveFrom,
-    effectiveTo: validated.effectiveTo ?? null,
+    effectiveTo: validated.effectiveTo,
     sourceType: validated.sourceType,
     sourceReference: validated.sourceReference,
   });
@@ -404,7 +471,7 @@ export async function previewClientHourlyRate(params: {
     isValid: true,
     scope: {
       clientId: client.id,
-      clientName: client.name,
+      facilityName: client.facilityName,
       clientContractId: validated.clientContractId ?? null,
       contractPeriod,
       isGeneralScope: (validated.clientContractId ?? null) === null,
@@ -415,12 +482,13 @@ export async function previewClientHourlyRate(params: {
       hourlyRateInCents: validated.hourlyRateInCents,
       hourlyRateFormattedEur: formatCentsGermanEur(validated.hourlyRateInCents),
       effectiveFrom: validated.effectiveFrom,
-      effectiveTo: validated.effectiveTo ?? null,
+      effectiveTo: validated.effectiveTo,
       rateVersion: nextRateVersion,
     },
     provenance: {
       sourceType: validated.sourceType,
       sourceReference: validated.sourceReference,
+      sourceDocumentUrl: validated.sourceDocumentUrl ?? null,
       verifyingUser: {
         id: verifier.id,
         fullName: verifier.fullName,
@@ -440,17 +508,28 @@ export async function previewClientHourlyRate(params: {
 
 /**
  * Creates, verifies, and permanently freezes a documented client hourly rate version.
+ * Requires caller to provide the exact previewed canonical hash (expectedPreviewHash)
+ * to ensure that terms were reviewed by human administrator and not altered post-preview.
  */
 export async function createAndFreezeClientHourlyRate(params: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prisma: any;
   input: unknown;
   actorUserId: string;
+  expectedPreviewHash: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }): Promise<AdminServiceResult<any>> {
-  const { prisma, input, actorUserId } = params;
+  const { prisma, input, actorUserId, expectedPreviewHash } = params;
 
-  // Run preview validation first
+  if (!expectedPreviewHash || typeof expectedPreviewHash !== "string" || !expectedPreviewHash.trim()) {
+    return {
+      success: false,
+      code: "MISSING_PREVIEW_HASH",
+      message: "Das Einfrieren erfordert die Angabe des zuvor geprüften Vorschau-Hashs (expectedPreviewHash).",
+    };
+  }
+
+  // Run preview validation
   const preview = await previewClientHourlyRate({ prisma, input, actorUserId });
   if (!preview.success) {
     return preview;
@@ -458,7 +537,20 @@ export async function createAndFreezeClientHourlyRate(params: {
 
   const p = preview.data;
 
-  // Insert frozen rate record into database
+  // Strict Hash Binding: The terms being committed must strictly match the approved preview hash
+  if (p.integrity.canonicalHash !== expectedPreviewHash.trim()) {
+    return {
+      success: false,
+      code: "PREVIEW_HASH_MISMATCH",
+      message: `Die zu speichernden Preisdaten stimmen nicht mit dem freigegebenen Vorschau-Hash überein (erwartet: "${expectedPreviewHash}", berechnet: "${p.integrity.canonicalHash}"). Ein Speichern abweichender Daten nach der Prüfung ist verboten.`,
+      details: {
+        expectedPreviewHash,
+        calculatedHash: p.integrity.canonicalHash,
+      },
+    };
+  }
+
+  // Insert frozen rate record into database with locked preview timestamp
   const createdRecord = await prisma.clientHourlyRateVersion.create({
     data: {
       clientId: p.scope.clientId,
@@ -467,7 +559,7 @@ export async function createAndFreezeClientHourlyRate(params: {
       qualification: p.rateTerms.qualification,
       hourlyRateInCents: p.rateTerms.hourlyRateInCents,
       effectiveFrom: new Date(p.rateTerms.effectiveFrom),
-      effectiveTo: p.rateTerms.effectiveTo ? new Date(p.rateTerms.effectiveTo) : null,
+      effectiveTo: new Date(p.rateTerms.effectiveTo),
       sourceType: p.provenance.sourceType,
       sourceReference: p.provenance.sourceReference,
       isFrozen: true,
@@ -483,10 +575,11 @@ export async function createAndFreezeClientHourlyRate(params: {
 
 /**
  * Supersedes a documented rate with a new successor version.
- * Immutability policy:
+ * Immutability & Succession policy:
  * - The existing frozen record CANNOT be modified or deleted.
  * - The new version must target the same scope (client, contract, qualification).
- * - The new version must have effectiveFrom >= existing.effectiveTo + 1 day (or non-overlapping).
+ * - The new version must start strictly after the existing version's effectiveTo (effectiveFrom > existing.effectiveTo).
+ * - Both versions remain closed intervals, preventing overlap while allowing seamless succession.
  */
 export async function supersedeClientHourlyRate(params: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -494,9 +587,10 @@ export async function supersedeClientHourlyRate(params: {
   existingRateId: string;
   newRateInput: unknown;
   actorUserId: string;
+  expectedPreviewHash: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }): Promise<AdminServiceResult<any>> {
-  const { prisma, existingRateId, newRateInput, actorUserId } = params;
+  const { prisma, existingRateId, newRateInput, actorUserId, expectedPreviewHash } = params;
 
   // 1. Authorization check
   const actorCheck = await verifyAdminUser(prisma, actorUserId);
@@ -559,8 +653,22 @@ export async function supersedeClientHourlyRate(params: {
     };
   }
 
-  // Create and freeze the new rate version (which enforces non-overlapping and increments rateVersion)
-  return createAndFreezeClientHourlyRate({ prisma, input: validated, actorUserId });
+  const existingTo = toIsoDay(existing.effectiveTo);
+  if (existingTo && validated.effectiveFrom <= existingTo) {
+    return {
+      success: false,
+      code: "OVERLAPPING_SUCCESSOR_START",
+      message: `Die Nachfolgeversion beginnt am "${validated.effectiveFrom}", liegt jedoch nicht nach dem Gültigkeitsende der Vorversion ("${existingTo}").`,
+    };
+  }
+
+  // Create and freeze the new rate version
+  return createAndFreezeClientHourlyRate({
+    prisma,
+    input: validated,
+    actorUserId,
+    expectedPreviewHash,
+  });
 }
 
 /**
