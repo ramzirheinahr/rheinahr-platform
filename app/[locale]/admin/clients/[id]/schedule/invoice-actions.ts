@@ -11,6 +11,7 @@ import { sendEmailToRecipients, EmailDispatchReport } from "@/lib/email";
 import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
 import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
 import { CALCULATION_VERSIONS } from "@/lib/invoice-calculation-version";
+import { isV2InvoiceIssuanceEnabled, issueV2Invoice } from "@/lib/invoice-v2-issuance-service";
 
 const VAT_RATE = 0.19;
 
@@ -41,6 +42,146 @@ export async function generateMonthInvoices(
     where: { id: clientId }
   });
   if (!client) throw new Error("Client not found");
+
+  // Modern V2 Calculation & Issuance Branch
+  if (isV2InvoiceIssuanceEnabled()) {
+    const unbilledMonthAssignments = await prisma.assignment.findMany({
+      where: {
+        order: {
+          clientId,
+          shiftDate: { gte: startDate, lt: endDate }
+        },
+        invoiceId: null,
+        status: "confirmed",
+      },
+      select: { id: true },
+      orderBy: { order: { shiftDate: "asc" } }
+    });
+
+    if (unbilledMonthAssignments.length === 0) {
+      throw new Error("Keine abrechenbaren Schichten gefunden.");
+    }
+
+    const assignmentIds = unbilledMonthAssignments.map(a => a.id);
+    const issueRes = await issueV2Invoice({
+      assignmentIds,
+      customInvoiceNumber,
+      monthScope: { clientId, year, month },
+    });
+
+    if (!issueRes.success) {
+      throw new Error(`[V2_ISSUANCE_FAILED] ${issueRes.code}: ${issueRes.message}`);
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: issueRes.invoiceId },
+      include: {
+        client: true,
+        assignments: {
+          include: {
+            order: true,
+            worker: true,
+          },
+          orderBy: { order: { shiftDate: "asc" } },
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new Error("V2-Monatsrechnung wurde erstellt, konnte jedoch nicht zur Nachbereitung geladen werden.");
+    }
+
+    const monthStr = String(month).padStart(2, "0");
+
+    // In-app notification
+    await prisma.notification.create({
+      data: {
+        userId: client.userId,
+        type: "order_status_changed",
+        channel: "in_app",
+        content: `Eine neue Monatsrechnung (${invoice.invoiceNumber}) für ${monthStr}/${year} steht zur Verfügung.`,
+        link: "/client/invoices"
+      }
+    });
+
+    // Email dispatch strictly AFTER successful commit
+    let emailDispatchStatus: EmailDispatchStatus = "not_requested";
+    let dispatchReport: EmailDispatchReport | undefined;
+
+    if (sendEmail) {
+      const pdfData = buildInvoicePdfData(invoice, client, invoice.assignments);
+      const pdfBuffer = await generateInvoicePdf(pdfData);
+
+      const attachments: { filename: string; content: Buffer; contentType: string }[] = [
+        {
+          filename: `${invoice.invoiceNumber}.pdf`,
+          content: pdfBuffer,
+          contentType: "application/pdf"
+        }
+      ];
+
+      if (attachTimesheets && invoice.assignments.length > 0) {
+        const timesheetBuffer = await generateLeistungsnachweisePdf(invoice.assignments.map(a => a.id));
+        if (timesheetBuffer) {
+          attachments.push({
+            filename: `Leistungsnachweise_${invoice.invoiceNumber}.pdf`,
+            content: timesheetBuffer,
+            contentType: "application/pdf"
+          });
+        }
+      }
+
+      const defaultRecipients = client.billingEmail
+        ? [...new Set(client.billingEmail.split(/[,;\s]+/).map((s) => s.trim().toLowerCase()).filter((s) => s.includes("@")))]
+        : [client.userId];
+      const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
+
+      try {
+        dispatchReport = await sendEmailToRecipients(targetRecipients, {
+          subject: `Rechnung ${invoice.invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
+          body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Monatsrechnung (${invoice.invoiceNumber}) für den Zeitraum ${monthStr}/${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+          attachments
+        });
+      } catch (emailErr) {
+        console.error("Unerwarteter Fehler beim Versenden der Rechnungs-E-Mail:", emailErr);
+      }
+
+      if (!dispatchReport || dispatchReport.acceptedCount === 0) {
+        emailDispatchStatus = !dispatchReport || dispatchReport.eligibleCount === 0 ? "no_eligible_recipients" : "send_failed";
+      } else {
+        const isPartial = dispatchReport.acceptedCount < dispatchReport.totalRequested || dispatchReport.failedCount > 0 || dispatchReport.skippedCount > 0 || dispatchReport.unresolvedCount > 0;
+        try {
+          const currentSnapshot = (invoice.snapshotData as Record<string, unknown>) || {};
+          await prisma.invoice.update({
+            where: { id: invoice.id },
+            data: {
+              snapshotData: {
+                ...currentSnapshot,
+                emailSent: {
+                  sentAt: new Date().toISOString(),
+                  status: isPartial ? "partial" : "sent",
+                  recipients: dispatchReport.acceptedRecipients,
+                  acceptedRecipients: dispatchReport.acceptedRecipients,
+                  failedRecipients: dispatchReport.failedRecipients,
+                  skippedRecipients: dispatchReport.skippedRecipients,
+                  unresolvedRecipients: dispatchReport.unresolvedRecipients,
+                  attachTimesheets,
+                }
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              } as any
+            }
+          });
+          emailDispatchStatus = isPartial ? "partially_sent_and_recorded" : "sent_and_recorded";
+        } catch (recordErr) {
+          emailDispatchStatus = isPartial ? "partially_sent_but_record_failed" : "sent_but_record_failed";
+          console.error("Fehler beim Speichern der E-Mail-Metadaten:", recordErr);
+        }
+      }
+    }
+
+    revalidatePath("/", "layout");
+    return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport };
+  }
 
   // We only invoice shifts that are confirmed and have NO invoice yet.
   const assignments = await prisma.assignment.findMany({

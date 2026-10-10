@@ -11,16 +11,102 @@ const formatAmount = (num: number) => `${formatNumber(num)} €`;
 
 import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client";
 
+import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
+
 export function buildInvoicePdfData(
-  invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount">,
+  invoice: Pick<Invoice, "invoiceNumber" | "date" | "netAmount" | "vatAmount" | "grossAmount"> & {
+    snapshotData?: unknown;
+  },
   client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "billingEmail" | "billingInfo" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
   assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[],
   options?: { forceRecalculate?: boolean }
 ): InvoicePdfData {
   // If the invoice has a snapshot of the client data (prices, address, etc.), use it. 
   // Otherwise fallback to current live client data.
-  const snapshot = (invoice as any).snapshotData || {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const snapshot = ((invoice as any).snapshotData as any) || {};
   const effectiveClient = { ...client, ...snapshot } as typeof client;
+
+  // Modern V2 Calculation Path: Strictly frozen, read only from snapshotData
+  if (isV2CalculationVersion(snapshot)) {
+    if (options?.forceRecalculate) {
+      throw new Error(
+        "forceRecalculate is strictly forbidden for V2 invoices: V2 invoices are permanently immutable and must only be read from frozen snapshotData."
+      );
+    }
+
+    if (!Array.isArray(snapshot.pdfItems) || snapshot.pdfItems.length === 0) {
+      throw new Error("Corrupted V2 invoice: snapshotData.pdfItems is missing or empty.");
+    }
+
+    const { subtotalCents, taxAmountCents, totalCents } = snapshot;
+    if (
+      typeof subtotalCents !== "number" ||
+      typeof taxAmountCents !== "number" ||
+      typeof totalCents !== "number" ||
+      !Number.isSafeInteger(subtotalCents) ||
+      !Number.isSafeInteger(taxAmountCents) ||
+      !Number.isSafeInteger(totalCents)
+    ) {
+      throw new Error("Corrupted V2 invoice: snapshotData cent totals are missing or invalid integers.");
+    }
+
+    if (subtotalCents + taxAmountCents !== totalCents) {
+      throw new Error(
+        `Corrupted V2 invoice mathematical integrity error: totalCents (${totalCents}) !== subtotalCents (${subtotalCents}) + taxAmountCents (${taxAmountCents}).`
+      );
+    }
+
+    // Parity check against stored DB amounts
+    const dbNetCents = Math.round(Number(invoice.netAmount) * 100);
+    const dbVatCents = Math.round(Number(invoice.vatAmount) * 100);
+    const dbGrossCents = Math.round(Number(invoice.grossAmount) * 100);
+
+    if (
+      dbNetCents !== subtotalCents ||
+      dbVatCents !== taxAmountCents ||
+      dbGrossCents !== totalCents
+    ) {
+      throw new Error(
+        `Corrupted V2 invoice amounts: DB amounts (${dbNetCents}, ${dbVatCents}, ${dbGrossCents}) do not match frozen snapshot cent totals (${subtotalCents}, ${taxAmountCents}, ${totalCents}).`
+      );
+    }
+
+    // Clean items so rate never has duplicate €
+    const sanitizedItems = (snapshot.pdfItems as Record<string, unknown>[]).map((item) => ({
+      pos: Number(item.pos),
+      description: String(item.description),
+      hours: String(item.hours),
+      rate: typeof item.rate === "string" ? item.rate.replace(/\s*€$/, "").trim() : String(item.rate),
+      amount: typeof item.amount === "string" ? item.amount.trim() : String(item.amount),
+    }));
+
+    return {
+      invoiceNumber: invoice.invoiceNumber,
+      date: snapshot.date || format(invoice.date || new Date(), "dd.MM.yyyy"),
+      clientId:
+        snapshot.internalNumber ||
+        snapshot.shortCode ||
+        effectiveClient.internalNumber ||
+        effectiveClient.shortCode ||
+        effectiveClient.id?.substring(0, 8) ||
+        "UNKNOWN",
+      clientName: snapshot.facilityName || effectiveClient.facilityName,
+      billingInfo:
+        snapshot.billingInfo !== undefined
+          ? snapshot.billingInfo
+          : effectiveClient.billingInfo || null,
+      clientAddress:
+        snapshot.address || buildAddressString(effectiveClient) || "Adresse unbekannt",
+      periodStart: snapshot.periodStart || "",
+      periodEnd: snapshot.periodEnd || "",
+      items: sanitizedItems,
+      subtotal: snapshot.subtotal,
+      taxAmount: snapshot.taxAmount,
+      total: snapshot.total,
+      paymentTermsDays: snapshot.paymentTermsDays ?? effectiveClient.paymentTermsDays ?? 14,
+    };
+  }
 
   // If the invoice has an immutable frozen snapshot of the items, return them directly (unless forceRecalculate is requested).
   if (!options?.forceRecalculate && Array.isArray(snapshot.items) && snapshot.items.length > 0) {
@@ -127,7 +213,7 @@ export function buildInvoicePdfData(
   let pos = 1;
   const items: InvoicePdfData["items"] = [];
 
-  for (const [key, group] of grouped.entries()) {
+  for (const [, group] of grouped.entries()) {
     const baseRate = rateFor(group.qual, rates);
     const qName = qualLabel[group.qual] || group.qual;
     const wName = group.workerName;

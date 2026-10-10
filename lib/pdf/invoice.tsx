@@ -10,7 +10,7 @@ import {
 } from "@react-pdf/renderer";
 import React from "react";
 import path from "path";
-import { getCompanyConfig } from "@/lib/config/company";
+import { getCompanyConfig, type CompanyConfig } from "@/lib/config/company";
 
 export type InvoicePdfData = {
   invoiceNumber: string;
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   footerText: { marginBottom: 2 },
 });
 
-const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData, companyConfig: any }) => (
+const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; companyConfig: CompanyConfig }) => (
   <Document>
     <Page size="A4" style={styles.page}>
       
@@ -180,7 +180,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData, compan
             <Text style={styles.colPos}>{item.pos}</Text>
             <Text style={styles.colDesc}>{item.description}</Text>
             <Text style={styles.colHours}>{item.hours}</Text>
-            <Text style={styles.colRate}>{item.rate} €</Text>
+            <Text style={styles.colRate}>{item.rate.trim().endsWith("€") ? item.rate.trim() : `${item.rate.trim()} €`}</Text>
             <Text style={styles.colAmount}>{item.amount}</Text>
           </View>
         ))}
@@ -188,7 +188,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData, compan
 
       <View style={styles.subtotalRow}>
         <Text style={styles.subtotalLabel}>Zwischensumme :</Text>
-        <Text style={styles.subtotalValue}>{data.subtotal.endsWith("€") ? data.subtotal : `${data.subtotal} €`}</Text>
+        <Text style={styles.subtotalValue}>{data.subtotal.trim().endsWith("€") ? data.subtotal.trim() : `${data.subtotal.trim()} €`}</Text>
       </View>
 
       {/* Tax Table */}
@@ -200,10 +200,10 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData, compan
           <Text style={styles.tCol4}>Endbetrag €</Text>
         </View>
         <View style={styles.taxRow}>
-          <Text style={[styles.tCol1, styles.tBold]}>{data.subtotal}</Text>
+          <Text style={[styles.tCol1, styles.tBold]}>{data.subtotal.trim().endsWith("€") ? data.subtotal.trim() : `${data.subtotal.trim()} €`}</Text>
           <Text style={[styles.tCol2, styles.tBold]}>19 %</Text>
-          <Text style={[styles.tCol3, styles.tBold]}>{data.taxAmount}</Text>
-          <Text style={[styles.tCol4, styles.tBold]}>{data.total}</Text>
+          <Text style={[styles.tCol3, styles.tBold]}>{data.taxAmount.trim().endsWith("€") ? data.taxAmount.trim() : `${data.taxAmount.trim()} €`}</Text>
+          <Text style={[styles.tCol4, styles.tBold]}>{data.total.trim().endsWith("€") ? data.total.trim() : `${data.total.trim()} €`}</Text>
         </View>
       </View>
 
