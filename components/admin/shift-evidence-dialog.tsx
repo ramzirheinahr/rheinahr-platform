@@ -304,7 +304,7 @@ export function ShiftEvidenceDialog({
           }
         />
 
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-start">
               <FileSignature className="size-5 text-primary" />
@@ -418,18 +418,18 @@ export function ShiftEvidenceDialog({
             <div className="space-y-4">
               {/* Pending Correction Banner */}
               {timeline.pendingCorrection && (
-                <div className="rounded-lg border border-amber-300 bg-amber-50/80 p-3.5 text-xs text-amber-900">
-                  <div className="flex items-center justify-between gap-2">
+                <div className="rounded-lg border border-amber-300 bg-amber-50/80 p-3 sm:p-3.5 text-xs text-amber-900">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 font-semibold">
-                      <FileWarning className="size-4 text-amber-600" />
+                      <FileWarning className="size-4 text-amber-600 shrink-0" />
                       {t("pendingCorrectionBadge")}
                     </div>
                     {/* Admin Action Buttons */}
                     {userCanDecide && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                         <Button
                           size="sm"
-                          className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs"
+                          className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs"
                           onClick={() => openApproveModal(timeline.pendingCorrection!)}
                         >
                           <Check className="size-3.5" />
@@ -438,7 +438,7 @@ export function ShiftEvidenceDialog({
                         <Button
                           size="sm"
                           variant="destructive"
-                          className="h-7 gap-1 text-xs"
+                          className="h-7 px-2.5 gap-1 text-xs"
                           onClick={() => openRejectModal(timeline.pendingCorrection!)}
                         >
                           <X className="size-3.5" />
@@ -448,8 +448,8 @@ export function ShiftEvidenceDialog({
                     )}
                   </div>
 
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-start">
-                    <div>
+                  <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-start">
+                    <div className="min-w-0 break-words">
                       <span className="text-muted-foreground">{t("correctionPrevious")}: </span>
                       <span className="font-medium">
                         {timeline.pendingCorrection.previousHoursWorked != null
@@ -457,14 +457,14 @@ export function ShiftEvidenceDialog({
                           : "—"}
                       </span>
                     </div>
-                    <div>
+                    <div className="min-w-0 break-words">
                       <span className="text-muted-foreground">{t("correctionProposed")}: </span>
                       <span className="font-bold text-amber-700">
                         {timeline.pendingCorrection.proposedHoursWorked} {t("hoursUnit")}
                       </span>
                     </div>
                     {timeline.pendingCorrection.proposedStartTime && (
-                      <div>
+                      <div className="min-w-0 break-words">
                         <span className="text-muted-foreground">{t("startTimeLabel")}: </span>
                         <span className="font-medium">
                           {timeline.pendingCorrection.proposedStartTime}
@@ -472,7 +472,7 @@ export function ShiftEvidenceDialog({
                       </div>
                     )}
                     {timeline.pendingCorrection.proposedEndTime && (
-                      <div>
+                      <div className="min-w-0 break-words">
                         <span className="text-muted-foreground">{t("endTimeLabel")}: </span>
                         <span className="font-medium">
                           {timeline.pendingCorrection.proposedEndTime}
@@ -482,7 +482,7 @@ export function ShiftEvidenceDialog({
                   </div>
 
                   {timeline.pendingCorrection.reason && (
-                    <div className="mt-1.5 text-muted-foreground text-start">
+                    <div className="mt-1.5 text-muted-foreground text-start break-words">
                       <span className="font-medium">{t("correctionReason")}: </span>
                       {timeline.pendingCorrection.reason}
                     </div>
@@ -611,14 +611,20 @@ export function ShiftEvidenceDialog({
                           {/* Upload notes if any */}
                           {doc.metadata &&
                             typeof doc.metadata === "object" &&
-                            "notes" in doc.metadata && (
+                            "notes" in doc.metadata &&
+                            doc.metadata.notes != null &&
+                            String(doc.metadata.notes).trim() !== "" &&
+                            String(doc.metadata.notes) !== "null" && (
                               <p className="text-xs italic text-muted-foreground">
                                 &quot;{String(doc.metadata.notes)}&quot;
                               </p>
                             )}
                           {doc.metadata &&
                             typeof doc.metadata === "object" &&
-                            "clientNotes" in doc.metadata && (
+                            "clientNotes" in doc.metadata &&
+                            doc.metadata.clientNotes != null &&
+                            String(doc.metadata.clientNotes).trim() !== "" &&
+                            String(doc.metadata.clientNotes) !== "null" && (
                               <p className="text-xs italic text-muted-foreground">
                                 &quot;{String(doc.metadata.clientNotes)}&quot;
                               </p>

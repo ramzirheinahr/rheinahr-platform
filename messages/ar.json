@@ -1060,7 +1060,8 @@
       "plannedNotice": "يحتوي على ورديات مجدولة غير مدققة. هذه الساعات لا تمثل ساعات عمل فعلية معتمدة.",
       "totalActualHours": "إجمالي الساعات الفعلية (المعتمدة/المؤكدة)",
       "unverifiedPlannedHours": "غير مدقق / مخطط",
-      "totalPlanned": "إجمالي الساعات (المخططة)"
+      "totalPlanned": "إجمالي الساعات (المخططة)",
+      "hoursUnit": "ساعة"
     },
     "monatsliste": {
       "title": "القائمة الشهرية Monatsliste",
@@ -1211,6 +1212,8 @@
     "from": "من",
     "to": "إلى",
     "apply": "تطبيق",
+    "search": "بحث",
+    "searchPlaceholder": "رقم الفاتورة / المنشأة...",
     "download": "تنزيل CSV",
     "date": "التاريخ",
     "facility": "المنشأة",

@@ -245,7 +245,13 @@ export function StundennachweisView({
                               : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
                           }`}
                         >
-                          {r.statusLabel || (r.isPlanned ? t("stundennachweis.statusPlanned") : t("stundennachweis.statusConfirmed"))}
+                          {r.statusType === "approved_correction"
+                            ? t("stundennachweis.statusCorrected")
+                            : r.statusType === "service_confirmation"
+                            ? t("stundennachweis.statusConfirmed")
+                            : r.isPlanned
+                            ? t("stundennachweis.statusPlanned")
+                            : r.statusLabel || t("stundennachweis.statusConfirmed")}
                         </span>
                       </td>
                     </tr>
@@ -264,7 +270,7 @@ export function StundennachweisView({
                           .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
                           .toFixed(2)
                           .replace(".", ",")}{" "}
-                        Std.
+                        {t("stundennachweis.hoursUnit")}
                       </td>
                       <td></td>
                     </tr>
@@ -280,7 +286,7 @@ export function StundennachweisView({
                             .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
                             .toFixed(2)
                             .replace(".", ",")}{" "}
-                          Std.
+                          {t("stundennachweis.hoursUnit")}
                         </td>
                         <td></td>
                       </tr>
@@ -295,7 +301,7 @@ export function StundennachweisView({
                               .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
                               .toFixed(2)
                               .replace(".", ",")}{" "}
-                            Std.
+                            {t("stundennachweis.hoursUnit")}
                           </td>
                           <td></td>
                         </tr>

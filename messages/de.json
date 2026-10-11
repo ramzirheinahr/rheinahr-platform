@@ -1058,7 +1058,8 @@
       "plannedNotice": "Enthält ungeprüfte / geplante Schichten. Diese stellen keine freigegebenen Ist-Stunden dar.",
       "totalActualHours": "Gesamtsumme (Ist-Stunden)",
       "unverifiedPlannedHours": "Ungeprüft / Geplant",
-      "totalPlanned": "Gesamtsumme (Geplant)"
+      "totalPlanned": "Gesamtsumme (Geplant)",
+      "hoursUnit": "Std."
     },
     "monatsliste": {
       "title": "Monatsliste",
@@ -1209,6 +1210,8 @@
     "from": "Von",
     "to": "Bis",
     "apply": "Anwenden",
+    "search": "Suche",
+    "searchPlaceholder": "Rechnung Nr. / Einrichtung...",
     "download": "CSV herunterladen",
     "date": "Datum",
     "facility": "Einrichtung",

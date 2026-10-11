@@ -1058,7 +1058,8 @@
       "plannedNotice": "Contains unverified / planned shifts. These do not represent approved actual hours.",
       "totalActualHours": "Total (Actual Hours)",
       "unverifiedPlannedHours": "Unverified / Planned",
-      "totalPlanned": "Total (Planned)"
+      "totalPlanned": "Total (Planned)",
+      "hoursUnit": "h"
     },
     "monatsliste": {
       "title": "Monthly List",
@@ -1209,6 +1210,8 @@
     "from": "From",
     "to": "To",
     "apply": "Apply",
+    "search": "Search",
+    "searchPlaceholder": "Invoice No. / Facility...",
     "download": "Download CSV",
     "date": "Date",
     "facility": "Facility",

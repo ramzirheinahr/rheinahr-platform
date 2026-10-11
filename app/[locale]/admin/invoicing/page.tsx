@@ -220,8 +220,8 @@ export default async function InvoicingPage({
 
       <form method="get" className="flex flex-wrap items-end gap-3 p-4 bg-white border rounded-xl shadow-xs">
         <div className="space-y-1.5 flex-1 min-w-[200px]">
-          <Label htmlFor="q" className="text-xs font-semibold text-slate-700">Suche</Label>
-          <Input id="q" name="q" type="search" defaultValue={q} placeholder="Rechnung Nr. / Einrichtung..." />
+          <Label htmlFor="q" className="text-xs font-semibold text-slate-700">{t("search")}</Label>
+          <Input id="q" name="q" type="search" defaultValue={q} placeholder={t("searchPlaceholder")} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="from" className="text-xs font-semibold text-slate-700">{t("from")}</Label>
