@@ -79,6 +79,9 @@ import {
   FreshV2InvoiceImmutableError,
   RevisionChainCorruptedError,
   InvoiceRefreshError,
+  persistArchivedOriginalPdf,
+  getArchivedInvoicesDirectory,
+  getAllowedInvoiceStorageRoots,
 } from "./invoice-v2-refresh-service";
 import {
   refreshInvoice,
@@ -776,6 +779,38 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       );
       expect(checkMismatchedDbNet.complete).toBe(false);
       expect(checkMismatchedDbNet.reason).toMatch(/stimmt nicht mit dem Netto-Rechnungsbetrag der Datenbank/);
+
+      // Counter-Test D: VAT in snapshot MUST match DB vatAmount exactly (0 cents tolerance)
+      const checkMismatchedDbVat = await isCompleteFrozenSnapshot(
+        {
+          facilityName: "Test Facility",
+          address: "Teststr. 1",
+          date: "2026-03-01",
+          subtotal: "60.00 €",
+          taxAmount: "11.40 €",
+          total: "71.40 €",
+          items: [{ description: "Posten 1", hours: 1, total: "60.00 €" }],
+        },
+        { netAmount: 60.0, vatAmount: 11.41, grossAmount: 71.4 } as any
+      );
+      expect(checkMismatchedDbVat.complete).toBe(false);
+      expect(checkMismatchedDbVat.reason).toMatch(/Der Steuerbetrag des Snapshots .* stimmt nicht mit dem Steuerbetrag der Datenbank/);
+
+      // Counter-Test E: Gross total in snapshot MUST match DB grossAmount exactly (0 cents tolerance)
+      const checkMismatchedDbGross = await isCompleteFrozenSnapshot(
+        {
+          facilityName: "Test Facility",
+          address: "Teststr. 1",
+          date: "2026-03-01",
+          subtotal: "60.00 €",
+          taxAmount: "11.40 €",
+          total: "71.40 €",
+          items: [{ description: "Posten 1", hours: 1, total: "60.00 €" }],
+        },
+        { netAmount: 60.0, vatAmount: 11.4, grossAmount: 71.41 } as any
+      );
+      expect(checkMismatchedDbGross.complete).toBe(false);
+      expect(checkMismatchedDbGross.reason).toMatch(/Der Gesamtbetrag des Snapshots .* stimmt nicht mit dem Brutto-Rechnungsbetrag der Datenbank/);
     });
 
     it("rejects snapshot when pre-flight PDF simulation fails or returns invalid bytes", async () => {
@@ -848,6 +883,59 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         expect(publicCheck.reason).toMatch(/liegt außerhalb des zulässigen Rechnungs-Speicherbereichs/);
       } finally {
         if (fs.existsSync(publicPdf)) fs.unlinkSync(publicPdf);
+      }
+    });
+
+    it("rejects setting INVOICE_ARCHIVE_DIR under public/ with INSECURE_STORAGE_CONFIGURATION", () => {
+      const origEnv = process.env.INVOICE_ARCHIVE_DIR;
+      try {
+        process.env.INVOICE_ARCHIVE_DIR = path.resolve(process.cwd(), "public/archived-invoices");
+        expect(() => getArchivedInvoicesDirectory()).toThrow(InvoiceRefreshError);
+        expect(() => getArchivedInvoicesDirectory()).toThrow(/liegt innerhalb des öffentlichen Verzeichnisses \(public\/\)/);
+
+        // Allowed roots filter out public/ directories
+        const roots = getAllowedInvoiceStorageRoots([path.resolve(process.cwd(), "public/custom-archive")]);
+        for (const r of roots) {
+          expect(r.includes(`${path.sep}public${path.sep}`)).toBe(false);
+        }
+      } finally {
+        if (origEnv !== undefined) {
+          process.env.INVOICE_ARCHIVE_DIR = origEnv;
+        } else {
+          delete process.env.INVOICE_ARCHIVE_DIR;
+        }
+      }
+    });
+
+    it("fails closed when archive file already exists on disk (ORIGINAL_PDF_ARCHIVAL_FAILED, zero overwrite)", async () => {
+      const archiveDir = getArchivedInvoicesDirectory();
+      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+
+      const storageDir = path.resolve(process.cwd(), "storage/invoices");
+      if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+
+      const sourcePdfPath = path.resolve(storageDir, "source-test-overwrite.pdf");
+      const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n%TEST OVERWRITE\n"), Buffer.alloc(80, 32)]);
+      const sourceSha = createHash("sha256").update(pdfBytes).digest("hex");
+      fs.writeFileSync(sourcePdfPath, pdfBytes);
+
+      // Pre-create target archive file
+      const targetFilename = `invoice-inv-collision-rev0-${sourceSha.slice(0, 16)}.pdf`;
+      const targetPath = path.resolve(archiveDir, targetFilename);
+      const originalArchiveContent = Buffer.from("%PDF-1.4\n%EXISTING IMMUTABLE CONTENT\n");
+      fs.writeFileSync(targetPath, originalArchiveContent);
+
+      try {
+        await expect(
+          persistArchivedOriginalPdf(sourcePdfPath, "inv-collision", sourceSha)
+        ).rejects.toThrow(/existiert bereits im Archiv und darf nicht überschrieben werden/);
+
+        // Verify the original content was NOT overwritten
+        const preservedBytes = fs.readFileSync(targetPath);
+        expect(preservedBytes.equals(originalArchiveContent)).toBe(true);
+      } finally {
+        if (fs.existsSync(sourcePdfPath)) fs.unlinkSync(sourcePdfPath);
+        if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
       }
     });
 
@@ -1180,7 +1268,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
             invoiceNumber: "RE-2026-PDF",
             originReliability: "stored_pdf",
             storedPdfInfo: {
-              path: tempPdfPath,
+              archivedPath: tempPdfPath,
               sha256: exactSha256,
               byteLength: pdfBytes.length,
             },
@@ -1251,7 +1339,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
             invoiceNumber: "RE-TAMPERED-01",
             originReliability: "stored_pdf",
             storedPdfInfo: {
-              path: tempPdfPath,
+              archivedPath: tempPdfPath,
               sha256: expectedSha256, // Expects original SHA-256!
               byteLength: originalBytes.length,
             },
@@ -1299,7 +1387,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
           invoiceNumber: "RE-MISSING-01",
           originReliability: "stored_pdf",
           storedPdfInfo: {
-            path: path.resolve(process.cwd(), "storage/invoices/does-not-exist.pdf"),
+            archivedPath: path.resolve(process.cwd(), "storage/archived-invoices/does-not-exist.pdf"),
             sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             byteLength: 500,
           },
@@ -1478,6 +1566,138 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       expect(res.status).toBe(422);
       const errText = await res.text();
       expect(errText).toMatch(/Mandantendaten .* fehlen im archivierten Snapshot/);
+    });
+
+    it("rejects revision=0 download with 409 Conflict when archivedPath is missing or missing from disk, refusing to fallback to legacy source path", async () => {
+      const storageDir = path.resolve(process.cwd(), "storage/invoices");
+      if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+
+      const sourcePdfPath = path.resolve(storageDir, "valid-source-file-present.pdf");
+      const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n%SOURCE ORIGINAL\n"), Buffer.alloc(80, 32)]);
+      fs.writeFileSync(sourcePdfPath, pdfBytes);
+
+      try {
+        const mockInvoice = {
+          id: "inv-strict-arch",
+          invoiceNumber: "RE-STRICT-01",
+          status: "unpaid",
+          date: new Date("2026-03-01"),
+          netAmount: 100,
+          vatAmount: 19,
+          grossAmount: 119,
+          client: { id: "c-1", facilityName: "Client" },
+          assignments: [],
+        };
+
+        // Scenario 1: archivedPath is completely missing from storedPdfInfo even though legacy path exists
+        const mockRevNoArchPath = {
+          id: "rev-1",
+          invoiceId: "inv-strict-arch",
+          revisionNumber: 1,
+          previousNetAmount: 100,
+          previousVatAmount: 19,
+          previousGrossAmount: 119,
+          previousSnapshotData: {
+            invoiceNumber: "RE-STRICT-01",
+            originReliability: "stored_pdf",
+            storedPdfInfo: {
+              path: sourcePdfPath, // source exists on disk!
+            },
+            client: { facilityName: "Client" },
+          },
+        };
+
+        (prisma.invoice.findUnique as any).mockResolvedValue(mockInvoice);
+        (prisma.invoiceRevision.findUnique as any).mockResolvedValue(mockRevNoArchPath);
+
+        const req1 = new Request("http://localhost/api/invoices/inv-strict-arch/pdf?revision=0");
+        const res1 = await getInvoicePdfRoute(req1, { params: Promise.resolve({ id: "inv-strict-arch" }) });
+        expect(res1.status).toBe(409);
+        const errText1 = await res1.text();
+        expect(errText1).toMatch(/archivedPath fehlt/);
+
+        // Scenario 2: archivedPath points to missing file, while source file is present on disk
+        const mockRevMissingArchFile = {
+          id: "rev-1",
+          invoiceId: "inv-strict-arch",
+          revisionNumber: 1,
+          previousNetAmount: 100,
+          previousVatAmount: 19,
+          previousGrossAmount: 119,
+          previousSnapshotData: {
+            invoiceNumber: "RE-STRICT-01",
+            originReliability: "stored_pdf",
+            storedPdfInfo: {
+              path: sourcePdfPath, // source exists on disk!
+              archivedPath: path.resolve(process.cwd(), "storage/archived-invoices/lost-archive.pdf"), // missing on disk!
+              sha256: "some-sha",
+              byteLength: 100,
+            },
+            client: { facilityName: "Client" },
+          },
+        };
+        (prisma.invoiceRevision.findUnique as any).mockResolvedValue(mockRevMissingArchFile);
+
+        const req2 = new Request("http://localhost/api/invoices/inv-strict-arch/pdf?revision=0");
+        const res2 = await getInvoicePdfRoute(req2, { params: Promise.resolve({ id: "inv-strict-arch" }) });
+        expect(res2.status).toBe(409);
+        const errText2 = await res2.text();
+        expect(errText2).toMatch(/nicht auf dem Server gefunden/);
+      } finally {
+        if (fs.existsSync(sourcePdfPath)) fs.unlinkSync(sourcePdfPath);
+      }
+    });
+
+    it("prioritizes historical client identity from rawSnapshotData when regenerating revision 0", async () => {
+      const mockInvoice = {
+        id: "inv-hist-priority",
+        invoiceNumber: "RE-HIST-01",
+        status: "unpaid",
+        date: new Date("2026-03-01"),
+        netAmount: 40,
+        vatAmount: 7.6,
+        grossAmount: 47.6,
+        // Live client has mutated name & address in DB
+        client: { id: "c-1", facilityName: "Mutated Live Facility", address: "Mutated Live Address" },
+        assignments: [],
+      };
+
+      const mockRev1 = {
+        id: "rev-1",
+        invoiceId: "inv-hist-priority",
+        revisionNumber: 1,
+        previousNetAmount: 40,
+        previousVatAmount: 7.6,
+        previousGrossAmount: 47.6,
+        previousSnapshotData: {
+          invoiceNumber: "RE-HIST-01",
+          originReliability: "frozen_snapshot",
+          // previousProvenance.client has fallback values, but rawSnapshotData has original historical client!
+          client: {
+            id: "c-1",
+            facilityName: "Fallback Facility",
+            address: "Fallback Address",
+          },
+          rawSnapshotData: {
+            facilityName: "Klinikum Altenahr Historisch",
+            address: "Historische Str. 42, 53505 Altenahr",
+            date: "2026-03-01",
+            subtotal: "40,00 €",
+            taxAmount: "7,60 €",
+            total: "47,60 €",
+            items: [{ description: "Pflegefachkraft Schicht", hours: 1, total: "40,00 €" }],
+          },
+        },
+      };
+
+      (prisma.invoice.findUnique as any).mockResolvedValue(mockInvoice);
+      (prisma.invoiceRevision.findUnique as any).mockResolvedValue(mockRev1);
+
+      const req = new Request("http://localhost/api/invoices/inv-hist-priority/pdf?revision=0");
+      const res = await getInvoicePdfRoute(req, { params: Promise.resolve({ id: "inv-hist-priority" }) });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Document-Source")).toBe("regenerated_from_frozen_snapshot");
     });
   });
 

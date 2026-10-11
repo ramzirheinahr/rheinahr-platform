@@ -489,6 +489,12 @@ export type FileVerifier = (
   pathOrUrl: string
 ) => Promise<FileVerificationResult> | FileVerificationResult;
 
+function isUnderPublicRoot(p: string): boolean {
+  const norm = path.resolve(p);
+  const pub = path.resolve(process.cwd(), "public");
+  return norm === pub || norm.startsWith(pub + path.sep);
+}
+
 /**
  * Returns canonical list of directories permitted to store and serve invoice PDFs.
  * Protects against arbitrary file path traversal, unauthorized file disclosure, and symlink attacks.
@@ -497,13 +503,23 @@ export type FileVerifier = (
 export function getAllowedInvoiceStorageRoots(customRoots?: string[]): string[] {
   const roots: string[] = [];
   if (customRoots && customRoots.length > 0) {
-    roots.push(...customRoots.map((r) => path.resolve(r)));
+    for (const r of customRoots) {
+      if (!isUnderPublicRoot(r)) {
+        roots.push(path.resolve(r));
+      }
+    }
   }
   if (process.env.INVOICE_STORAGE_ROOT) {
-    roots.push(path.resolve(process.env.INVOICE_STORAGE_ROOT));
+    const root = path.resolve(process.env.INVOICE_STORAGE_ROOT);
+    if (!isUnderPublicRoot(root)) {
+      roots.push(root);
+    }
   }
   if (process.env.INVOICE_ARCHIVE_DIR) {
-    roots.push(path.resolve(process.env.INVOICE_ARCHIVE_DIR));
+    const archiveRoot = path.resolve(process.env.INVOICE_ARCHIVE_DIR);
+    if (!isUnderPublicRoot(archiveRoot)) {
+      roots.push(archiveRoot);
+    }
   }
   roots.push(
     path.resolve(process.cwd(), "storage/invoices"),
@@ -514,7 +530,14 @@ export function getAllowedInvoiceStorageRoots(customRoots?: string[]): string[] 
 
 export function getArchivedInvoicesDirectory(): string {
   if (process.env.INVOICE_ARCHIVE_DIR) {
-    return path.resolve(process.env.INVOICE_ARCHIVE_DIR);
+    const configured = path.resolve(process.env.INVOICE_ARCHIVE_DIR);
+    if (isUnderPublicRoot(configured)) {
+      throw new InvoiceRefreshError(
+        "INSECURE_STORAGE_CONFIGURATION",
+        `[INSECURE_STORAGE_CONFIGURATION] Das konfigurierte Archivverzeichnis "${configured}" liegt innerhalb des öffentlichen Verzeichnisses (public/) und ist unzulässig.`
+      );
+    }
+    return configured;
   }
   return path.resolve(process.cwd(), "storage/archived-invoices");
 }
@@ -568,12 +591,47 @@ export async function persistArchivedOriginalPdf(
   const targetFilename = `invoice-${safeInvoiceId}-rev0-${sourceCheck.sha256.slice(0, 16)}.pdf`;
   const targetPath = path.resolve(archiveDir, targetFilename);
 
+  // Exclusive creation check: never overwrite an already existing archive document
+  if (fs.existsSync(targetPath)) {
+    throw new InvoiceRefreshError(
+      "ORIGINAL_PDF_ARCHIVAL_FAILED",
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivdatei "${targetFilename}" existiert bereits im Archiv und darf nicht überschrieben werden.`
+    );
+  }
+
+  // Atomic write via temporary file + rename to prevent partial writes and overwrites
+  const tempFilename = `.${targetFilename}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  const tempPath = path.resolve(archiveDir, tempFilename);
+
   try {
-    fs.writeFileSync(targetPath, sourceCheck.buffer, { mode: 0o600 });
+    fs.writeFileSync(tempPath, sourceCheck.buffer, { mode: 0o600, flag: "wx" });
   } catch (err) {
     throw new InvoiceRefreshError(
       "ORIGINAL_PDF_ARCHIVAL_FAILED",
-      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Zieldatei konnte nicht geschrieben werden (${err instanceof Error ? err.message : String(err)}).`
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Temporäre Zieldatei konnte nicht geschrieben werden (${err instanceof Error ? err.message : String(err)}).`
+    );
+  }
+
+  try {
+    // Check again before rename just in case of concurrent write
+    if (fs.existsSync(targetPath)) {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+      throw new InvoiceRefreshError(
+        "ORIGINAL_PDF_ARCHIVAL_FAILED",
+        `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivdatei "${targetFilename}" existiert bereits im Archiv und darf nicht überschrieben werden.`
+      );
+    }
+    fs.renameSync(tempPath, targetPath);
+  } catch (err) {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {
+      // ignore
+    }
+    if (err instanceof InvoiceRefreshError) throw err;
+    throw new InvoiceRefreshError(
+      "ORIGINAL_PDF_ARCHIVAL_FAILED",
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Atomares Verschieben in den Zielpfad fehlgeschlagen (${err instanceof Error ? err.message : String(err)}).`
     );
   }
 
@@ -950,6 +1008,28 @@ export async function isCompleteFrozenSnapshot(
     }
   }
 
+  // Tax in snapshot MUST match DB vatAmount exactly (0 cents tolerance)
+  if (invoiceContext?.vatAmount !== undefined && invoiceContext.vatAmount !== null) {
+    const dbVatCents = Math.round(invoiceContext.vatAmount * 100);
+    if (taxAmountCents !== dbVatCents) {
+      return {
+        complete: false,
+        reason: `Mathematische Inkonsistenz: Der Steuerbetrag des Snapshots (${(taxAmountCents / 100).toFixed(2)} €) stimmt nicht mit dem Steuerbetrag der Datenbank (${invoiceContext.vatAmount.toFixed(2)} €) überein.`,
+      };
+    }
+  }
+
+  // Gross total in snapshot MUST match DB grossAmount exactly (0 cents tolerance)
+  if (invoiceContext?.grossAmount !== undefined && invoiceContext.grossAmount !== null) {
+    const dbGrossCents = Math.round(invoiceContext.grossAmount * 100);
+    if (totalCents !== dbGrossCents) {
+      return {
+        complete: false,
+        reason: `Mathematische Inkonsistenz: Der Gesamtbetrag des Snapshots (${(totalCents / 100).toFixed(2)} €) stimmt nicht mit dem Brutto-Rechnungsbetrag der Datenbank (${invoiceContext.grossAmount.toFixed(2)} €) überein.`,
+      };
+    }
+  }
+
   // Pre-flight PDF Renderer Simulation: verify PDF generation succeeds strictly from snapshot
   let generatedPdfBuffer: Buffer;
   try {
@@ -991,6 +1071,39 @@ export async function isCompleteFrozenSnapshot(
       return {
         complete: false,
         reason: "Simulation der PDF-Erstellung aus dem historischen Snapshot schlug fehl: Unvollständige PDF-Datenstruktur.",
+      };
+    }
+
+    // Strict verification of built PDF data figures and client identity
+    if (built.clientName !== facility) {
+      return {
+        complete: false,
+        reason: `Simulation der PDF-Erstellung ergab einen abweichenden Mandantennamen ("${built.clientName}") gegenüber dem Snapshot ("${facility}").`,
+      };
+    }
+
+    const builtSubtotalCents = parseCurrencyAmountToCents(built.subtotal);
+    const builtTaxCents = parseCurrencyAmountToCents(built.taxAmount);
+    const builtTotalCents = parseCurrencyAmountToCents(built.total);
+
+    if (builtSubtotalCents !== subtotalCents) {
+      return {
+        complete: false,
+        reason: `Simulation der PDF-Erstellung ergab eine abweichende Zwischensumme (${built.subtotal}) gegenüber dem Snapshot (${(subtotalCents / 100).toFixed(2)} €).`,
+      };
+    }
+
+    if (builtTaxCents !== taxAmountCents) {
+      return {
+        complete: false,
+        reason: `Simulation der PDF-Erstellung ergab einen abweichenden Steuerbetrag (${built.taxAmount}) gegenüber dem Snapshot (${(taxAmountCents / 100).toFixed(2)} €).`,
+      };
+    }
+
+    if (builtTotalCents !== totalCents) {
+      return {
+        complete: false,
+        reason: `Simulation der PDF-Erstellung ergab einen abweichenden Gesamtbetrag (${built.total}) gegenüber dem Snapshot (${(totalCents / 100).toFixed(2)} €).`,
       };
     }
 
@@ -1682,6 +1795,44 @@ export async function confirmV2InvoiceRefresh(
           }
         }
 
+        const rawSnap = (invoice.snapshotData && typeof invoice.snapshotData === "object"
+          ? invoice.snapshotData
+          : {}) as Record<string, unknown>;
+        const snapClient = (rawSnap.client && typeof rawSnap.client === "object"
+          ? rawSnap.client
+          : null) as Record<string, unknown> | null;
+
+        const histFacilityName =
+          (typeof rawSnap.facilityName === "string" && rawSnap.facilityName.trim()) ||
+          (typeof snapClient?.facilityName === "string" && snapClient.facilityName.trim()) ||
+          null;
+        const histAddress =
+          (typeof rawSnap.address === "string" && rawSnap.address.trim()) ||
+          (typeof snapClient?.address === "string" && snapClient.address.trim()) ||
+          null;
+        const histShortCode =
+          (typeof rawSnap.shortCode === "string" && rawSnap.shortCode.trim()) ||
+          (typeof snapClient?.shortCode === "string" && snapClient.shortCode.trim()) ||
+          null;
+        const histInternalNumber =
+          (typeof rawSnap.internalNumber === "string" && rawSnap.internalNumber.trim()) ||
+          (typeof snapClient?.internalNumber === "string" && snapClient.internalNumber.trim()) ||
+          null;
+        const histBillingEmail =
+          (typeof rawSnap.billingEmail === "string" && rawSnap.billingEmail.trim()) ||
+          (typeof snapClient?.billingEmail === "string" && snapClient.billingEmail.trim()) ||
+          null;
+        const histBillingInfo =
+          (typeof rawSnap.billingInfo === "string" && rawSnap.billingInfo.trim()) ||
+          (typeof snapClient?.billingInfo === "string" && snapClient.billingInfo.trim()) ||
+          null;
+        const histPaymentTermsDays =
+          typeof rawSnap.paymentTermsDays === "number"
+            ? rawSnap.paymentTermsDays
+            : typeof snapClient?.paymentTermsDays === "number"
+            ? snapClient.paymentTermsDays
+            : invoice.client.paymentTermsDays;
+
         // Complete Previous Provenance Record
         const previousProvenanceSnapshot = {
           invoiceNumber: invoice.invoiceNumber,
@@ -1693,6 +1844,16 @@ export async function confirmV2InvoiceRefresh(
             : null,
           clientId: invoice.clientId,
           client: {
+            id: (snapClient?.id as string) || invoice.client.id,
+            facilityName: histFacilityName || invoice.client.facilityName,
+            shortCode: histShortCode || invoice.client.shortCode || null,
+            internalNumber: histInternalNumber || invoice.client.internalNumber || null,
+            address: histAddress || invoice.client.address || null,
+            billingEmail: histBillingEmail || invoice.client.billingEmail || null,
+            billingInfo: histBillingInfo || invoice.client.billingInfo || null,
+            paymentTermsDays: histPaymentTermsDays,
+          },
+          liveClientAtRefresh: {
             id: invoice.client.id,
             facilityName: invoice.client.facilityName,
             shortCode: invoice.client.shortCode || null,

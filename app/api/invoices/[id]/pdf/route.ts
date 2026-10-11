@@ -81,15 +81,11 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       if (prevProvenance.originReliability === "stored_pdf") {
         const filePath =
           prevProvenance.storedPdfInfo?.archivedPath ||
-          prevProvenance.archivedPdfRecord?.archivedPath ||
-          prevProvenance.storedPdfInfo?.path ||
-          prevProvenance.pdfUrl ||
-          prevProvenance.rawSnapshotData?.pdfUrl ||
-          prevProvenance.rawSnapshotData?.pdfFilePath;
+          prevProvenance.archivedPdfRecord?.archivedPath;
 
         if (!filePath || typeof filePath !== "string") {
           return new NextResponse(
-            "Das archivierte Originaldokument hat keinen hinterlegten Dateipfad.",
+            "Das archivierte Originaldokument hat keinen hinterlegten Archivpfad (archivedPath fehlt).",
             { status: 409 }
           );
         }
@@ -143,14 +139,14 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       if (prevProvenance.originReliability === "frozen_snapshot") {
         const rawSnap = prevProvenance.rawSnapshotData || prevProvenance;
         const facilityName =
-          prevProvenance.client?.facilityName ||
           rawSnap.facilityName ||
-          rawSnap.client?.facilityName;
+          rawSnap.client?.facilityName ||
+          prevProvenance.client?.facilityName;
 
         const address =
-          prevProvenance.client?.address ||
           rawSnap.address ||
-          rawSnap.client?.address;
+          rawSnap.client?.address ||
+          prevProvenance.client?.address;
 
         if (!facilityName || !address) {
           return new NextResponse(
@@ -160,14 +156,14 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         }
 
         const frozenClient = {
-          id: prevProvenance.client?.id || prevProvenance.clientId || "HISTORICAL-CLIENT",
-          shortCode: prevProvenance.client?.shortCode || rawSnap.shortCode || null,
-          internalNumber: prevProvenance.client?.internalNumber || rawSnap.internalNumber || null,
+          id: rawSnap.clientId || rawSnap.client?.id || prevProvenance.client?.id || "HISTORICAL-CLIENT",
+          shortCode: rawSnap.shortCode || rawSnap.client?.shortCode || prevProvenance.client?.shortCode || null,
+          internalNumber: rawSnap.internalNumber || rawSnap.client?.internalNumber || prevProvenance.client?.internalNumber || null,
           facilityName,
           address,
-          billingEmail: prevProvenance.client?.billingEmail || rawSnap.billingEmail || null,
-          billingInfo: prevProvenance.client?.billingInfo || rawSnap.billingInfo || null,
-          paymentTermsDays: prevProvenance.client?.paymentTermsDays ?? rawSnap.paymentTermsDays ?? 14,
+          billingEmail: rawSnap.billingEmail || rawSnap.client?.billingEmail || prevProvenance.client?.billingEmail || null,
+          billingInfo: rawSnap.billingInfo || rawSnap.client?.billingInfo || prevProvenance.client?.billingInfo || null,
+          paymentTermsDays: rawSnap.paymentTermsDays ?? rawSnap.client?.paymentTermsDays ?? prevProvenance.client?.paymentTermsDays ?? 14,
           hourlyRates: {},
           surchargeSat: 0,
           surchargeSun: 0,
