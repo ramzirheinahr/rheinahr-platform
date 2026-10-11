@@ -273,7 +273,7 @@ export function WorkerConfirmationUploadDialog({
         }
       />
 
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-start">
             <FileText className="size-5 text-primary" />
@@ -548,7 +548,7 @@ export function WorkerConfirmationUploadDialog({
           </div>
         )}
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="mx-0 mb-0 gap-2 sm:gap-0">
           <Button
             type="button"
             variant="ghost"
