@@ -19,7 +19,7 @@ export default async function AdminWorkerSchedulePage({
   params: Promise<{ locale: string; id: string }>;
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const { locale, id } = await params;
+  const { id } = await params;
   const sp = await searchParams;
   const t = await getTranslations("workers");
   const c = await getTranslations("common");
