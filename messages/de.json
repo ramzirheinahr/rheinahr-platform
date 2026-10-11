@@ -39,7 +39,8 @@
     "lastActive": "Zuletzt aktiv",
     "saved": "Gespeichert.",
     "saveError": "Speichern fehlgeschlagen. Bitte erneut versuchen.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "notes": "Notizen"
   },
   "landing": {
     "nav": {
@@ -713,6 +714,7 @@
     "fileTypeHint": "PDF, PNG, JPEG oder WebP (max. 25 MB).",
     "fileSizeExceeded": "Die Datei überschreitet die maximale Größe von 25 MB.",
     "optionalLabel": "(optional)",
+    "notesLabel": "Notizen",
     "notesPlaceholder": "z. B. Nachgereichter Monatsschein",
     "fileBadge": "DATEI",
     "invalidShiftIdsError": "Ungültige Schichtauswahl. Bitte wählen Sie gültige Schichten aus.",

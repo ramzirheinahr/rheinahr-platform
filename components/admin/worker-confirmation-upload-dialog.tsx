@@ -273,7 +273,7 @@ export function WorkerConfirmationUploadDialog({
         }
       />
 
-      <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-start">
             <FileText className="size-5 text-primary" />
@@ -527,7 +527,7 @@ export function WorkerConfirmationUploadDialog({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">
-                {c("notes")} {t("optionalLabel")}
+                {t("notesLabel")} {t("optionalLabel")}
               </Label>
               <Input
                 type="text"
@@ -548,7 +548,7 @@ export function WorkerConfirmationUploadDialog({
           </div>
         )}
 
-        <DialogFooter className="mx-0 mb-0 flex flex-col-reverse sm:flex-row gap-2 sm:gap-2 sm:justify-end">
+        <DialogFooter className="mx-0 mb-0 p-0 pt-3 border-t bg-transparent flex flex-col-reverse sm:flex-row gap-2 sm:gap-2 sm:justify-end">
           <Button
             type="button"
             variant="ghost"

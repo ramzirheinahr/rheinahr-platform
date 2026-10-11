@@ -39,7 +39,8 @@
     "lastActive": "Last Active",
     "saved": "Saved.",
     "saveError": "Failed to save. Please try again.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "notes": "Notes"
   },
   "landing": {
     "nav": {
@@ -713,6 +714,7 @@
     "fileTypeHint": "PDF, PNG, JPEG or WebP (max. 25 MB).",
     "fileSizeExceeded": "File exceeds the maximum size of 25 MB.",
     "optionalLabel": "(optional)",
+    "notesLabel": "Notes",
     "notesPlaceholder": "e.g. Subsequent monthly timesheet",
     "fileBadge": "FILE",
     "invalidShiftIdsError": "Invalid shift selection. Please select valid shifts.",

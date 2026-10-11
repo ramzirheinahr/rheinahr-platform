@@ -1156,6 +1156,9 @@ describe("Phase 07c - Comprehensive Integrated Operational Acceptance", () => {
         { section: "confirmations", key: "approvedCorrection" },
         { section: "confirmations", key: "pendingCorrection" },
         { section: "confirmations", key: "uploadWorkerTimesheet" },
+        { section: "confirmations", key: "notesLabel" },
+        { section: "confirmations", key: "optionalLabel" },
+        { section: "common", key: "notes" },
         { section: "invoicing.tabs", key: "cancelledInvoices" },
         { section: "invoicing", key: "cancelled" },
       ];

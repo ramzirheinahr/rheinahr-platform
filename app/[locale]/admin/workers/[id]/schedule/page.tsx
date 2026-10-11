@@ -52,7 +52,7 @@ export default async function AdminWorkerSchedulePage({
   const base = `/admin/workers/${worker.id}/schedule`;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 overflow-x-hidden">
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -69,7 +69,7 @@ export default async function AdminWorkerSchedulePage({
         </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-2 py-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-2 py-1.5">
         <div className="flex items-center gap-4">
           <ScheduleMonthPicker currentYear={year} currentMonth={month} baseRoute={base} />
           <WorkerSearchDropdown 

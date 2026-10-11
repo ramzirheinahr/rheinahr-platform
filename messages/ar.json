@@ -39,7 +39,8 @@
     "lastActive": "آخر نشاط",
     "saved": "تم الحفظ.",
     "saveError": "فشل الحفظ. يرجى المحاولة مرة أخرى.",
-    "retry": "إعادة المحاولة"
+    "retry": "إعادة المحاولة",
+    "notes": "ملاحظات"
   },
   "landing": {
     "nav": {
@@ -715,6 +716,7 @@
     "fileTypeHint": "PDF أو PNG أو JPEG أو WebP (بحد أقصى 25 ميغابايت).",
     "fileSizeExceeded": "يتجاوز حجم الملف الحد الأقصى المسموح به (25 ميغابايت).",
     "optionalLabel": "(اختياري)",
+    "notesLabel": "ملاحظات",
     "notesPlaceholder": "مثال: كشف شهري مُسلَّم لاحقاً",
     "fileBadge": "ملف",
     "invalidShiftIdsError": "تحديد غير صالح للورديات. يرجى اختيار ورديات صحيحة.",
