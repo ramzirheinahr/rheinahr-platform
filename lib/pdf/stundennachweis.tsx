@@ -29,6 +29,7 @@ const styles = StyleSheet.create({
   colNetHours: { width: "10%", textAlign: "right" },
   colStatus: { width: "14%", textAlign: "center", borderRightWidth: 0 },
   totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingVertical: 4 },
+  totalRowWithNotice: { flexDirection: "column", alignItems: "stretch", marginTop: 10, paddingVertical: 4, gap: 6 },
   totalText: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#111827" },
   disclaimer: { fontSize: 8, color: "#991b1b", fontFamily: "Helvetica-Bold" },
 });
@@ -180,7 +181,7 @@ export const StundennachweisTemplate = ({
         </View>
 
         {/* Total Sum & Disclaimer */}
-        <View wrap={false} style={styles.totalRow}>
+        <View wrap={false} style={mode === "actual" && hasPlannedShifts ? styles.totalRowWithNotice : styles.totalRow}>
           {mode === "planned" ? (
             <>
               <Text style={{ fontSize: 8, color: "#6b7280" }}>
