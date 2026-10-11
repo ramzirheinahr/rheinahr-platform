@@ -322,6 +322,42 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     );
   }
 
+  const isV2 = isV2CalculationVersion(invoice.snapshotData);
+
+  // Case 1: Current V2 Invoice
+  // Must render strictly from frozen V2 snapshot data (independent of any legacy pdfUrl on the invoice row).
+  // The baseline historical file prior to refresh is preserved in invoiceRevision[revisionNumber=1].previousSnapshotData
+  // and accessible via ?revision=0.
+  if (isV2) {
+    try {
+      const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
+      const pdfBuffer = await generateInvoicePdf(pdfData);
+
+      await audit({
+        userId: user.id,
+        action: "invoice.pdf",
+        entity: "Invoice",
+        entityId: invoice.id,
+      });
+
+      const isDownload = url.searchParams.get("download") === "true";
+      const disposition = isDownload ? "attachment" : "inline";
+
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
+          "X-Document-Source": "frozen_snapshot",
+          "Cache-Control": "no-store",
+        },
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return new NextResponse(msg, { status: 422 });
+    }
+  }
+
+  // Case 2: Historical Pre-V2 / Un-refreshed Invoice
   // Check if historical invoice has a verified stored original PDF file on disk
   const invoiceRecord = invoice as unknown as Record<string, unknown>;
   const snap = (invoice.snapshotData && typeof invoice.snapshotData === "object"
@@ -365,9 +401,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     });
   }
 
-  // If no stored original file, check if there is a frozen snapshot to regenerate from
+  // Non-V2 without stored original file: check if there are frozen snapshot items
   const hasFrozenSnapshot =
-    isV2CalculationVersion(invoice.snapshotData) ||
     (snap && Array.isArray(snap.items) && snap.items.length > 0) ||
     (snap && Array.isArray(snap.pdfItems) && snap.pdfItems.length > 0);
 

@@ -279,6 +279,7 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
   }
 
   // Separate document type from correction approval status
+  // Strictly and exclusively derived from WorkHoursCorrectionRequest linked to targetDoc.id
   let correctionStatus: "approved" | "proposed" | "rejected" | "none" = "none";
   let isCorrectionApproved = false;
 
@@ -294,18 +295,6 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
     if (corrRequest) {
       correctionStatus = corrRequest.status;
       isCorrectionApproved = corrRequest.status === "approved";
-    } else if (targetDoc.sourceType === "manual_correction") {
-      const latestCorr = await prisma.workHoursCorrectionRequest.findFirst({
-        where: { assignmentId },
-        orderBy: [{ revision: "desc" }, { requestedAt: "desc" }],
-        select: { status: true },
-      });
-      if (latestCorr) {
-        correctionStatus = latestCorr.status;
-        isCorrectionApproved = latestCorr.status === "approved";
-      } else {
-        correctionStatus = "proposed";
-      }
     }
   }
 

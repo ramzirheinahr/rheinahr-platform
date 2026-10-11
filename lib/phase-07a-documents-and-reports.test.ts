@@ -15,6 +15,8 @@ import arMessages from "@/messages/ar.json";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import crypto from "node:crypto";
+import { getAssignmentEvidenceHistory } from "@/lib/confirmation-evidence-service";
 
 // Mocks
 vi.mock("@/lib/auth", () => ({
@@ -457,6 +459,135 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
       expect(resCorrApproved.headers.get("X-Correction-Approved")).toBe("true");
     });
 
+    it("Test 2b (P1-2): Counter-test: Document A linked to approved correction is approved; Document B unlinked or linked to proposed correction is NEVER marked approved", async () => {
+      (getCurrentUser as any).mockResolvedValue({ id: "admin-user", role: "admin" });
+
+      const assignmentId = "assign-multi-doc";
+
+      const mockAssignment = {
+        id: assignmentId,
+        serviceConfirmation: null,
+        order: {
+          id: "order-multi",
+          clientId: "client-1",
+          shiftDate: new Date("2026-10-10"),
+          startTime: "08:00",
+          endTime: "16:00",
+          breakMinutes: 30,
+          client: { userId: "user-c" },
+        },
+        worker: { userId: "user-w" },
+      };
+
+      (prisma.assignment.findUnique as any).mockResolvedValue(mockAssignment);
+
+      // Document A: linked to approved correction
+      const docA = {
+        id: "doc-A",
+        assignmentId,
+        storagePath: "confirmations/doc-A.pdf",
+        fileName: "Doc-A-Approved.pdf",
+        mimeType: "application/pdf",
+        sourceType: "manual_correction",
+        createdAt: new Date("2026-10-10T10:00:00Z"),
+      };
+
+      // Document B: manual_correction, but NOT linked to any correction request!
+      const docB = {
+        id: "doc-B",
+        assignmentId,
+        storagePath: "confirmations/doc-B.pdf",
+        fileName: "Doc-B-Unlinked.pdf",
+        mimeType: "application/pdf",
+        sourceType: "manual_correction",
+        createdAt: new Date("2026-10-10T11:00:00Z"),
+      };
+
+      // Document C: manual_correction linked to proposed correction
+      const docC = {
+        id: "doc-C",
+        assignmentId,
+        storagePath: "confirmations/doc-C.pdf",
+        fileName: "Doc-C-Proposed.pdf",
+        mimeType: "application/pdf",
+        sourceType: "manual_correction",
+        createdAt: new Date("2026-10-10T12:00:00Z"),
+      };
+
+      // Route checks:
+      // 1. Fetch Document A -> X-Correction-Approved: true, X-Correction-Status: approved
+      (prisma.confirmationDocument.findFirst as any).mockImplementation(({ where }: any) => {
+        if (where.id === "doc-A") return Promise.resolve(docA);
+        if (where.id === "doc-B") return Promise.resolve(docB);
+        if (where.id === "doc-C") return Promise.resolve(docC);
+        return Promise.resolve(null);
+      });
+
+      (prisma.workHoursCorrectionRequest.findFirst as any).mockImplementation(({ where }: any) => {
+        if (where.documentId === "doc-A") return Promise.resolve({ status: "approved" });
+        if (where.documentId === "doc-C") return Promise.resolve({ status: "proposed" });
+        return Promise.resolve(null);
+      });
+
+      const resDocA = await getConfirmationDocumentRoute(
+        new Request(`http://localhost/api/confirmations/${assignmentId}/document?documentId=doc-A`),
+        { params: Promise.resolve({ assignmentId }) }
+      );
+      expect(resDocA.status).toBe(200);
+      expect(resDocA.headers.get("X-Correction-Approved")).toBe("true");
+      expect(resDocA.headers.get("X-Correction-Status")).toBe("approved");
+
+      // 2. Fetch Document B (unlinked manual_correction) -> X-Correction-Approved: false, X-Correction-Status: none
+      // MUST NOT inherit approval from Document A!
+      const resDocB = await getConfirmationDocumentRoute(
+        new Request(`http://localhost/api/confirmations/${assignmentId}/document?documentId=doc-B`),
+        { params: Promise.resolve({ assignmentId }) }
+      );
+      expect(resDocB.status).toBe(200);
+      expect(resDocB.headers.get("X-Correction-Approved")).toBe("false");
+      expect(resDocB.headers.get("X-Correction-Status")).toBe("none");
+
+      // 3. Fetch Document C (linked to proposed correction) -> X-Correction-Approved: false, X-Correction-Status: proposed
+      const resDocC = await getConfirmationDocumentRoute(
+        new Request(`http://localhost/api/confirmations/${assignmentId}/document?documentId=doc-C`),
+        { params: Promise.resolve({ assignmentId }) }
+      );
+      expect(resDocC.status).toBe(200);
+      expect(resDocC.headers.get("X-Correction-Approved")).toBe("false");
+      expect(resDocC.headers.get("X-Correction-Status")).toBe("proposed");
+
+      // 4. Test getAssignmentEvidenceHistory: Doc A is approved, Doc B is unapproved, Doc C is unapproved
+      (prisma.confirmationDocument.findMany as any).mockResolvedValueOnce([docA, docB, docC]);
+      (prisma.workHoursCorrectionRequest.findMany as any).mockResolvedValueOnce([
+        { id: "corr-1", assignmentId, documentId: "doc-A", status: "approved", proposedHoursWorked: 8.0, requestedAt: new Date() },
+        { id: "corr-2", assignmentId, documentId: "doc-C", status: "proposed", proposedHoursWorked: 7.0, requestedAt: new Date() },
+      ]);
+      (prisma.workHoursCorrectionRequest.findFirst as any).mockResolvedValueOnce({
+        id: "corr-1",
+        assignmentId,
+        documentId: "doc-A",
+        status: "approved",
+        proposedHoursWorked: 8.0,
+        revision: 1,
+        requestedAt: new Date("2026-10-10T10:00:00Z"),
+        decidedAt: new Date("2026-10-10T10:30:00Z"),
+      });
+
+      const timeline = await getAssignmentEvidenceHistory(assignmentId, { id: "admin-user", role: "admin" });
+      const viewA = timeline.documents.find((d) => d.id === "doc-A");
+      const viewB = timeline.documents.find((d) => d.id === "doc-B");
+      const viewC = timeline.documents.find((d) => d.id === "doc-C");
+
+      expect(viewA?.isCorrectionApproved).toBe(true);
+      expect(viewA?.correctionStatus).toBe("approved");
+
+      expect(viewB?.isCorrectionApproved).toBe(false);
+      expect(viewB?.correctionStatus).toBeNull();
+
+      expect(viewC?.isCorrectionApproved).toBe(false);
+      expect(viewC?.correctionStatus).toBe("proposed");
+    });
+
     it("sanitizes filename and rejects unsupported media types (P2)", async () => {
       (getCurrentUser as any).mockResolvedValue({ id: "admin-user", role: "admin" });
 
@@ -626,7 +757,7 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
       expect(text).toContain("Das hinterlegte historische Rechnungsdokument ist nicht verfügbar oder beschädigt.");
     });
 
-    it("Test 3c (P1-1): Invoice with both verified stored original file and frozen snapshot items PREFERS stored file", async () => {
+    it("Test 3c (P1-1): Historical pre-V2 invoice with both verified stored original file and frozen snapshot items PREFERS stored file", async () => {
       (getCurrentUser as any).mockResolvedValue({ id: "admin-user", role: "admin" });
 
       // Create a temporary valid PDF file on disk inside allowed storage directory
@@ -651,7 +782,7 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
           client: { id: "c-1", facilityName: "Klinik Hybrid", userId: "u-1" },
           assignments: [],
           snapshotData: {
-            calculationVersion: "v2",
+            calculationVersion: "v1", // Historical un-refreshed invoice
             items: [
               { pos: 1, hoursDisplay: "3,00", rateDisplay: "5,68 €", amountDisplay: "17,04 €", amountCents: 1704 },
             ],
@@ -681,6 +812,131 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
       } finally {
         if (fs.existsSync(tempFilePath)) {
           fs.unlinkSync(tempFilePath);
+        }
+      }
+    });
+
+    it("Test 3d (P1-1): End-to-end: Refreshed V2 invoice with lingering legacy pdfUrl renders new V2 amounts on current route & bulk route, while revision=0 serves historical original file", async () => {
+      (getCurrentUser as any).mockResolvedValue({ id: "admin-user", role: "admin" });
+
+      // Create a dummy historical PDF file on disk
+      const archiveDir = path.resolve(process.cwd(), "storage/archived-invoices");
+      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+      const doc = await PDFDocument.create();
+      const page = doc.addPage([200, 200]);
+      page.drawText("HISTORICAL ORIGINAL 119 EUR", { x: 20, y: 100 });
+      const historicalBytes = await doc.save();
+      const tempHistoricalPath = path.join(archiveDir, `test-legacy-orig-${Date.now()}.pdf`);
+      fs.writeFileSync(tempHistoricalPath, Buffer.from(historicalBytes));
+      const historicalSha256 = crypto.createHash("sha256").update(Buffer.from(historicalBytes)).digest("hex");
+
+      try {
+        // Refreshed invoice: pdfUrl remains set to old file on the database row,
+        // but netAmount/vatAmount/grossAmount and snapshotData are upgraded to V2 amounts!
+        const refreshedV2Invoice = {
+          id: "inv-refreshed-v2",
+          invoiceNumber: "RE-2026-REFRESHED",
+          status: "unpaid",
+          date: new Date("2026-10-01"),
+          netAmount: 120.0,
+          vatAmount: 22.8,
+          grossAmount: 142.8,
+          pdfUrl: tempHistoricalPath, // Legacy pdfUrl still lingering on row
+          client: {
+            id: "c-refreshed",
+            facilityName: "Altenheim Sankt Martin",
+            userId: "user-client-1",
+            address: "Musterstr. 1, 53474 Bad Neuenahr",
+            billingEmail: "rechnung@example.com",
+            paymentTermsDays: 14,
+          },
+          assignments: [],
+          snapshotData: {
+            calculationVersion: "v2",
+            items: [
+              { pos: 1, hoursDisplay: "4,00", rateDisplay: "30,00 €", amountDisplay: "120,00 €", amountCents: 12000, description: "Fachkraft" },
+            ],
+            pdfItems: [
+              { pos: 1, description: "Fachkraft", hours: "4,00", rate: "30,00", amount: "120,00 €" },
+            ],
+            subtotalCents: 12000,
+            taxAmountCents: 2280,
+            totalCents: 14280,
+            subtotal: "120,00 €",
+            taxAmount: "22,80 €",
+            total: "142,80 €",
+          },
+        };
+
+        // Revision 1 holds the historical provenance
+        const rev1 = {
+          id: "rev-1",
+          invoiceId: "inv-refreshed-v2",
+          revisionNumber: 1,
+          previousNetAmount: 100.0,
+          previousVatAmount: 19.0,
+          previousGrossAmount: 119.0,
+          previousSnapshotData: {
+            originReliability: "stored_pdf",
+            storedPdfInfo: {
+              archivedPath: tempHistoricalPath,
+              sha256: historicalSha256,
+              byteLength: historicalBytes.length,
+            },
+            invoiceNumber: "RE-2026-REFRESHED",
+            date: "2026-10-01T00:00:00.000Z",
+          },
+        };
+
+        // 1. Current invoice route: GET /api/invoices/[id]/pdf
+        // MUST render strictly from frozen V2 snapshot with V2 amounts, NOT return historical file bytes!
+        (prisma.invoice.findUnique as any).mockResolvedValue(refreshedV2Invoice);
+
+        const resCurrent = await getInvoicePdfRoute(
+          new Request("http://localhost/api/invoices/inv-refreshed-v2/pdf"),
+          { params: Promise.resolve({ id: "inv-refreshed-v2" }) }
+        );
+
+        expect(resCurrent.status).toBe(200);
+        expect(resCurrent.headers.get("X-Document-Source")).toBe("frozen_snapshot");
+        const currentBytes = await resCurrent.arrayBuffer();
+        const currentPdfDoc = await PDFDocument.load(currentBytes);
+        expect(currentPdfDoc.getPageCount()).toBeGreaterThan(0);
+        // Ensure it did NOT just stream the historical file
+        expect(Buffer.from(currentBytes).equals(Buffer.from(historicalBytes))).toBe(false);
+
+        // 2. Bulk invoice route: GET /api/invoices/bulk-pdf
+        // MUST render V2 snapshot into the bulk document
+        (prisma.invoice.findMany as any).mockResolvedValue([refreshedV2Invoice]);
+
+        const resBulk = await getBulkPdfRoute(
+          new Request("http://localhost/api/invoices/bulk-pdf?from=2026-10-01&to=2026-10-31")
+        );
+
+        expect(resBulk.status).toBe(200);
+        expect(resBulk.headers.get("Content-Type")).toBe("application/pdf");
+        const bulkBytes = await resBulk.arrayBuffer();
+        const bulkPdfDoc = await PDFDocument.load(bulkBytes);
+        expect(bulkPdfDoc.getPageCount()).toBeGreaterThan(0);
+
+        // 3. Historical baseline route: GET /api/invoices/[id]/pdf?revision=0
+        // MUST serve the exact baseline historical file bytes and checksum!
+        (prisma.invoice.findUnique as any).mockResolvedValue(refreshedV2Invoice);
+        (prisma.invoiceRevision.findUnique as any).mockResolvedValue(rev1);
+
+        const resRev0 = await getInvoicePdfRoute(
+          new Request("http://localhost/api/invoices/inv-refreshed-v2/pdf?revision=0"),
+          { params: Promise.resolve({ id: "inv-refreshed-v2" }) }
+        );
+
+        expect(resRev0.status).toBe(200);
+        expect(resRev0.headers.get("X-Document-Source")).toBe("stored_original_file");
+        expect(resRev0.headers.get("X-Document-Checksum")).toBe(historicalSha256);
+        const rev0Bytes = await resRev0.arrayBuffer();
+        expect(Buffer.from(rev0Bytes).equals(Buffer.from(historicalBytes))).toBe(true);
+      } finally {
+        if (fs.existsSync(tempHistoricalPath)) {
+          fs.unlinkSync(tempHistoricalPath);
         }
       }
     });
@@ -833,7 +1089,7 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
           client: { id: "c-1", facilityName: "Klinik Hybrid" },
           assignments: [],
           snapshotData: {
-            calculationVersion: "v2",
+            calculationVersion: "v1",
             items: [
               { pos: 1, hoursDisplay: "3,00", rateDisplay: "5,68 €", amountDisplay: "17,04 €", amountCents: 1704 },
             ],

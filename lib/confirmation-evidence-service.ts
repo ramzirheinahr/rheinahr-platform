@@ -1501,7 +1501,7 @@ export async function getAssignmentEvidenceHistory(
     );
 
     const matchingCorr = allCorrections.find((c) => c.documentId === d.id);
-    const correctionStatus = matchingCorr?.status || (d.sourceType === "manual_correction" ? (allCorrections[0]?.status || "proposed") : null);
+    const correctionStatus = matchingCorr?.status || null;
     const isCorrectionApproved = correctionStatus === "approved";
 
     return {
