@@ -86,6 +86,7 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(),
     },
     confirmationDocument: {
+      findUnique: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
@@ -93,6 +94,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     workHoursCorrectionRequest: {
       findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
@@ -652,7 +654,7 @@ describe("Phase 07c - Comprehensive Integrated Operational Acceptance", () => {
   // SECTION 3: THE SIX MANAGEMENT REQUESTS (PRODUCTION SERVICE PATHS)
   // =========================================================================
   describe("3. Six Management Requests Production Service Paths", () => {
-    it("Request 1: Cancelled invoices query segregation, document reliability check, and tab aggregation", () => {
+    it("Request 1: Cancelled invoices query segregation, document reliability check, and facility name fallback", () => {
       const from = new Date("2026-10-01T00:00:00Z");
       const to = new Date("2026-10-31T23:59:59Z");
 
@@ -697,20 +699,6 @@ describe("Phase 07c - Comprehensive Integrated Operational Acceptance", () => {
       // 3. Name resolution falls back to frozen snapshot facility name
       expect(getInvoiceFacilityName(cancelledWithSnapshot)).toBe("Seniorenheim Frozen Name");
       expect(getInvoiceFacilityName(cancelledWithoutSnapshot)).toBe("Seniorenheim Live Name");
-
-      // 4. Tab aggregation isolates cancelled count from active open counts
-      const allInvoices = [
-        { id: "inv-act-1", status: "unpaid", grossAmount: 100 },
-        { id: "inv-act-2", status: "paid", grossAmount: 200 },
-        cancelledWithSnapshot,
-        cancelledWithoutSnapshot,
-      ];
-      const regularInvoices = allInvoices.filter((i) => i.status !== "cancelled");
-      const cancelledInvoices = allInvoices.filter((i) => i.status === "cancelled");
-
-      expect(regularInvoices).toHaveLength(2);
-      expect(cancelledInvoices).toHaveLength(2);
-      expect(regularInvoices.filter((i) => i.status === "unpaid")).toHaveLength(1);
     });
 
     it("Request 2: Timesheet upload multi-source support and role-based permissions", async () => {
@@ -808,9 +796,20 @@ describe("Phase 07c - Comprehensive Integrated Operational Acceptance", () => {
         id: assignmentId,
         order: {
           id: "ord-wf-1",
+          clientId: "client-wf-1",
           startTime: "08:00",
           endTime: "16:30",
           breakMinutes: 30,
+          client: {
+            id: "client-wf-1",
+            userId: "u-client-1",
+            facilityName: "Test Facility",
+          },
+        },
+        worker: {
+          id: "worker-wf-1",
+          userId: "u-worker-1",
+          fullName: "Max Mustermann",
         },
         serviceConfirmation: {
           id: "sc-orig-1",
@@ -823,14 +822,102 @@ describe("Phase 07c - Comprehensive Integrated Operational Acceptance", () => {
         },
       };
 
-      let approvedCorrectionRecord: any = null;
-      let pendingCorrectionRecord: any = null;
+      const docState = {
+        id: "doc-wf-1",
+        assignmentId,
+        sourceType: "manual_upload",
+        storagePath: "signed-confirmations/client-wf-1/asg-workflow-1/doc.pdf",
+        fileName: "Korrektur_Nachweis.pdf",
+        mimeType: "application/pdf",
+        fileSizeBytes: 1024,
+      };
+
+      // In-memory store for work hours correction requests to support stateful transitions
+      const dbCorrectionRequests: any[] = [];
 
       (prisma.assignment.findUnique as any).mockImplementation(async () => assignmentState);
-      (prisma.workHoursCorrectionRequest.findFirst as any).mockImplementation(async (query: any) => {
-        if (query?.where?.status === "approved") return approvedCorrectionRecord;
-        if (query?.where?.status === "proposed") return pendingCorrectionRecord;
+      (prisma.confirmationDocument.findUnique as any).mockImplementation(async (query: any) => {
+        if (query?.where?.id === docState.id) return docState;
         return null;
+      });
+
+      (prisma.workHoursCorrectionRequest.findFirst as any).mockImplementation(async (query: any) => {
+        const where = query?.where || {};
+        const matches = dbCorrectionRequests.filter((req) => {
+          if (where.assignmentId && req.assignmentId !== where.assignmentId) return false;
+          if (where.status && req.status !== where.status) return false;
+          if (where.id?.not && req.id === where.id.not) return false;
+          if (where.baseVersion && req.baseVersion !== where.baseVersion) return false;
+          if (where.decidedAt?.gt && !(req.decidedAt > where.decidedAt.gt)) return false;
+          return true;
+        });
+        if (matches.length === 0) return null;
+        if (query?.orderBy) {
+          matches.sort((a, b) => (b.revision ?? 0) - (a.revision ?? 0));
+        }
+        return matches[0] || null;
+      });
+
+      (prisma.workHoursCorrectionRequest.findUnique as any).mockImplementation(async (query: any) => {
+        const id = query?.where?.id;
+        const found = dbCorrectionRequests.find((req) => req.id === id);
+        if (!found) return null;
+        return {
+          ...found,
+          assignment: assignmentState,
+          document: docState,
+        };
+      });
+
+      (prisma.workHoursCorrectionRequest.findUniqueOrThrow as any).mockImplementation(async (query: any) => {
+        const id = query?.where?.id;
+        const found = dbCorrectionRequests.find((req) => req.id === id);
+        if (!found) throw new Error(`Record with id ${id} not found`);
+        return {
+          ...found,
+          assignment: assignmentState,
+          document: docState,
+        };
+      });
+
+      (prisma.workHoursCorrectionRequest.create as any).mockImplementation(async (args: any) => {
+        const newRecord = {
+          id: `req-wf-${dbCorrectionRequests.length + 1}`,
+          ...args.data,
+          assignment: assignmentState,
+          document: docState,
+        };
+        dbCorrectionRequests.push(newRecord);
+        return newRecord;
+      });
+
+      (prisma.workHoursCorrectionRequest.update as any).mockImplementation(async (args: any) => {
+        const id = args.where.id;
+        const idx = dbCorrectionRequests.findIndex((r) => r.id === id);
+        if (idx >= 0) {
+          dbCorrectionRequests[idx] = {
+            ...dbCorrectionRequests[idx],
+            ...args.data,
+          };
+          return dbCorrectionRequests[idx];
+        }
+        throw new Error(`Record ${id} not found for update`);
+      });
+
+      (prisma.workHoursCorrectionRequest.updateMany as any).mockImplementation(async (args: any) => {
+        const { where, data } = args;
+        let count = 0;
+        for (let i = 0; i < dbCorrectionRequests.length; i++) {
+          const req = dbCorrectionRequests[i];
+          if (where.id && req.id !== where.id) continue;
+          if (where.status && req.status !== where.status) continue;
+          dbCorrectionRequests[i] = {
+            ...req,
+            ...data,
+          };
+          count++;
+        }
+        return { count };
       });
 
       // 1. Initial State: Effective work hours are 8.0h from the electronic confirmation
@@ -840,39 +927,55 @@ describe("Phase 07c - Comprehensive Integrated Operational Acceptance", () => {
       expect(initialEffective.source).toBe("service_confirmation");
 
       // 2. Request a correction (proposing 6.5 hours from 08:00 to 15:00, 30m break)
-      pendingCorrectionRecord = {
-        id: "req-wf-1",
+      //    Invoking real production service: createOrUpdateHoursCorrectionRequest
+      const adminUser = { id: "admin-wf-1", role: "admin" };
+      const createdProposal = await createOrUpdateHoursCorrectionRequest({
         assignmentId,
-        baseVersion: initialEffective.effectiveVersion,
-        status: "proposed",
-        revision: 1,
-        proposedHoursWorked: 6.5,
+        documentId: docState.id,
+        expectedEffectiveVersion: initialEffective.effectiveVersion,
+        expectedBaselineHours: 8.0,
+        proposedHours: 6.5,
         proposedStartTime: "08:00",
         proposedEndTime: "15:00",
         proposedBreakMinutes: 30,
-        requestedAt: new Date("2026-10-02T10:00:00Z"),
-        document: { id: "doc-wf-1", assignmentId },
-        assignment: assignmentState,
-      };
+        reason: "Mitarbeiter verließ die Schicht früher",
+        currentUser: adminUser,
+      });
 
-      // Before approval: Effective hours MUST STILL be 8.0h
+      expect(createdProposal).toBeDefined();
+      expect(createdProposal.status).toBe("proposed");
+      expect(createdProposal.proposedHoursWorked).toBe(6.5);
+      expect(createdProposal.baseVersion).toBe(initialEffective.effectiveVersion);
+
+      // Before approval: Effective hours MUST STILL be 8.0h (the proposal does not alter effective hours)
       const effectiveDuringProposal = await getAssignmentEffectiveWorkHours(assignmentId);
       expect(effectiveDuringProposal.effectiveHours).toBe(8.0);
       expect(effectiveDuringProposal.isCorrected).toBe(false);
+      expect(effectiveDuringProposal.source).toBe("service_confirmation");
 
       // 3. Admin approves correction with expected version token
-      approvedCorrectionRecord = {
-        ...pendingCorrectionRecord,
-        status: "approved",
+      //    Invoking real production service: approveHoursCorrectionRequest
+      const approvalDecision = await approveHoursCorrectionRequest({
+        correctionRequestId: createdProposal.id,
+        expectedEffectiveVersion: initialEffective.effectiveVersion,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "15:00",
+        effectiveBreakMinutes: 30,
+        decisionNote: "Genehmigt nach Prüfung des hochgeladenen Stundennachweises",
+        currentUser: adminUser,
         decidedAt: new Date("2026-10-02T11:00:00Z"),
-      };
-      pendingCorrectionRecord = null;
+      });
 
-      // After approval: Effective hours are now 6.5h
+      expect(approvalDecision).toBeDefined();
+      expect(approvalDecision.status).toBe("approved");
+      expect(approvalDecision.revision).toBe(1);
+
+      // After approval: Effective hours are now 6.5h from the approved correction
       const effectiveAfterApproval = await getAssignmentEffectiveWorkHours(assignmentId);
       expect(effectiveAfterApproval.effectiveHours).toBe(6.5);
       expect(effectiveAfterApproval.isCorrected).toBe(true);
       expect(effectiveAfterApproval.source).toBe("approved_correction");
+      expect(effectiveAfterApproval.approvedCorrection?.id).toBe(createdProposal.id);
 
       // 4. Verify ZERO MUTATION of the original electronic confirmation record
       expect(assignmentState.serviceConfirmation.hoursWorked).toBe(8.0);
