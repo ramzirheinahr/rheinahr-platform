@@ -273,7 +273,7 @@ export function WorkerConfirmationUploadDialog({
         }
       />
 
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-start">
             <FileText className="size-5 text-primary" />
@@ -479,7 +479,7 @@ export function WorkerConfirmationUploadDialog({
             <Label className="text-xs font-semibold">
               {t("signedDocLabel")} <span className="text-rose-500">*</span>
             </Label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -493,16 +493,16 @@ export function WorkerConfirmationUploadDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => fileInputRef.current?.click()}
-                className="gap-2 text-xs"
+                className="gap-2 text-xs shrink-0"
               >
                 <Upload className="size-3.5" />
                 {file ? t("changeFile") : t("selectFile")}
               </Button>
               {file && (
-                <div className="flex items-center gap-1.5 text-xs text-foreground font-mono bg-muted px-2 py-1 rounded">
-                  <FileCheck className="size-3.5 text-emerald-600" />
-                  <span className="truncate max-w-[200px]">{file.name}</span>
-                  <span className="text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-xs text-foreground font-mono bg-muted px-2 py-1 rounded min-w-0 max-w-full">
+                  <FileCheck className="size-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate max-w-[180px] sm:max-w-xs">{file.name}</span>
+                  <span className="text-muted-foreground shrink-0">
                     ({(file.size / 1024 / 1024).toFixed(2)} MB)
                   </span>
                 </div>
@@ -542,19 +542,20 @@ export function WorkerConfirmationUploadDialog({
 
         {/* Error message */}
         {errorMessage && (
-          <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 text-start">
-            <AlertTriangle className="size-4 shrink-0" />
-            <span>{errorMessage}</span>
+          <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 text-start min-w-0 break-words">
+            <AlertTriangle className="size-4 shrink-0 mt-0.5 text-rose-600" />
+            <span className="min-w-0 flex-1 break-words">{errorMessage}</span>
           </div>
         )}
 
-        <DialogFooter className="mx-0 mb-0 gap-2 sm:gap-0">
+        <DialogFooter className="mx-0 mb-0 flex flex-col-reverse sm:flex-row gap-2 sm:gap-2 sm:justify-end">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => setOpen(false)}
             disabled={isPending}
+            className="w-full sm:w-auto"
           >
             {c("cancel")}
           </Button>
@@ -563,7 +564,7 @@ export function WorkerConfirmationUploadDialog({
             size="sm"
             onClick={handleSubmit}
             disabled={isPending || selectedShiftIds.size === 0 || !file}
-            className="gap-2"
+            className="w-full sm:w-auto gap-2"
           >
             {isPending ? (
               <>
