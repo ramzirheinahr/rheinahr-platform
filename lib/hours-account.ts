@@ -55,7 +55,7 @@ export async function getWorkerHoursAccount(
   
   // Create an array of months to process
   const monthsToProcess: string[] = [];
-  let currentD = new Date(startD);
+  const currentD = new Date(startD);
   while (currentD <= endD) {
     monthsToProcess.push(`${currentD.getUTCFullYear()}-${String(currentD.getUTCMonth() + 1).padStart(2, "0")}`);
     currentD.setUTCMonth(currentD.getUTCMonth() + 1);
@@ -77,6 +77,17 @@ export async function getWorkerHoursAccount(
       bonusHours: true,
       order: { select: { shiftDate: true, startTime: true, endTime: true, breakMinutes: true } },
       serviceConfirmation: { select: { hoursWorked: true } },
+      hoursCorrections: {
+        where: { status: "approved" },
+        orderBy: [
+          { revision: "desc" },
+          { decidedAt: "desc" },
+          { requestedAt: "desc" },
+          { id: "desc" },
+        ],
+        take: 1,
+        select: { proposedHoursWorked: true },
+      },
     },
   });
 
@@ -122,7 +133,10 @@ export async function getWorkerHoursAccount(
     });
     const workedHours = monthAssignments.reduce((sum, a) => {
       let hours = 0;
-      if (a.serviceConfirmation?.hoursWorked != null) {
+      const latestApproved = a.hoursCorrections?.[0];
+      if (latestApproved) {
+        hours = Number(latestApproved.proposedHoursWorked);
+      } else if (a.serviceConfirmation?.hoursWorked != null) {
         hours = Number(a.serviceConfirmation.hoursWorked);
       } else {
         const st = new Date(`1970-01-01T${a.order.startTime}Z`).getTime();
@@ -228,7 +242,7 @@ export async function getMultipleWorkersHoursAccount(
   const endD = new Date(`${endMonth}-01T00:00:00Z`);
   
   const monthsToProcess: string[] = [];
-  let currentD = new Date(startD);
+  const currentD = new Date(startD);
   while (currentD <= endD) {
     monthsToProcess.push(`${currentD.getUTCFullYear()}-${String(currentD.getUTCMonth() + 1).padStart(2, "0")}`);
     currentD.setUTCMonth(currentD.getUTCMonth() + 1);
@@ -248,6 +262,17 @@ export async function getMultipleWorkersHoursAccount(
         bonusHours: true,
         order: { select: { shiftDate: true, startTime: true, endTime: true, breakMinutes: true } },
         serviceConfirmation: { select: { hoursWorked: true } },
+        hoursCorrections: {
+          where: { status: "approved" },
+          orderBy: [
+            { revision: "desc" },
+            { decidedAt: "desc" },
+            { requestedAt: "desc" },
+            { id: "desc" },
+          ],
+          take: 1,
+          select: { proposedHoursWorked: true },
+        },
       },
     }),
     prisma.leaveDay.findMany({
@@ -298,7 +323,10 @@ export async function getMultipleWorkersHoursAccount(
       });
       const workedHours = monthAssignments.reduce((sum, a) => {
         let hours = 0;
-        if (a.serviceConfirmation?.hoursWorked != null) {
+        const latestApproved = a.hoursCorrections?.[0];
+        if (latestApproved) {
+          hours = Number(latestApproved.proposedHoursWorked);
+        } else if (a.serviceConfirmation?.hoursWorked != null) {
           hours = Number(a.serviceConfirmation.hoursWorked);
         } else {
           const st = new Date(`1970-01-01T${a.order.startTime}Z`).getTime();

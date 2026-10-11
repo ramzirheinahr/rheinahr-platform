@@ -21,14 +21,16 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#374151" },
   tableRowSunday: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#374151", backgroundColor: "#fef08a" },
   col: { padding: 4, borderRightWidth: 0.8, borderRightColor: "#4b5563", justifyContent: "center" },
-  colDate: { width: "15%", textAlign: "center" },
-  colWorker: { width: "25%" },
-  colArea: { width: "16%", textAlign: "center" },
-  colTime: { width: "11%", textAlign: "center" },
-  colHours: { width: "11%", textAlign: "right" },
-  colNetHours: { width: "12%", textAlign: "right", borderRightWidth: 0 },
-  totalRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8, paddingVertical: 4 },
+  colDate: { width: "13%", textAlign: "center" },
+  colWorker: { width: "22%" },
+  colArea: { width: "14%", textAlign: "center" },
+  colTime: { width: "9%", textAlign: "center" },
+  colHours: { width: "9%", textAlign: "right" },
+  colNetHours: { width: "10%", textAlign: "right" },
+  colStatus: { width: "14%", textAlign: "center", borderRightWidth: 0 },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingVertical: 4 },
   totalText: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#111827" },
+  disclaimer: { fontSize: 8, color: "#991b1b", fontFamily: "Helvetica-Bold" },
 });
 
 export type StundennachweisPdfProps = {
@@ -38,6 +40,7 @@ export type StundennachweisPdfProps = {
   endDate: string;
   qualificationLabel: string;
   rows: StundennachweisRow[];
+  mode?: "actual" | "planned";
 };
 
 export const StundennachweisTemplate = ({
@@ -47,6 +50,7 @@ export const StundennachweisTemplate = ({
   endDate,
   qualificationLabel,
   rows,
+  mode = "actual",
 }: StundennachweisPdfProps) => {
   let logoSrc: string | null = null;
   if (companyConfig?.logoUrl) {
@@ -67,6 +71,7 @@ export const StundennachweisTemplate = ({
   };
 
   const totalHours = rows.reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0);
+  const hasPlannedShifts = mode === "planned" || rows.some((r) => r.isPlanned || r.statusType === "scheduled");
 
   return (
     <Document>
@@ -140,6 +145,7 @@ export const StundennachweisTemplate = ({
             <Text style={[styles.col, styles.colTime]}>bis</Text>
             <Text style={[styles.col, styles.colHours]}>Stunden</Text>
             <Text style={[styles.col, styles.colNetHours]}>Stunden Ohne Pause</Text>
+            <Text style={[styles.col, styles.colStatus]}>Status</Text>
           </View>
 
           {rows.map((r, idx) => (
@@ -155,12 +161,24 @@ export const StundennachweisTemplate = ({
               <Text style={[styles.col, styles.colNetHours]}>
                 {r.hoursWithoutPause.toFixed(2).replace(".", ",")}
               </Text>
+              <Text style={[styles.col, styles.colStatus]}>
+                {r.statusLabel || (r.isPlanned ? "Geplant" : "Bestätigt")}
+              </Text>
             </View>
           ))}
         </View>
 
-        {/* Total Sum */}
+        {/* Total Sum & Disclaimer */}
         <View wrap={false} style={styles.totalRow}>
+          {hasPlannedShifts ? (
+            <Text style={styles.disclaimer}>
+              * Hinweis: Enthält ungeprüfte / geplante Schichten. Diese stellen keine freigegebenen Ist-Stunden dar.
+            </Text>
+          ) : (
+            <Text style={{ fontSize: 8, color: "#6b7280" }}>
+              Alle enthaltenen Schichten sind bestätigt bzw. freigegeben.
+            </Text>
+          )}
           <Text style={styles.totalText}>
             Gesamtsumme: {totalHours.toFixed(2).replace(".", ",")} Stunden
           </Text>

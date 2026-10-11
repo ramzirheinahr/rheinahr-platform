@@ -26,6 +26,7 @@ export async function fetchStundennachweisAction(params: {
   endDate: string;
   qualification?: string;
   clientId?: string;
+  mode?: "actual" | "planned";
 }) {
   await requireRole("de", "admin");
   return await getStundennachweisData(params);

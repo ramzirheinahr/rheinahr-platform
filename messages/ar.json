@@ -1046,7 +1046,15 @@
       "shiftDate": "التاريخ",
       "from": "من",
       "to": "إلى",
-      "resultTitle": "نظرة عامة على الساعات Stundenübersicht"
+      "resultTitle": "نظرة عامة على الساعات Stundenübersicht",
+      "status": "الحالة",
+      "mode": "وضع العرض",
+      "modeActual": "الساعات الفعلية (معتمدة ومصححة)",
+      "modePlanned": "الخطة المقررة (مجدولة / غير مدققة)",
+      "statusPlanned": "مجدول (غير مدقق)",
+      "statusConfirmed": "معتمد",
+      "statusCorrected": "مصحح (معتمد)",
+      "plannedNotice": "يحتوي على ورديات مجدولة غير مدققة. هذه الساعات لا تمثل ساعات عمل فعلية معتمدة."
     },
     "monatsliste": {
       "title": "القائمة الشهرية Monatsliste",

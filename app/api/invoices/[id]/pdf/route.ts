@@ -7,6 +7,7 @@ import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { hasReliableInvoiceDocument } from "@/lib/invoicing";
 
 import { defaultFileVerifier } from "@/lib/invoice-v2-refresh-service";
+import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -321,24 +322,70 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     );
   }
 
-  const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
-  const pdfBuffer = await generateInvoicePdf(pdfData);
+  // Check if historical invoice has a verified stored original PDF file on disk
+  const invoiceRecord = invoice as unknown as Record<string, unknown>;
+  const snap = (invoice.snapshotData && typeof invoice.snapshotData === "object"
+    ? invoice.snapshotData
+    : null) as Record<string, unknown> | null;
+  const storedPdfPath =
+    (typeof invoiceRecord.pdfUrl === "string" && invoiceRecord.pdfUrl.trim()) ||
+    (typeof snap?.pdfUrl === "string" && snap.pdfUrl.trim()) ||
+    (typeof snap?.pdfFilePath === "string" && snap.pdfFilePath.trim()) ||
+    null;
 
-  await audit({
-    userId: user.id,
-    action: "invoice.pdf",
-    entity: "Invoice",
-    entityId: invoice.id,
-  });
+  if (
+    !isV2CalculationVersion(invoice.snapshotData) &&
+    (!snap || !Array.isArray(snap.items) || snap.items.length === 0) &&
+    storedPdfPath
+  ) {
+    const fileCheck = defaultFileVerifier(storedPdfPath);
+    if (fileCheck.exists && fileCheck.buffer && fileCheck.sha256) {
+      await audit({
+        userId: user.id,
+        action: "invoice.pdf",
+        entity: "Invoice",
+        entityId: invoice.id,
+        metadata: { source: "stored_historical_file", sha256: fileCheck.sha256 },
+      });
 
-  const isDownload = url.searchParams.get("download") === "true";
-  const disposition = isDownload ? "attachment" : "inline";
+      const isDownload = url.searchParams.get("download") === "true";
+      const disposition = isDownload ? "attachment" : "inline";
 
-  return new NextResponse(new Uint8Array(pdfBuffer), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
-      "Cache-Control": "no-store",
-    },
-  });
+      return new NextResponse(new Uint8Array(fileCheck.buffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
+          "X-Document-Source": "stored_historical_file",
+          "X-Document-Checksum": fileCheck.sha256,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+  }
+
+  try {
+    const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
+    const pdfBuffer = await generateInvoicePdf(pdfData);
+
+    await audit({
+      userId: user.id,
+      action: "invoice.pdf",
+      entity: "Invoice",
+      entityId: invoice.id,
+    });
+
+    const isDownload = url.searchParams.get("download") === "true";
+    const disposition = isDownload ? "attachment" : "inline";
+
+    return new NextResponse(new Uint8Array(pdfBuffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return new NextResponse(msg, { status: 422 });
+  }
 }

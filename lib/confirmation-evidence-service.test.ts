@@ -1423,6 +1423,11 @@ describe("Phase 3a - Confirmation Evidence Documents & Corrections Architecture"
     it("returns signed URL redirect when specific documentId exists", async () => {
       seedStandardAssignment("assign-get-doc-ok");
 
+      store.storageFiles.set("signed-confirmations/client/target.pdf", {
+        buffer: Buffer.from("mock target pdf content"),
+        contentType: "application/pdf",
+      });
+
       store.confirmationDocuments.set("doc-target", {
         id: "doc-target",
         assignmentId: "assign-get-doc-ok",
@@ -1446,12 +1451,19 @@ describe("Phase 3a - Confirmation Evidence Documents & Corrections Architecture"
         params: Promise.resolve({ assignmentId: "assign-get-doc-ok" }),
       });
 
-      expect(res.status).toBe(307); // NextResponse.redirect default
-      expect(res.headers.get("location")).toContain("signed-confirmations/client/target.pdf");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("application/pdf");
+      const buffer = await res.arrayBuffer();
+      expect(Buffer.from(buffer).toString()).toContain("mock target pdf content");
     });
 
     it("falls back to latest document only when documentId parameter is omitted", async () => {
       seedStandardAssignment("assign-fallback");
+
+      store.storageFiles.set("signed-confirmations/client/latest.pdf", {
+        buffer: Buffer.from("mock latest pdf content"),
+        contentType: "application/pdf",
+      });
 
       store.confirmationDocuments.set("doc-latest", {
         id: "doc-latest",
@@ -1476,8 +1488,10 @@ describe("Phase 3a - Confirmation Evidence Documents & Corrections Architecture"
         params: Promise.resolve({ assignmentId: "assign-fallback" }),
       });
 
-      expect(res.status).toBe(307);
-      expect(res.headers.get("location")).toContain("signed-confirmations/client/latest.pdf");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("application/pdf");
+      const buffer = await res.arrayBuffer();
+      expect(Buffer.from(buffer).toString()).toContain("mock latest pdf content");
     });
 
     it("enforces permission checks and returns 403 for unauthorized users", async () => {
@@ -2176,7 +2190,8 @@ describe("Phase 3a - Confirmation Evidence Documents & Corrections Architecture"
       const clientRes = await getConfirmationDocumentRoute(clientReq, {
         params: Promise.resolve({ assignmentId: "assign-p3b-2" }),
       });
-      expect(clientRes.status).toBe(307);
+      expect(clientRes.status).toBe(200);
+      expect(clientRes.headers.get("content-type")).toBe("application/pdf");
 
       // Legacy documentId resolution
       activeUser = adminUser;
@@ -2184,7 +2199,8 @@ describe("Phase 3a - Confirmation Evidence Documents & Corrections Architecture"
       const legacyRes = await getConfirmationDocumentRoute(legacyReq, {
         params: Promise.resolve({ assignmentId: "assign-p3b-2" }),
       });
-      expect(legacyRes.status).toBe(307);
+      expect(legacyRes.status).toBe(200);
+      expect(legacyRes.headers.get("content-type")).toBe("application/pdf");
     });
 
     it("Criterion 10: Explicitly distinguishes authoritative archived PDF vs dynamically generated view", async () => {

@@ -268,7 +268,9 @@ export function hasReliableInvoiceDocument(invoice: {
       invoice.snapshotData && typeof invoice.snapshotData === "object"
         ? (invoice.snapshotData as Record<string, unknown>)
         : null;
-    return Array.isArray(snapshot?.items) && snapshot.items.length > 0;
+    if (!snapshot) return false;
+    if (Array.isArray(snapshot.pdfItems) && snapshot.pdfItems.length > 0) return true;
+    return Array.isArray(snapshot.items) && snapshot.items.length > 0;
   }
   return true;
 }

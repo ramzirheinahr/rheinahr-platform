@@ -70,6 +70,10 @@ export type StundennachweisRow = {
   endTime: string;
   hours: number;
   hoursWithoutPause: number;
+  statusType?: "approved_correction" | "service_confirmation" | "scheduled";
+  statusLabel?: string;
+  isCorrected?: boolean;
+  isPlanned?: boolean;
 };
 
 export async function getStundennachweisData(params: {
@@ -77,7 +81,9 @@ export async function getStundennachweisData(params: {
   endDate: string; // YYYY-MM-DD
   qualification?: string;
   clientId?: string;
+  mode?: "actual" | "planned";
 }) {
+  const mode = params.mode || "actual";
   const startD = new Date(`${params.startDate}T00:00:00Z`);
   const endD = new Date(`${params.endDate}T23:59:59Z`);
 
@@ -121,6 +127,22 @@ export async function getStundennachweisData(params: {
               hoursWorked: true,
             },
           },
+          hoursCorrections: {
+            where: { status: "approved" },
+            orderBy: [
+              { revision: "desc" },
+              { decidedAt: "desc" },
+              { requestedAt: "desc" },
+              { id: "desc" },
+            ],
+            take: 1,
+            select: {
+              proposedHoursWorked: true,
+              proposedStartTime: true,
+              proposedEndTime: true,
+              proposedBreakMinutes: true,
+            },
+          },
         },
       },
     },
@@ -138,16 +160,16 @@ export async function getStundennachweisData(params: {
       shiftD.getUTCMonth() + 1
     ).padStart(2, "0")}.${shiftD.getUTCFullYear()}`;
 
-    // Gross hours
+    // Scheduled gross and net hours
     const st = new Date(`1970-01-01T${order.startTime}Z`).getTime();
     const et = new Date(`1970-01-01T${order.endTime}Z`).getTime();
     let diffMins = (et - st) / 60000;
     if (diffMins < 0) diffMins += 24 * 60;
-    const grossHours = Math.round((diffMins / 60) * 100) / 100;
+    const scheduledGrossHours = Math.round((diffMins / 60) * 100) / 100;
+    const scheduledNetHours = Math.max(0, Math.round(((diffMins - order.breakMinutes) / 60) * 100) / 100);
 
     if (order.assignments.length === 0) {
-      // Unassigned or pending shift in period
-      const netHours = Math.max(0, Math.round(((diffMins - order.breakMinutes) / 60) * 100) / 100);
+      // Unassigned shift in period: always scheduled/planned
       rows.push({
         id: order.id,
         shiftDate: formattedDate,
@@ -158,16 +180,72 @@ export async function getStundennachweisData(params: {
         livingArea: order.notes?.slice(0, 20) || "—",
         startTime: order.startTime,
         endTime: order.endTime,
-        hours: grossHours,
-        hoursWithoutPause: netHours,
+        hours: scheduledGrossHours,
+        hoursWithoutPause: scheduledNetHours,
+        statusType: "scheduled",
+        statusLabel: "Geplant (ungeprüft)",
+        isCorrected: false,
+        isPlanned: true,
       });
     } else {
       for (const assign of order.assignments) {
+        if (mode === "planned") {
+          rows.push({
+            id: `${order.id}-${assign.id}`,
+            shiftDate: formattedDate,
+            rawDate: shiftD.toISOString().slice(0, 10),
+            isSunday,
+            workerName: assign.worker.fullName,
+            workerNumber: assign.worker.internalNumber,
+            livingArea: order.notes?.slice(0, 20) || "—",
+            startTime: order.startTime,
+            endTime: order.endTime,
+            hours: scheduledGrossHours,
+            hoursWithoutPause: scheduledNetHours,
+            statusType: "scheduled",
+            statusLabel: "Geplant",
+            isCorrected: false,
+            isPlanned: true,
+          });
+          continue;
+        }
+
+        // Actual mode: Hierarchy (1: Approved Correction, 2: Service Confirmation, 3: Scheduled planned)
+        const latestApprovedCorrection = assign.hoursCorrections?.[0];
         let netHours = 0;
-        if (assign.serviceConfirmation?.hoursWorked != null) {
+        let grossHours = scheduledGrossHours;
+        let shiftStartTime = order.startTime;
+        let shiftEndTime = order.endTime;
+        let statusType: "approved_correction" | "service_confirmation" | "scheduled" = "scheduled";
+        let statusLabel = "Geplant (ungeprüft)";
+        let isCorrected = false;
+        let isPlanned = false;
+
+        if (latestApprovedCorrection) {
+          netHours = Number(latestApprovedCorrection.proposedHoursWorked);
+          if (latestApprovedCorrection.proposedStartTime) {
+            shiftStartTime = latestApprovedCorrection.proposedStartTime;
+          }
+          if (latestApprovedCorrection.proposedEndTime) {
+            shiftEndTime = latestApprovedCorrection.proposedEndTime;
+          }
+          const cSt = new Date(`1970-01-01T${shiftStartTime}Z`).getTime();
+          const cEt = new Date(`1970-01-01T${shiftEndTime}Z`).getTime();
+          let cDiffMins = (cEt - cSt) / 60000;
+          if (cDiffMins < 0) cDiffMins += 24 * 60;
+          grossHours = Math.round((cDiffMins / 60) * 100) / 100;
+          statusType = "approved_correction";
+          statusLabel = "Korrigiert (Freigegeben)";
+          isCorrected = true;
+        } else if (assign.serviceConfirmation?.hoursWorked != null) {
           netHours = Number(assign.serviceConfirmation.hoursWorked);
+          statusType = "service_confirmation";
+          statusLabel = "Bestätigt";
         } else {
-          netHours = Math.max(0, Math.round(((diffMins - order.breakMinutes) / 60) * 100) / 100);
+          netHours = scheduledNetHours;
+          statusType = "scheduled";
+          statusLabel = "Geplant (ungeprüft)";
+          isPlanned = true;
         }
 
         rows.push({
@@ -178,10 +256,14 @@ export async function getStundennachweisData(params: {
           workerName: assign.worker.fullName,
           workerNumber: assign.worker.internalNumber,
           livingArea: order.notes?.slice(0, 20) || "—",
-          startTime: order.startTime,
-          endTime: order.endTime,
+          startTime: shiftStartTime,
+          endTime: shiftEndTime,
           hours: grossHours,
           hoursWithoutPause: netHours,
+          statusType,
+          statusLabel,
+          isCorrected,
+          isPlanned,
         });
       }
     }
@@ -191,6 +273,7 @@ export async function getStundennachweisData(params: {
     client,
     startDate: params.startDate,
     endDate: params.endDate,
+    mode,
     rows,
   };
 }
@@ -260,6 +343,22 @@ export async function getMonatslisteData(params: {
           documentUrl: true,
         },
       },
+      hoursCorrections: {
+        where: { status: "approved" },
+        orderBy: [
+          { revision: "desc" },
+          { decidedAt: "desc" },
+          { requestedAt: "desc" },
+          { id: "desc" },
+        ],
+        take: 1,
+        select: {
+          proposedHoursWorked: true,
+          proposedStartTime: true,
+          proposedEndTime: true,
+          proposedBreakMinutes: true,
+        },
+      },
     },
     orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
   });
@@ -285,8 +384,18 @@ export async function getMonatslisteData(params: {
     const formattedDate = `${String(d).padStart(2, "0")}.${String(params.month).padStart(2, "0")}.${params.year}`;
 
     for (const assign of dayList) {
+      const latestApproved = assign.hoursCorrections?.[0];
       let net = 0;
-      if (assign.serviceConfirmation?.hoursWorked != null) {
+      let shiftStartTime = assign.order.startTime;
+      let shiftEndTime = assign.order.endTime;
+      let breakMins = assign.order.breakMinutes;
+
+      if (latestApproved) {
+        net = Number(latestApproved.proposedHoursWorked);
+        if (latestApproved.proposedStartTime) shiftStartTime = latestApproved.proposedStartTime;
+        if (latestApproved.proposedEndTime) shiftEndTime = latestApproved.proposedEndTime;
+        if (latestApproved.proposedBreakMinutes != null) breakMins = latestApproved.proposedBreakMinutes;
+      } else if (assign.serviceConfirmation?.hoursWorked != null) {
         net = Number(assign.serviceConfirmation.hoursWorked);
       } else {
         const st = new Date(`1970-01-01T${assign.order.startTime}Z`).getTime();
@@ -298,6 +407,7 @@ export async function getMonatslisteData(params: {
 
       const totalHours = Math.round(net * 100) / 100;
       const hasConf = !!(
+        latestApproved ||
         assign.serviceConfirmation?.id ||
         assign.serviceConfirmation?.documentUrl
       );
@@ -305,18 +415,18 @@ export async function getMonatslisteData(params: {
       rows.push({
         date: formattedDate,
         dayOfMonth: d,
-        kommt: assign.order.startTime,
-        geht: assign.order.endTime,
-        pause: `${assign.order.breakMinutes},00`,
+        kommt: shiftStartTime,
+        geht: shiftEndTime,
+        pause: `${breakMins},00`,
         hours: totalHours,
         customerName: assign.order.client.facilityName || "—",
         assignmentId: assign.id,
         hasConfirmation: hasConf,
         signerName: assign.serviceConfirmation?.signerName || null,
         shift1: {
-          kommt: assign.order.startTime,
-          geht: assign.order.endTime,
-          pause: `${assign.order.breakMinutes},00`,
+          kommt: shiftStartTime,
+          geht: shiftEndTime,
+          pause: `${breakMins},00`,
         },
         shift2: { kommt: "-----", geht: "-----", pause: "0,00" },
         assignmentId1: assign.id,

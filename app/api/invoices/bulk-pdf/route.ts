@@ -7,6 +7,9 @@ import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { PDFDocument } from "pdf-lib";
 import { Prisma } from "@prisma/client";
 
+import { defaultFileVerifier } from "@/lib/invoice-v2-refresh-service";
+import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -90,14 +93,53 @@ export async function GET(req: Request) {
   const mergedPdf = await PDFDocument.create();
 
   for (const inv of invoices) {
+    // Defense-in-depth: strictly exclude cancelled invoices even if returned
+    if (inv.status === "cancelled") {
+      continue;
+    }
+
     try {
-      const pdfData = buildInvoicePdfData(inv, inv.client, inv.assignments);
-      const pdfBuffer = await generateInvoicePdf(pdfData);
-      const doc = await PDFDocument.load(pdfBuffer);
+      const invRecord = inv as unknown as Record<string, unknown>;
+      const snap = (inv.snapshotData && typeof inv.snapshotData === "object"
+        ? inv.snapshotData
+        : null) as Record<string, unknown> | null;
+      const storedPdfPath =
+        (typeof invRecord.pdfUrl === "string" && invRecord.pdfUrl.trim()) ||
+        (typeof snap?.pdfUrl === "string" && snap.pdfUrl.trim()) ||
+        (typeof snap?.pdfFilePath === "string" && snap.pdfFilePath.trim()) ||
+        null;
+
+      let doc: PDFDocument;
+
+      if (
+        !isV2CalculationVersion(inv.snapshotData) &&
+        (!snap || !Array.isArray(snap.items) || snap.items.length === 0) &&
+        storedPdfPath
+      ) {
+        const fileCheck = defaultFileVerifier(storedPdfPath);
+        if (fileCheck.exists && fileCheck.buffer) {
+          doc = await PDFDocument.load(fileCheck.buffer);
+        } else {
+          const pdfData = buildInvoicePdfData(inv, inv.client, inv.assignments);
+          const pdfBuffer = await generateInvoicePdf(pdfData);
+          doc = await PDFDocument.load(pdfBuffer);
+        }
+      } else {
+        const pdfData = buildInvoicePdfData(inv, inv.client, inv.assignments);
+        const pdfBuffer = await generateInvoicePdf(pdfData);
+        doc = await PDFDocument.load(pdfBuffer);
+      }
+
       const copiedPages = await mergedPdf.copyPages(doc, doc.getPageIndices());
       copiedPages.forEach((page) => mergedPdf.addPage(page));
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(`Error generating PDF for invoice ${inv.invoiceNumber}:`, err);
+      const errMsg = err instanceof Error ? err.message : "Ungültige Rechnungsdaten";
+      // Fail closed: corrupted invoice snapshot or rendering failure must not produce incomplete bulk bundle
+      return new NextResponse(
+        `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: ${errMsg}`,
+        { status: 422 }
+      );
     }
   }
 

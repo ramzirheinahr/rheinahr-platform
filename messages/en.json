@@ -1044,7 +1044,15 @@
       "shiftDate": "Date",
       "from": "from",
       "to": "to",
-      "resultTitle": "Hours Overview"
+      "resultTitle": "Hours Overview",
+      "status": "Status",
+      "mode": "View Mode",
+      "modeActual": "Actual Hours (Confirmed & Corrected)",
+      "modePlanned": "Target Schedule (Planned / Unverified)",
+      "statusPlanned": "Planned (unverified)",
+      "statusConfirmed": "Confirmed",
+      "statusCorrected": "Corrected (Approved)",
+      "plannedNotice": "Contains unverified / planned shifts. These do not represent approved actual hours."
     },
     "monatsliste": {
       "title": "Monthly List",

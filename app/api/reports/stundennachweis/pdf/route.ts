@@ -17,13 +17,14 @@ export async function GET(req: Request) {
   const endDate = url.searchParams.get("endDate") || "";
   const clientId = url.searchParams.get("clientId") || undefined;
   const qualification = url.searchParams.get("qualification") || undefined;
+  const mode = (url.searchParams.get("mode") === "planned" ? "planned" : "actual") as "actual" | "planned";
 
   if (!startDate || !endDate) {
     return NextResponse.json({ error: "Missing date range" }, { status: 400 });
   }
 
   try {
-    const data = await getStundennachweisData({ startDate, endDate, clientId, qualification });
+    const data = await getStundennachweisData({ startDate, endDate, clientId, qualification, mode });
     const companyConfig = await getCompanyConfig();
 
     const pdfStream = await renderToStream(
@@ -34,16 +35,18 @@ export async function GET(req: Request) {
         endDate,
         qualificationLabel: qualification || "Pflegehilfskraft",
         rows: data.rows,
-      }) as any
+        mode,
+      }) as unknown as React.ReactElement<import("@react-pdf/renderer").DocumentProps>
     );
 
-    return new NextResponse(pdfStream as any, {
+    return new NextResponse(pdfStream as unknown as ReadableStream, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="stundennachweis_${startDate}_${endDate}.pdf"`,
       },
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "PDF generation failed" }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "PDF generation failed";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

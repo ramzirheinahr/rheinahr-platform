@@ -1044,7 +1044,15 @@
       "shiftDate": "Datum",
       "from": "von",
       "to": "bis",
-      "resultTitle": "Stundenübersicht"
+      "resultTitle": "Stundenübersicht",
+      "status": "Status",
+      "mode": "Ansicht",
+      "modeActual": "Ist-Stunden (Bestätigt & Korrigiert)",
+      "modePlanned": "Soll-Plan (Geplant / Ungeprüft)",
+      "statusPlanned": "Geplant (ungeprüft)",
+      "statusConfirmed": "Bestätigt",
+      "statusCorrected": "Korrigiert (Freigegeben)",
+      "plannedNotice": "Enthält ungeprüfte / geplante Schichten. Diese stellen keine freigegebenen Ist-Stunden dar."
     },
     "monatsliste": {
       "title": "Monatsliste",
