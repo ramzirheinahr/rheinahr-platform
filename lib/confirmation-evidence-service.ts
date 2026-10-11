@@ -76,6 +76,8 @@ export type EvidenceDocumentView = {
   isArchivedPdf: boolean;
   isDynamicallyGeneratedView: boolean;
   isPhysicalScan: boolean;
+  correctionStatus?: HoursCorrectionStatus | null;
+  isCorrectionApproved?: boolean;
 };
 
 export type CorrectionRecordView = {
@@ -1498,6 +1500,10 @@ export async function getAssignmentEvidenceHistory(
       d.sourceType === "electronic_original" && !d.storagePath && d.signatureData
     );
 
+    const matchingCorr = allCorrections.find((c) => c.documentId === d.id);
+    const correctionStatus = matchingCorr?.status || (d.sourceType === "manual_correction" ? (allCorrections[0]?.status || "proposed") : null);
+    const isCorrectionApproved = correctionStatus === "approved";
+
     return {
       id: d.id,
       assignmentId: d.assignmentId,
@@ -1517,6 +1523,8 @@ export async function getAssignmentEvidenceHistory(
       isArchivedPdf,
       isDynamicallyGeneratedView,
       isPhysicalScan,
+      correctionStatus,
+      isCorrectionApproved,
     };
   });
 

@@ -254,15 +254,54 @@ export function StundennachweisView({
               </tbody>
               {rows && rows.length > 0 && (
                 <tfoot className="border-t-2 border-border/80 bg-muted/40 font-bold">
-                  <tr>
-                    <td colSpan={6} className="p-2.5 text-right font-bold text-foreground">
-                      Gesamtsumme:
-                    </td>
-                    <td className="p-2.5 text-right font-bold text-foreground">
-                      {rows.reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0).toFixed(2).replace(".", ",")} Std.
-                    </td>
-                    <td></td>
-                  </tr>
+                  {mode === "planned" ? (
+                    <tr>
+                      <td colSpan={6} className="p-2.5 text-right font-bold text-foreground">
+                        {t("stundennachweis.totalPlanned")}:
+                      </td>
+                      <td className="p-2.5 text-right font-bold text-foreground">
+                        {rows
+                          .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
+                          .toFixed(2)
+                          .replace(".", ",")}{" "}
+                        Std.
+                      </td>
+                      <td></td>
+                    </tr>
+                  ) : (
+                    <>
+                      <tr>
+                        <td colSpan={6} className="p-2.5 text-right font-bold text-foreground">
+                          {t("stundennachweis.totalActualHours")}:
+                        </td>
+                        <td className="p-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                          {rows
+                            .filter((r) => !r.isPlanned && r.statusType !== "scheduled")
+                            .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
+                            .toFixed(2)
+                            .replace(".", ",")}{" "}
+                          Std.
+                        </td>
+                        <td></td>
+                      </tr>
+                      {rows.some((r) => r.isPlanned || r.statusType === "scheduled") && (
+                        <tr>
+                          <td colSpan={6} className="p-2.5 text-right font-medium text-muted-foreground text-xs">
+                            {t("stundennachweis.unverifiedPlannedHours")}:
+                          </td>
+                          <td className="p-2.5 text-right font-medium text-amber-700 dark:text-amber-400 text-xs">
+                            {rows
+                              .filter((r) => r.isPlanned || r.statusType === "scheduled")
+                              .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
+                              .toFixed(2)
+                              .replace(".", ",")}{" "}
+                            Std.
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
+                    </>
+                  )}
                 </tfoot>
               )}
             </table>

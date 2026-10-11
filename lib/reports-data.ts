@@ -269,12 +269,29 @@ export async function getStundennachweisData(params: {
     }
   }
 
+  const totalActualHours = Math.round(
+    rows
+      .filter((r) => !r.isPlanned && r.statusType !== "scheduled")
+      .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0) * 100
+  ) / 100;
+
+  const totalPlannedHours = Math.round(
+    rows
+      .filter((r) => r.isPlanned || r.statusType === "scheduled")
+      .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0) * 100
+  ) / 100;
+
+  const totalHours = mode === "planned" ? totalPlannedHours : totalActualHours;
+
   return {
     client,
     startDate: params.startDate,
     endDate: params.endDate,
     mode,
     rows,
+    totalActualHours,
+    totalPlannedHours,
+    totalHours,
   };
 }
 

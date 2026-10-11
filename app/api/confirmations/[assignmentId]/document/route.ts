@@ -4,6 +4,8 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { audit } from "@/lib/audit";
 import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +17,77 @@ function getMimeTypeFromPath(filePath: string): string {
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
   if (lower.endsWith(".webp")) return "image/webp";
   return "application/octet-stream";
+}
+
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+]);
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB max
+
+function getAllowedLocalRoots(): string[] {
+  const roots: string[] = [
+    path.resolve(process.cwd(), "public", "uploads", "confirmations"),
+    path.resolve(process.cwd(), "storage", "confirmations"),
+  ];
+  if (process.env.CONFIRMATIONS_STORAGE_DIR) {
+    roots.push(path.resolve(process.env.CONFIRMATIONS_STORAGE_DIR));
+  }
+  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+    roots.push(path.resolve(os.tmpdir()));
+  }
+  return roots;
+}
+
+function readLocalFileIfAllowed(filePath: string): Buffer | null {
+  try {
+    const resolved = path.resolve(filePath);
+    if (!fs.existsSync(resolved)) return null;
+
+    const canonical = fs.realpathSync(resolved);
+    const allowedRoots = getAllowedLocalRoots();
+
+    const isInsideAllowedRoot = allowedRoots.some((root) => {
+      try {
+        const canonicalRoot = fs.existsSync(root) ? fs.realpathSync(root) : root;
+        return canonical === canonicalRoot || canonical.startsWith(canonicalRoot + path.sep);
+      } catch {
+        return false;
+      }
+    });
+
+    if (!isInsideAllowedRoot) return null;
+
+    const stat = fs.statSync(canonical);
+    if (!stat.isFile() || stat.size > MAX_FILE_SIZE) return null;
+
+    return fs.readFileSync(canonical);
+  } catch {
+    return null;
+  }
+}
+
+async function downloadFromSupabase(storagePath: string): Promise<Buffer | null> {
+  const cleanPath = storagePath
+    .replace(/^\/?confirmations\//, "")
+    .replace(/^\//, "")
+    .replace(/\.\./g, "");
+
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.storage.from("confirmations").download(cleanPath);
+    if (error || !data) return null;
+
+    const ab = await data.arrayBuffer();
+    if (ab.byteLength > MAX_FILE_SIZE) return null;
+
+    return Buffer.from(ab);
+  } catch {
+    return null;
+  }
 }
 
 // Serves the Leistungsnachweis confirmation file (original or correction) directly
@@ -67,24 +140,41 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
   const url = new URL(_req.url);
   const documentId = url.searchParams.get("documentId");
 
+  let targetDoc: {
+    id: string;
+    storagePath: string | null;
+    fileName: string | null;
+    mimeType: string | null;
+    sourceType: string;
+    createdAt?: Date;
+  } | null = null;
+
   let storagePath: string | null = null;
   let fileName: string = `leistungsnachweis-${assignmentId}.pdf`;
   let mimeType: string = "application/pdf";
   let documentType: "original" | "correction" = "original";
 
   if (documentId === "original") {
-    // Look for earliest ConfirmationDocument with sourceType == "electronic_original" or first created
+    // Look for earliest ConfirmationDocument with sourceType in ["electronic_original", "manual_upload"]
     const originalDoc = await prisma.confirmationDocument.findFirst({
       where: {
         assignmentId,
-        sourceType: "electronic_original",
+        sourceType: { in: ["electronic_original", "manual_upload"] },
         storagePath: { not: null },
       },
       orderBy: { createdAt: "asc" },
-      select: { id: true, storagePath: true, fileName: true, mimeType: true },
+      select: {
+        id: true,
+        storagePath: true,
+        fileName: true,
+        mimeType: true,
+        sourceType: true,
+        createdAt: true,
+      },
     });
 
     if (originalDoc?.storagePath) {
+      targetDoc = originalDoc;
       storagePath = originalDoc.storagePath;
       if (originalDoc.fileName) fileName = originalDoc.fileName;
       if (originalDoc.mimeType) mimeType = originalDoc.mimeType;
@@ -116,15 +206,32 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
           fileName: true,
           mimeType: true,
           sourceType: true,
+          createdAt: true,
         },
       });
       if (!doc || !doc.storagePath) {
         return new NextResponse("Dokument nicht gefunden", { status: 404 });
       }
+      targetDoc = doc;
       storagePath = doc.storagePath;
       if (doc.fileName) fileName = doc.fileName;
       if (doc.mimeType) mimeType = doc.mimeType;
-      documentType = doc.sourceType === "electronic_original" ? "original" : "correction";
+
+      if (doc.sourceType === "electronic_original") {
+        documentType = "original";
+      } else if (doc.sourceType === "manual_upload") {
+        // Earliest document on this assignment is the original
+        const earlierDoc = await prisma.confirmationDocument.findFirst({
+          where: {
+            assignmentId,
+            id: { not: doc.id },
+            createdAt: { lt: doc.createdAt },
+          },
+        });
+        documentType = !earlierDoc ? "original" : "correction";
+      } else {
+        documentType = "correction";
+      }
     }
   } else {
     // Default to latest document or legacy serviceConfirmation document
@@ -137,14 +244,30 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
         fileName: true,
         mimeType: true,
         sourceType: true,
+        createdAt: true,
       },
     });
 
     if (latestDoc?.storagePath) {
+      targetDoc = latestDoc;
       storagePath = latestDoc.storagePath;
       if (latestDoc.fileName) fileName = latestDoc.fileName;
       if (latestDoc.mimeType) mimeType = latestDoc.mimeType;
-      documentType = latestDoc.sourceType === "electronic_original" ? "original" : "correction";
+
+      if (latestDoc.sourceType === "electronic_original") {
+        documentType = "original";
+      } else if (latestDoc.sourceType === "manual_upload") {
+        const earlierDoc = await prisma.confirmationDocument.findFirst({
+          where: {
+            assignmentId,
+            id: { not: latestDoc.id },
+            createdAt: { lt: latestDoc.createdAt },
+          },
+        });
+        documentType = !earlierDoc ? "original" : "correction";
+      } else {
+        documentType = "correction";
+      }
     } else if (a.serviceConfirmation?.documentUrl) {
       storagePath = a.serviceConfirmation.documentUrl;
       fileName = storagePath.split("/").pop() || fileName;
@@ -155,32 +278,54 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
     }
   }
 
-  // Stream bytes directly: handle local filesystem paths or Supabase storage
-  let fileBuffer: Buffer | null = null;
+  // Separate document type from correction approval status
+  let correctionStatus: "approved" | "proposed" | "rejected" | "none" = "none";
+  let isCorrectionApproved = false;
 
-  // Check if storagePath refers to a local file
-  const isLocalFile = fs.existsSync(storagePath);
-  if (isLocalFile) {
-    try {
-      fileBuffer = fs.readFileSync(storagePath);
-    } catch {
-      fileBuffer = null;
+  if (targetDoc) {
+    const corrRequest = await prisma.workHoursCorrectionRequest.findFirst({
+      where: {
+        assignmentId,
+        documentId: targetDoc.id,
+      },
+      select: { status: true },
+    });
+
+    if (corrRequest) {
+      correctionStatus = corrRequest.status;
+      isCorrectionApproved = corrRequest.status === "approved";
+    } else if (targetDoc.sourceType === "manual_correction") {
+      const latestCorr = await prisma.workHoursCorrectionRequest.findFirst({
+        where: { assignmentId },
+        orderBy: [{ revision: "desc" }, { requestedAt: "desc" }],
+        select: { status: true },
+      });
+      if (latestCorr) {
+        correctionStatus = latestCorr.status;
+        isCorrectionApproved = latestCorr.status === "approved";
+      } else {
+        correctionStatus = "proposed";
+      }
     }
   }
 
+  // Sanitize fileName for Content-Disposition
+  const sanitizedFileName = (fileName || `leistungsnachweis-${assignmentId}.pdf`)
+    .replace(/[\r\n"/\\]/g, "")
+    .replace(/\.\.+/g, "_")
+    .replace(/^\.+/, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 100);
+
+  // Validate MIME type
+  if (!ALLOWED_MIME_TYPES.has(mimeType.toLowerCase())) {
+    return new NextResponse("Nicht unterstützter Dateityp", { status: 415 });
+  }
+
+  // Stream bytes directly: restricted local filesystem or Supabase storage
+  let fileBuffer = readLocalFileIfAllowed(storagePath);
   if (!fileBuffer) {
-    // Download directly from Supabase storage without exposing URL to client
-    const cleanPath = storagePath.replace(/^\/?confirmations\//, "").replace(/^\//, "");
-    try {
-      const supabase = createSupabaseAdminClient();
-      const { data, error } = await supabase.storage.from("confirmations").download(cleanPath);
-      if (!error && data) {
-        const ab = await data.arrayBuffer();
-        fileBuffer = Buffer.from(ab);
-      }
-    } catch {
-      fileBuffer = null;
-    }
+    fileBuffer = await downloadFromSupabase(storagePath);
   }
 
   if (!fileBuffer) {
@@ -196,7 +341,10 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
     entityId: assignmentId,
     metadata: {
       documentType,
-      fileName,
+      fileName: sanitizedFileName,
+      sourceType: targetDoc?.sourceType || "legacy_document",
+      correctionStatus,
+      isCorrectionApproved,
     },
   });
 
@@ -206,8 +354,11 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
   return new NextResponse(new Uint8Array(fileBuffer), {
     headers: {
       "Content-Type": mimeType,
-      "Content-Disposition": `${disposition}; filename="${fileName}"`,
+      "Content-Disposition": `${disposition}; filename="${sanitizedFileName}"`,
       "X-Document-Type": documentType,
+      "X-Document-Source-Type": targetDoc?.sourceType || "legacy_document",
+      "X-Correction-Status": correctionStatus,
+      "X-Correction-Approved": String(isCorrectionApproved),
       "Cache-Control": "no-store",
     },
   });

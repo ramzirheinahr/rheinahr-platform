@@ -333,35 +333,45 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     (typeof snap?.pdfFilePath === "string" && snap.pdfFilePath.trim()) ||
     null;
 
-  if (
-    !isV2CalculationVersion(invoice.snapshotData) &&
-    (!snap || !Array.isArray(snap.items) || snap.items.length === 0) &&
-    storedPdfPath
-  ) {
+  if (storedPdfPath) {
     const fileCheck = defaultFileVerifier(storedPdfPath);
-    if (fileCheck.exists && fileCheck.buffer && fileCheck.sha256) {
-      await audit({
-        userId: user.id,
-        action: "invoice.pdf",
-        entity: "Invoice",
-        entityId: invoice.id,
-        metadata: { source: "stored_historical_file", sha256: fileCheck.sha256 },
-      });
-
-      const isDownload = url.searchParams.get("download") === "true";
-      const disposition = isDownload ? "attachment" : "inline";
-
-      return new NextResponse(new Uint8Array(fileCheck.buffer), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
-          "X-Document-Source": "stored_historical_file",
-          "X-Document-Checksum": fileCheck.sha256,
-          "Cache-Control": "no-store",
-        },
-      });
+    if (!fileCheck.exists || !fileCheck.buffer || !fileCheck.sha256) {
+      // Fail closed: Never fall back to live rebuild when a stored original PDF is designated
+      return new NextResponse(
+        "Das hinterlegte historische Rechnungsdokument ist nicht verfügbar oder beschädigt.",
+        { status: 422 }
+      );
     }
+
+    await audit({
+      userId: user.id,
+      action: "invoice.pdf",
+      entity: "Invoice",
+      entityId: invoice.id,
+      metadata: { source: "stored_historical_file", sha256: fileCheck.sha256 },
+    });
+
+    const isDownload = url.searchParams.get("download") === "true";
+    const disposition = isDownload ? "attachment" : "inline";
+
+    return new NextResponse(new Uint8Array(fileCheck.buffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
+        "X-Document-Source": "stored_historical_file",
+        "X-Document-Checksum": fileCheck.sha256,
+        "Cache-Control": "no-store",
+      },
+    });
   }
+
+  // If no stored original file, check if there is a frozen snapshot to regenerate from
+  const hasFrozenSnapshot =
+    isV2CalculationVersion(invoice.snapshotData) ||
+    (snap && Array.isArray(snap.items) && snap.items.length > 0) ||
+    (snap && Array.isArray(snap.pdfItems) && snap.pdfItems.length > 0);
+
+  const documentSourceHeader = hasFrozenSnapshot ? "frozen_snapshot" : "live_generation";
 
   try {
     const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
@@ -381,6 +391,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
+        "X-Document-Source": documentSourceHeader,
         "Cache-Control": "no-store",
       },
     });

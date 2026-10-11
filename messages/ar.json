@@ -679,7 +679,10 @@
     "dynamicView": "عرض مُولّد ديناميكيًا",
     "dynamicViewHint": "مُولّد من بيانات الوردية والتوقيع المحفوظة (ليس ملف PDF مؤرشفًا ثابتاً)",
     "manualUpload": "كشف يدوي مرفوع",
+    "manualOriginal": "أصل ورقي يدوي",
     "manualCorrection": "مستند تصحيح إضافي",
+    "approvedCorrection": "تصحيح معتمد",
+    "pendingCorrection": "مستند تصحيح (قيد المراجعة)",
     "uploadedBy": "رُفع بواسطة",
     "uploadDate": "التاريخ",
     "fileSize": "حجم الملف",
@@ -1054,7 +1057,10 @@
       "statusPlanned": "مجدول (غير مدقق)",
       "statusConfirmed": "معتمد",
       "statusCorrected": "مصحح (معتمد)",
-      "plannedNotice": "يحتوي على ورديات مجدولة غير مدققة. هذه الساعات لا تمثل ساعات عمل فعلية معتمدة."
+      "plannedNotice": "يحتوي على ورديات مجدولة غير مدققة. هذه الساعات لا تمثل ساعات عمل فعلية معتمدة.",
+      "totalActualHours": "إجمالي الساعات الفعلية (المعتمدة/المؤكدة)",
+      "unverifiedPlannedHours": "غير مدقق / مخطط",
+      "totalPlanned": "إجمالي الساعات (المخططة)"
     },
     "monatsliste": {
       "title": "القائمة الشهرية Monatsliste",

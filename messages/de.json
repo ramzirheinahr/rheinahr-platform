@@ -677,7 +677,10 @@
     "dynamicView": "Dynamisch generierte Ansicht",
     "dynamicViewHint": "Generiert aus gespeicherten Einsatz- und Signaturdaten (kein statisch archiviertes PDF)",
     "manualUpload": "Manuell hochgeladener Scan",
+    "manualOriginal": "Manuelles Original",
     "manualCorrection": "Nachträglicher Korrekturbeleg",
+    "approvedCorrection": "Freigegebene Korrektur",
+    "pendingCorrection": "Korrekturbeleg (ungeprüft)",
     "uploadedBy": "Hochgeladen von",
     "uploadDate": "Datum",
     "fileSize": "Dateigröße",
@@ -1052,7 +1055,10 @@
       "statusPlanned": "Geplant (ungeprüft)",
       "statusConfirmed": "Bestätigt",
       "statusCorrected": "Korrigiert (Freigegeben)",
-      "plannedNotice": "Enthält ungeprüfte / geplante Schichten. Diese stellen keine freigegebenen Ist-Stunden dar."
+      "plannedNotice": "Enthält ungeprüfte / geplante Schichten. Diese stellen keine freigegebenen Ist-Stunden dar.",
+      "totalActualHours": "Gesamtsumme (Ist-Stunden)",
+      "unverifiedPlannedHours": "Ungeprüft / Geplant",
+      "totalPlanned": "Gesamtsumme (Geplant)"
     },
     "monatsliste": {
       "title": "Monatsliste",

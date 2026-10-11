@@ -677,7 +677,10 @@
     "dynamicView": "Dynamically Generated View",
     "dynamicViewHint": "Generated from recorded shift and signature data (not a statically archived PDF)",
     "manualUpload": "Manually Uploaded Scan",
+    "manualOriginal": "Manual Original",
     "manualCorrection": "Manual Correction Document",
+    "approvedCorrection": "Approved Correction",
+    "pendingCorrection": "Correction Document (Pending)",
     "uploadedBy": "Uploaded by",
     "uploadDate": "Date",
     "fileSize": "File size",
@@ -1052,7 +1055,10 @@
       "statusPlanned": "Planned (unverified)",
       "statusConfirmed": "Confirmed",
       "statusCorrected": "Corrected (Approved)",
-      "plannedNotice": "Contains unverified / planned shifts. These do not represent approved actual hours."
+      "plannedNotice": "Contains unverified / planned shifts. These do not represent approved actual hours.",
+      "totalActualHours": "Total (Actual Hours)",
+      "unverifiedPlannedHours": "Unverified / Planned",
+      "totalPlanned": "Total (Planned)"
     },
     "monatsliste": {
       "title": "Monthly List",

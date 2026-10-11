@@ -8,7 +8,6 @@ import { PDFDocument } from "pdf-lib";
 import { Prisma } from "@prisma/client";
 
 import { defaultFileVerifier } from "@/lib/invoice-v2-refresh-service";
-import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,19 +110,16 @@ export async function GET(req: Request) {
 
       let doc: PDFDocument;
 
-      if (
-        !isV2CalculationVersion(inv.snapshotData) &&
-        (!snap || !Array.isArray(snap.items) || snap.items.length === 0) &&
-        storedPdfPath
-      ) {
+      if (storedPdfPath) {
         const fileCheck = defaultFileVerifier(storedPdfPath);
-        if (fileCheck.exists && fileCheck.buffer) {
-          doc = await PDFDocument.load(fileCheck.buffer);
-        } else {
-          const pdfData = buildInvoicePdfData(inv, inv.client, inv.assignments);
-          const pdfBuffer = await generateInvoicePdf(pdfData);
-          doc = await PDFDocument.load(pdfBuffer);
+        if (!fileCheck.exists || !fileCheck.buffer) {
+          // Fail closed: Never fall back to live rebuild when a stored original PDF is designated
+          return new NextResponse(
+            `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: Das hinterlegte historische Rechnungsdokument ist nicht verfügbar oder beschädigt.`,
+            { status: 422 }
+          );
         }
+        doc = await PDFDocument.load(fileCheck.buffer);
       } else {
         const pdfData = buildInvoicePdfData(inv, inv.client, inv.assignments);
         const pdfBuffer = await generateInvoicePdf(pdfData);

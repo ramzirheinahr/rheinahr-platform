@@ -526,12 +526,19 @@ export function ShiftEvidenceDialog({
                                 {t("electronicOriginal")}
                               </Badge>
                             ) : doc.sourceType === "manual_correction" ? (
-                              <Badge
-                                variant="outline"
-                                className="border-blue-400 bg-blue-50 text-blue-700 text-[11px]"
-                              >
-                                {t("manualCorrection")}
-                              </Badge>
+                              doc.isCorrectionApproved ? (
+                                <Badge className="bg-blue-600 hover:bg-blue-600 text-white gap-1 text-[11px]">
+                                  <CheckCircle2 className="size-3" />
+                                  {t("approvedCorrection")}
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-400 bg-amber-50 text-amber-700 text-[11px]"
+                                >
+                                  {t("pendingCorrection")}
+                                </Badge>
+                              )
                             ) : (
                               <Badge
                                 variant="outline"
