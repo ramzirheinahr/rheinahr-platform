@@ -939,6 +939,96 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       }
     });
 
+    it("rejects archive directory that is a symlink pointing to public/ with INSECURE_STORAGE_CONFIGURATION before writing any file", async () => {
+      const pubDir = path.resolve(process.cwd(), "public/exposed-archive");
+      if (!fs.existsSync(pubDir)) fs.mkdirSync(pubDir, { recursive: true });
+
+      const symlinkArchiveDir = path.resolve(process.cwd(), "storage/symlink-to-pub");
+      if (fs.existsSync(symlinkArchiveDir)) {
+        try { fs.unlinkSync(symlinkArchiveDir); } catch { /* ignore */ }
+      }
+      fs.symlinkSync(pubDir, symlinkArchiveDir, "dir");
+
+      const origEnv = process.env.INVOICE_ARCHIVE_DIR;
+      process.env.INVOICE_ARCHIVE_DIR = symlinkArchiveDir;
+
+      try {
+        expect(() => getArchivedInvoicesDirectory()).toThrow(InvoiceRefreshError);
+        expect(() => getArchivedInvoicesDirectory()).toThrow(/liegt innerhalb des öffentlichen Verzeichnisses \(public\/\)/);
+
+        const storageDir = path.resolve(process.cwd(), "storage/invoices");
+        if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+        const sourcePdf = path.resolve(storageDir, "symlink-test-src.pdf");
+        fs.writeFileSync(sourcePdf, Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(100, 32)]));
+
+        try {
+          await expect(persistArchivedOriginalPdf(sourcePdf, "inv-symlink-test")).rejects.toThrow(
+            /INSECURE_STORAGE_CONFIGURATION/
+          );
+
+          // Verify that NO file was written into the exposed public directory
+          const filesInPub = fs.readdirSync(pubDir);
+          expect(filesInPub.length).toBe(0);
+        } finally {
+          if (fs.existsSync(sourcePdf)) fs.unlinkSync(sourcePdf);
+        }
+      } finally {
+        if (origEnv !== undefined) {
+          process.env.INVOICE_ARCHIVE_DIR = origEnv;
+        } else {
+          delete process.env.INVOICE_ARCHIVE_DIR;
+        }
+        if (fs.existsSync(symlinkArchiveDir)) {
+          try { fs.unlinkSync(symlinkArchiveDir); } catch { /* ignore */ }
+        }
+        if (fs.existsSync(pubDir)) {
+          try { fs.rmdirSync(pubDir); } catch { /* ignore */ }
+        }
+      }
+    });
+
+    it("guarantees atomic zero-overwrite via fs.linkSync when target file is created concurrently between checks", async () => {
+      const archiveDir = getArchivedInvoicesDirectory();
+      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+
+      const storageDir = path.resolve(process.cwd(), "storage/invoices");
+      if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+
+      const sourcePdfPath = path.resolve(storageDir, "source-test-race.pdf");
+      const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n%RACE SOURCE\n"), Buffer.alloc(80, 32)]);
+      const sourceSha = createHash("sha256").update(pdfBytes).digest("hex");
+      fs.writeFileSync(sourcePdfPath, pdfBytes);
+
+      const targetFilename = `invoice-inv-race-rev0-${sourceSha.slice(0, 16)}.pdf`;
+      const targetPath = path.resolve(archiveDir, targetFilename);
+      const originalArchiveContent = Buffer.from("%PDF-1.4\n%EXISTING ORIGINAL IMMUTABLE BYTES\n");
+
+      // Spy on fs.writeFileSync to simulate another process creating targetPath right before linkSync
+      const realWriteFileSync = fs.writeFileSync;
+      const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((file: any, data: any, options: any) => {
+        const res = realWriteFileSync(file, data, options);
+        if (typeof file === "string" && file.includes(`.${targetFilename}.`)) {
+          // Concurrent process creates target file right after temp file is written!
+          realWriteFileSync(targetPath, originalArchiveContent);
+        }
+        return res;
+      });
+
+      try {
+        await expect(
+          persistArchivedOriginalPdf(sourcePdfPath, "inv-race", sourceSha)
+        ).rejects.toThrow(/existiert bereits im Archiv und darf nicht überschrieben werden/);
+
+        // Verify the original target file bytes were NOT overwritten by linkSync
+        const preservedBytes = fs.readFileSync(targetPath);
+        expect(preservedBytes.equals(originalArchiveContent)).toBe(true);
+      } finally {
+        writeSpy.mockRestore();
+        if (fs.existsSync(sourcePdfPath)) fs.unlinkSync(sourcePdfPath);
+        if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
+      }
+    });
+
     it("accepts refresh when historical invoice has a verified stored PDF file on disk", async () => {
       // Mock a verified file on disk
       const mockVerifier = vi.fn().mockResolvedValue({
@@ -1077,6 +1167,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         snapshotData: {
           facilityName: "Seniorenresidenz RheinAhr",
           address: "Musterstr. 12, 53474 Bad Neuenahr",
+          shortCode: "RA-HIST-100",
           date: "2026-03-01",
           subtotal: "40,00 €",
           taxAmount: "7,60 €",
@@ -1143,7 +1234,10 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       const prevSnap = capturedRevisionData.previousSnapshotData;
       expect(prevSnap.invoiceNumber).toBe("INV-PROV-100");
       expect(prevSnap.client.facilityName).toBe("Seniorenresidenz RheinAhr");
-      expect(prevSnap.client.shortCode).toBe("RA-100");
+      expect(prevSnap.client.shortCode).toBe("RA-HIST-100");
+      expect(prevSnap.client.internalNumber).toBeNull();
+      expect(prevSnap.client.billingInfo).toBeNull();
+      expect(prevSnap.liveClientAtRefresh.shortCode).toBe("RA-100");
       expect(prevSnap.originReliability).toBe("frozen_snapshot");
       expect(prevSnap.isRegeneratedFromFrozenData).toBe(true);
       expect(prevSnap.isByteForByteOriginalFile).toBe(false);
@@ -1698,6 +1792,102 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
 
       expect(res.status).toBe(200);
       expect(res.headers.get("X-Document-Source")).toBe("regenerated_from_frozen_snapshot");
+    });
+
+    it("strictly prevents live client internalNumber and billingInfo from leaking into revision 0 historical PDF when absent from snapshot", async () => {
+      const mockInvoice = {
+        id: "inv-leak-test",
+        invoiceNumber: "RE-LEAK-01",
+        status: "unpaid",
+        date: new Date("2026-03-01"),
+        netAmount: 40,
+        vatAmount: 7.6,
+        grossAmount: 47.6,
+        // Live client has mutated internalNumber and billingInfo in DB!
+        client: {
+          id: "c-live-1",
+          facilityName: "Live Facility Name",
+          address: "Live Street 10",
+          internalNumber: "LIVE-INTERNAL-9999",
+          billingInfo: "LIVE-BILLING-CONFIDENTIAL-INFO",
+          shortCode: "LIVE-SC",
+        },
+        assignments: [],
+      };
+
+      // Historical snapshot has facilityName and address, but lacks internalNumber, billingInfo, shortCode
+      const mockRev1 = {
+        id: "rev-1",
+        invoiceId: "inv-leak-test",
+        revisionNumber: 1,
+        previousNetAmount: 40,
+        previousVatAmount: 7.6,
+        previousGrossAmount: 47.6,
+        previousSnapshotData: {
+          invoiceNumber: "RE-LEAK-01",
+          originReliability: "frozen_snapshot",
+          client: {
+            id: "c-hist-1",
+            facilityName: "Alte Residenz Historisch",
+            address: "Historische Gasse 1",
+            internalNumber: null,
+            billingInfo: null,
+            shortCode: null,
+          },
+          rawSnapshotData: {
+            facilityName: "Alte Residenz Historisch",
+            address: "Historische Gasse 1",
+            date: "2026-03-01",
+            subtotal: "40,00 €",
+            taxAmount: "7,60 €",
+            total: "47,60 €",
+            items: [{ description: "Pflege", hours: 1, total: "40,00 €" }],
+          },
+        },
+      };
+
+      (prisma.invoice.findUnique as any).mockResolvedValue(mockInvoice);
+      (prisma.invoiceRevision.findUnique as any).mockResolvedValue(mockRev1);
+
+      const req = new Request("http://localhost/api/invoices/inv-leak-test/pdf?revision=0");
+      const res = await getInvoicePdfRoute(req, { params: Promise.resolve({ id: "inv-leak-test" }) });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Document-Source")).toBe("regenerated_from_frozen_snapshot");
+
+      // Verify via buildInvoicePdfData that dummy/frozen client used for rev 0 does NOT contain live internalNumber or billingInfo
+      const { buildInvoicePdfData } = await import("./invoice-pdf-builder");
+      const invoiceForRevision = {
+        invoiceNumber: "RE-LEAK-01",
+        date: new Date("2026-03-01"),
+        netAmount: 40,
+        vatAmount: 7.6,
+        grossAmount: 47.6,
+        snapshotData: mockRev1.previousSnapshotData.rawSnapshotData,
+      };
+      // Frozen client constructed without live values
+      const frozenClient = {
+        id: "HISTORICAL-CLIENT",
+        shortCode: null,
+        internalNumber: null,
+        facilityName: "Alte Residenz Historisch",
+        address: "Historische Gasse 1",
+        billingEmail: null,
+        billingInfo: null,
+        paymentTermsDays: 14,
+        hourlyRates: {},
+        surchargeSat: 0,
+        surchargeSun: 0,
+        surchargeHoliday: 0,
+        surchargeNight: 0,
+        nightStart: "22:00",
+        nightEnd: "06:00",
+      };
+      const builtData = buildInvoicePdfData(invoiceForRevision as any, frozenClient as any, []);
+      expect(builtData.clientId).not.toBe("LIVE-INTERNAL-9999");
+      expect(builtData.clientId).not.toBe("LIVE-SC");
+      expect(builtData.billingInfo).toBeNull();
+      expect(builtData.billingInfo).not.toBe("LIVE-BILLING-CONFIDENTIAL-INFO");
     });
   });
 

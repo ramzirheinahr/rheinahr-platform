@@ -492,7 +492,33 @@ export type FileVerifier = (
 function isUnderPublicRoot(p: string): boolean {
   const norm = path.resolve(p);
   const pub = path.resolve(process.cwd(), "public");
-  return norm === pub || norm.startsWith(pub + path.sep);
+  if (norm === pub || norm.startsWith(pub + path.sep)) {
+    return true;
+  }
+  try {
+    const realPub = fs.existsSync(pub) ? fs.realpathSync(pub) : pub;
+    if (fs.existsSync(norm)) {
+      const realNorm = fs.realpathSync(norm);
+      if (realNorm === realPub || realNorm.startsWith(realPub + path.sep)) {
+        return true;
+      }
+    } else {
+      let curr = norm;
+      while (curr !== path.dirname(curr)) {
+        curr = path.dirname(curr);
+        if (fs.existsSync(curr)) {
+          const realCurr = fs.realpathSync(curr);
+          if (realCurr === realPub || realCurr.startsWith(realPub + path.sep)) {
+            return true;
+          }
+          break;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return false;
 }
 
 /**
@@ -587,6 +613,15 @@ export async function persistArchivedOriginalPdf(
     }
   }
 
+  // Canonical realpath check of the archive directory BEFORE creating any file (temp or target)
+  const canonicalArchiveDir = fs.realpathSync(archiveDir);
+  if (isUnderPublicRoot(canonicalArchiveDir)) {
+    throw new InvoiceRefreshError(
+      "INSECURE_STORAGE_CONFIGURATION",
+      `[INSECURE_STORAGE_CONFIGURATION] Das aufgelöste Archivverzeichnis ("${canonicalArchiveDir}") liegt innerhalb von public/ und ist unzulässig.`
+    );
+  }
+
   const safeInvoiceId = invoiceId.replace(/[^a-zA-Z0-9_-]/g, "_");
   const targetFilename = `invoice-${safeInvoiceId}-rev0-${sourceCheck.sha256.slice(0, 16)}.pdf`;
   const targetPath = path.resolve(archiveDir, targetFilename);
@@ -599,7 +634,7 @@ export async function persistArchivedOriginalPdf(
     );
   }
 
-  // Atomic write via temporary file + rename to prevent partial writes and overwrites
+  // Atomic write via temporary file + atomic linkSync (hard link) to prevent partial writes and overwrites
   const tempFilename = `.${targetFilename}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   const tempPath = path.resolve(archiveDir, tempFilename);
 
@@ -613,25 +648,27 @@ export async function persistArchivedOriginalPdf(
   }
 
   try {
-    // Check again before rename just in case of concurrent write
-    if (fs.existsSync(targetPath)) {
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      throw new InvoiceRefreshError(
-        "ORIGINAL_PDF_ARCHIVAL_FAILED",
-        `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivdatei "${targetFilename}" existiert bereits im Archiv und darf nicht überschrieben werden.`
-      );
-    }
-    fs.renameSync(tempPath, targetPath);
-  } catch (err) {
+    // Atomic linkSync: if targetPath already exists (e.g. race condition / concurrent worker), linkSync throws EEXIST and NEVER overwrites targetPath!
+    fs.linkSync(tempPath, targetPath);
+    // Remove the temporary file after atomic link
+    fs.unlinkSync(tempPath);
+  } catch (err: unknown) {
     try {
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     } catch {
       // ignore
     }
+    const nodeErr = err as NodeJS.ErrnoException;
+    if (nodeErr && (nodeErr.code === "EEXIST" || nodeErr.message?.includes("EEXIST"))) {
+      throw new InvoiceRefreshError(
+        "ORIGINAL_PDF_ARCHIVAL_FAILED",
+        `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivdatei "${targetFilename}" existiert bereits im Archiv und darf nicht überschrieben werden.`
+      );
+    }
     if (err instanceof InvoiceRefreshError) throw err;
     throw new InvoiceRefreshError(
       "ORIGINAL_PDF_ARCHIVAL_FAILED",
-      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Atomares Verschieben in den Zielpfad fehlgeschlagen (${err instanceof Error ? err.message : String(err)}).`
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Atomare Verknüpfung in den Zielpfad fehlgeschlagen (${err instanceof Error ? err.message : String(err)}).`
     );
   }
 
@@ -1802,6 +1839,8 @@ export async function confirmV2InvoiceRefresh(
           ? rawSnap.client
           : null) as Record<string, unknown> | null;
 
+        const isFrozenSnapOrigin = originCheck.source === "frozen_snapshot";
+
         const histFacilityName =
           (typeof rawSnap.facilityName === "string" && rawSnap.facilityName.trim()) ||
           (typeof snapClient?.facilityName === "string" && snapClient.facilityName.trim()) ||
@@ -1831,6 +1870,8 @@ export async function confirmV2InvoiceRefresh(
             ? rawSnap.paymentTermsDays
             : typeof snapClient?.paymentTermsDays === "number"
             ? snapClient.paymentTermsDays
+            : isFrozenSnapOrigin
+            ? 14
             : invoice.client.paymentTermsDays;
 
         // Complete Previous Provenance Record
@@ -1842,15 +1883,15 @@ export async function confirmV2InvoiceRefresh(
               ? invoice.dueDate.toISOString()
               : String(invoice.dueDate)
             : null,
-          clientId: invoice.clientId,
+          clientId: (snapClient?.id as string) || (rawSnap.clientId as string) || invoice.clientId,
           client: {
-            id: (snapClient?.id as string) || invoice.client.id,
-            facilityName: histFacilityName || invoice.client.facilityName,
-            shortCode: histShortCode || invoice.client.shortCode || null,
-            internalNumber: histInternalNumber || invoice.client.internalNumber || null,
-            address: histAddress || invoice.client.address || null,
-            billingEmail: histBillingEmail || invoice.client.billingEmail || null,
-            billingInfo: histBillingInfo || invoice.client.billingInfo || null,
+            id: (snapClient?.id as string) || (rawSnap.clientId as string) || (isFrozenSnapOrigin ? "HISTORICAL-CLIENT" : invoice.client.id),
+            facilityName: histFacilityName || (isFrozenSnapOrigin ? null : invoice.client.facilityName),
+            shortCode: histShortCode || (isFrozenSnapOrigin ? null : invoice.client.shortCode || null),
+            internalNumber: histInternalNumber || (isFrozenSnapOrigin ? null : invoice.client.internalNumber || null),
+            address: histAddress || (isFrozenSnapOrigin ? null : invoice.client.address || null),
+            billingEmail: histBillingEmail || (isFrozenSnapOrigin ? null : invoice.client.billingEmail || null),
+            billingInfo: histBillingInfo || (isFrozenSnapOrigin ? null : invoice.client.billingInfo || null),
             paymentTermsDays: histPaymentTermsDays,
           },
           liveClientAtRefresh: {

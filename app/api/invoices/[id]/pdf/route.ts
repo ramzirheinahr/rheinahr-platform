@@ -138,15 +138,19 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       // Case B: Regenerated strictly from frozen snapshot data (independent of live client modifications)
       if (prevProvenance.originReliability === "frozen_snapshot") {
         const rawSnap = prevProvenance.rawSnapshotData || prevProvenance;
+        const snapClient = (rawSnap.client && typeof rawSnap.client === "object" ? rawSnap.client : null) as Record<string, unknown> | null;
+
         const facilityName =
-          rawSnap.facilityName ||
-          rawSnap.client?.facilityName ||
-          prevProvenance.client?.facilityName;
+          (typeof rawSnap.facilityName === "string" && rawSnap.facilityName.trim()) ||
+          (typeof snapClient?.facilityName === "string" && snapClient.facilityName.trim()) ||
+          (typeof prevProvenance.client?.facilityName === "string" && prevProvenance.client.facilityName.trim()) ||
+          null;
 
         const address =
-          rawSnap.address ||
-          rawSnap.client?.address ||
-          prevProvenance.client?.address;
+          (typeof rawSnap.address === "string" && rawSnap.address.trim()) ||
+          (typeof snapClient?.address === "string" && snapClient.address.trim()) ||
+          (typeof prevProvenance.client?.address === "string" && prevProvenance.client.address.trim()) ||
+          null;
 
         if (!facilityName || !address) {
           return new NextResponse(
@@ -155,15 +159,44 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
           );
         }
 
+        // Strict historical fidelity: Optional fields must come ONLY from historical snapshot.
+        // If absent in historical snapshot, they remain null and must NEVER be populated from live client.
+        const shortCode =
+          (typeof rawSnap.shortCode === "string" && rawSnap.shortCode.trim()) ||
+          (typeof snapClient?.shortCode === "string" && snapClient.shortCode.trim()) ||
+          null;
+
+        const internalNumber =
+          (typeof rawSnap.internalNumber === "string" && rawSnap.internalNumber.trim()) ||
+          (typeof snapClient?.internalNumber === "string" && snapClient.internalNumber.trim()) ||
+          null;
+
+        const billingInfo =
+          (typeof rawSnap.billingInfo === "string" && rawSnap.billingInfo.trim()) ||
+          (typeof snapClient?.billingInfo === "string" && snapClient.billingInfo.trim()) ||
+          null;
+
+        const billingEmail =
+          (typeof rawSnap.billingEmail === "string" && rawSnap.billingEmail.trim()) ||
+          (typeof snapClient?.billingEmail === "string" && snapClient.billingEmail.trim()) ||
+          null;
+
+        const paymentTermsDays =
+          typeof rawSnap.paymentTermsDays === "number"
+            ? rawSnap.paymentTermsDays
+            : typeof snapClient?.paymentTermsDays === "number"
+            ? snapClient.paymentTermsDays
+            : 14;
+
         const frozenClient = {
-          id: rawSnap.clientId || rawSnap.client?.id || prevProvenance.client?.id || "HISTORICAL-CLIENT",
-          shortCode: rawSnap.shortCode || rawSnap.client?.shortCode || prevProvenance.client?.shortCode || null,
-          internalNumber: rawSnap.internalNumber || rawSnap.client?.internalNumber || prevProvenance.client?.internalNumber || null,
+          id: (snapClient?.id as string) || (rawSnap.clientId as string) || "HISTORICAL-CLIENT",
+          shortCode,
+          internalNumber,
           facilityName,
           address,
-          billingEmail: rawSnap.billingEmail || rawSnap.client?.billingEmail || prevProvenance.client?.billingEmail || null,
-          billingInfo: rawSnap.billingInfo || rawSnap.client?.billingInfo || prevProvenance.client?.billingInfo || null,
-          paymentTermsDays: rawSnap.paymentTermsDays ?? rawSnap.client?.paymentTermsDays ?? prevProvenance.client?.paymentTermsDays ?? 14,
+          billingEmail,
+          billingInfo,
+          paymentTermsDays,
           hourlyRates: {},
           surchargeSat: 0,
           surchargeSun: 0,
