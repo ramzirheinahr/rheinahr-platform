@@ -486,7 +486,8 @@ export type FileVerificationResult = {
 };
 
 export type FileVerifier = (
-  pathOrUrl: string
+  pathOrUrl: string,
+  options?: { allowedRoots?: string[] }
 ) => Promise<FileVerificationResult> | FileVerificationResult;
 
 function isUnderPublicRoot(p: string): boolean {
@@ -622,15 +623,43 @@ export async function persistArchivedOriginalPdf(
     );
   }
 
+  const verifiedSha256 = sourceCheck.sha256;
+  const verifiedByteLength = sourceCheck.byteLength;
+
   const safeInvoiceId = invoiceId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const targetFilename = `invoice-${safeInvoiceId}-rev0-${sourceCheck.sha256.slice(0, 16)}.pdf`;
+  const targetFilename = `invoice-${safeInvoiceId}-rev0-${verifiedSha256.slice(0, 16)}.pdf`;
   const targetPath = path.resolve(archiveDir, targetFilename);
 
-  // Exclusive creation check: never overwrite an already existing archive document
+  const verifyExistingTarget = async (): Promise<ArchivedPdfResult | null> => {
+    const existingCheck = await verifier(targetPath, {
+      allowedRoots: [archiveDir, ...getAllowedInvoiceStorageRoots()],
+    });
+
+    if (
+      existingCheck.exists &&
+      existingCheck.sha256 === verifiedSha256 &&
+      existingCheck.byteLength === verifiedByteLength
+    ) {
+      // Idempotent recovery / retry: The exact identical original document is already safely in place.
+      return {
+        archivedPath: targetPath,
+        sourceOriginalPath: sourcePath,
+        sha256: verifiedSha256,
+        byteLength: verifiedByteLength,
+      };
+    }
+    return null;
+  };
+
+  // Check if target archive file already exists
   if (fs.existsSync(targetPath)) {
+    const matched = await verifyExistingTarget();
+    if (matched) {
+      return matched;
+    }
     throw new InvoiceRefreshError(
       "ORIGINAL_PDF_ARCHIVAL_FAILED",
-      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivdatei "${targetFilename}" existiert bereits im Archiv und darf nicht überschrieben werden.`
+      `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivdatei "${targetFilename}" existiert bereits im Archiv mit abweichendem Inhalt oder abweichender Prüfsumme und darf nicht überschrieben werden.`
     );
   }
 
@@ -660,9 +689,13 @@ export async function persistArchivedOriginalPdf(
     }
     const nodeErr = err as NodeJS.ErrnoException;
     if (nodeErr && (nodeErr.code === "EEXIST" || nodeErr.message?.includes("EEXIST"))) {
+      const matched = await verifyExistingTarget();
+      if (matched) {
+        return matched;
+      }
       throw new InvoiceRefreshError(
         "ORIGINAL_PDF_ARCHIVAL_FAILED",
-        `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivdatei "${targetFilename}" existiert bereits im Archiv und darf nicht überschrieben werden.`
+        `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivdatei "${targetFilename}" existiert bereits im Archiv mit abweichendem Inhalt oder abweichender Prüfsumme und darf nicht überschrieben werden.`
       );
     }
     if (err instanceof InvoiceRefreshError) throw err;
@@ -679,8 +712,8 @@ export async function persistArchivedOriginalPdf(
 
   if (
     !verifyArchived.exists ||
-    verifyArchived.sha256 !== sourceCheck.sha256 ||
-    verifyArchived.byteLength !== sourceCheck.byteLength
+    verifyArchived.sha256 !== verifiedSha256 ||
+    verifyArchived.byteLength !== verifiedByteLength
   ) {
     try {
       if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
@@ -696,8 +729,8 @@ export async function persistArchivedOriginalPdf(
   return {
     archivedPath: targetPath,
     sourceOriginalPath: sourceCheck.realPath || sourcePath,
-    sha256: sourceCheck.sha256,
-    byteLength: sourceCheck.byteLength,
+    sha256: verifiedSha256,
+    byteLength: verifiedByteLength,
   };
 }
 

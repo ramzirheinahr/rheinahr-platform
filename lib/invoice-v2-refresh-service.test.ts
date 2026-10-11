@@ -907,7 +907,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       }
     });
 
-    it("fails closed when archive file already exists on disk (ORIGINAL_PDF_ARCHIVAL_FAILED, zero overwrite)", async () => {
+    it("fails closed when archive file already exists on disk with differing content (ORIGINAL_PDF_ARCHIVAL_FAILED, zero overwrite)", async () => {
       const archiveDir = getArchivedInvoicesDirectory();
       if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
 
@@ -919,7 +919,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       const sourceSha = createHash("sha256").update(pdfBytes).digest("hex");
       fs.writeFileSync(sourcePdfPath, pdfBytes);
 
-      // Pre-create target archive file
+      // Pre-create target archive file with DIFFERENT content
       const targetFilename = `invoice-inv-collision-rev0-${sourceSha.slice(0, 16)}.pdf`;
       const targetPath = path.resolve(archiveDir, targetFilename);
       const originalArchiveContent = Buffer.from("%PDF-1.4\n%EXISTING IMMUTABLE CONTENT\n");
@@ -928,11 +928,48 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       try {
         await expect(
           persistArchivedOriginalPdf(sourcePdfPath, "inv-collision", sourceSha)
-        ).rejects.toThrow(/existiert bereits im Archiv und darf nicht überschrieben werden/);
+        ).rejects.toThrow(/existiert bereits im Archiv.*und darf nicht überschrieben werden/);
 
         // Verify the original content was NOT overwritten
         const preservedBytes = fs.readFileSync(targetPath);
         expect(preservedBytes.equals(originalArchiveContent)).toBe(true);
+      } finally {
+        if (fs.existsSync(sourcePdfPath)) fs.unlinkSync(sourcePdfPath);
+        if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
+      }
+    });
+
+    it("idempotently succeeds without overwriting when archive file already exists with identical SHA-256 and byteLength (DB rollback recovery)", async () => {
+      const archiveDir = getArchivedInvoicesDirectory();
+      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+
+      const storageDir = path.resolve(process.cwd(), "storage/invoices");
+      if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+
+      const sourcePdfPath = path.resolve(storageDir, "source-test-idempotent.pdf");
+      const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n%TEST IDEMPOTENT RECOVERY\n"), Buffer.alloc(80, 32)]);
+      const sourceSha = createHash("sha256").update(pdfBytes).digest("hex");
+      fs.writeFileSync(sourcePdfPath, pdfBytes);
+
+      // Pre-create target archive file with EXACT IDENTICAL content (e.g. from prior aborted DB attempt)
+      const targetFilename = `invoice-inv-idempotent-rev0-${sourceSha.slice(0, 16)}.pdf`;
+      const targetPath = path.resolve(archiveDir, targetFilename);
+      fs.writeFileSync(targetPath, pdfBytes);
+      const statBefore = fs.statSync(targetPath);
+
+      try {
+        const result = await persistArchivedOriginalPdf(sourcePdfPath, "inv-idempotent", sourceSha);
+
+        expect(result.archivedPath).toBe(targetPath);
+        expect(result.sourceOriginalPath).toBe(sourcePdfPath);
+        expect(result.sha256).toBe(sourceSha);
+        expect(result.byteLength).toBe(pdfBytes.length);
+
+        // Verify target bytes were untouched
+        const preservedBytes = fs.readFileSync(targetPath);
+        expect(preservedBytes.equals(pdfBytes)).toBe(true);
+        const statAfter = fs.statSync(targetPath);
+        expect(statAfter.size).toBe(statBefore.size);
       } finally {
         if (fs.existsSync(sourcePdfPath)) fs.unlinkSync(sourcePdfPath);
         if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
@@ -987,7 +1024,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       }
     });
 
-    it("guarantees atomic zero-overwrite via fs.linkSync when target file is created concurrently between checks", async () => {
+    it("guarantees atomic zero-overwrite via fs.linkSync when target file is created concurrently between checks with differing content", async () => {
       const archiveDir = getArchivedInvoicesDirectory();
       if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
 
@@ -1003,7 +1040,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       const targetPath = path.resolve(archiveDir, targetFilename);
       const originalArchiveContent = Buffer.from("%PDF-1.4\n%EXISTING ORIGINAL IMMUTABLE BYTES\n");
 
-      // Spy on fs.writeFileSync to simulate another process creating targetPath right before linkSync
+      // Spy on fs.writeFileSync to simulate another process creating targetPath right before linkSync with differing content
       const realWriteFileSync = fs.writeFileSync;
       const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((file: any, data: any, options: any) => {
         const res = realWriteFileSync(file, data, options);
@@ -1017,11 +1054,51 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
       try {
         await expect(
           persistArchivedOriginalPdf(sourcePdfPath, "inv-race", sourceSha)
-        ).rejects.toThrow(/existiert bereits im Archiv und darf nicht überschrieben werden/);
+        ).rejects.toThrow(/existiert bereits im Archiv.*und darf nicht überschrieben werden/);
 
         // Verify the original target file bytes were NOT overwritten by linkSync
         const preservedBytes = fs.readFileSync(targetPath);
         expect(preservedBytes.equals(originalArchiveContent)).toBe(true);
+      } finally {
+        writeSpy.mockRestore();
+        if (fs.existsSync(sourcePdfPath)) fs.unlinkSync(sourcePdfPath);
+        if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
+      }
+    });
+
+    it("idempotently succeeds via fs.linkSync when target file was created concurrently with identical content", async () => {
+      const archiveDir = getArchivedInvoicesDirectory();
+      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+
+      const storageDir = path.resolve(process.cwd(), "storage/invoices");
+      if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+
+      const sourcePdfPath = path.resolve(storageDir, "source-test-race-identical.pdf");
+      const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n%RACE SOURCE IDENTICAL\n"), Buffer.alloc(80, 32)]);
+      const sourceSha = createHash("sha256").update(pdfBytes).digest("hex");
+      fs.writeFileSync(sourcePdfPath, pdfBytes);
+
+      const targetFilename = `invoice-inv-race-id-rev0-${sourceSha.slice(0, 16)}.pdf`;
+      const targetPath = path.resolve(archiveDir, targetFilename);
+
+      // Spy on fs.writeFileSync to simulate another process creating targetPath with IDENTICAL bytes right after temp file is written
+      const realWriteFileSync = fs.writeFileSync;
+      const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((file: any, data: any, options: any) => {
+        const res = realWriteFileSync(file, data, options);
+        if (typeof file === "string" && file.includes(`.${targetFilename}.`)) {
+          realWriteFileSync(targetPath, pdfBytes);
+        }
+        return res;
+      });
+
+      try {
+        const result = await persistArchivedOriginalPdf(sourcePdfPath, "inv-race-id", sourceSha);
+        expect(result.archivedPath).toBe(targetPath);
+        expect(result.sha256).toBe(sourceSha);
+        expect(result.byteLength).toBe(pdfBytes.length);
+
+        const preservedBytes = fs.readFileSync(targetPath);
+        expect(preservedBytes.equals(pdfBytes)).toBe(true);
       } finally {
         writeSpy.mockRestore();
         if (fs.existsSync(sourcePdfPath)) fs.unlinkSync(sourcePdfPath);
@@ -1321,6 +1398,133 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
         expect(mockPrisma.invoiceRevision.create).not.toHaveBeenCalled();
       } finally {
         if (fs.existsSync(validPdf)) fs.unlinkSync(validPdf);
+      }
+    });
+
+    it("succeeds on retry after database transaction rollback without modifying existing archive bytes", async () => {
+      process.env.FEATURE_INVOICE_V2_REFRESH = "true";
+      const storageDir = path.resolve(process.cwd(), "storage/invoices");
+      if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+      const archiveDir = getArchivedInvoicesDirectory();
+      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+
+      const validPdf = path.resolve(storageDir, "valid-for-rollback-retry.pdf");
+      const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n%ORIGINAL FOR RETRY TEST\n"), Buffer.alloc(100, 32)]);
+      const sourceSha = createHash("sha256").update(pdfBytes).digest("hex");
+      fs.writeFileSync(validPdf, pdfBytes);
+
+      const a1 = createSyntheticAssignment("assign-retry-1", { invoiceId: "inv-retry-1" });
+      const mockInvoice = {
+        id: "inv-retry-1",
+        invoiceNumber: "INV-RETRY-100",
+        status: "unpaid",
+        date: new Date("2026-03-01T10:00:00Z"),
+        dueDate: new Date("2026-03-15T10:00:00Z"),
+        netAmount: 40.0,
+        vatAmount: 7.6,
+        grossAmount: 47.6,
+        taxRate: 0.19,
+        clientId: "client-1",
+        pdfUrl: validPdf,
+        snapshotData: null,
+        client: a1.order.client,
+        assignments: [a1],
+      };
+
+      const targetFilename = `invoice-inv-retry-1-rev0-${sourceSha.slice(0, 16)}.pdf`;
+      const targetArchivePath = path.resolve(archiveDir, targetFilename);
+
+      let shouldFailDbTransaction = true;
+      let revisionCreated = false;
+
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockImplementation((query: any) => {
+          const sql = String(query.strings ? query.strings.join(" ") : query);
+          if (sql.includes("assignments")) return Promise.resolve([{ id: "assign-retry-1" }]);
+          if (sql.includes("invoices")) return Promise.resolve([{ id: "inv-retry-1" }]);
+          return Promise.resolve([]);
+        }),
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(mockInvoice),
+          update: vi.fn().mockResolvedValue(mockInvoice),
+        },
+        assignment: {
+          findMany: vi.fn().mockResolvedValue([a1]),
+        },
+        invoiceRevision: {
+          count: vi.fn().mockResolvedValue(0),
+          findMany: vi.fn().mockResolvedValue([]),
+          create: vi.fn().mockImplementation((args: any) => {
+            if (shouldFailDbTransaction) {
+              throw new Error("Simulated database transient error during revision insertion");
+            }
+            revisionCreated = true;
+            return Promise.resolve({ id: "rev-retry-1", ...args.data });
+          }),
+        },
+        auditLog: {
+          create: vi.fn().mockResolvedValue({ id: "audit-retry-1" }),
+        },
+        $transaction: vi.fn().mockImplementation(async (callback: any) => {
+          return await callback(mockPrisma);
+        }),
+      };
+
+      const deps = {
+        prisma: mockPrisma,
+        priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+        facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_POLICY),
+        effectiveHoursResolver: mockDefaultHoursResolver as any,
+      };
+
+      try {
+        const preview = await previewV2InvoiceRefresh("inv-retry-1", { ...deps, adminId: "admin-retry" });
+
+        // First attempt: DB transaction fails after archival
+        await expect(
+          confirmV2InvoiceRefresh(
+            {
+              invoiceId: "inv-retry-1",
+              previewToken: preview.previewToken,
+              performedByUserId: "admin-retry",
+              reason: "First attempt that will fail in DB",
+            },
+            deps
+          )
+        ).rejects.toThrow(/Simulated database transient error/);
+
+        // Verification 1: Archive file was indeed created before DB failure
+        expect(fs.existsSync(targetArchivePath)).toBe(true);
+        const archivedBytesAfterFirstAttempt = fs.readFileSync(targetArchivePath);
+        expect(archivedBytesAfterFirstAttempt.equals(pdfBytes)).toBe(true);
+        const statAfterFirstAttempt = fs.statSync(targetArchivePath);
+
+        // Second attempt: DB transient error resolved, retry with same invoice and origin
+        shouldFailDbTransaction = false;
+        const confirmResult = await confirmV2InvoiceRefresh(
+          {
+            invoiceId: "inv-retry-1",
+            previewToken: preview.previewToken,
+            performedByUserId: "admin-retry",
+            reason: "Retry attempt after DB recovery",
+          },
+          deps
+        );
+
+        // Verification 2: Retry succeeds, revision is created
+        expect(confirmResult).toBeDefined();
+        expect(confirmResult.success).toBe(true);
+        expect(revisionCreated).toBe(true);
+
+        // Verification 3: Archive file was NOT modified or corrupted on retry
+        expect(fs.existsSync(targetArchivePath)).toBe(true);
+        const archivedBytesAfterRetry = fs.readFileSync(targetArchivePath);
+        expect(archivedBytesAfterRetry.equals(pdfBytes)).toBe(true);
+        const statAfterRetry = fs.statSync(targetArchivePath);
+        expect(statAfterRetry.size).toBe(statAfterFirstAttempt.size);
+      } finally {
+        if (fs.existsSync(validPdf)) fs.unlinkSync(validPdf);
+        if (fs.existsSync(targetArchivePath)) fs.unlinkSync(targetArchivePath);
       }
     });
 
