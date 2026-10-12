@@ -623,6 +623,28 @@ export async function persistArchivedOriginalPdf(
     );
   }
 
+  // Production Permission Guard: Enforce strict private directory permissions (0700: rwx------)
+  // Ensures pre-existing or external directories with wide permissions (e.g. 0755) are secured
+  try {
+    fs.chmodSync(canonicalArchiveDir, 0o700);
+  } catch (chmodErr) {
+    const stat = fs.statSync(canonicalArchiveDir);
+    if ((stat.mode & 0o077) !== 0) {
+      throw new InvoiceRefreshError(
+        "INSECURE_STORAGE_CONFIGURATION",
+        `[INSECURE_STORAGE_CONFIGURATION] Das Archivverzeichnis "${canonicalArchiveDir}" weist unsichere Berechtigungen auf (0${(stat.mode & 0o777).toString(8)} statt 0700) und konnte nicht auf private Zugriffsrechte beschränkt werden.`
+      );
+    }
+  }
+
+  const verifiedDirStat = fs.statSync(canonicalArchiveDir);
+  if ((verifiedDirStat.mode & 0o077) !== 0) {
+    throw new InvoiceRefreshError(
+      "INSECURE_STORAGE_CONFIGURATION",
+      `[INSECURE_STORAGE_CONFIGURATION] Das Archivverzeichnis "${canonicalArchiveDir}" weist unsichere Berechtigungen auf (0${(verifiedDirStat.mode & 0o777).toString(8)} statt 0700).`
+    );
+  }
+
   const verifiedSha256 = sourceCheck.sha256;
   const verifiedByteLength = sourceCheck.byteLength;
 
@@ -640,7 +662,29 @@ export async function persistArchivedOriginalPdf(
       existingCheck.sha256 === verifiedSha256 &&
       existingCheck.byteLength === verifiedByteLength
     ) {
-      // Idempotent recovery / retry: The exact identical original document is already safely in place.
+      // Production Permission Guard: Enforce strict private file permissions (0600: rw-------)
+      // Ensures pre-existing or restored files with wide permissions (e.g. 0644) are secured before reuse
+      try {
+        fs.chmodSync(targetPath, 0o600);
+      } catch (fileChmodErr) {
+        const fileStat = fs.statSync(targetPath);
+        if ((fileStat.mode & 0o077) !== 0) {
+          throw new InvoiceRefreshError(
+            "INSECURE_STORAGE_CONFIGURATION",
+            `[INSECURE_STORAGE_CONFIGURATION] Die vorhandene Archivdatei "${targetPath}" weist unsichere Berechtigungen auf (0${(fileStat.mode & 0o777).toString(8)}) und konnte nicht auf 0600 beschränkt werden.`
+          );
+        }
+      }
+
+      const verifiedFileStat = fs.statSync(targetPath);
+      if ((verifiedFileStat.mode & 0o077) !== 0) {
+        throw new InvoiceRefreshError(
+          "INSECURE_STORAGE_CONFIGURATION",
+          `[INSECURE_STORAGE_CONFIGURATION] Die vorhandene Archivdatei "${targetPath}" weist unsichere Berechtigungen auf (0${(verifiedFileStat.mode & 0o777).toString(8)} statt 0600).`
+        );
+      }
+
+      // Idempotent recovery / retry: The exact identical original document is safely secured in place.
       return {
         archivedPath: targetPath,
         sourceOriginalPath: sourcePath,
@@ -723,6 +767,25 @@ export async function persistArchivedOriginalPdf(
     throw new InvoiceRefreshError(
       "ORIGINAL_PDF_ARCHIVAL_FAILED",
       `[ORIGINAL_PDF_ARCHIVAL_FAILED] Archivierung des Original-PDFs fehlgeschlagen: Die archivierte Kopie konnte nach dem Schreiben nicht verifiziert werden.`
+    );
+  }
+
+  // Enforce and verify private file permissions on newly created target (0600: rw-------)
+  try {
+    fs.chmodSync(targetPath, 0o600);
+  } catch {
+    // ignore
+  }
+  const finalFileStat = fs.statSync(targetPath);
+  if ((finalFileStat.mode & 0o077) !== 0) {
+    try {
+      if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
+    } catch {
+      // ignore
+    }
+    throw new InvoiceRefreshError(
+      "INSECURE_STORAGE_CONFIGURATION",
+      `[INSECURE_STORAGE_CONFIGURATION] Die archivierte Datei "${targetPath}" weist unsichere Berechtigungen auf (0${(finalFileStat.mode & 0o777).toString(8)} statt 0600).`
     );
   }
 
