@@ -1,6 +1,6 @@
 /**
  * Invoice Calculation Version Helper
- * 
+ *
  * Defines and resolves the calculation engine version used for an invoice.
  * Phase 1 rules:
  * - Absence of snapshot entirely (null or undefined): resolved as 'legacy-v1' (isExplicit: false).
