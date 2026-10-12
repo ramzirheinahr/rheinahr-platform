@@ -85,10 +85,14 @@ vi.mock("@/lib/pdf/invoice", () => ({ generateInvoicePdf: mocks.pdf }));
 vi.mock("@/lib/pdf/generate-timesheets-pdf", () => ({
   generateLeistungsnachweisePdf: vi.fn(async () => null),
 }));
-vi.mock("@/lib/invoicing", () => ({
-  qualLabel: { pflegefachkraft: "Pflegefachkraft", pflegehelfer: "Pflegehilfskraft" },
-  generateUniqueInvoiceNumber: vi.fn(async () => "PHASE01-TEST"),
-}));
+vi.mock("@/lib/invoicing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/invoicing")>();
+  return {
+    ...actual,
+    qualLabel: { pflegefachkraft: "Pflegefachkraft", pflegehelfer: "Pflegehilfskraft" },
+    generateUniqueInvoiceNumber: vi.fn(async () => "PHASE01-TEST"),
+  };
+});
 
 const testClient = {
   id: "client-p1",
@@ -811,7 +815,7 @@ describe("Phase 1 Acceptance Criteria Suite", () => {
     expect(pdfData.subtotal).toBe("927,70 €");
     expect(pdfData.taxAmount).toBe("176,26 €");
     expect(pdfData.total).toBe("1103,96 €");
-    expect(pdfData.items.map((i: any) => i.amount)).toEqual(["666,34 €", "107,71 €", "153,65 €"]);
+    expect(pdfData.items.map((i: { amount: string }) => i.amount)).toEqual(["666,34 €", "107,71 €", "153,65 €"]);
   });
 
   it("Criterion 11: Other email callers retain full backward compatibility", async () => {

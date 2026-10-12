@@ -929,14 +929,18 @@ export function hasReliableInvoiceDocument(
   return true;
 }
 
+export type InvoicingQueryClient = Prisma.TransactionClient | typeof prisma;
+
 /**
  * Checks whether a worker has financial/auditable records, either through:
  * 1. Currently active invoiced assignments (assignment.invoiceId !== null)
  * 2. Historical or cancelled invoices whose frozen snapshotData preserves the worker
  */
 export async function hasHistoricalInvoiceRecordForWorker(
-  workerId: string
+  workerId: string,
+  db?: InvoicingQueryClient
 ): Promise<boolean> {
+  const client = db ?? prisma;
   // 1. Current active invoiced assignments
   const activeCount = await prisma.assignment.count({
     where: { workerId, invoiceId: { not: null } },
@@ -944,7 +948,7 @@ export async function hasHistoricalInvoiceRecordForWorker(
   if (activeCount > 0) return true;
 
   // 2. Frozen snapshot data across all invoices (including cancelled ones)
-  const invoices = await prisma.invoice.findMany({
+  const invoices = await client.invoice.findMany({
     where: { snapshotData: { not: Prisma.DbNull } },
     select: { snapshotData: true },
   });
@@ -991,17 +995,24 @@ export async function hasHistoricalInvoiceRecordForWorker(
  * 2. Historical or cancelled invoices whose frozen snapshotData preserves the assignment
  */
 export async function hasHistoricalInvoiceRecordForAssignment(
-  assignmentId: string
+  assignmentId: string,
+  db?: InvoicingQueryClient
 ): Promise<boolean> {
+  const client = db ?? prisma;
   // 1. Current active invoice link
-  const asgn = await prisma.assignment.findUnique({
-    where: { id: assignmentId },
-    select: { invoiceId: true },
-  });
+  const asgn = client.assignment?.findUnique
+    ? await client.assignment.findUnique({
+        where: { id: assignmentId },
+        select: { invoiceId: true },
+      })
+    : await prisma.assignment.findUnique({
+        where: { id: assignmentId },
+        select: { invoiceId: true },
+      });
   if (asgn?.invoiceId) return true;
 
   // 2. Frozen snapshot data across all invoices (including cancelled ones)
-  const invoices = await prisma.invoice.findMany({
+  const invoices = await client.invoice.findMany({
     where: { snapshotData: { not: Prisma.DbNull } },
     select: { snapshotData: true },
   });
@@ -1048,9 +1059,11 @@ export async function hasHistoricalInvoiceRecordForAssignment(
  * 2. Historical or cancelled invoices whose frozen snapshotData preserves the order or its assignments
  */
 export async function hasHistoricalInvoiceRecordForOrder(
-  orderId: string
+  orderId: string,
+  db?: InvoicingQueryClient
 ): Promise<boolean> {
-  const invoices = await prisma.invoice.findMany({
+  const client = db ?? prisma;
+  const invoices = await client.invoice.findMany({
     where: { snapshotData: { not: Prisma.DbNull } },
     select: { snapshotData: true },
   });

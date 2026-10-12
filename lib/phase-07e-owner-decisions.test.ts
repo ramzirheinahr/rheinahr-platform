@@ -60,6 +60,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     client: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       count: vi.fn().mockResolvedValue(0),
       delete: vi.fn().mockResolvedValue({}),
     },
@@ -70,9 +71,10 @@ vi.mock("@/lib/prisma", () => ({
     },
     assignment: {
       findUnique: vi.fn(),
-      findMany: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
       delete: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     user: {
       delete: vi.fn().mockResolvedValue({}),
@@ -80,18 +82,28 @@ vi.mock("@/lib/prisma", () => ({
     order: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
       delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     serviceConfirmation: {
       count: vi.fn().mockResolvedValue(0),
     },
     notification: {
+      create: vi.fn().mockResolvedValue({ id: "notif-1" }),
       createMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     auditLog: {
       create: vi.fn().mockResolvedValue({ id: "audit-1" }),
     },
-    $transaction: vi.fn(),
+    $transaction: vi.fn(async (arg: any) => {
+      if (typeof arg === "function") {
+        return await arg(prisma);
+      }
+      return Promise.all(arg);
+    }),
   },
 }));
 
@@ -201,6 +213,12 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(verifyStoredHistoricalPdf).mockImplementation(actualRefresh.verifyStoredHistoricalPdf);
+    vi.mocked(prisma.$transaction).mockImplementation(async (arg: any) => {
+      if (typeof arg === "function") {
+        return await arg(prisma);
+      }
+      return Promise.all(arg);
+    });
   });
 
   describe("1. Historical Invoices: Fail-Closed Live Generation Prevention (Option A)", () => {
@@ -2126,16 +2144,20 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
     it("deleteOpenOrderFromGrid blocks deletion with lockedInvoiced when invoiced assignments exist", async () => {
       const { prisma } = await import("@/lib/prisma");
       const validUuid = "11111111-1111-4111-8111-111111111111";
-      vi.mocked(prisma.order.findUnique).mockResolvedValueOnce({
-        id: validUuid,
-        status: "pending",
-        shiftDate: new Date(),
-        startTime: "08:00",
-        endTime: "16:00",
-        requiredQualification: "pflegefachkraft",
-        quantity: 1,
-        client: { id: "cl-1", userId: "u-1", facilityName: "Klinik" },
-      } as any);
+      vi.mocked(prisma.order.findUnique)
+        .mockResolvedValueOnce({
+          id: validUuid,
+          status: "pending",
+          shiftDate: new Date(),
+          startTime: "08:00",
+          endTime: "16:00",
+          requiredQualification: "pflegefachkraft",
+          quantity: 1,
+          client: { id: "cl-1", userId: "u-1", facilityName: "Klinik" },
+        } as any)
+        .mockResolvedValueOnce({
+          status: "pending",
+        } as any);
       vi.mocked(prisma.assignment.count).mockResolvedValueOnce(1);
 
       const res = await deleteOpenOrderFromGrid(validUuid);
@@ -2432,6 +2454,7 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
           }),
         },
         invoice: {
+          findUnique: vi.fn().mockResolvedValue(mockInvoice),
           update: vi.fn().mockImplementation(async (args) => {
             txInvoiceUpdateCalled = true;
             capturedInvoiceUpdateData = args.data;
@@ -2481,6 +2504,44 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
       expect(capturedAuditLogData.metadata.assignmentCount).toBe(2);
     });
 
+    it("cancelInvoice rejects already cancelled invoice and prevents duplicate cancellationHistory or audit log (idempotency guard)", async () => {
+      const { cancelInvoice } = await import("@/app/[locale]/admin/orders/[id]/invoice-actions");
+      const { prisma } = await import("@/lib/prisma");
+
+      const alreadyCancelledInvoice = {
+        id: "inv-already-cancelled",
+        status: "cancelled",
+        snapshotData: {
+          cancellationHistory: {
+            cancelledAt: "2026-10-10T10:00:00.000Z",
+            cancelledByUserId: "admin-prior",
+          },
+        },
+        assignments: [],
+      };
+
+      const mockTx = {
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(alreadyCancelledInvoice),
+          update: vi.fn(),
+        },
+        assignment: { updateMany: vi.fn() },
+        auditLog: { create: vi.fn() },
+      };
+
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (callback: any) => {
+        return await callback(mockTx);
+      });
+
+      await expect(cancelInvoice("inv-already-cancelled")).rejects.toThrow(
+        "Rechnung ist bereits storniert."
+      );
+
+      expect(mockTx.assignment.updateMany).not.toHaveBeenCalled();
+      expect(mockTx.invoice.update).not.toHaveBeenCalled();
+      expect(mockTx.auditLog.create).not.toHaveBeenCalled();
+    });
+
     it("cancelInvoice fails closed if the in-transaction audit log creation fails (zero cancellation without audit)", async () => {
       const { cancelInvoice } = await import("@/app/[locale]/admin/orders/[id]/invoice-actions");
       const { prisma } = await import("@/lib/prisma");
@@ -2496,7 +2557,10 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
 
       const mockTx = {
         assignment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-        invoice: { update: vi.fn().mockResolvedValue({ id: "inv-to-cancel-fail-audit" }) },
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(mockInvoice),
+          update: vi.fn().mockResolvedValue({ id: "inv-to-cancel-fail-audit" }),
+        },
         auditLog: {
           create: vi.fn().mockRejectedValue(new Error("Audit log database failure")),
         },
@@ -2526,7 +2590,10 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
 
       const mockTx = {
         assignment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-        invoice: { update: vi.fn().mockResolvedValue({ id: "inv-to-cancel-missing-audit" }) },
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(mockInvoice),
+          update: vi.fn().mockResolvedValue({ id: "inv-to-cancel-missing-audit" }),
+        },
         auditLog: undefined,
       };
 
@@ -2595,24 +2662,35 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
         },
       ] as any);
 
-      // 4. invoicedCount (active invoiceId !== null)
-      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(0);
-
-      // 5. assignedRecords findMany for deleteIds
-      vi.mocked(prisma.assignment.findMany).mockResolvedValueOnce([
-        { id: "asgn-hist-to-delete" },
-      ] as any);
-
-      // 6. hasHistoricalInvoiceRecordForAssignment check:
-      vi.mocked(prisma.assignment.findUnique).mockResolvedValueOnce({ invoiceId: null } as any);
-      vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([
-        {
-          snapshotData: {
-            status: "cancelled",
-            historicalAssignmentIds: ["asgn-hist-to-delete"],
-          },
+      // Interactive transaction mock for deletion with historical invoice:
+      const mockTx = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValueOnce([{ id: "asgn-hist-to-delete" }]),
+          count: vi.fn().mockResolvedValueOnce(0),
+          findUnique: vi.fn().mockResolvedValueOnce({ invoiceId: null }),
         },
-      ] as any);
+        order: {
+          deleteMany: vi.fn(),
+          update: vi.fn(),
+          createMany: vi.fn(),
+          updateMany: vi.fn(),
+        },
+        invoice: {
+          findMany: vi.fn().mockResolvedValueOnce([
+            {
+              snapshotData: {
+                status: "cancelled",
+                historicalAssignmentIds: ["asgn-hist-to-delete"],
+              },
+            },
+          ]),
+        },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "asgn-hist-to-delete" }]),
+      };
+
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb: any) => {
+        return await cb(mockTx);
+      });
 
       // Input has a new shift, omitting orderIdToDelete
       const res = await updateOrderRequestAsAdmin(requestGroupId, {
@@ -2629,6 +2707,94 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
       });
 
       expect(res).toEqual({ ok: false, error: "lockedInvoiced" });
+      expect(mockTx.order.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("updateOrderRequestAsAdmin aborts and rolls back with lockedInvoiced when concurrent process invoices assignment during transaction (race condition guard)", async () => {
+      const { updateOrderRequestAsAdmin } = await import("@/app/[locale]/admin/orders/actions");
+      const { prisma } = await import("@/lib/prisma");
+
+      const requestGroupId = "req-race-1";
+      const clientId = "client-race-1";
+      const orderIdToDelete = "ord-race-to-delete";
+
+      vi.mocked(prisma.order.findMany).mockResolvedValueOnce([
+        {
+          id: orderIdToDelete,
+          clientId,
+          status: "pending",
+          shiftDate: new Date("2026-10-15T00:00:00.000Z"),
+          requiredQualification: "pflegefachkraft",
+          startTime: "08:00",
+          endTime: "16:00",
+          breakMinutes: 30,
+          quantity: 1,
+          notes: null,
+        },
+      ] as any);
+
+      vi.mocked(prisma.order.findMany).mockResolvedValueOnce([
+        {
+          id: orderIdToDelete,
+          shiftDate: new Date("2026-10-15T00:00:00.000Z"),
+          startTime: "08:00",
+          endTime: "16:00",
+          requiredQualification: "pflegefachkraft",
+          notes: null,
+          quantity: 1,
+          client: { id: clientId, facilityName: "Seniorenresidenz" },
+        },
+      ] as any);
+
+      vi.mocked(prisma.assignment.findMany).mockResolvedValueOnce([
+        {
+          id: "asgn-race-2",
+          worker: { userId: "user-w-race" },
+          order: {
+            shiftDate: new Date("2026-10-15T00:00:00.000Z"),
+            startTime: "08:00",
+            endTime: "16:00",
+            requiredQualification: "pflegefachkraft",
+            notes: null,
+            client: { facilityName: "Seniorenresidenz" },
+          },
+        },
+      ] as any);
+
+      const mockTx = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValueOnce([{ id: "asgn-race-2" }]),
+          count: vi.fn().mockResolvedValueOnce(1), // Concurrently invoiced!
+        },
+        order: {
+          deleteMany: vi.fn(),
+          update: vi.fn(),
+          createMany: vi.fn(),
+          updateMany: vi.fn(),
+        },
+        invoice: { findMany: vi.fn().mockResolvedValue([]) },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "asgn-race-2" }]),
+      };
+
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb: any) => {
+        return await cb(mockTx);
+      });
+
+      const res = await updateOrderRequestAsAdmin(requestGroupId, {
+        shifts: [
+          {
+            date: "2026-10-16",
+            requiredQualification: "pflegefachkraft",
+            startTime: "09:00",
+            endTime: "17:00",
+            pause: 30,
+            quantity: 1,
+          },
+        ],
+      });
+
+      expect(res).toEqual({ ok: false, error: "lockedInvoiced" });
+      expect(mockTx.order.deleteMany).not.toHaveBeenCalled();
     });
 
     it("deleteOpenOrderFromGrid blocks order deletion with lockedInvoiced when order or its assignment is preserved in cancelled invoice snapshotData", async () => {
@@ -2647,23 +2813,75 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
         client: { id: "cl-1", userId: "u-1", facilityName: "Klinik" },
       } as any);
 
-      // Active invoiced count is 0
-      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(0);
-
-      // hasHistoricalInvoiceRecordForOrder finds the order in snapshotData
-      vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([
-        {
-          snapshotData: {
-            status: "cancelled",
-            historicalOrderIds: [validUuid],
-          },
+      const mockTx = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValueOnce([{ id: "asgn-del-1" }]),
+          count: vi.fn().mockResolvedValueOnce(0),
+          findUnique: vi.fn().mockResolvedValueOnce({ invoiceId: null }),
         },
-      ] as any);
+        order: {
+          findUnique: vi.fn().mockResolvedValueOnce({ status: "pending" }),
+          delete: vi.fn(),
+        },
+        invoice: {
+          findMany: vi.fn().mockResolvedValueOnce([
+            {
+              snapshotData: {
+                status: "cancelled",
+                historicalOrderIds: [validUuid],
+              },
+            },
+          ]),
+        },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "asgn-del-1" }]),
+      };
+
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb: any) => {
+        return await cb(mockTx);
+      });
 
       const res = await deleteOpenOrderFromGrid(validUuid);
       expect(res.ok).toBe(false);
       expect(res.error).toBe("lockedInvoiced");
-      expect(prisma.order.delete).not.toHaveBeenCalled();
+      expect(mockTx.order.delete).not.toHaveBeenCalled();
+    });
+
+    it("deleteOpenOrderFromGrid aborts and rolls back with lockedInvoiced when concurrent process invoices assignment during transaction (race condition guard)", async () => {
+      const { deleteOpenOrderFromGrid } = await import("@/app/[locale]/admin/schedule/actions");
+      const { prisma } = await import("@/lib/prisma");
+
+      const validUuid = "44444444-4444-4444-8444-444444444444";
+      vi.mocked(prisma.order.findUnique).mockResolvedValueOnce({
+        id: validUuid,
+        status: "pending",
+        shiftDate: new Date(),
+        startTime: "08:00",
+        endTime: "16:00",
+        requiredQualification: "pflegefachkraft",
+        quantity: 1,
+        client: { id: "cl-1", userId: "u-1", facilityName: "Klinik" },
+      } as any);
+
+      const mockTx = {
+        assignment: {
+          findMany: vi.fn().mockResolvedValueOnce([{ id: "asgn-race-1" }]),
+          count: vi.fn().mockResolvedValueOnce(1), // Concurrently invoiced!
+        },
+        order: {
+          findUnique: vi.fn().mockResolvedValueOnce({ status: "pending" }),
+          delete: vi.fn(),
+        },
+        invoice: { findMany: vi.fn().mockResolvedValue([]) },
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "asgn-race-1" }]),
+      };
+
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb: any) => {
+        return await cb(mockTx);
+      });
+
+      const res = await deleteOpenOrderFromGrid(validUuid);
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe("lockedInvoiced");
     });
 
     it("deleteWorker is prevented with hasFinancialRecords when worker is preserved in cancelled invoice snapshotData (even after invoiceId is detached)", async () => {

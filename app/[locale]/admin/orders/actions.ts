@@ -21,7 +21,7 @@ import { offerAssignmentsBulk, offerAssignment } from "@/lib/assignments";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
-import type { OrderStatus } from "@prisma/client";
+import { Prisma, type OrderStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
 import { sendEmailToUsers } from "@/lib/email";
 import {
@@ -307,82 +307,108 @@ export async function updateOrderRequestAsAdmin(
     affectedWorkers = assignments.map((a) => ({ userId: a.worker.userId, order: a.order }));
   }
 
-  if (deleteIds.length > 0) {
-    const invoicedCount = await prisma.assignment.count({
-      where: { orderId: { in: deleteIds }, invoiceId: { not: null } },
-    });
-    if (invoicedCount > 0) {
-      return { ok: false, error: "lockedInvoiced" };
-    }
-
-    const assignedRecords = await prisma.assignment.findMany({
-      where: { orderId: { in: deleteIds } },
-      select: { id: true },
-    });
-    for (const asgn of assignedRecords) {
-      if (await hasHistoricalInvoiceRecordForAssignment(asgn.id)) {
-        return { ok: false, error: "lockedInvoiced" };
-      }
-    }
-    for (const orderId of deleteIds) {
-      if (await hasHistoricalInvoiceRecordForOrder(orderId)) {
-        return { ok: false, error: "lockedInvoiced" };
-      }
-    }
-  }
-
   const now = new Date();
   if (updates.length + creates.length + deleteIds.length > 0) {
-    await prisma.$transaction([
-      ...(deleteIds.length
-        ? [prisma.order.deleteMany({ where: { id: { in: deleteIds } } })]
-        : []),
-      ...updates.map((u) =>
-        prisma.order.update({
-          where: { id: u.id },
-          data: { 
-            quantity: u.quantity, 
-            breakMinutes: u.breakMinutes, 
-            notes: u.notes,
-            shiftDate: new Date(`${u.date}T00:00:00.000Z`),
-            startTime: u.startTime,
-            endTime: u.endTime,
-            requiredQualification: u.requiredQualification as Qualification,
+    try {
+      await prisma.$transaction(async (tx) => {
+        if (deleteIds.length > 0) {
+          // 1. Fetch assignments for orders to be deleted and sort deterministically
+          const assignedRecords = await tx.assignment.findMany({
+            where: { orderId: { in: deleteIds } },
+            select: { id: true },
+          });
+          const sortedAssignmentIds = (assignedRecords || []).map((a) => a.id).sort();
+          const sortedDeleteOrderIds = [...deleteIds].sort();
+
+          // 2. Concurrency protocol: Physical row locking on assignments & orders (matching invoice issuance protocol)
+          if (typeof tx.$queryRaw === "function") {
+            if (sortedAssignmentIds.length > 0) {
+              await tx.$queryRaw(
+                Prisma.sql`SELECT id FROM "assignments" WHERE id IN (${Prisma.join(sortedAssignmentIds)}) FOR UPDATE`
+              );
+            }
+            await tx.$queryRaw(
+              Prisma.sql`SELECT id FROM "orders" WHERE id IN (${Prisma.join(sortedDeleteOrderIds)}) FOR UPDATE`
+            );
+          }
+
+          // 3. In-transaction re-verification of active invoiced assignments
+          const invoicedCount = await tx.assignment.count({
+            where: { orderId: { in: deleteIds }, invoiceId: { not: null } },
+          });
+          if (invoicedCount > 0) {
+            throw new Error("LOCKED_INVOICED");
+          }
+
+          // 4. In-transaction re-verification of historical/cancelled invoice records
+          for (const asgn of assignedRecords) {
+            if (await hasHistoricalInvoiceRecordForAssignment(asgn.id, tx)) {
+              throw new Error("LOCKED_INVOICED");
+            }
+          }
+          for (const orderId of deleteIds) {
+            if (await hasHistoricalInvoiceRecordForOrder(orderId, tx)) {
+              throw new Error("LOCKED_INVOICED");
+            }
+          }
+
+          // 5. Atomically delete shifts
+          await tx.order.deleteMany({ where: { id: { in: deleteIds } } });
+        }
+
+        // Apply updates
+        for (const u of updates) {
+          await tx.order.update({
+            where: { id: u.id },
+            data: {
+              quantity: u.quantity,
+              breakMinutes: u.breakMinutes,
+              notes: u.notes,
+              shiftDate: new Date(`${u.date}T00:00:00.000Z`),
+              startTime: u.startTime,
+              endTime: u.endTime,
+              requiredQualification: u.requiredQualification as Qualification,
+              editedAt: now,
+              editedById: admin.id,
+            },
+          });
+        }
+
+        // Apply creates
+        if (creates.length > 0) {
+          await tx.order.createMany({
+            data: creates.map((s) => ({
+              clientId,
+              requestGroupId,
+              requiredQualification: s.requiredQualification as Qualification,
+              shiftDate: new Date(`${s.date}T00:00:00.000Z`),
+              startTime: s.startTime,
+              endTime: s.endTime,
+              breakMinutes: s.breakMinutes,
+              quantity: s.quantity,
+              notes: s.notes,
+              status: "pending" as const,
+              createdById: admin.id,
+              editedAt: now,
+              editedById: admin.id,
+            })),
+          });
+        }
+
+        await tx.order.updateMany({
+          where: { requestGroupId },
+          data: {
             editedAt: now,
             editedById: admin.id,
           },
-        }),
-      ),
-      ...(creates.length
-        ? [
-            prisma.order.createMany({
-              data: creates.map((s) => ({
-                clientId,
-                requestGroupId,
-                requiredQualification: s.requiredQualification as Qualification,
-                shiftDate: new Date(`${s.date}T00:00:00.000Z`),
-                startTime: s.startTime,
-                endTime: s.endTime,
-                breakMinutes: s.breakMinutes,
-                quantity: s.quantity,
-                notes: s.notes,
-                status: "pending" as const,
-                createdById: admin.id,
-                editedAt: now,
-                editedById: admin.id,
-              })),
-            }),
-          ]
-        : []),
-    ]);
-
-    await prisma.order.updateMany({
-      where: { requestGroupId },
-      data: {
-        editedAt: now,
-        editedById: admin.id,
-      },
-    });
+        });
+      });
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === "LOCKED_INVOICED") {
+        return { ok: false, error: "lockedInvoiced" };
+      }
+      throw err;
+    }
 
     // Alert affected workers that their shift was cancelled and removed
     for (const item of affectedWorkers) {

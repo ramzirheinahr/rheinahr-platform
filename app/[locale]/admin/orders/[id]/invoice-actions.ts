@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } from "@/lib/pricing";
@@ -208,67 +209,7 @@ export async function deleteInvoice(_invoiceId: string): Promise<never> {
 export async function cancelInvoice(invoiceId: string) {
   const user = await requireRole("de", "admin");
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    include: {
-      assignments: {
-        select: { id: true, workerId: true, orderId: true },
-      },
-    },
-  });
-
-  if (!invoice) {
-    throw new Error("Rechnung nicht gefunden.");
-  }
-
-  // Preserve immutable historical reference linking the invoice to covered assignments/workers/orders
-  const existingSnapshot =
-    typeof invoice.snapshotData === "object" && invoice.snapshotData !== null
-      ? (invoice.snapshotData as Record<string, unknown>)
-      : {};
-
-  const currentAssignmentIds = invoice.assignments.map((a) => a.id);
-  const currentWorkerIds = invoice.assignments
-    .map((a) => a.workerId)
-    .filter(Boolean) as string[];
-  const currentOrderIds = invoice.assignments
-    .map((a) => a.orderId)
-    .filter(Boolean) as string[];
-
-  const existingAssignmentIds = Array.isArray(existingSnapshot.historicalAssignmentIds)
-    ? (existingSnapshot.historicalAssignmentIds as string[])
-    : [];
-  const existingWorkerIds = Array.isArray(existingSnapshot.historicalWorkerIds)
-    ? (existingSnapshot.historicalWorkerIds as string[])
-    : [];
-  const existingOrderIds = Array.isArray(existingSnapshot.historicalOrderIds)
-    ? (existingSnapshot.historicalOrderIds as string[])
-    : [];
-
-  const historicalAssignmentIds = Array.from(
-    new Set([...existingAssignmentIds, ...currentAssignmentIds])
-  );
-  const historicalWorkerIds = Array.from(
-    new Set([...existingWorkerIds, ...currentWorkerIds])
-  );
-  const historicalOrderIds = Array.from(
-    new Set([...existingOrderIds, ...currentOrderIds])
-  );
-
-  const updatedSnapshotData = {
-    ...existingSnapshot,
-    cancellationHistory: {
-      cancelledAt: new Date().toISOString(),
-      cancelledByUserId: user.id,
-      releasedAssignmentCount: invoice.assignments.length,
-      releasedAssignmentIds: currentAssignmentIds,
-    },
-    historicalAssignmentIds,
-    historicalWorkerIds,
-    historicalOrderIds,
-  };
-
-  // Atomic transaction: release assignments, update invoice status & snapshotData, AND write audit log
+  // Atomic transaction: verify status, release assignments, update invoice status & snapshotData, AND write audit log
   await prisma.$transaction(async (tx) => {
     // 0. Ensure audit log capability exists in this transaction context (fail-closed)
     if (!tx.auditLog?.create) {
@@ -277,7 +218,80 @@ export async function cancelInvoice(invoiceId: string) {
       );
     }
 
-    // 1. Release the assignments so they can be re-invoiced
+    // 1. Concurrency control: Physical row locking on the invoice to serialize cancellations
+    if (typeof tx.$queryRaw === "function") {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id, status FROM "invoices" WHERE id = ${invoiceId} FOR UPDATE`
+      );
+    }
+
+    // 2. Fetch invoice inside transaction to inspect current state
+    const invoice = await tx.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        assignments: {
+          select: { id: true, workerId: true, orderId: true },
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new Error("Rechnung nicht gefunden.");
+    }
+
+    // Guard: Prevent double-cancellation and tampering with cancellation history / audit logs
+    if (invoice.status === "cancelled") {
+      throw new Error("Rechnung ist bereits storniert.");
+    }
+
+    // 3. Preserve immutable historical reference linking the invoice to covered assignments/workers/orders
+    const existingSnapshot =
+      typeof invoice.snapshotData === "object" && invoice.snapshotData !== null
+        ? (invoice.snapshotData as Record<string, unknown>)
+        : {};
+
+    const currentAssignmentIds = invoice.assignments.map((a) => a.id);
+    const currentWorkerIds = invoice.assignments
+      .map((a) => a.workerId)
+      .filter(Boolean) as string[];
+    const currentOrderIds = invoice.assignments
+      .map((a) => a.orderId)
+      .filter(Boolean) as string[];
+
+    const existingAssignmentIds = Array.isArray(existingSnapshot.historicalAssignmentIds)
+      ? (existingSnapshot.historicalAssignmentIds as string[])
+      : [];
+    const existingWorkerIds = Array.isArray(existingSnapshot.historicalWorkerIds)
+      ? (existingSnapshot.historicalWorkerIds as string[])
+      : [];
+    const existingOrderIds = Array.isArray(existingSnapshot.historicalOrderIds)
+      ? (existingSnapshot.historicalOrderIds as string[])
+      : [];
+
+    const historicalAssignmentIds = Array.from(
+      new Set([...existingAssignmentIds, ...currentAssignmentIds])
+    );
+    const historicalWorkerIds = Array.from(
+      new Set([...existingWorkerIds, ...currentWorkerIds])
+    );
+    const historicalOrderIds = Array.from(
+      new Set([...existingOrderIds, ...currentOrderIds])
+    );
+
+    const updatedSnapshotData = {
+      ...existingSnapshot,
+      cancellationHistory: {
+        cancelledAt: new Date().toISOString(),
+        cancelledByUserId: user.id,
+        releasedAssignmentCount: invoice.assignments.length,
+        releasedAssignmentIds: currentAssignmentIds,
+      },
+      historicalAssignmentIds,
+      historicalWorkerIds,
+      historicalOrderIds,
+    };
+
+    // 4. Release the assignments so they can be re-invoiced
     if (invoice.assignments.length > 0) {
       await tx.assignment.updateMany({
         where: { invoiceId },
@@ -285,7 +299,7 @@ export async function cancelInvoice(invoiceId: string) {
       });
     }
 
-    // 2. Mark invoice as cancelled and preserve immutable historical records in snapshotData
+    // 5. Mark invoice as cancelled and preserve immutable historical records in snapshotData
     await tx.invoice.update({
       where: { id: invoiceId },
       data: {
@@ -294,7 +308,7 @@ export async function cancelInvoice(invoiceId: string) {
       },
     });
 
-    // 3. Atomically write audit log inside the same transaction
+    // 6. Atomically write audit log inside the same transaction
     await tx.auditLog.create({
       data: {
         userId: user.id,

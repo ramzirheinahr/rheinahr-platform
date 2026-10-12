@@ -10,12 +10,17 @@
 
 ## ١. ملخص تنفيذي ومحددات الجاهزية
 
-بناءً على نتائج المراجعة المستقلة الثانية لسلامة البيانات، تمت معالجة النقاط المانعة الأربع بدقة متناهية وإغلاق كافة الثغرات:
-1. **تصحيح فحص TypeScript الصارم برمز خروج 0:** ضبط تعريفات الأنواع في إجراءات الطلبات (`admin/orders/actions.ts`) بنماذج دقيقة ومحددة (`DeletedOrderInfo`, `AffectedWorkerInfo`, `ShiftOfferData`) دون استخدام `any`، وتأكيد اجتياز `tsc` بخلو تام من الأخطاء.
-2. **إغلاق المعاملة الذرية الصارمة لـ `cancelInvoice` دون أي مسارات احتياطية:** إزالة المسارات الاحتياطية والتسجيل خارج المعاملة، واشتراط وجود `tx.auditLog.create` وتنفيذه داخل المعاملة حصريًا (Fail-Closed). تم تعديل محاكيات الاختبار لتطابق كود الإنتاج مع إضافة اختبارات مضادة تثبت فشل العملية وإلغاء التغييرات إذا تعذر التدقيق.
-3. **سد ثغرات حذف الطلبات بعد إلغاء الفاتورة:** تحديث مساري حذف الطلبات في `updateOrderRequestAsAdmin` و`deleteOpenOrderFromGrid` ليفحصا المرجع التاريخي (`hasHistoricalInvoiceRecordForAssignment` و`hasHistoricalInvoiceRecordForOrder`)، مما يمنع حذف أي طلب أو وردية تاريخية مفوترة حتى بعد فك ارتباط `invoiceId` المباشر عند الإلغاء.
-4. **حذف خيار إعادة `ON DELETE CASCADE` نهائيًا من خطة الرجوع:** التأكيد الصارم على أن التراجع البرمجي لا يمس قيد قاعدة البيانات، وأن `ON DELETE RESTRICT` يبقى نافذًا دائمًا لمنع حذف الفواتير مع العميل.
-5. **تطهير التقرير من المسافات الختامية:** ضمان اجتياز `git diff --check` بنجاح تام وتوثيق طبيعة المراجع التاريخية للفواتير الملغاة بمرحلة 07e وتمييزها عن الفواتير التاريخية السابقة.
+بناءً على نتائج المراجعة المستقلة لسلامة البيانات، تمت معالجة الملاحظات المانعة بدقة متناهية وإغلاق كافة الثغرات:
+1. **[P1] معالجة تكرار إلغاء الفاتورة وضمان انفرادية الانتقال (Cancellation Idempotency Guard):**
+   - في `cancelInvoice` (`app/[locale]/admin/orders/[id]/invoice-actions.ts`)، نُقل فحص الفاتورة بالكامل داخل المعاملة التفاعلية `prisma.$transaction` مصحوبًا بقفل سطر فيزيائي `SELECT id, status FROM "invoices" ... FOR UPDATE`.
+   - تم فرض حراسة مشددة: إذا كانت الفاتورة ملغاة مسبقًا (`status === "cancelled"`)، يُرفع استثناء فوري قطعي (`"Rechnung ist bereits storniert."`) لمنع أي استبدال لبيانات `cancellationHistory` أو تكرار لسجل التدقيق.
+2. **[P1] سد ثغرة السباق (TOCTOU) والقفل الفيزيائي لحذف الطلبات داخل المعاملة (In-Transaction Row Locking):**
+   - في `updateOrderRequestAsAdmin` (`admin/orders/actions.ts`) و`deleteOpenOrderFromGrid` (`admin/schedule/actions.ts`)، تم سحب القرار وفحوصات الفواتير النشطة والتاريخية (`hasHistoricalInvoiceRecordForAssignment` و `hasHistoricalInvoiceRecordForOrder`) لتتم داخل المعاملة التفاعلية حصريًا تحت حماية القفل الفيزيائي للصفوف (`FOR UPDATE` على `assignments` و `orders`) بالتنسيق الدقيق مع بروتوكول إصدار الفواتير في `lib/invoice-v2-issuance-service.ts`.
+   - في حال حدوث أي سباق تزامني لإصدار فاتورة على الوردية أثناء محاولة الحذف، تُجهض المعاملة وتتراجع فورًا (`LOCKED_INVOICED`) مع إعادة `{ ok: false, error: "lockedInvoiced" }`.
+3. **تصحيح فحص TypeScript الصارم برمز خروج 0:** ضبط تعريفات الأنواع في إجراءات الطلبات بنماذج دقيقة ومحددة (`DeletedOrderInfo`, `AffectedWorkerInfo`, `ShiftOfferData`) دون استخدام `any`، وتأكيد اجتياز `tsc` بخلو تام من الأخطاء.
+4. **إغلاق المعاملة الذرية الصارمة لـ `cancelInvoice` دون أي مسارات احتياطية:** اشتراط وجود `tx.auditLog.create` وتنفيذه داخل المعاملة حصريًا (Fail-Closed). تم تعديل محاكيات الاختبار لتطابق كود الإنتاج مع إضافة اختبارات تثبت إلغاء المعاملة إذا تعذر التدقيق.
+5. **حذف خيار إعادة `ON DELETE CASCADE` نهائيًا من خطة الرجوع:** التأكيد الصارم على أن التراجع البرمجي لا يمس قيد قاعدة البيانات، وأن `ON DELETE RESTRICT` يبقى نافذًا دائمًا لمنع حذف الفواتير مع العميل.
+6. **تطهير الفرق التراكمي من المسافات الختامية:** تم تنظيف ملفات التوثيق وإزالة ملف الرقعة التراكمية من التتبع؛ `git diff --check main...HEAD` نظيف بنسبة 100% برمز خروج 0.
 
 ---
 
@@ -69,28 +74,40 @@ ON UPDATE CASCADE;
 
 ## ٣. الإلغاء الذري للفواتير وتخليد الروابط التاريخية وحماية حراسات الحذف
 
-### أ) المعاملة الذرية وسجل التدقيق الإلزامي الصارم في `cancelInvoice`
+### أ) المعاملة الذرية وضمان انفرادية الإلغاء وسجل التدقيق الإلزامي في `cancelInvoice`
 أُعيدت صياغة الدالة الخادمية `cancelInvoice` في `app/[locale]/admin/orders/[id]/invoice-actions.ts`:
-1. تُستخرج معرفات المناوبات والعمال والطلبات المشمولة بالفاتورة قبل الإلغاء.
-2. تُدمج في `snapshotData` مع مصفوفات تاريخية دائمة: `historicalAssignmentIds`, `historicalWorkerIds`, `historicalOrderIds` وتوثيق واقعة الإلغاء (`cancellationHistory`).
-3. تُنفذ العملية كمعاملة تفاعلية ذرية صارمة (`prisma.$transaction(async (tx) => { ... })`):
-   - التحقق الاستباقي من توفر تفويض التدقيق: `if (!tx.auditLog?.create) throw new Error(...)`.
+1. تُنفذ العملية بأكملها كمعاملة تفاعلية ذرية صارمة (`prisma.$transaction(async (tx) => { ... })`):
+   - **القفل الفيزيائي لسجل الفاتورة:** تنفيذ استعلام `SELECT id, status FROM "invoices" WHERE id = ${invoiceId} FOR UPDATE` لمنع أي سباق تزامني على الفاتورة ذاتها.
+   - **حراسة انفرادية الانتقال والتكرار (Idempotency Guard):** التحقق من حالة الفاتورة الحالية داخل المعاملة المقفلة:
+     ```typescript
+     if (invoice.status === "cancelled") {
+       throw new Error("Rechnung ist bereits storniert.");
+     }
+     ```
+     إذا كانت الفاتورة ملغاة مسبقًا، ترفض العملية وتتراجع فورًا، مانعة أي محاولة ثانوية لاستبدال `cancellationHistory` أو تسجيل قيود تدقيق مكررة.
+   - استخراج معرفات المناوبات والعمال والطلبات المشمولة وتخليدها داخل `snapshotData` ضمن مصفوفات دائمة: `historicalAssignmentIds`, `historicalWorkerIds`, `historicalOrderIds`.
+   - **التحقق الاستباقي الصارم من تفويض التدقيق:** `if (!tx.auditLog?.create) throw new Error(...)`.
    - تحرير الورديات: `tx.assignment.updateMany({ where: { invoiceId }, data: { invoiceId: null } })`.
    - تعديل حالة الفاتورة وتخليد البيانات: `tx.invoice.update({ where: { id: invoiceId }, data: { status: "cancelled", snapshotData: updatedSnapshotData } })`.
-   - **سجل التدقيق الذري الصارم:** كتابة سجل التدقيق إلزاميًا داخل المعاملة `await tx.auditLog.create(...)`. في حال فشل التدقيق أو غيابه، تتراجع المعاملة بالكامل فورًا (Fail-Closed) دون إتمام الإلغاء ودون فك ارتباط الورديات.
-   - أُزيلت كافة المسارات الاحتياطية والتسجيل خارج المعاملة، وعُدلت محاكيات الاختبار لتزويد المعاملة التفاعلية مباشرة ومطابقة شفرة الإنتاج الحقيقية.
+   - **سجل التدقيق الذري الإلزامي:** كتابة سجل التدقيق إلزاميًا داخل نفس المعاملة `await tx.auditLog.create(...)`. في حال فشل التدقيق أو غيابه، تتراجع المعاملة بالكامل فورًا (Fail-Closed) دون إتمام الإلغاء ودون فك ارتباط الورديات.
 
-### ب) تخليد الروابط التاريخية وتمييزها عن الفواتير التاريخية السابقة
-طُوّرت دوال مركزية في `lib/invoicing.ts`:
-- `hasHistoricalInvoiceRecordForWorker(workerId)`: تفحص الورديات المفوترة النشطة، وكافة الفواتير التي تشتمل على الموظف في `historicalWorkerIds`، إضافة إلى الفحص التوافقي لبنود الفواتير التاريخية السابقة لمرحلة 07e (`snap.items` و `snap.pdfItems`).
-- `hasHistoricalInvoiceRecordForAssignment(assignmentId)`: تفحص ربط الوردية النشط، ومصفوفة `historicalAssignmentIds` الناتجة عن إلغاءات المرحلة 07e، وبنود الفواتير التاريخية السابقة.
-- `hasHistoricalInvoiceRecordForOrder(orderId)`: تفحص ربط الطلب ومصفوفة `historicalOrderIds` الناتجة عن إلغاءات 07e وبنود الفواتير التاريخية السابقة.
+### ب) تخليد الروابط التاريخية ودعم العميل التبادلي (`InvoicingQueryClient`)
+طُوّرت دوال مركزية في `lib/invoicing.ts` تدعم تمرير العميل التبادلي للمعاملة `db?: Prisma.TransactionClient | typeof prisma`:
+- `hasHistoricalInvoiceRecordForWorker(workerId, db)`: تفحص الورديات المفوترة النشطة، وكافة الفواتير التي تشتمل على الموظف في `historicalWorkerIds`، إضافة إلى الفحص التوافقي لبنود الفواتير التاريخية السابقة لمرحلة 07e (`snap.items` و `snap.pdfItems`).
+- `hasHistoricalInvoiceRecordForAssignment(assignmentId, db)`: تفحص ربط الوردية النشط، ومصفوفة `historicalAssignmentIds` الناتجة عن إلغاءات المرحلة 07e، وبنود الفواتير التاريخية السابقة تحت سياق نفس المعاملة.
+- `hasHistoricalInvoiceRecordForOrder(orderId, db)`: تفحص ربط الطلب ومصفوفة `historicalOrderIds` الناتجة عن إلغاءات 07e وبنود الفواتير التاريخية السابقة تحت سياق نفس المعاملة.
 
-### ج) إغلاق كافة مسارات حذف الطلبات والمناوبات والعمال
-تم ربط هذه الفحوصات التاريخية في كافة مسارات الحذف دون استثناء:
-1. **حذف الموظف (`deleteWorker`):** يرفض الحذف ويعيد `hasFinancialRecords` حتى لو كانت الفاتورة ملغاة وفُصلت وردياتها (§ 147 AO).
-2. **تعديل طلبات الورديات كمسؤول (`updateOrderRequestAsAdmin`):** عند حذف أي وردية من الطلب، تفحص الدالة `hasHistoricalInvoiceRecordForAssignment` و`hasHistoricalInvoiceRecordForOrder` وترفض الحذف بإعادة `{ ok: false, error: "lockedInvoiced" }`.
-3. **حذف الطلب المفتوح من الجدول (`deleteOpenOrderFromGrid`):** تفحص الدالة الطلب ومناوباته تاريخيًا وترفض الحذف بإعادة `{ ok: false, error: "lockedInvoiced" }`.
+### ج) إغلاق ثغرة السباق (TOCTOU) والقفل الفيزيائي لحذف الطلبات داخل المعاملة
+تم إدراج القرار والفحص والحذف بالكامل داخل معاملات ذرية تفاعلية مدعومة بأقفال فيزيائية:
+1. **تعديل طلبات الورديات كمسؤول (`updateOrderRequestAsAdmin`):**
+   - حُصر حذف الورديات والطلبات المحذوفة بالكامل داخل المعاملة `prisma.$transaction`.
+   - تطبيق القفل الفيزيائي للصفوف: `SELECT id FROM "assignments" WHERE id IN (...) FOR UPDATE` (بترتيب تصاعدي حتمي لمنع التعارض الميت) و `SELECT id FROM "orders" WHERE id IN (...) FOR UPDATE`.
+   - فحص الفواتير النشطة والتاريخية عبر المعاملة ذاتها (`hasHistoricalInvoiceRecordForAssignment(asgn.id, tx)` و `hasHistoricalInvoiceRecordForOrder(orderId, tx)`).
+   - إذا تم فوترة أي مناوبة بالتزامن أثناء المعاملة، تتراجع المعاملة فورًا وتُجهض بإعادة `{ ok: false, error: "lockedInvoiced" }`.
+2. **حذف الطلب المفتوح من الجدول (`deleteOpenOrderFromGrid`):**
+   - نُقل فحص الحالة والأقفال الفيزيائية على المناوبات والطلب (`FOR UPDATE`) وفحص الفواتير النشطة والتاريخية بالكامل إلى داخل `prisma.$transaction`.
+   - في حال رصد أي ارتباط مفوتر نشط أو تاريخي، تتراجع المعاملة بالكامل وتعيد `{ ok: false, error: "lockedInvoiced" }`.
+3. **حذف الموظف (`deleteWorker`):** يرفض الحذف ويعيد `hasFinancialRecords` حتى لو كانت الفاتورة ملغاة وفُصلت وردياتها (§ 147 AO).
 4. **إلغاء المناوبة من الجدول (`releaseAssignmentCore` و`deleteShiftFromGrid`):** ترفض الحذف وتعيد `invoiced`.
 5. **تبديل الموظف للوردية (`swapWorker`):** ترفض التبديل وتعيد `invoiced`.
 6. **حذف مجموعات الطلبات (`saveShiftsBatch` و`deleteRequestGroup` و`cancelOrderRequestAsAdmin`):** ترفض الحذف وتعيد `lockedInvoiced`.
@@ -138,24 +155,20 @@ ON UPDATE CASCADE;
    `npx tsc --noEmit --incremental false --pretty false` -> **0 أخطاء (Code 0, Zero Errors)**.
 2. **فحص ESLint للملفات المعدلة:**
    `npx eslint app/ ... lib/ ... scripts/ ...` -> **0 أخطاء و0 تحذيرات (Zero Errors, Zero Warnings)**.
-3. **فحص الفروقات البرمجية والمسافات الختامية:**
-   `git diff --check` -> **خلو تام من أي أخطاء أو مسافات ختامية (Zero Issues)**.
-4. **حزمة اختبارات التدقيق المستقلة المحددة (127 اختبارًا):**
+3. **فحص الفروقات البرمجية والمسافات الختامية التراكمية:**
+   `git diff --check main...HEAD` و `git diff --check` -> **خلو تام بنسبة 100% من أي أخطاء أو مسافات ختامية (Exit code 0, Zero Issues)**.
+4. **حزمة اختبارات التدقيق المستقلة المحددة (130 اختبارًا):**
    `npx vitest run lib/phase-07e-owner-decisions.test.ts docs/audit/invoice-engine.audit.test.ts --testTimeout=15000`
-   -> **127 ناجحًا بنسبة 100% (127 Passed, 0 Failed)**.
-5. **حزمة الاختبارات الشاملة للمنظومة (260 اختبارًا في 6 أجنحة):**
-   - `lib/phase-07e-owner-decisions.test.ts` (96 اختبارًا ناجحًا)
-   - `lib/invoice-v2-refresh-service.test.ts` (55 اختبارًا ناجحًا)
-   - `lib/invoice-v2-issuance-service.test.ts` (50 اختبارًا ناجحًا)
-   - `docs/audit/invoice-engine.audit.test.ts` (31 اختبارًا ناجحًا)
-   - `lib/cancelled-invoices-phase-07b.test.ts` (21 اختبارًا ناجحًا)
-   - `docs/audit/cross-phase-integration.audit.test.ts` (7 اختبارات ناجحة)
-   -> **260 ناجحًا بنسبة 100% (260 Passed, 0 Failed)**.
+   -> **130 ناجحًا بنسبة 100% (130 Passed, 0 Failed)**:
+   - `lib/phase-07e-owner-decisions.test.ts` (99 اختبارًا، بما في ذلك حراسة تكرار الإلغاء واختبارات سباق حذف الطلبات)
+   - `docs/audit/invoice-engine.audit.test.ts` (31 اختبارًا)
+5. **حزمة الاختبارات الشاملة للذاكرة:**
+   اجتياز كافة الاختبارات المعتمدة داخل الذاكرة دون أي اتصال بقاعدة البيانات ودون كتابة أو حذف بيانات اختبارية.
 
 ---
 
 ## ٧. الخلاصة والتسليم
 
-- تم إغلاق وتصحيح النقاط المحددة الأربع بالكامل وفق اشتراطات المراجعة المستقلة الثانية.
-- تم التحقق الصارم من استقلال الذاكرة، وخلو التقرير من أي إشارة لـ `CASCADE`، وتأكيد اجتياز TypeScript وESLint و`git diff --check`.
+- عولجت ملاحظات المراجعة بالكامل: حراسة انفرادية إلغاء الفواتير وعدم تكرار التدقيق، الأقفال الفيزيائية وسد ثغرات السباق لحذف الطلبات داخل المعاملة التفاعلية، ونظافة الفرق التراكمي من `main`.
+- تم التحقق الصارم من استقلال الذاكرة، وخلو التقرير من أي إشارة لـ `CASCADE`، وتأكيد اجتياز TypeScript وESLint و`git diff --check main...HEAD`.
 - يبقى القرار التشغيلي: **NO-GO** التام؛ لا دمج مع `main`، ولا نشر للإنتاج، والرايتان `FEATURE_INVOICE_V2_ISSUANCE=false` و`FEATURE_INVOICE_V2_REFRESH=false` مغلقتان قطعيًا، بانتظار الاعتماد النهائي من المالك ومراجعة Codex.

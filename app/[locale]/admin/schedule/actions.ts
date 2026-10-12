@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { lettersToBlocks, SHIFT_PRESETS, type ShiftKey, type GridOperation } from "@/lib/master-schedule-core";
@@ -1025,26 +1026,65 @@ export async function deleteOpenOrderFromGrid(orderId: string): Promise<ActionSt
     return { ok: false, error: "locked" };
   }
 
-  const invoiced = await prisma.assignment.count({
-    where: { orderId: order.id, invoiceId: { not: null } },
-  });
-  if (invoiced > 0) return { ok: false, error: "lockedInvoiced" };
+  try {
+    await prisma.$transaction(async (tx) => {
+      // 1. Fetch assignments for the order and sort deterministically
+      const orderAssignments = await tx.assignment.findMany({
+        where: { orderId: order.id },
+        select: { id: true },
+      });
+      const sortedAssignmentIds = (orderAssignments || []).map((a) => a.id).sort();
 
-  if (await hasHistoricalInvoiceRecordForOrder(order.id)) {
-    return { ok: false, error: "lockedInvoiced" };
-  }
+      // 2. Concurrency protocol: Physical row locking on assignments & order (matching invoice issuance protocol)
+      if (typeof tx.$queryRaw === "function") {
+        if (sortedAssignmentIds.length > 0) {
+          await tx.$queryRaw(
+            Prisma.sql`SELECT id FROM "assignments" WHERE id IN (${Prisma.join(sortedAssignmentIds)}) FOR UPDATE`
+          );
+        }
+        await tx.$queryRaw(
+          Prisma.sql`SELECT id FROM "orders" WHERE id = ${order.id} FOR UPDATE`
+        );
+      }
 
-  const orderAssignments = await prisma.assignment.findMany({
-    where: { orderId: order.id },
-    select: { id: true },
-  });
-  for (const asgn of orderAssignments) {
-    if (await hasHistoricalInvoiceRecordForAssignment(asgn.id)) {
+      // 3. In-transaction re-verification of status
+      const currentOrder = await tx.order.findUnique({
+        where: { id: order.id },
+        select: { status: true },
+      });
+      if (!currentOrder || !["pending", "review", "availability_check"].includes(currentOrder.status)) {
+        throw new Error("LOCKED");
+      }
+
+      // 4. In-transaction re-verification of active invoiced assignments
+      const invoiced = await tx.assignment.count({
+        where: { orderId: order.id, invoiceId: { not: null } },
+      });
+      if (invoiced > 0) throw new Error("LOCKED_INVOICED");
+
+      // 5. In-transaction re-verification of historical/cancelled invoice records
+      if (await hasHistoricalInvoiceRecordForOrder(order.id, tx)) {
+        throw new Error("LOCKED_INVOICED");
+      }
+
+      for (const asgn of orderAssignments) {
+        if (await hasHistoricalInvoiceRecordForAssignment(asgn.id, tx)) {
+          throw new Error("LOCKED_INVOICED");
+        }
+      }
+
+      // 6. Atomically delete order inside transaction
+      await tx.order.delete({ where: { id: order.id } });
+    });
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === "LOCKED_INVOICED") {
       return { ok: false, error: "lockedInvoiced" };
     }
+    if (err instanceof Error && err.message === "LOCKED") {
+      return { ok: false, error: "locked" };
+    }
+    throw err;
   }
-
-  await prisma.order.delete({ where: { id: order.id } });
 
   const label = `${formatDateDE(order.shiftDate)} ${order.startTime}–${order.endTime} · ${order.client.facilityName}`;
   const facilityUserIds = await getFacilityClientUserIds(order.client.id || order.client.userId);
