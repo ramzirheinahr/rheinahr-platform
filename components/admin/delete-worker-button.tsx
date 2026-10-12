@@ -23,7 +23,7 @@ export function DeleteWorkerButton({ id }: { id: string }) {
         router.push("/admin/workers");
         router.refresh();
       } else {
-        toast.error(t("saveError"));
+        toast.error(res.error === "hasFinancialRecords" ? t("hasFinancialRecords") : t("saveError"));
       }
     });
   }

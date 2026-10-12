@@ -197,38 +197,12 @@ export async function sendInvoiceEmail({
   return { ok: true };
 }
 
-export async function deleteInvoice(invoiceId: string) {
-  const user = await requireRole("de", "admin");
-
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    include: { assignments: true },
-  });
-
-  if (!invoice) {
-    throw new Error("Rechnung nicht gefunden.");
-  }
-
-  // Release the assignments (the invoiceId will become null)
-  await prisma.$transaction([
-    prisma.assignment.updateMany({
-      where: { invoiceId },
-      data: { invoiceId: null },
-    }),
-    prisma.invoice.delete({
-      where: { id: invoiceId },
-    }),
-  ]);
-
-  await audit({
-    userId: user.id,
-    action: "invoice.delete",
-    entity: "Invoice",
-    entityId: invoiceId,
-    metadata: { assignmentCount: invoice.assignments.length }
-  });
-
-  revalidatePath("/", "layout");
+export async function deleteInvoice(_invoiceId: string): Promise<never> {
+  void _invoiceId;
+  await requireRole("de", "admin");
+  throw new Error(
+    "Das physische Löschen von Rechnungen ist serverseitig permanent verboten (GoBD- und Revisionskonformität). Stornieren Sie die Rechnung stattdessen mit cancelInvoice, um den Prüfpfad, die historische Rechnungsnummer und die Festschreibung zu erhalten."
+  );
 }
 
 export async function cancelInvoice(invoiceId: string) {

@@ -1,7 +1,13 @@
 import { format } from "@/lib/date-utils";
 import { resolveRates, resolveSurcharges, resolveNightWindow, rateFor, shiftSurchargeHours } from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
-import { qualLabel, normalizeHistoricalItem, formatNumber, formatAmount } from "@/lib/invoicing";
+import {
+  qualLabel,
+  normalizeHistoricalItem,
+  formatNumber,
+  formatAmount,
+  validateSnapshotMonetaryTotals,
+} from "@/lib/invoicing";
 import { buildAddressString } from "@/lib/utils";
 import type { InvoicePdfData } from "@/lib/pdf/invoice";
 import type { Qualification } from "@/lib/validations";
@@ -264,6 +270,13 @@ export function buildInvoicePdfData(
       : null;
 
   if (!options?.forceRecalculate && rawHistoricalItems && rawHistoricalItems.length > 0) {
+    const validatedTotals = validateSnapshotMonetaryTotals(snapshot);
+    if (!validatedTotals) {
+      throw new Error(
+        "Historischer Snapshot enthält unvollständige oder widersprüchliche Gesamtbeträge (Zwischensumme, Steuer oder Gesamtbetrag weicht zwischen Text und Cent ab)."
+      );
+    }
+
     const sanitizedHistoricalItems: Array<{
       pos: number;
       description: string;
@@ -298,9 +311,9 @@ export function buildInvoicePdfData(
       periodStart: snapshot.periodStart || "",
       periodEnd: snapshot.periodEnd || "",
       items: sanitizedHistoricalItems,
-      subtotal: snapshot.subtotal || formatAmount(Number(invoice.netAmount)),
-      taxAmount: snapshot.taxAmount || formatAmount(Number(invoice.vatAmount)),
-      total: snapshot.total || formatAmount(Number(invoice.grossAmount)),
+      subtotal: validatedTotals.subtotalDisplay,
+      taxAmount: validatedTotals.taxAmountDisplay,
+      total: validatedTotals.totalDisplay,
       paymentTermsDays: effectiveClient.paymentTermsDays,
     };
   }
@@ -485,7 +498,7 @@ export function buildInvoicePdfData(
   // Derive net subtotal directly from calculated line items when items exist,
   // falling back to invoice.netAmount if no items were generated.
   const computedNet = items.length > 0
-    ? items.reduce((sum, item) => {
+    ? items.reduce((sum: number, item: { amount: string }) => {
         // parse amount string e.g. "6.330,36 €" or "100,50 €"
         const numStr = item.amount.replace(" €", "").replace(/\./g, "").replace(",", ".");
         const val = parseFloat(numStr);

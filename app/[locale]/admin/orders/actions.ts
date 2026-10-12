@@ -269,6 +269,15 @@ export async function updateOrderRequestAsAdmin(
     affectedWorkers = assignments.map((a) => ({ userId: a.worker.userId, order: a.order }));
   }
 
+  if (deleteIds.length > 0) {
+    const invoicedCount = await prisma.assignment.count({
+      where: { orderId: { in: deleteIds }, invoiceId: { not: null } },
+    });
+    if (invoicedCount > 0) {
+      return { ok: false, error: "lockedInvoiced" };
+    }
+  }
+
   const now = new Date();
   if (updates.length + creates.length + deleteIds.length > 0) {
     await prisma.$transaction([
@@ -471,6 +480,11 @@ export async function cancelOrderRequestAsAdmin(
     where: { assignment: { order: { requestGroupId } } },
   });
   if (signed > 0) return { ok: false, error: "locked" };
+
+  const invoiced = await prisma.assignment.count({
+    where: { order: { requestGroupId }, invoiceId: { not: null } },
+  });
+  if (invoiced > 0) return { ok: false, error: "lockedInvoiced" };
 
   const client = await prisma.client.findUnique({
     where: { id: existing[0].clientId },
@@ -1430,6 +1444,7 @@ export async function swapWorker(
 
   if (!oldAssignment) return { ok: false, error: "saveError" };
   if (oldAssignment.serviceConfirmation) return { ok: false, error: "confirmed" }; // Cannot swap a signed shift
+  if (oldAssignment.invoiceId) return { ok: false, error: "invoiced" }; // Cannot swap an invoiced shift
 
   const oldWorker = oldAssignment.worker;
   const order = oldAssignment.order;

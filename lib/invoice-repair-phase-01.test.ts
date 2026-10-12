@@ -811,7 +811,7 @@ describe("Phase 1 Acceptance Criteria Suite", () => {
     expect(pdfData.subtotal).toBe("927,70 €");
     expect(pdfData.taxAmount).toBe("176,26 €");
     expect(pdfData.total).toBe("1103,96 €");
-    expect(pdfData.items.map((i) => i.amount)).toEqual(["666,34 €", "107,71 €", "153,65 €"]);
+    expect(pdfData.items.map((i: any) => i.amount)).toEqual(["666,34 €", "107,71 €", "153,65 €"]);
   });
 
   it("Criterion 11: Other email callers retain full backward compatibility", async () => {

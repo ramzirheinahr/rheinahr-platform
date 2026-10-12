@@ -147,6 +147,15 @@ export async function updateOrderRequest(
     affectedWorkers = assignments.map((a) => ({ userId: a.worker.userId, order: a.order }));
   }
 
+  if (deleteIds.length > 0) {
+    const invoicedCount = await prisma.assignment.count({
+      where: { orderId: { in: deleteIds }, invoiceId: { not: null } },
+    });
+    if (invoicedCount > 0) {
+      return { ok: false, error: "lockedInvoiced" };
+    }
+  }
+
   const now = new Date();
   await prisma.$transaction([
     ...(deleteIds.length
@@ -365,6 +374,11 @@ export async function cancelOrderRequest(
     where: { assignment: { order: { requestGroupId, clientId: client.id } } },
   });
   if (signed > 0) return { ok: false, error: "locked" };
+
+  const invoiced = await prisma.assignment.count({
+    where: { order: { requestGroupId, clientId: client.id }, invoiceId: { not: null } },
+  });
+  if (invoiced > 0) return { ok: false, error: "lockedInvoiced" };
 
   // Workers holding an active invitation/acceptance lose the shift — tell them.
   const affected = await prisma.assignment.findMany({

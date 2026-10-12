@@ -853,7 +853,7 @@ model Invoice {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client      Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
   assignments Assignment[]
   revisions   InvoiceRevision[]
 

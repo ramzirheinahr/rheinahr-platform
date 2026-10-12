@@ -27,10 +27,14 @@ vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/email", () => ({ sendEmailToRecipients: mocks.email }));
 vi.mock("@/lib/pdf/invoice", () => ({ generateInvoicePdf: mocks.pdf }));
 vi.mock("@/lib/pdf/generate-timesheets-pdf", () => ({ generateLeistungsnachweisePdf: vi.fn(async () => null) }));
-vi.mock("@/lib/invoicing", () => ({
-  qualLabel: { pflegefachkraft: "Pflegefachkraft", pflegehelfer: "Pflegehilfskraft" },
-  generateUniqueInvoiceNumber: vi.fn(async () => "AUDIT-ONLY"),
-}));
+vi.mock("@/lib/invoicing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/invoicing")>();
+  return {
+    ...actual,
+    qualLabel: { pflegefachkraft: "Pflegefachkraft", pflegehelfer: "Pflegehilfskraft" },
+    generateUniqueInvoiceNumber: vi.fn(async () => "AUDIT-ONLY"),
+  };
+});
 
 const client = {
   id: "audit-client", userId: "audit-user", shortCode: "AUD", internalNumber: "TEST",
@@ -106,7 +110,7 @@ beforeEach(() => {
 describe("five requested invoice simulations", () => {
   it("TC1: printed-hour arithmetic passes, database calculation differs", () => {
     const d = build();
-    expect(d.items.map(i => i.amount)).toEqual(["666,34 €", "107,71 €", "153,65 €"]);
+    expect(d.items.map((i: any) => i.amount)).toEqual(["666,34 €", "107,71 €", "153,65 €"]);
     expect([d.subtotal, d.taxAmount, d.total]).toEqual(["927,70 €", "176,26 €", "1103,96 €"]);
     expect(price()).toBeCloseTo(927.432, 8);
     results.TC1 = { window: "22:00–06:00", ...summary(d), generationNet: price(), generationVat: price() * .19, generationGross: price() * 1.19 };
@@ -115,7 +119,7 @@ describe("five requested invoice simulations", () => {
     const c = { ...client, nightStart: "20:00" };
     const d = build(irregular, c);
     expect([d.subtotal, d.taxAmount, d.total]).toEqual(["942,62 €", "179,10 €", "1121,72 €"]);
-    expect(d.items.find(i => i.description.startsWith("Nacht"))?.amount).toBe("14,92 €");
+    expect(d.items.find((i: any) => i.description.startsWith("Nacht"))?.amount).toBe("14,92 €");
     results.TC1_default_night = { ...summary(d), generationNet: price(irregular, c) };
   });
   it("TC2: deterministic middle break is entirely Sunday night", () => {
@@ -149,9 +153,9 @@ describe("five requested invoice simulations", () => {
       assignment("w3", "2026-07-06", "10:00", "11:01", 0, "Worker C", "pflegehelfer", "worker-3")];
     const c = { ...client, hourlyRates: { pflegefachkraft: 40, pflegehelfer: 30 } };
     const d = build(as, c);
-    expect(d.items.map(i => i.amount)).toEqual(["40,80 €", "40,80 €", "30,60 €"]);
+    expect(d.items.map((i: any) => i.amount)).toEqual(["40,80 €", "40,80 €", "30,60 €"]);
     expect(d.subtotal).toBe("112,20 €");
-    expect(d.items.reduce((sum, i) => sum + Math.round(amount(i.amount) * 100), 0)).toBe(11220);
+    expect(d.items.reduce((sum: number, i: any) => sum + Math.round(amount(i.amount) * 100), 0)).toBe(11220);
     results.TC4 = { ...summary(d), generationNet: price(as, c) };
   });
   it("TC5: ordinary zero break survives, legacy sent heuristic substitutes 30", () => {
@@ -302,10 +306,10 @@ describe("actual server actions with mocked external boundaries", () => {
     expect(mocks.prisma.invoice.create).not.toHaveBeenCalled();
     expect(mocks.prisma.invoice.update.mock.calls[0][0].data.status).toBe("cancelled");
   });
-  it("deletion allows removal of paid/sent invoices", async () => {
+  it("deletion of invoices is permanently prohibited on server", async () => {
     mocks.prisma.invoice.findUnique.mockResolvedValue({ ...invoice, status: "paid", assignments: irregular, snapshotData: { emailSent: { sentAt: "2026-09-01" } } });
-    await deleteInvoice(invoice.id);
-    expect(mocks.prisma.invoice.delete).toHaveBeenCalledOnce();
+    await expect(deleteInvoice(invoice.id)).rejects.toThrow("Das physische Löschen von Rechnungen ist serverseitig permanent verboten");
+    expect(mocks.prisma.invoice.delete).not.toHaveBeenCalled();
   });
   it("generation claims assignments without an unbilled guard and no transaction", async () => {
     await generateOrderInvoices(irregular.map(a => a.id));

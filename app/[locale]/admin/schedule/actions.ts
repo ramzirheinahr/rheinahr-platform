@@ -621,6 +621,7 @@ async function releaseAssignmentCore(
     select: {
       id: true,
       workerId: true,
+      invoiceId: true,
       serviceConfirmation: { select: { id: true } },
       worker: { select: { userId: true } },
       order: {
@@ -640,6 +641,7 @@ async function releaseAssignmentCore(
   });
   if (!assignment) return { ok: false, error: "saveError" };
   if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
+  if (assignment.invoiceId) return { ok: false, error: "invoiced" };
 
   const others = assignment.order.assignments.filter((a) => a.id !== assignment.id);
 
@@ -751,6 +753,7 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
     select: {
       id: true,
       workerId: true,
+      invoiceId: true,
       serviceConfirmation: { select: { id: true } },
       worker: { select: { userId: true } },
       order: {
@@ -770,6 +773,7 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
   });
   if (!assignment) return { ok: false, error: "saveError" };
   if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
+  if (assignment.invoiceId) return { ok: false, error: "invoiced" };
 
   const label = `${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime} · ${assignment.order.client.facilityName}`;
   const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId);
@@ -1012,6 +1016,11 @@ export async function deleteOpenOrderFromGrid(orderId: string): Promise<ActionSt
   if (!["pending", "review", "availability_check"].includes(order.status)) {
     return { ok: false, error: "locked" };
   }
+
+  const invoiced = await prisma.assignment.count({
+    where: { orderId: order.id, invoiceId: { not: null } },
+  });
+  if (invoiced > 0) return { ok: false, error: "lockedInvoiced" };
 
   await prisma.order.delete({ where: { id: order.id } });
 

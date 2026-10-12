@@ -255,6 +255,20 @@ export async function deleteClient(id: string): Promise<ActionState> {
   });
   if (!client) return { ok: false, error: "saveError" };
 
+  // Financial records preservation (GoBD / § 147 AO):
+  // Deleting clients with existing invoices or invoiced assignments is strictly prohibited.
+  const [invoiceCount, invoicedAssignmentsCount] = await Promise.all([
+    prisma.invoice.count({ where: { clientId: id } }),
+    prisma.assignment.count({ where: { order: { clientId: id }, invoiceId: { not: null } } }),
+  ]);
+
+  if (invoiceCount > 0 || invoicedAssignmentsCount > 0) {
+    return {
+      ok: false,
+      error: "hasFinancialRecords",
+    };
+  }
+
   await prisma.user.delete({ where: { id: client.userId } });
 
   await audit({

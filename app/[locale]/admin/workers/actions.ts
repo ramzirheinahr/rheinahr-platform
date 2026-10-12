@@ -286,6 +286,15 @@ export async function deleteWorker(id: string): Promise<ActionState> {
   });
   if (!worker) return { ok: false, error: "saveError" };
 
+  // Financial records preservation (GoBD / § 147 AO):
+  // Deleting workers with invoiced assignments is strictly prohibited.
+  const invoicedAssignmentsCount = await prisma.assignment.count({
+    where: { workerId: id, invoiceId: { not: null } },
+  });
+  if (invoicedAssignmentsCount > 0) {
+    return { ok: false, error: "hasFinancialRecords" };
+  }
+
   await prisma.user.delete({ where: { id: worker.userId } });
 
   await audit({

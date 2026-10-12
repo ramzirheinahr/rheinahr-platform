@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail, Edit3, Send, Download } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
-import { deleteInvoice, cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { EditInvoiceDialog } from "./invoicing/edit-invoice-dialog";
 import {
@@ -124,18 +124,6 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
     }
   };
 
-  const handleDelete = async (invoiceId: string) => {
-    if (!confirm("Möchten Sie diese Rechnung wirklich löschen? Zugehörige Schichten werden wieder freigegeben.")) return;
-    setLoadingId(invoiceId);
-    try {
-      await deleteInvoice(invoiceId);
-      toast.success("Rechnung erfolgreich gelöscht!");
-    } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Löschen der Rechnung");
-    } finally {
-      setLoadingId(null);
-    }
-  };
 
   const handleSendEmail = async (recipients: string[], options?: { attachTimesheets?: boolean }) => {
     if (!emailInvoiceId) return;
@@ -279,10 +267,6 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
                 Stornieren
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleDelete(r.id)}>
-              <Trash2 className="size-4 mr-2" />
-              Löschen
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Receipt, FileText, CheckCircle2, Mail, Trash2, Ban, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { generateOrderInvoices, sendInvoiceEmail, deleteInvoice, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { generateOrderInvoices, sendInvoiceEmail, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { InvoiceRefreshDialog } from "./invoice-refresh-dialog";
 import { useTranslations } from "next-intl";
@@ -54,16 +54,6 @@ export function OrderInvoicesBanner({
     }
   };
 
-  const handleDelete = async (invoiceId: string) => {
-    if (!confirm("Möchten Sie diese Rechnung wirklich löschen? Zugehörige Schichten werden wieder freigegeben.")) return;
-    try {
-      await deleteInvoice(invoiceId);
-      toast.success(t("deleteSuccess") || "Rechnung erfolgreich gelöscht!");
-      router.refresh();
-    } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Löschen der Rechnung");
-    }
-  };
 
   const handleRefresh = (invoiceId: string) => {
     setRefreshInvoiceId(invoiceId);
@@ -129,10 +119,6 @@ export function OrderInvoicesBanner({
                     {t("cancelInvoice")}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleDelete(inv.id)}>
-                  <Trash2 className="size-4 mr-2" />
-                  {t("deleteInvoice")}
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ))}

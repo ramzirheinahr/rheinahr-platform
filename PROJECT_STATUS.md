@@ -250,11 +250,11 @@ layout nav, `lib/validations.ts`, `messages/{de,en,ar}.json`.
 ## 9. Commands
 ```
 npm run dev            # binds 0.0.0.0 (LAN access: http://<lan-ip>:3000)
-npm run build:clean    # rm -rf .next && next build   (use this, not plain build)
+npm run build:clean    # rm -rf .next && next build
 npm run test           # vitest (matching engine)
-npm run db:push        # prisma db push
+# npm run db:push      # PERMANENTLY DISABLED (use prisma migrate deploy)
 npm run db:seed        # super_admin seed
-npm run db:seed:demo   # realistic demo dataset
+# npm run db:seed:demo # PERMANENTLY DISABLED (prevent data loss)
 npm run db:storage     # create Storage bucket
 ```
 

@@ -23,7 +23,7 @@ export function DeleteClientButton({ id }: { id: string }) {
         router.push("/admin/clients");
         router.refresh();
       } else {
-        toast.error(t("saveError"));
+        toast.error(res.error === "hasFinancialRecords" ? t("hasFinancialRecords") : t("saveError"));
       }
     });
   }

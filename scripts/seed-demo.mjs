@@ -1,6 +1,11 @@
-// Demo data seed — populates a realistic, end-to-end scenario for showcasing the
-// platform. Idempotent: wipes all non-super_admin data first, then recreates.
-// Usage: node --env-file=.env scripts/seed-demo.mjs
+// PERMANENTLY DISABLED FOR DATABASE SAFETY & INTEGRITY
+// This script previously contained destructive mass deletion (deleteMany on clients, orders, workers,
+// and Supabase auth user deletion). To prevent any catastrophic data loss in company staging/production,
+// execution is permanently blocked.
+
+console.error("CRITICAL SAFETY BLOCK: scripts/seed-demo.mjs is permanently disabled to prevent database wiping and destructive data loss.");
+process.exit(1);
+
 import { createClient } from "@supabase/supabase-js";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";

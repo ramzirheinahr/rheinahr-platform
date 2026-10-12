@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { GET as getInvoicePdfRoute } from "@/app/api/invoices/[id]/pdf/route";
 import { GET as getBulkPdfRoute } from "@/app/api/invoices/bulk-pdf/route";
@@ -20,8 +21,16 @@ import {
   normalizeHistoricalItem,
   resolveStoredPdfCandidatePath,
   resolveStoredPdfExpectedChecksum,
+  validateSnapshotMonetaryTotals,
 } from "@/lib/invoicing";
-import { sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import {
+  sendInvoiceEmail,
+  deleteInvoice,
+} from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { deleteClient } from "@/app/[locale]/admin/clients/actions";
+import { deleteWorker } from "@/app/[locale]/admin/workers/actions";
+import { deleteOpenOrderFromGrid } from "@/app/[locale]/admin/schedule/actions";
+import { cancelOrderRequestAsAdmin } from "@/app/[locale]/admin/orders/actions";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import fs from "fs";
 import path from "path";
@@ -33,7 +42,8 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: vi.fn(),
   roleSatisfies: vi.fn((role: string, allowed: string[]) => allowed.includes(role)),
-  requireRole: vi.fn().mockResolvedValue(true),
+  requireRole: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }),
+  assertAdmin: vi.fn().mockResolvedValue({ id: "admin-1", role: "admin" }),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -42,9 +52,40 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
+      count: vi.fn().mockResolvedValue(0),
+      delete: vi.fn().mockResolvedValue({}),
     },
     invoiceRevision: {
       findUnique: vi.fn(),
+    },
+    client: {
+      findUnique: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
+      delete: vi.fn().mockResolvedValue({}),
+    },
+    worker: {
+      findUnique: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
+      delete: vi.fn().mockResolvedValue({}),
+    },
+    assignment: {
+      findUnique: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
+      delete: vi.fn().mockResolvedValue({}),
+    },
+    user: {
+      delete: vi.fn().mockResolvedValue({}),
+    },
+    order: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      delete: vi.fn().mockResolvedValue({}),
+    },
+    serviceConfirmation: {
+      count: vi.fn().mockResolvedValue(0),
+    },
+    notification: {
+      createMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
   },
 }));
@@ -976,7 +1017,6 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
         paymentTermsDays: 14,
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = buildInvoicePdfData(mockInvoice as any, client as any, []);
       expect(result.items).toHaveLength(1);
       expect(result.items[0].description).toBe("Pflegedienst Leistung");
@@ -1021,7 +1061,6 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
         paymentTermsDays: 14,
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = buildInvoicePdfData(mockInvoice as any, client as any, []);
       expect(result.items).toHaveLength(1);
       expect(result.items[0].description).toBe("Dienst");
@@ -1121,7 +1160,6 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
         paymentTermsDays: 14,
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(() => buildInvoicePdfData(corruptInvoice as any, client as any, [])).toThrow(
         "Historischer Rechnungsposten #1 ist unvollständig oder ungültig"
       );
@@ -1231,7 +1269,6 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
         paymentTermsDays: 14,
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(() => buildInvoicePdfData(conflictInvoice as any, client as any, [])).toThrow(
         "Historischer Rechnungsposten #1 ist unvollständig oder ungültig"
       );
@@ -1754,7 +1791,6 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
       const frozenClient = buildFrozenClientFromSnapshot(mockInvoice.snapshotData);
       expect(frozenClient).not.toBeNull();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pdfData = buildInvoicePdfData(mockInvoice as any, frozenClient as any, []);
       expect(pdfData.items[0].description).toBe("Pflegeeinsatz Spätdienst");
       expect(pdfData.items[0].hours).toBe("10,00");
@@ -1966,7 +2002,7 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
   });
 
   describe("6. Localization Completeness (DE, EN, AR)", () => {
-    it("ensures historicalArchiveNotice and historicalPdfUnavailableTooltip exist in all languages", () => {
+    it("ensures financial retention and immutability error keys exist in all languages", () => {
       const de = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "messages/de.json"), "utf8"));
       const en = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "messages/en.json"), "utf8"));
       const ar = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "messages/ar.json"), "utf8"));
@@ -1975,16 +2011,384 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
       expect(de.invoicing.historicalArchiveNotice.length).toBeGreaterThan(0);
       expect(de.invoicing.historicalPdfUnavailableTooltip).toBeDefined();
       expect(de.invoicing.historicalPdfUnavailableTooltip.length).toBeGreaterThan(0);
+      expect(de.workers.hasFinancialRecords).toBeDefined();
+      expect(de.clients.hasFinancialRecords).toBeDefined();
+      expect(de.orders.lockedInvoiced).toBeDefined();
+      expect(de.orders.invoiced).toBeDefined();
 
       expect(en.invoicing.historicalArchiveNotice).toBeDefined();
       expect(en.invoicing.historicalArchiveNotice.length).toBeGreaterThan(0);
       expect(en.invoicing.historicalPdfUnavailableTooltip).toBeDefined();
       expect(en.invoicing.historicalPdfUnavailableTooltip.length).toBeGreaterThan(0);
+      expect(en.workers.hasFinancialRecords).toBeDefined();
+      expect(en.clients.hasFinancialRecords).toBeDefined();
+      expect(en.orders.lockedInvoiced).toBeDefined();
+      expect(en.orders.invoiced).toBeDefined();
 
       expect(ar.invoicing.historicalArchiveNotice).toBeDefined();
       expect(ar.invoicing.historicalArchiveNotice.length).toBeGreaterThan(0);
       expect(ar.invoicing.historicalPdfUnavailableTooltip).toBeDefined();
       expect(ar.invoicing.historicalPdfUnavailableTooltip.length).toBeGreaterThan(0);
+      expect(ar.workers.hasFinancialRecords).toBeDefined();
+      expect(ar.clients.hasFinancialRecords).toBeDefined();
+      expect(ar.orders.lockedInvoiced).toBeDefined();
+      expect(ar.orders.invoiced).toBeDefined();
+    });
+  });
+
+  describe("7. Server-side Deletion Guards & Financial Immutability (§ 147 AO / GoBD)", () => {
+    it("deleteInvoice throws permanent fail-closed exception and never deletes invoice rows", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      await expect(deleteInvoice("inv-del-1")).rejects.toThrow(
+        "Das physische Löschen von Rechnungen ist serverseitig permanent verboten (GoBD- und Revisionskonformität)"
+      );
+      expect(prisma.invoice.delete).not.toHaveBeenCalled();
+    });
+
+    it("deleteClient blocks deletion with hasFinancialRecords when invoices exist", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      vi.mocked(prisma.client.findUnique).mockResolvedValueOnce({
+        id: "client-1",
+        userId: "user-1",
+      } as any);
+      vi.mocked(prisma.invoice.count).mockResolvedValueOnce(2);
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(0);
+
+      const res = await deleteClient("client-1");
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe("hasFinancialRecords");
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("deleteClient blocks deletion with hasFinancialRecords when invoiced assignments exist", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      vi.mocked(prisma.client.findUnique).mockResolvedValueOnce({
+        id: "client-1",
+        userId: "user-1",
+      } as any);
+      vi.mocked(prisma.invoice.count).mockResolvedValueOnce(0);
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(3);
+
+      const res = await deleteClient("client-1");
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe("hasFinancialRecords");
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("deleteClient succeeds when client has zero invoices and zero invoiced assignments", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      vi.mocked(prisma.client.findUnique).mockResolvedValueOnce({
+        id: "client-clean",
+        userId: "user-clean",
+      } as any);
+      vi.mocked(prisma.invoice.count).mockResolvedValueOnce(0);
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(0);
+      vi.mocked(prisma.user.delete).mockResolvedValueOnce({} as any);
+
+      const res = await deleteClient("client-clean");
+      expect(res.ok).toBe(true);
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: "user-clean" } });
+    });
+
+    it("deleteWorker blocks deletion with hasFinancialRecords when invoiced assignments exist", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      vi.mocked(prisma.worker.findUnique).mockResolvedValueOnce({
+        id: "wrk-1",
+        userId: "usr-w-1",
+      } as any);
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(4);
+
+      const res = await deleteWorker("wrk-1");
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe("hasFinancialRecords");
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("deleteWorker succeeds when worker has zero invoiced assignments", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      vi.mocked(prisma.worker.findUnique).mockResolvedValueOnce({
+        id: "wrk-clean",
+        userId: "usr-w-clean",
+      } as any);
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(0);
+      vi.mocked(prisma.user.delete).mockResolvedValueOnce({} as any);
+
+      const res = await deleteWorker("wrk-clean");
+      expect(res.ok).toBe(true);
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: "usr-w-clean" } });
+    });
+
+    it("deleteOpenOrderFromGrid blocks deletion with lockedInvoiced when invoiced assignments exist", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      const validUuid = "11111111-1111-4111-8111-111111111111";
+      vi.mocked(prisma.order.findUnique).mockResolvedValueOnce({
+        id: validUuid,
+        status: "pending",
+        shiftDate: new Date(),
+        startTime: "08:00",
+        endTime: "16:00",
+        requiredQualification: "pflegefachkraft",
+        quantity: 1,
+        client: { id: "cl-1", userId: "u-1", facilityName: "Klinik" },
+      } as any);
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(1);
+
+      const res = await deleteOpenOrderFromGrid(validUuid);
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe("lockedInvoiced");
+      expect(prisma.order.delete).not.toHaveBeenCalled();
+    });
+
+    it("cancelOrderRequestAsAdmin blocks deletion with lockedInvoiced when invoiced assignments exist", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      vi.mocked(prisma.order.findMany).mockResolvedValueOnce([
+        {
+          id: "ord-grp-1",
+          clientId: "cl-1",
+          status: "pending",
+          shiftDate: new Date(),
+          startTime: "08:00",
+          endTime: "16:00",
+          requiredQualification: "pflegefachkraft",
+          quantity: 1,
+          notes: null,
+        },
+      ] as any);
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(1);
+
+      const res = await cancelOrderRequestAsAdmin("req-grp-1");
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe("lockedInvoiced");
+    });
+  });
+
+  describe("8. Monetary Totals Conflict (Subtotal, Tax, Total) Fail-Closed Protection", () => {
+    const validSnapshot = {
+      facilityName: "Residenz Ahr",
+      address: "Hauptstr. 1, 53474 Bad Neuenahr",
+      paymentTermsDays: 14,
+      date: "2025-10-01",
+      items: [
+        {
+          pos: 1,
+          description: "Dienst",
+          hours: "10,00",
+          rate: "50,00",
+          amount: "500,00 €",
+        },
+      ],
+      subtotalCents: 50000,
+      subtotal: "500,00 €",
+      taxAmountCents: 9500,
+      taxAmount: "95,00 €",
+      totalCents: 59500,
+      total: "595,00 €",
+    };
+
+    it("validateSnapshotMonetaryTotals validates matching integer cents and formatted strings successfully", () => {
+      const result = validateSnapshotMonetaryTotals(validSnapshot);
+      expect(result).not.toBeNull();
+      expect(result?.subtotalCents).toBe(50000);
+      expect(result?.taxAmountCents).toBe(9500);
+      expect(result?.totalCents).toBe(59500);
+      expect(result?.subtotalDisplay).toBe("500,00 €");
+      expect(result?.taxAmountDisplay).toBe("95,00 €");
+      expect(result?.totalDisplay).toBe("595,00 €");
+    });
+
+    it("validateSnapshotMonetaryTotals returns null when subtotalCents conflicts with subtotal text string", () => {
+      const conflictSnapshot = {
+        ...validSnapshot,
+        subtotalCents: 50000,
+        subtotal: "600,00 €", // 60000 != 50000
+      };
+      const result = validateSnapshotMonetaryTotals(conflictSnapshot);
+      expect(result).toBeNull();
+    });
+
+    it("validateSnapshotMonetaryTotals returns null when taxAmountCents conflicts with taxAmount text string", () => {
+      const conflictSnapshot = {
+        ...validSnapshot,
+        taxAmountCents: 9500,
+        taxAmount: "120,00 €", // 12000 != 9500
+      };
+      const result = validateSnapshotMonetaryTotals(conflictSnapshot);
+      expect(result).toBeNull();
+    });
+
+    it("validateSnapshotMonetaryTotals returns null when totalCents conflicts with total text string", () => {
+      const conflictSnapshot = {
+        ...validSnapshot,
+        totalCents: 59500,
+        total: "720,00 €", // 72000 != 59500
+      };
+      const result = validateSnapshotMonetaryTotals(conflictSnapshot);
+      expect(result).toBeNull();
+    });
+
+    it("hasReliableInvoiceDocument returns false when snapshot has monetary totals conflict", () => {
+      const invoice = {
+        id: "inv-tot-conflict",
+        snapshotData: {
+          ...validSnapshot,
+          subtotalCents: 50000,
+          subtotal: "600,00 €",
+        },
+      };
+      expect(hasReliableInvoiceDocument(invoice)).toBe(false);
+    });
+
+    it("isCompleteFrozenSnapshot returns complete: false with descriptive reason on monetary totals conflict", async () => {
+      const conflictSnapshot = {
+        ...validSnapshot,
+        subtotalCents: 50000,
+        subtotal: "600,00 €",
+      };
+      const result = await isCompleteFrozenSnapshot(
+        conflictSnapshot,
+        { netAmount: 500, vatAmount: 95, grossAmount: 595, date: "2025-10-01" },
+        { skipPdfSimulation: true }
+      );
+      expect(result.complete).toBe(false);
+      expect(result.reason).toContain("widersprüchliche");
+    });
+
+    it("buildInvoicePdfData throws fail-closed error on monetary totals conflict in historical snapshot", () => {
+      const conflictInvoice = {
+        invoiceNumber: "RE-2025-BUILDER-TOT-CONFLICT",
+        date: new Date("2025-10-01"),
+        netAmount: 500,
+        vatAmount: 95,
+        grossAmount: 595,
+        snapshotData: {
+          ...validSnapshot,
+          subtotalCents: 50000,
+          subtotal: "600,00 €",
+        },
+      };
+      const client = {
+        id: "c-1",
+        facilityName: "Residenz Ahr",
+        address: "Hauptstr. 1, 53474 Bad Neuenahr",
+        paymentTermsDays: 14,
+      };
+      expect(() => buildInvoicePdfData(conflictInvoice as any, client as any, [])).toThrow(
+        /widersprüchliche Gesamtbeträge/
+      );
+    });
+
+    it("PDF route GET /api/invoices/[id]/pdf returns 422 when historical snapshot has monetary totals conflict", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      const { getCurrentUser } = await import("@/lib/auth");
+      vi.mocked(getCurrentUser).mockResolvedValueOnce({
+        id: "admin-1",
+        role: "admin",
+      } as any);
+
+      vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce({
+        id: "inv-pdf-tot-conflict",
+        invoiceNumber: "RE-2025-PDF-TOT-CONFLICT",
+        date: new Date("2025-10-01"),
+        netAmount: 500,
+        vatAmount: 95,
+        grossAmount: 595,
+        status: "sent",
+        pdfUrl: null,
+        snapshotData: {
+          ...validSnapshot,
+          subtotalCents: 50000,
+          subtotal: "600,00 €",
+        },
+        client: {
+          id: "client-1",
+          facilityName: "Residenz Ahr",
+          address: "Hauptstr. 1, 53474 Bad Neuenahr",
+          paymentTermsDays: 14,
+        },
+        assignments: [],
+      } as any);
+
+      const req = new Request("http://localhost:3000/api/invoices/inv-pdf-tot-conflict/pdf");
+      const res = await getInvoicePdfRoute(req, { params: Promise.resolve({ id: "inv-pdf-tot-conflict" }) });
+      expect(res.status).toBe(422);
+    });
+
+    it("Bulk PDF route GET /api/invoices/bulk-pdf returns 422 when historical snapshot has monetary totals conflict", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      const { getCurrentUser } = await import("@/lib/auth");
+      vi.mocked(getCurrentUser).mockResolvedValueOnce({
+        id: "admin-1",
+        role: "admin",
+      } as any);
+
+      vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([
+        {
+          id: "inv-bulk-tot-conflict",
+          invoiceNumber: "RE-2025-BULK-TOT-CONFLICT",
+          date: new Date("2025-10-01"),
+          netAmount: 500,
+          vatAmount: 95,
+          grossAmount: 595,
+          status: "sent",
+          pdfUrl: null,
+          snapshotData: {
+            ...validSnapshot,
+            subtotalCents: 50000,
+            subtotal: "600,00 €",
+          },
+          client: {
+            id: "client-1",
+            facilityName: "Residenz Ahr",
+            address: "Hauptstr. 1, 53474 Bad Neuenahr",
+            paymentTermsDays: 14,
+          },
+          assignments: [],
+        },
+      ] as any);
+
+      const req = new Request("http://localhost:3000/api/invoices/bulk-pdf?ids=inv-bulk-tot-conflict");
+      const res = await getBulkPdfRoute(req);
+      expect(res.status).toBe(422);
+    });
+
+    it("sendInvoiceEmail fails closed and dispatches zero emails when snapshot has monetary totals conflict", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      const { sendEmailToRecipients } = await import("@/lib/email");
+      vi.mocked(sendEmailToRecipients).mockClear();
+
+      vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce({
+        id: "inv-email-tot-conflict",
+        invoiceNumber: "RE-2025-EMAIL-TOT-CONFLICT",
+        date: new Date("2025-10-01"),
+        netAmount: 500,
+        vatAmount: 95,
+        grossAmount: 595,
+        status: "sent",
+        pdfUrl: null,
+        snapshotData: {
+          ...validSnapshot,
+          subtotalCents: 50000,
+          subtotal: "600,00 €",
+        },
+        client: {
+          id: "client-1",
+          facilityName: "Residenz Ahr",
+          address: "Hauptstr. 1, 53474 Bad Neuenahr",
+          billingEmail: "buchhaltung@example.com",
+          paymentTermsDays: 14,
+          user: null,
+          subUsers: [],
+        },
+        assignments: [],
+      } as any);
+
+      await expect(
+        sendInvoiceEmail({ invoiceId: "inv-email-tot-conflict" })
+      ).rejects.toThrow(
+        "E-Mail-Versand abgebrochen: Für diese historische Rechnung ist weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt"
+      );
+
+      expect(sendEmailToRecipients).not.toHaveBeenCalled();
     });
   });
 });

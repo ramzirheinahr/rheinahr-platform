@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { generateMonthInvoices, previewMonthInvoicing } from "@/app/[locale]/admin/clients/[id]/schedule/invoice-actions";
-import { deleteInvoice, cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { InvoiceRefreshDialog } from "./invoice-refresh-dialog";
 import { useTranslations } from "next-intl";
@@ -98,16 +98,6 @@ export function AdminInvoicesBanner({
     }
   };
 
-  const handleDelete = async (invoiceId: string) => {
-    if (!confirm("Möchten Sie diese Rechnung wirklich löschen? Zugehörige Schichten werden wieder freigegeben.")) return;
-    try {
-      await deleteInvoice(invoiceId);
-      toast.success(t("deleteSuccess") || "Rechnung erfolgreich gelöscht!");
-      router.refresh();
-    } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Löschen der Rechnung");
-    }
-  };
 
   const handleRefresh = (invoiceId: string) => {
     setRefreshInvoiceId(invoiceId);
@@ -173,10 +163,6 @@ export function AdminInvoicesBanner({
                     {t("cancelInvoice")}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleDelete(inv.id)}>
-                  <Trash2 className="size-4 mr-2" />
-                  {t("deleteInvoice")}
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ))}

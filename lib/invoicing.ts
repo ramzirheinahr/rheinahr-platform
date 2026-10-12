@@ -515,6 +515,153 @@ export function normalizeHistoricalItem(
   };
 }
 
+export interface ValidatedMonetaryTotals {
+  subtotalCents: number;
+  taxAmountCents: number;
+  totalCents: number;
+  subtotalDisplay: string;
+  taxAmountDisplay: string;
+  totalDisplay: string;
+}
+
+/**
+ * Validates the monetary totals (net/subtotal, tax/vat, gross/total) stored in an invoice snapshot.
+ * Enforces strict, fail-closed consistency between all present representations:
+ * - Integer cent fields (subtotalCents, netAmountCents, taxAmountCents, vatAmountCents, totalCents, grossAmountCents)
+ * - Text strings or formatted numbers (subtotal, netAmount, taxAmount, vatAmount, total, grossAmount)
+ *
+ * If ANY field representation conflicts with another within the same total group, returns null.
+ * If any of the three total groups is completely missing or unparseable, returns null.
+ */
+export function validateSnapshotMonetaryTotals(
+  snapshot: unknown
+): ValidatedMonetaryTotals | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return null;
+  }
+  const s = snapshot as Record<string, unknown>;
+
+  // 1. Subtotal / Net
+  const subtotalCentValues: number[] = [];
+  if (s.subtotalCents !== undefined && s.subtotalCents !== null) {
+    if (typeof s.subtotalCents !== "number" || !Number.isSafeInteger(s.subtotalCents)) {
+      return null;
+    }
+    subtotalCentValues.push(s.subtotalCents);
+  }
+  if (s.netAmountCents !== undefined && s.netAmountCents !== null) {
+    if (typeof s.netAmountCents !== "number" || !Number.isSafeInteger(s.netAmountCents)) {
+      return null;
+    }
+    subtotalCentValues.push(s.netAmountCents);
+  }
+  for (const k of ["subtotal", "netAmount"] as const) {
+    const val = s[k];
+    if (val !== undefined && val !== null && String(val).trim() !== "") {
+      const parsed = parseCurrencyAmountToCents(val);
+      if (parsed === null) return null;
+      subtotalCentValues.push(parsed);
+    }
+  }
+  if (subtotalCentValues.length === 0) return null;
+  const expectedSubtotalCents = subtotalCentValues[0];
+  for (let i = 1; i < subtotalCentValues.length; i++) {
+    if (subtotalCentValues[i] !== expectedSubtotalCents) {
+      return null; // Conflicting subtotal representations!
+    }
+  }
+
+  // 2. Tax / VAT
+  const taxCentValues: number[] = [];
+  if (s.taxAmountCents !== undefined && s.taxAmountCents !== null) {
+    if (typeof s.taxAmountCents !== "number" || !Number.isSafeInteger(s.taxAmountCents)) {
+      return null;
+    }
+    taxCentValues.push(s.taxAmountCents);
+  }
+  if (s.vatAmountCents !== undefined && s.vatAmountCents !== null) {
+    if (typeof s.vatAmountCents !== "number" || !Number.isSafeInteger(s.vatAmountCents)) {
+      return null;
+    }
+    taxCentValues.push(s.vatAmountCents);
+  }
+  for (const k of ["taxAmount", "vatAmount"] as const) {
+    const val = s[k];
+    if (val !== undefined && val !== null && String(val).trim() !== "") {
+      const parsed = parseCurrencyAmountToCents(val);
+      if (parsed === null) return null;
+      taxCentValues.push(parsed);
+    }
+  }
+  if (taxCentValues.length === 0) return null;
+  const expectedTaxCents = taxCentValues[0];
+  for (let i = 1; i < taxCentValues.length; i++) {
+    if (taxCentValues[i] !== expectedTaxCents) {
+      return null; // Conflicting tax representations!
+    }
+  }
+
+  // 3. Total / Gross
+  const totalCentValues: number[] = [];
+  if (s.totalCents !== undefined && s.totalCents !== null) {
+    if (typeof s.totalCents !== "number" || !Number.isSafeInteger(s.totalCents)) {
+      return null;
+    }
+    totalCentValues.push(s.totalCents);
+  }
+  if (s.grossAmountCents !== undefined && s.grossAmountCents !== null) {
+    if (typeof s.grossAmountCents !== "number" || !Number.isSafeInteger(s.grossAmountCents)) {
+      return null;
+    }
+    totalCentValues.push(s.grossAmountCents);
+  }
+  for (const k of ["total", "grossAmount"] as const) {
+    const val = s[k];
+    if (val !== undefined && val !== null && String(val).trim() !== "") {
+      const parsed = parseCurrencyAmountToCents(val);
+      if (parsed === null) return null;
+      totalCentValues.push(parsed);
+    }
+  }
+  if (totalCentValues.length === 0) return null;
+  const expectedTotalCents = totalCentValues[0];
+  for (let i = 1; i < totalCentValues.length; i++) {
+    if (totalCentValues[i] !== expectedTotalCents) {
+      return null; // Conflicting total representations!
+    }
+  }
+
+  const subtotalDisplay =
+    typeof s.subtotal === "string" && s.subtotal.trim() && parseCurrencyAmountToCents(s.subtotal) === expectedSubtotalCents
+      ? (s.subtotal.includes("€") ? s.subtotal.trim() : `${s.subtotal.trim()} €`)
+      : typeof s.netAmount === "string" && s.netAmount.trim() && parseCurrencyAmountToCents(s.netAmount) === expectedSubtotalCents
+      ? (s.netAmount.includes("€") ? s.netAmount.trim() : `${s.netAmount.trim()} €`)
+      : formatAmount(expectedSubtotalCents / 100);
+
+  const taxAmountDisplay =
+    typeof s.taxAmount === "string" && s.taxAmount.trim() && parseCurrencyAmountToCents(s.taxAmount) === expectedTaxCents
+      ? (s.taxAmount.includes("€") ? s.taxAmount.trim() : `${s.taxAmount.trim()} €`)
+      : typeof s.vatAmount === "string" && s.vatAmount.trim() && parseCurrencyAmountToCents(s.vatAmount) === expectedTaxCents
+      ? (s.vatAmount.includes("€") ? s.vatAmount.trim() : `${s.vatAmount.trim()} €`)
+      : formatAmount(expectedTaxCents / 100);
+
+  const totalDisplay =
+    typeof s.total === "string" && s.total.trim() && parseCurrencyAmountToCents(s.total) === expectedTotalCents
+      ? (s.total.includes("€") ? s.total.trim() : `${s.total.trim()} €`)
+      : typeof s.grossAmount === "string" && s.grossAmount.trim() && parseCurrencyAmountToCents(s.grossAmount) === expectedTotalCents
+      ? (s.grossAmount.includes("€") ? s.grossAmount.trim() : `${s.grossAmount.trim()} €`)
+      : formatAmount(expectedTotalCents / 100);
+
+  return {
+    subtotalCents: expectedSubtotalCents,
+    taxAmountCents: expectedTaxCents,
+    totalCents: expectedTotalCents,
+    subtotalDisplay,
+    taxAmountDisplay,
+    totalDisplay,
+  };
+}
+
 /**
  * Resolves any candidate stored PDF file path/URL from invoice or snapshotData.
  * Covers:
@@ -623,31 +770,28 @@ export function hasReliableInvoiceDocument(
       }
     }
 
-    const subCents = snap.subtotalCents;
-    const taxCents = snap.taxAmountCents;
-    const totCents = snap.totalCents;
+    const validatedTotals = validateSnapshotMonetaryTotals(snap);
+    if (!validatedTotals) {
+      return false;
+    }
+    const { subtotalCents, taxAmountCents, totalCents } = validatedTotals;
 
-    if (
-      typeof subCents !== "number" ||
-      typeof taxCents !== "number" ||
-      typeof totCents !== "number" ||
-      subCents + taxCents !== totCents
-    ) {
+    if (subtotalCents + taxAmountCents !== totalCents) {
       return false;
     }
 
     // Parity with invoice DB amounts if provided
     if (invoice.netAmount !== undefined && invoice.netAmount !== null) {
       const dbNetCents = Math.round(Number(invoice.netAmount) * 100);
-      if (subCents !== dbNetCents) return false;
+      if (subtotalCents !== dbNetCents) return false;
     }
     if (invoice.vatAmount !== undefined && invoice.vatAmount !== null) {
       const dbVatCents = Math.round(Number(invoice.vatAmount) * 100);
-      if (taxCents !== dbVatCents) return false;
+      if (taxAmountCents !== dbVatCents) return false;
     }
     if (invoice.grossAmount !== undefined && invoice.grossAmount !== null) {
       const dbGrossCents = Math.round(Number(invoice.grossAmount) * 100);
-      if (totCents !== dbGrossCents) return false;
+      if (totalCents !== dbGrossCents) return false;
     }
 
     return true;
@@ -757,24 +901,11 @@ export function hasReliableInvoiceDocument(
   }
 
   // Mandatory monetary totals
-  const subtotalCents =
-    typeof snap.subtotalCents === "number" && !isNaN(snap.subtotalCents)
-      ? snap.subtotalCents
-      : parseCurrencyAmountToCents(snap.subtotal ?? snap.netAmount);
-
-  const taxAmountCents =
-    typeof snap.taxAmountCents === "number" && !isNaN(snap.taxAmountCents)
-      ? snap.taxAmountCents
-      : parseCurrencyAmountToCents(snap.taxAmount ?? snap.vatAmount);
-
-  const totalCents =
-    typeof snap.totalCents === "number" && !isNaN(snap.totalCents)
-      ? snap.totalCents
-      : parseCurrencyAmountToCents(snap.total ?? snap.grossAmount);
-
-  if (subtotalCents === null || taxAmountCents === null || totalCents === null) {
+  const validatedTotals = validateSnapshotMonetaryTotals(snap);
+  if (!validatedTotals) {
     return false;
   }
+  const { subtotalCents, taxAmountCents, totalCents } = validatedTotals;
 
   // Discrepancy between calculated items and subtotal (allow <= 1 cent legacy rounding)
   if (Math.abs(calculatedItemsNetCents - subtotalCents) > 1) {

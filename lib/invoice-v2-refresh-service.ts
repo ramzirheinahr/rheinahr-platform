@@ -48,7 +48,11 @@ import { formatCentsGerman } from "./invoice-exact-engine";
 import { computeV2DraftHash } from "./invoice-v2-issuance-service";
 import { buildInvoicePdfData } from "./invoice-pdf-builder";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
-import { normalizeHistoricalItem, resolveStoredPdfCandidatePath } from "./invoicing";
+import {
+  normalizeHistoricalItem,
+  resolveStoredPdfCandidatePath,
+  validateSnapshotMonetaryTotals,
+} from "./invoicing";
 
 // ============================================================================
 // Error Types
@@ -1076,12 +1080,7 @@ export async function isCompleteFrozenSnapshot(
 
   // Mandatory Totals Check: subtotal, taxAmount, total
   const hasRawSubtotal = s.subtotalCents !== undefined || s.subtotal !== undefined || s.netAmount !== undefined;
-  const subtotalCents =
-    typeof s.subtotalCents === "number" && !isNaN(s.subtotalCents)
-      ? s.subtotalCents
-      : parseCurrencyAmountToCents(s.subtotal ?? s.netAmount);
-
-  if (!hasRawSubtotal || subtotalCents === null) {
+  if (!hasRawSubtotal) {
     return { complete: false, reason: "Snapshot enthält keine Zwischensumme (subtotal fehlt)." };
   }
 
@@ -1090,12 +1089,7 @@ export async function isCompleteFrozenSnapshot(
     s.taxAmount !== undefined ||
     s.vatAmount !== undefined ||
     s.vatAmountCents !== undefined;
-  const taxAmountCents =
-    typeof s.taxAmountCents === "number" && !isNaN(s.taxAmountCents)
-      ? s.taxAmountCents
-      : parseCurrencyAmountToCents(s.taxAmount ?? s.vatAmount);
-
-  if (!hasRawTax || taxAmountCents === null) {
+  if (!hasRawTax) {
     return { complete: false, reason: "Snapshot enthält keinen Steuerbetrag (taxAmount/vatAmount fehlt)." };
   }
 
@@ -1104,14 +1098,20 @@ export async function isCompleteFrozenSnapshot(
     s.total !== undefined ||
     s.grossAmount !== undefined ||
     s.grossAmountCents !== undefined;
-  const totalCents =
-    typeof s.totalCents === "number" && !isNaN(s.totalCents)
-      ? s.totalCents
-      : parseCurrencyAmountToCents(s.total ?? s.grossAmount);
-
-  if (!hasRawTotal || totalCents === null) {
+  if (!hasRawTotal) {
     return { complete: false, reason: "Snapshot enthält keinen Gesamtbetrag (total/grossAmount fehlt)." };
   }
+
+  const validatedTotals = validateSnapshotMonetaryTotals(s);
+  if (!validatedTotals) {
+    return {
+      complete: false,
+      reason:
+        "Snapshot enthält widersprüchliche oder unvollständige Gesamtbeträge (Zwischensumme, Steuer oder Gesamtbetrag weicht zwischen Text und Cent ab).",
+    };
+  }
+
+  const { subtotalCents, taxAmountCents, totalCents } = validatedTotals;
 
   // Mathematical Integrity Check: Items Sum vs Snapshot Subtotal
   // Zero tolerance for arbitrary discrepancies. Exactly 1 cent discrepancy is documented legacy rounding flaw.
