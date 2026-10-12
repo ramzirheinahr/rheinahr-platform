@@ -116,7 +116,12 @@ export async function previewClientApprovalAction(
       nightStart: input.nightStart,
       nightEnd: input.nightEnd,
       combinationRule: input.combinationRule,
-      sourceType: input.sourceType === "framework_agreement" ? "contract" : input.sourceType,
+      // The policy enum records contractual provenance; the specific amendment
+      // remains identifiable in sourceReference. Rate versions retain their own
+      // more detailed source type.
+      sourceType: input.sourceType === "framework_agreement" || input.sourceType === "contract_amendment"
+        ? "contract"
+        : input.sourceType,
       sourceReference: input.sourceReference,
       effectiveFrom: input.effectiveFrom,
       effectiveTo: input.effectiveTo,

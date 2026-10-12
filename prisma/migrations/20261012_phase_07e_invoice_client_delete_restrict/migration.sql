@@ -13,6 +13,11 @@
 -- 3. Backward Compatibility: 100% backward compatible with application logic, as normal
 --    business flows do not rely on physical cascading deletion of invoices.
 
+-- Keep the old foreign key in place if adding its replacement fails or the
+-- deployment is interrupted. PostgreSQL rolls back both DDL statements.
+BEGIN;
+SET LOCAL lock_timeout = '5s';
+
 -- 1. Drop pre-existing foreign key constraint if it exists (which had ON DELETE CASCADE)
 ALTER TABLE "invoices"
 DROP CONSTRAINT IF EXISTS "invoices_client_id_fkey";
@@ -24,3 +29,5 @@ FOREIGN KEY ("client_id")
 REFERENCES "clients"("id")
 ON DELETE RESTRICT
 ON UPDATE CASCADE;
+
+COMMIT;

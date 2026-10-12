@@ -46,12 +46,18 @@ export default async function EditClientPage({
       include: {
         user: { select: { id: true, email: true, active: true, receiveEmails: true, loginToken: true, fullName: true, jobTitle: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } },
         subUsers: { select: { id: true, email: true, fullName: true, jobTitle: true, active: true, receiveEmails: true, sessions: { select: { id: true, device: true, ipAddress: true, lastActive: true, createdAt: true } } } },
-        _count: { select: { hourlyRateVersions: true, surchargePolicies: true } },
       },
     })
     .catch(() => null);
 
   if (!client) notFound();
+
+  // The second company can receive the shared application code before its V2
+  // migrations. Keep the existing client editor usable in that case.
+  const v2Counts = await Promise.all([
+    prisma.clientHourlyRateVersion.count({ where: { clientId: id, isFrozen: true } }),
+    prisma.facilitySurchargePolicy.count({ where: { clientId: id, isFrozen: true } }),
+  ]).catch(() => null);
 
   const allTypes = await prisma.client.findMany({ select: { facilityType: true }, distinct: ["facilityType"] });
   const customFacilityTypes = allTypes
@@ -114,8 +120,8 @@ export default async function EditClientPage({
       {/* V2 Pricing & Surcharge Policies Verification */}
       {(() => {
         const hasV2 =
-          (client._count?.hourlyRateVersions ?? 0) > 0 &&
-          (client._count?.surchargePolicies ?? 0) > 0;
+          (v2Counts?.[0] ?? 0) > 0 &&
+          (v2Counts?.[1] ?? 0) > 0;
         return (
           <div className="rounded-xl border p-4 bg-card space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -136,7 +142,7 @@ export default async function EditClientPage({
                 </div>
                 <p className="text-xs text-muted-foreground">{t("v2CardDesc")}</p>
               </div>
-              <Button
+              {v2Counts && <Button
                 variant="outline"
                 size="sm"
                 className="gap-2 shrink-0"
@@ -144,7 +150,7 @@ export default async function EditClientPage({
               >
                 <ShieldCheck className="size-4" />
                 {t("manageRates")}
-              </Button>
+              </Button>}
             </div>
           </div>
         );
