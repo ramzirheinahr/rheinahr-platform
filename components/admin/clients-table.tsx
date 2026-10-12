@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
-import { Pencil, Clock, Search } from "lucide-react";
+import { Pencil, Clock, Search, ShieldCheck } from "lucide-react";
 import { ReceiveEmailsToggle } from "./receive-emails-toggle";
 
 export type ClientTableRow = {
@@ -51,8 +51,8 @@ export function ClientsTable({ rows }: { rows: ClientTableRow[] }) {
     
     if (sortConfig) {
       result = [...result].sort((a, b) => {
-        let aVal = a[sortConfig.key as keyof ClientTableRow] ?? "";
-        let bVal = b[sortConfig.key as keyof ClientTableRow] ?? "";
+        const aVal = a[sortConfig.key as keyof ClientTableRow] ?? "";
+        const bVal = b[sortConfig.key as keyof ClientTableRow] ?? "";
         
         // If sorting by internalNumber and both are numeric, we can sort them numerically
         if (sortConfig.key === "internalNumber") {
@@ -109,6 +109,15 @@ export function ClientsTable({ rows }: { rows: ClientTableRow[] }) {
       action: true,
       cell: (cl) => (
         <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            render={<Link href={`/admin/clients/${cl.id}/rates`} />}
+          >
+            <ShieldCheck className="size-4" />
+            {t("ratesApprovalAction")}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
