@@ -12,7 +12,10 @@ import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { qualifications, type Qualification } from "@/lib/validations";
 import { pushToUsers } from "@/lib/push";
-import { hasHistoricalInvoiceRecordForAssignment } from "@/lib/invoicing";
+import {
+  hasHistoricalInvoiceRecordForAssignment,
+  hasHistoricalInvoiceRecordForOrder,
+} from "@/lib/invoicing";
 
 // Cell-level edits on the master schedule grid. Every edit here mutates the
 // SAME entities the order/availability pages use (WorkerAvailability, Order,
@@ -1026,6 +1029,20 @@ export async function deleteOpenOrderFromGrid(orderId: string): Promise<ActionSt
     where: { orderId: order.id, invoiceId: { not: null } },
   });
   if (invoiced > 0) return { ok: false, error: "lockedInvoiced" };
+
+  if (await hasHistoricalInvoiceRecordForOrder(order.id)) {
+    return { ok: false, error: "lockedInvoiced" };
+  }
+
+  const orderAssignments = await prisma.assignment.findMany({
+    where: { orderId: order.id },
+    select: { id: true },
+  });
+  for (const asgn of orderAssignments) {
+    if (await hasHistoricalInvoiceRecordForAssignment(asgn.id)) {
+      return { ok: false, error: "lockedInvoiced" };
+    }
+  }
 
   await prisma.order.delete({ where: { id: order.id } });
 

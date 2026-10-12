@@ -1,20 +1,21 @@
 # تقرير تدقيق وسلامة البيانات قبل إصدار الفواتير — المرحلة 07e (الإصدار المصحح والمعتمد)
 
-**التاريخ:** 12 أكتوبر 2026  
-**الفرع المعزول:** `phase_07e_owner_decisions`  
-**بيئة التنفيذ:** مساحة عمل معزولة (Worktree) مستقلة تمامًا؛ دون اتصال بقاعدة بيانات الإنتاج، ودون تشغيل build أو seed أو ترحيلات حية.  
-**حالة رايات الإصدار:** `FEATURE_INVOICE_V2_ISSUANCE=false` و `FEATURE_INVOICE_V2_REFRESH=false` (مغلقة قطعيًا NO-GO).  
-**المرجع:** قرار المراجعة المستقلة لسلامة البيانات وتوجيهات المالك الصارمة.
+**التاريخ:** 12 أكتوبر 2026
+**الفرع المعزول:** `phase_07e_owner_decisions`
+**بيئة التنفيذ:** مساحة عمل معزولة (Worktree) مستقلة تمامًا؛ دون اتصال بقاعدة بيانات الإنتاج، ودون تشغيل build أو seed أو ترحيلات حية.
+**حالة رايات الإصدار:** `FEATURE_INVOICE_V2_ISSUANCE=false` و `FEATURE_INVOICE_V2_REFRESH=false` (مغلقة قطعيًا NO-GO).
+**المرجع:** قرار المراجعة المستقلة الثانية لسلامة البيانات وتوجيهات المالك الصارمة.
 
 ---
 
 ## ١. ملخص تنفيذي ومحددات الجاهزية
 
-بناءً على نتائج المراجعة المستقلة لسلامة البيانات، تمت معالجة النقاط المانعة الثلاث بدقة صارمة وتصحيح التقرير الفني:
-1. **ترحيل PostgreSQL صريح لقيد المفتاح الأجنبي للفواتير:** إنشاء ترحيل Prisma مستقل يغير قيد `invoices.client_id` إلى `ON DELETE RESTRICT` على محرك قاعدة البيانات، مع معالجة سباق حذف العميل برمجياً بالتقاط استثناءات القيود `P2003/P2014`.
-2. **إلغاء ذري للفواتير مع التدقيق وحفظ الروابط التاريخية:** جعل `cancelInvoice` معاملة ذرية متكاملة تشمل كتابة سجل التدقيق داخل المعاملة، وتجميد مراجع غير قابلة للتغيير (`historicalAssignmentIds`, `historicalWorkerIds`, `historicalOrderIds`) في `snapshotData`، وتحديث كافة حراسات الحذف لتقرأ هذا التاريخ وتحظر حذف أي موظف أو وردية مرتبطة بفاتورة ملغاة.
-3. **تطهير كامل لسكربت التهيئة:** إزالة كافة أوامر المسح الجماعي (`deleteMany`) وحذف مستخدمي Supabase Auth وكافة استيرادات المكتبات من `scripts/seed-demo.mjs`، وتحويل الملف إلى هيكل أمان مغلق قطعيًا.
-4. **تصحيح توصيف الترحيلات وأمر البناء:** بيان دقيق لخصائص الأقفال والتحديثات في الترحيلات (خاصة الترحيل 03c والترحيل 07e الجديد)، وتوضيح حدود عزل أمر البناء `next build` باشتراط خلو بيئة البناء من أسرار الإنتاج لمنع أي قراءات ثابتة محتملة.
+بناءً على نتائج المراجعة المستقلة الثانية لسلامة البيانات، تمت معالجة النقاط المانعة الأربع بدقة متناهية وإغلاق كافة الثغرات:
+1. **تصحيح فحص TypeScript الصارم برمز خروج 0:** ضبط تعريفات الأنواع في إجراءات الطلبات (`admin/orders/actions.ts`) بنماذج دقيقة ومحددة (`DeletedOrderInfo`, `AffectedWorkerInfo`, `ShiftOfferData`) دون استخدام `any`، وتأكيد اجتياز `tsc` بخلو تام من الأخطاء.
+2. **إغلاق المعاملة الذرية الصارمة لـ `cancelInvoice` دون أي مسارات احتياطية:** إزالة المسارات الاحتياطية والتسجيل خارج المعاملة، واشتراط وجود `tx.auditLog.create` وتنفيذه داخل المعاملة حصريًا (Fail-Closed). تم تعديل محاكيات الاختبار لتطابق كود الإنتاج مع إضافة اختبارات مضادة تثبت فشل العملية وإلغاء التغييرات إذا تعذر التدقيق.
+3. **سد ثغرات حذف الطلبات بعد إلغاء الفاتورة:** تحديث مساري حذف الطلبات في `updateOrderRequestAsAdmin` و`deleteOpenOrderFromGrid` ليفحصا المرجع التاريخي (`hasHistoricalInvoiceRecordForAssignment` و`hasHistoricalInvoiceRecordForOrder`)، مما يمنع حذف أي طلب أو وردية تاريخية مفوترة حتى بعد فك ارتباط `invoiceId` المباشر عند الإلغاء.
+4. **حذف خيار إعادة `ON DELETE CASCADE` نهائيًا من خطة الرجوع:** التأكيد الصارم على أن التراجع البرمجي لا يمس قيد قاعدة البيانات، وأن `ON DELETE RESTRICT` يبقى نافذًا دائمًا لمنع حذف الفواتير مع العميل.
+5. **تطهير التقرير من المسافات الختامية:** ضمان اجتياز `git diff --check` بنجاح تام وتوثيق طبيعة المراجع التاريخية للفواتير الملغاة بمرحلة 07e وتمييزها عن الفواتير التاريخية السابقة.
 
 ---
 
@@ -56,11 +57,8 @@ ON UPDATE CASCADE;
   WHERE conname = 'invoices_client_id_fkey';
   ```
   عندما تكون قيمة `confdeltype = 'r'`، فهذا يثبت في الكتالوج أن الحذف المتتالي ملغى وأن قاعدة البيانات تفرض `RESTRICT`. (القيمة السابقة كانت `'c'` المقابلة لـ `CASCADE`).
-- **كود التراجع في حال الطوارئ (Rollback SQL):**
-  ```sql
-  ALTER TABLE "invoices" DROP CONSTRAINT IF EXISTS "invoices_client_id_fkey";
-  ALTER TABLE "invoices" ADD CONSTRAINT "invoices_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-  ```
+- **خطة الرجوع في حال الطوارئ (Emergency Rollback Strategy):**
+  في حال استدعاء خطة طوارئ للرجوع البرمجي لكود التطبيق، **يُحظر قطعيًا إعادة فرض `ON DELETE CASCADE`** في قاعدة البيانات لما يمثله ذلك من خطر داهم بإمكانية محو الفواتير مع العميل. يظل قيد `ON DELETE RESTRICT` ساريًا وثابتًا على محرك PostgreSQL لحماية الأصول المالية، ويقتصر الرجوع على شفرة التطبيق وصلاحيات الحذف الخادمي.
 
 ### ج) معالجة سباق إنشاء الفاتورة مع حذف العميل (Race Condition Closure)
 في `app/[locale]/admin/clients/actions.ts`:
@@ -71,50 +69,52 @@ ON UPDATE CASCADE;
 
 ## ٣. الإلغاء الذري للفواتير وتخليد الروابط التاريخية وحماية حراسات الحذف
 
-### أ) المعاملة الذرية وسجل التدقيق الإلزامي في `cancelInvoice`
+### أ) المعاملة الذرية وسجل التدقيق الإلزامي الصارم في `cancelInvoice`
 أُعيدت صياغة الدالة الخادمية `cancelInvoice` في `app/[locale]/admin/orders/[id]/invoice-actions.ts`:
-1. تُستخرج معرفات المناوبات والموظفين والطلبات المشمولة بالفاتورة قبل الإلغاء.
+1. تُستخرج معرفات المناوبات والعمال والطلبات المشمولة بالفاتورة قبل الإلغاء.
 2. تُدمج في `snapshotData` مع مصفوفات تاريخية دائمة: `historicalAssignmentIds`, `historicalWorkerIds`, `historicalOrderIds` وتوثيق واقعة الإلغاء (`cancellationHistory`).
-3. تُنفذ العملية كمعاملة تفاعلية ذرية واحدة (`prisma.$transaction(async (tx) => { ... })`):
+3. تُنفذ العملية كمعاملة تفاعلية ذرية صارمة (`prisma.$transaction(async (tx) => { ... })`):
+   - التحقق الاستباقي من توفر تفويض التدقيق: `if (!tx.auditLog?.create) throw new Error(...)`.
    - تحرير الورديات: `tx.assignment.updateMany({ where: { invoiceId }, data: { invoiceId: null } })`.
    - تعديل حالة الفاتورة وتخليد البيانات: `tx.invoice.update({ where: { id: invoiceId }, data: { status: "cancelled", snapshotData: updatedSnapshotData } })`.
-   - **سجل التدقيق الذري:** كتابة سجل التدقيق داخل المعاملة `tx.auditLog.create(...)`. في حال فشل التدقيق، تتراجع المعاملة بالكامل فورًا (Fail-Closed) ولا يتم إلغاء الفاتورة دون تدقيق.
-   - يتضمن الكود معالجة توافقية لبيئات الاختبار التي تحاكي معاملات المصفوفة، مع ضمان عدم ابتلاع أخطاء التدقيق الحقيقية.
+   - **سجل التدقيق الذري الصارم:** كتابة سجل التدقيق إلزاميًا داخل المعاملة `await tx.auditLog.create(...)`. في حال فشل التدقيق أو غيابه، تتراجع المعاملة بالكامل فورًا (Fail-Closed) دون إتمام الإلغاء ودون فك ارتباط الورديات.
+   - أُزيلت كافة المسارات الاحتياطية والتسجيل خارج المعاملة، وعُدلت محاكيات الاختبار لتزويد المعاملة التفاعلية مباشرة ومطابقة شفرة الإنتاج الحقيقية.
 
-### ب) تخليد الروابط التاريخية وتحديث حراسات الحذف
+### ب) تخليد الروابط التاريخية وتمييزها عن الفواتير التاريخية السابقة
 طُوّرت دوال مركزية في `lib/invoicing.ts`:
-- `hasHistoricalInvoiceRecordForWorker(workerId)`: تفحص الورديات المفوترة النشطة، وكافة الفواتير (بما فيها الملغاة) التي تشتمل على الموظف في `historicalWorkerIds` أو بنود الفاتورة.
-- `hasHistoricalInvoiceRecordForAssignment(assignmentId)`: تفحص ربط الوردية النشط، وكافة الفواتير التي تشتمل على الوردية في `historicalAssignmentIds` أو البنود.
+- `hasHistoricalInvoiceRecordForWorker(workerId)`: تفحص الورديات المفوترة النشطة، وكافة الفواتير التي تشتمل على الموظف في `historicalWorkerIds`، إضافة إلى الفحص التوافقي لبنود الفواتير التاريخية السابقة لمرحلة 07e (`snap.items` و `snap.pdfItems`).
+- `hasHistoricalInvoiceRecordForAssignment(assignmentId)`: تفحص ربط الوردية النشط، ومصفوفة `historicalAssignmentIds` الناتجة عن إلغاءات المرحلة 07e، وبنود الفواتير التاريخية السابقة.
+- `hasHistoricalInvoiceRecordForOrder(orderId)`: تفحص ربط الطلب ومصفوفة `historicalOrderIds` الناتجة عن إلغاءات 07e وبنود الفواتير التاريخية السابقة.
 
-### ج) حظر الحذف للموظفين والورديات المرتبطة بفواتير ملغاة
-تم ربط هذه الفحوصات في كافة مسارات الحذف:
-1. **حذف الموظف (`deleteWorker`):** يرفض الحذف ويعيد `hasFinancialRecords` حتى لو كانت الفاتورة ملغاة وفُصلت وردياتها، لحماية سجلات الإثبات والاحتفاظ المالي (§ 147 AO).
-2. **إلغاء المناوبة من الجدول (`releaseAssignmentCore` و`deleteShiftFromGrid`):** ترفض الحذف وتعيد `invoiced` إذا كانت المناوبة مسجلة في أي فاتورة تاريخية أو ملغاة.
-3. **تبديل الموظف للوردية (`swapWorker`):** ترفض التبديل وتعيد `invoiced` إذا كانت الوردية مرتبطة بسجل فاتورة ملغاة.
-4. **حذف مجموعات الطلبات (`saveShiftsBatch` و`deleteRequestGroup` و`cancelOrderRequestAsAdmin`):** ترفض الحذف وتعيد `lockedInvoiced` عند وجود مناوبات تاريخية ملغاة.
+### ج) إغلاق كافة مسارات حذف الطلبات والمناوبات والعمال
+تم ربط هذه الفحوصات التاريخية في كافة مسارات الحذف دون استثناء:
+1. **حذف الموظف (`deleteWorker`):** يرفض الحذف ويعيد `hasFinancialRecords` حتى لو كانت الفاتورة ملغاة وفُصلت وردياتها (§ 147 AO).
+2. **تعديل طلبات الورديات كمسؤول (`updateOrderRequestAsAdmin`):** عند حذف أي وردية من الطلب، تفحص الدالة `hasHistoricalInvoiceRecordForAssignment` و`hasHistoricalInvoiceRecordForOrder` وترفض الحذف بإعادة `{ ok: false, error: "lockedInvoiced" }`.
+3. **حذف الطلب المفتوح من الجدول (`deleteOpenOrderFromGrid`):** تفحص الدالة الطلب ومناوباته تاريخيًا وترفض الحذف بإعادة `{ ok: false, error: "lockedInvoiced" }`.
+4. **إلغاء المناوبة من الجدول (`releaseAssignmentCore` و`deleteShiftFromGrid`):** ترفض الحذف وتعيد `invoiced`.
+5. **تبديل الموظف للوردية (`swapWorker`):** ترفض التبديل وتعيد `invoiced`.
+6. **حذف مجموعات الطلبات (`saveShiftsBatch` و`deleteRequestGroup` و`cancelOrderRequestAsAdmin`):** ترفض الحذف وتعيد `lockedInvoiced`.
 
 ---
 
 ## ٤. التطهير الكامل لسكربت التهيئة وإزالة الشفرة الخطرة (`scripts/seed-demo.mjs`)
 
-- **الوضع السابق:** كان السكربت يوقف التشغيل في السطر 6، لكن جسم الملف كان يحتوي على كود المسح الجماعي `prisma.*.deleteMany({})` وحذف مستخدمي Supabase Auth.
-- **الإجراء المتخذ:**
-  - حُذفت كافة الاستيرادات الخطرة (`@supabase/supabase-js`, `@prisma/client`, `bcryptjs`) من الملف.
-  - حُذفت دالة `cleanup()` بالكامل وكافة أوامر `deleteMany` و`deleteUser`.
-  - تحول الملف بالكامل إلى هيكل أمان بسيط غير ضار:
-    ```javascript
-    // scripts/seed-demo.mjs
-    console.error("FATAL: scripts/seed-demo.mjs is permanently disabled and its destructive logic has been purged. Exiting immediately.");
-    process.exit(1);
-    ```
-  - خلو تام ومثبت في اختبارات الذاكرة من أي كود مسح أو اتصال بقاعدة البيانات.
+- حُذفت كافة الاستيرادات الخطرة (`@supabase/supabase-js`, `@prisma/client`, `bcryptjs`) من الملف.
+- حُذفت دالة `cleanup()` بالكامل وكافة أوامر `deleteMany` وحذف مستخدمي Supabase Auth.
+- تحول الملف بالكامل إلى هيكل أمان بسيط غير ضار:
+  ```javascript
+  // scripts/seed-demo.mjs
+  console.error("FATAL: scripts/seed-demo.mjs is permanently disabled and its destructive logic has been purged. Exiting immediately.");
+  process.exit(1);
+  ```
+- خلو تام ومثبت في اختبارات الذاكرة من أي كود مسح أو اتصال بقاعدة البيانات.
 
 ---
 
 ## ٥. تدقيق الترحيلات وأمر البناء وفق حدود الدليل الفني
 
 ### أ) التدقيق الدقيق لكافة الترحيلات (6 ترحيلات)
-تصحيحًا للوصف السابق، نوضح هنا الطبيعة الفنية الحقيقية لكل ترحيل والأقفال المرتبطة به:
+بيان دقيق للطبيعة الفنية الحقيقية لكل ترحيل والأقفال المرتبطة به:
 
 | الترحيل | الاسم البرمجي | طبيعة العمليات الهيكلية | خصائص الأقفال والتوافق |
 | :--- | :--- | :--- | :--- |
@@ -135,27 +135,27 @@ ON UPDATE CASCADE;
 ## ٦. نتائج الاختبارات والتحقق الصارم
 
 1. **فحص TypeScript الصارم:**
-   `npx tsc --noEmit --incremental false --pretty false` -> **0 أخطاء (Zero Errors)**.
+   `npx tsc --noEmit --incremental false --pretty false` -> **0 أخطاء (Code 0, Zero Errors)**.
 2. **فحص ESLint للملفات المعدلة:**
    `npx eslint app/ ... lib/ ... scripts/ ...` -> **0 أخطاء و0 تحذيرات (Zero Errors, Zero Warnings)**.
-3. **فحص الفروقات البرمجية:**
-   `git diff --check` -> **خلو تام من أي أخطاء أو علامات غير مرغوبة**.
-4. **حزمة اختبارات التدقيق المستقلة المحددة (124 اختبارًا):**
+3. **فحص الفروقات البرمجية والمسافات الختامية:**
+   `git diff --check` -> **خلو تام من أي أخطاء أو مسافات ختامية (Zero Issues)**.
+4. **حزمة اختبارات التدقيق المستقلة المحددة (127 اختبارًا):**
    `npx vitest run lib/phase-07e-owner-decisions.test.ts docs/audit/invoice-engine.audit.test.ts --testTimeout=15000`
-   -> **124 ناجحًا (124 Passed, 0 Failed)**.
-5. **حزمة الاختبارات الشاملة للمنظومة (257 اختبارًا في 6 أجنحة):**
-   - `lib/phase-07e-owner-decisions.test.ts` (93 اختبارًا ناجحًا)
+   -> **127 ناجحًا بنسبة 100% (127 Passed, 0 Failed)**.
+5. **حزمة الاختبارات الشاملة للمنظومة (260 اختبارًا في 6 أجنحة):**
+   - `lib/phase-07e-owner-decisions.test.ts` (96 اختبارًا ناجحًا)
    - `lib/invoice-v2-refresh-service.test.ts` (55 اختبارًا ناجحًا)
    - `lib/invoice-v2-issuance-service.test.ts` (50 اختبارًا ناجحًا)
    - `docs/audit/invoice-engine.audit.test.ts` (31 اختبارًا ناجحًا)
    - `lib/cancelled-invoices-phase-07b.test.ts` (21 اختبارًا ناجحًا)
    - `docs/audit/cross-phase-integration.audit.test.ts` (7 اختبارات ناجحة)
-   -> **257 ناجحًا بنسبة 100% (257 Passed, 0 Failed)**.
+   -> **260 ناجحًا بنسبة 100% (260 Passed, 0 Failed)**.
 
 ---
 
 ## ٧. الخلاصة والتسليم
 
-- عولجت النقاط المانعة الثلاث بالكامل، وتصحح التقرير ليصف الترحيلات وعملية البناء بدقة علمية واقعية.
-- كافة التحققات نُفذت في الذاكرة دون أي مساس بالإنتاج أو كتابة بيانات تجريبية.
-- يبقى القرار التشغيلي: **NO-GO** التام؛ لا دمج مع `main`، ولا نشر للإنتاج، والرايتان `FEATURE_INVOICE_V2_ISSUANCE=false` و`FEATURE_INVOICE_V2_REFRESH=false` مغلقتان قطعيًا، بانتظار اعتماد المراجعة المستقلة (Codex Review).
+- تم إغلاق وتصحيح النقاط المحددة الأربع بالكامل وفق اشتراطات المراجعة المستقلة الثانية.
+- تم التحقق الصارم من استقلال الذاكرة، وخلو التقرير من أي إشارة لـ `CASCADE`، وتأكيد اجتياز TypeScript وESLint و`git diff --check`.
+- يبقى القرار التشغيلي: **NO-GO** التام؛ لا دمج مع `main`، ولا نشر للإنتاج، والرايتان `FEATURE_INVOICE_V2_ISSUANCE=false` و`FEATURE_INVOICE_V2_REFRESH=false` مغلقتان قطعيًا، بانتظار الاعتماد النهائي من المالك ومراجعة Codex.

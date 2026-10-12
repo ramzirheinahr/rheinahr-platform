@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } from "@/lib/pricing";
@@ -270,89 +269,34 @@ export async function cancelInvoice(invoiceId: string) {
   };
 
   // Atomic transaction: release assignments, update invoice status & snapshotData, AND write audit log
-  try {
-    await prisma.$transaction(async (tx) => {
-      // 1. Release the assignments so they can be re-invoiced
-      if (invoice.assignments.length > 0) {
-        await tx.assignment.updateMany({
-          where: { invoiceId },
-          data: { invoiceId: null },
-        });
-      }
+  await prisma.$transaction(async (tx) => {
+    // 0. Ensure audit log capability exists in this transaction context (fail-closed)
+    if (!tx.auditLog?.create) {
+      throw new Error(
+        "Audit-Log-Delegate fehlt in der Transaktion (Zero-Tolerance: Keine Stornierung ohne Revisionsprotokoll)."
+      );
+    }
 
-      // 2. Mark invoice as cancelled and preserve immutable historical records in snapshotData
-      await tx.invoice.update({
-        where: { id: invoiceId },
-        data: {
-          status: "cancelled",
-          snapshotData: updatedSnapshotData,
-        },
+    // 1. Release the assignments so they can be re-invoiced
+    if (invoice.assignments.length > 0) {
+      await tx.assignment.updateMany({
+        where: { invoiceId },
+        data: { invoiceId: null },
       });
+    }
 
-      // 3. Atomically write audit log inside the same transaction (fail-closed if audit fails)
-      if (tx.auditLog?.create) {
-        await tx.auditLog.create({
-          data: {
-            userId: user.id,
-            action: "invoice.cancel",
-            entity: "Invoice",
-            entityId: invoiceId,
-            metadata: {
-              assignmentCount: invoice.assignments.length,
-              assignmentIds: currentAssignmentIds.join(","),
-            },
-          },
-        });
-      } else {
-        await audit({
-          userId: user.id,
-          action: "invoice.cancel",
-          entity: "Invoice",
-          entityId: invoiceId,
-          metadata: {
-            assignmentCount: invoice.assignments.length,
-            assignmentIds: currentAssignmentIds.join(","),
-          },
-        });
-      }
+    // 2. Mark invoice as cancelled and preserve immutable historical records in snapshotData
+    await tx.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: "cancelled",
+        snapshotData: updatedSnapshotData,
+      },
     });
-  } catch (err: unknown) {
-    // If the mock environment strictly expects an array of promises in $transaction (e.g. Promise.all(ops))
-    if (
-      err instanceof TypeError &&
-      (err.message.includes("is not iterable") || err.message.includes("Promise.all"))
-    ) {
-      const ops: Prisma.PrismaPromise<unknown>[] = [
-        prisma.assignment.updateMany({
-          where: { invoiceId },
-          data: { invoiceId: null },
-        }),
-        prisma.invoice.update({
-          where: { id: invoiceId },
-          data: {
-            status: "cancelled",
-            snapshotData: updatedSnapshotData,
-          },
-        }),
-      ];
-      if (prisma.auditLog?.create) {
-        ops.push(
-          prisma.auditLog.create({
-            data: {
-              userId: user.id,
-              action: "invoice.cancel",
-              entity: "Invoice",
-              entityId: invoiceId,
-              metadata: {
-                assignmentCount: invoice.assignments.length,
-                assignmentIds: currentAssignmentIds.join(","),
-              },
-            },
-          })
-        );
-      }
-      await prisma.$transaction(ops);
-      await audit({
+
+    // 3. Atomically write audit log inside the same transaction
+    await tx.auditLog.create({
+      data: {
         userId: user.id,
         action: "invoice.cancel",
         entity: "Invoice",
@@ -361,11 +305,9 @@ export async function cancelInvoice(invoiceId: string) {
           assignmentCount: invoice.assignments.length,
           assignmentIds: currentAssignmentIds.join(","),
         },
-      });
-    } else {
-      throw err;
-    }
-  }
+      },
+    });
+  });
 
   revalidatePath("/", "layout");
 }

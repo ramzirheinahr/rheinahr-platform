@@ -1041,3 +1041,52 @@ export async function hasHistoricalInvoiceRecordForAssignment(
 
   return false;
 }
+
+/**
+ * Checks whether an order has financial/auditable records, either through:
+ * 1. Current active invoice links on its assignments (assignment.invoiceId !== null)
+ * 2. Historical or cancelled invoices whose frozen snapshotData preserves the order or its assignments
+ */
+export async function hasHistoricalInvoiceRecordForOrder(
+  orderId: string
+): Promise<boolean> {
+  const invoices = await prisma.invoice.findMany({
+    where: { snapshotData: { not: Prisma.DbNull } },
+    select: { snapshotData: true },
+  });
+
+  for (const inv of invoices) {
+    if (!inv.snapshotData || typeof inv.snapshotData !== "object") continue;
+    const snap = inv.snapshotData as Record<string, unknown>;
+    if (
+      Array.isArray(snap.historicalOrderIds) &&
+      snap.historicalOrderIds.includes(orderId)
+    ) {
+      return true;
+    }
+    if (
+      Array.isArray(snap.items) &&
+      snap.items.some(
+        (it) =>
+          it &&
+          typeof it === "object" &&
+          (it as Record<string, unknown>).orderId === orderId
+      )
+    ) {
+      return true;
+    }
+    if (
+      Array.isArray(snap.pdfItems) &&
+      snap.pdfItems.some(
+        (it) =>
+          it &&
+          typeof it === "object" &&
+          (it as Record<string, unknown>).orderId === orderId
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}

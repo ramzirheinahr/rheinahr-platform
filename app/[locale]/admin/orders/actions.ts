@@ -24,9 +24,46 @@ import { pushToUsers } from "@/lib/push";
 import type { OrderStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
 import { sendEmailToUsers } from "@/lib/email";
-import { hasHistoricalInvoiceRecordForAssignment } from "@/lib/invoicing";
+import {
+  hasHistoricalInvoiceRecordForAssignment,
+  hasHistoricalInvoiceRecordForOrder,
+} from "@/lib/invoicing";
 
 export type ActionState = { ok: boolean; error?: string };
+
+type DeletedOrderInfo = {
+  id: string;
+  shiftDate: Date;
+  startTime: string;
+  endTime: string;
+  requiredQualification: string;
+  notes: string | null;
+  quantity: number;
+  client: { id: string; facilityName: string } | null;
+};
+
+type AffectedWorkerInfo = {
+  userId: string;
+  order: {
+    shiftDate: Date;
+    startTime: string;
+    endTime: string;
+    requiredQualification: string;
+    notes: string | null;
+    client: { facilityName: string } | null;
+  };
+};
+
+type ShiftOfferData = {
+  date: Date;
+  startTime: string;
+  endTime: string;
+  qualification: string;
+  notes?: string;
+  facilityName?: string;
+  workerName?: string;
+  quantity?: number;
+};
 
 async function assertAdmin() {
   const user = await getCurrentUser();
@@ -234,8 +271,8 @@ export async function updateOrderRequestAsAdmin(
     })),
   );
 
-  let affectedWorkers: { userId: string; order: Record<string, unknown> }[] = [];
-  let deletedOrders: Record<string, unknown>[] = [];
+  let affectedWorkers: AffectedWorkerInfo[] = [];
+  let deletedOrders: DeletedOrderInfo[] = [];
   if (deleteIds.length > 0) {
     deletedOrders = await prisma.order.findMany({
       where: { id: { in: deleteIds } },
@@ -276,6 +313,21 @@ export async function updateOrderRequestAsAdmin(
     });
     if (invoicedCount > 0) {
       return { ok: false, error: "lockedInvoiced" };
+    }
+
+    const assignedRecords = await prisma.assignment.findMany({
+      where: { orderId: { in: deleteIds } },
+      select: { id: true },
+    });
+    for (const asgn of assignedRecords) {
+      if (await hasHistoricalInvoiceRecordForAssignment(asgn.id)) {
+        return { ok: false, error: "lockedInvoiced" };
+      }
+    }
+    for (const orderId of deleteIds) {
+      if (await hasHistoricalInvoiceRecordForOrder(orderId)) {
+        return { ok: false, error: "lockedInvoiced" };
+      }
     }
   }
 
@@ -812,7 +864,7 @@ export async function bulkAssignWorkers(
   });
   const workerById = new Map(workers.map((w) => [w.id, w]));
 
-  const offers: { orderId: string; workerId: string; userId: string; content: string; shiftData?: unknown }[] = [];
+  const offers: { orderId: string; workerId: string; userId: string; content: string; shiftData?: ShiftOfferData }[] = [];
   const advanceIds: string[] = [];
   let skipped = 0;
 
@@ -924,7 +976,7 @@ export async function bulkAssignWorkers(
   });
 
   // One push per worker summarising how many shifts they were freshly offered.
-  const perWorker = new Map<string, unknown[]>();
+  const perWorker = new Map<string, ShiftOfferData[]>();
   for (const o of notify) {
     if (!perWorker.has(o.userId)) perWorker.set(o.userId, []);
     if (o.shiftData) perWorker.get(o.userId)!.push(o.shiftData);

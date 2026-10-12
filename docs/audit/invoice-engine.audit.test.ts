@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /** Audit characterization: passing tests reproduce current behavior, including defects.
  * No real database, storage, notification, or email operations are performed.
  */
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     assignment: { findMany: vi.fn(), updateMany: vi.fn() },
     client: { findUnique: vi.fn() },
     notification: { create: vi.fn() },
+    auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
   },
   email: vi.fn(), pdf: vi.fn(), audit: vi.fn(),
@@ -90,7 +92,17 @@ beforeEach(() => {
   mocks.prisma.client.findUnique.mockResolvedValue(client);
   mocks.prisma.assignment.findMany.mockResolvedValue(irregular);
   mocks.prisma.assignment.updateMany.mockResolvedValue({ count: irregular.length });
-  mocks.prisma.$transaction.mockImplementation(async (ops) => Promise.all(ops));
+  mocks.prisma.auditLog.create.mockImplementation(async ({ data }: any) => ({ id: "audit-log-id", ...data }));
+  mocks.prisma.$transaction.mockImplementation(async (arg: any) => {
+    if (typeof arg === "function") {
+      return await arg({
+        assignment: mocks.prisma.assignment,
+        invoice: mocks.prisma.invoice,
+        auditLog: mocks.prisma.auditLog,
+      });
+    }
+    return Promise.all(arg);
+  });
   mocks.email.mockResolvedValue({
     smtpConfigured: true,
     totalRequested: 1,
