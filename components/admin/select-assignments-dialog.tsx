@@ -11,7 +11,22 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, type LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+export type InvoiceReviewResult =
+  | { ok: false; code: string; message: string }
+  | {
+      ok: true;
+      assignmentIds: string[];
+      draftHash: string;
+      clientName: string;
+      period: string;
+      items: Array<{ pos: number; description: string; hours: string; rate: string; amount: string }>;
+      subtotal: string;
+      taxAmount: string;
+      total: string;
+    };
 
 export type SelectableAssignment = {
   id: string;
@@ -30,24 +45,40 @@ export function SelectAssignmentsDialog({
   buttonLabel,
   buttonClassName,
   showSplitOption,
+  onPreview,
   onSubmit,
 }: {
   assignments: SelectableAssignment[];
   title: string;
   description: string;
   submitLabel: string;
-  buttonIcon?: any;
+  buttonIcon?: LucideIcon;
   buttonLabel: string;
   buttonClassName?: string;
   showSplitOption?: boolean;
-  onSubmit: (selectedIds: string[], customInvoiceNumber?: string, splitByShift?: boolean) => Promise<void>;
+  onPreview?: (selectedIds: string[]) => Promise<InvoiceReviewResult>;
+  onSubmit: (selectedIds: string[], customInvoiceNumber?: string, splitByShift?: boolean, expectedDraftHash?: string) => Promise<void | boolean>;
 }) {
+  const reviewText = useTranslations("invoiceReview");
   const [open, setOpen] = useState(false);
   const [splitByShift, setSplitByShift] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(assignments.map((a) => a.id)));
   const [submitting, setSubmitting] = useState(false);
   const [customInvoiceNumber, setCustomInvoiceNumber] = useState("");
   const [workerFilter, setWorkerFilter] = useState<string>("all");
+  const [review, setReview] = useState<Extract<InvoiceReviewResult, { ok: true }> | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [accountingConfirmed, setAccountingConfirmed] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+
+  const clearReview = () => {
+    setReview(null);
+    setReviewError(null);
+    setAccountingConfirmed(false);
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    setPdfUrl(null);
+  };
 
   const workers = Array.from(new Set(assignments.map((a) => a.workerName))).sort();
   const filteredAssignments = workerFilter === "all" 
@@ -58,6 +89,7 @@ export function SelectAssignmentsDialog({
   const allFilteredSelected = filteredAssignments.length > 0 && filteredAssignments.every(a => selectedIds.has(a.id));
 
   const toggleAssignment = (id: string) => {
+    clearReview();
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -69,6 +101,7 @@ export function SelectAssignmentsDialog({
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen) {
+      clearReview();
       setSelectedIds(new Set(assignments.map((a) => a.id)));
       setCustomInvoiceNumber("");
       setWorkerFilter("all");
@@ -78,12 +111,42 @@ export function SelectAssignmentsDialog({
 
   const handleSubmit = async () => {
     if (selectedIds.size === 0) return;
+    if (onPreview && (!review || !pdfUrl || !accountingConfirmed)) return;
     setSubmitting(true);
     try {
-      await onSubmit(Array.from(selectedIds), customInvoiceNumber, splitByShift);
-      setOpen(false);
+      const completed = await onSubmit(Array.from(selectedIds), customInvoiceNumber, splitByShift, review?.draftHash);
+      if (completed !== false) {
+        setOpen(false);
+        clearReview();
+      }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!onPreview || selectedIds.size === 0) return;
+    clearReview();
+    setReviewing(true);
+    try {
+      const selected = Array.from(selectedIds);
+      const result = await onPreview(selected);
+      if (!result.ok) {
+        setReviewError(`${result.code}: ${result.message}`);
+        return;
+      }
+      const response = await fetch("/api/invoices/v2-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentIds: selected, expectedDraftHash: result.draftHash }),
+      });
+      if (!response.ok) throw new Error(reviewText("previewChanged"));
+      setPdfUrl(URL.createObjectURL(await response.blob()));
+      setReview(result);
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : reviewText("previewFailed"));
+    } finally {
+      setReviewing(false);
     }
   };
 
@@ -108,6 +171,7 @@ export function SelectAssignmentsDialog({
                 onChange={(e) => {
                   const worker = e.target.value;
                   setWorkerFilter(worker);
+                  clearReview();
                   if (worker !== "all") {
                     const workerIds = assignments.filter((a) => a.workerName === worker).map((a) => a.id);
                     setSelectedIds(new Set(workerIds));
@@ -127,6 +191,7 @@ export function SelectAssignmentsDialog({
                 variant="ghost" 
                 size="sm" 
                 onClick={() => {
+                  clearReview();
                   if (allFilteredSelected) {
                     const next = new Set(selectedIds);
                     filteredAssignments.forEach(a => next.delete(a.id));
@@ -195,11 +260,35 @@ export function SelectAssignmentsDialog({
           </div>
         )}
 
+        {onPreview && (
+          <div className="space-y-3 rounded-md border p-3">
+            <Button type="button" variant="outline" onClick={handlePreview} disabled={reviewing || submitting || selectedIds.size === 0}>
+              {reviewing ? reviewText("loading") : reviewText("calculate")}
+            </Button>
+            {reviewError && <p role="alert" className="text-sm text-red-700 break-words">{reviewError}</p>}
+            {review && pdfUrl && (
+              <div className="space-y-2 text-sm">
+                <p className="font-semibold">{reviewText("draftNotice")}</p>
+                <p>{review.clientName} · {review.period}</p>
+                <div className="max-h-40 overflow-auto border rounded p-2">
+                  {review.items.map((item) => <p key={item.pos}>{item.pos}. {item.description} · {item.hours} × {item.rate} € = {item.amount}</p>)}
+                </div>
+                <p>{reviewText("net")}: {review.subtotal} · {reviewText("tax")}: {review.taxAmount} · {reviewText("gross")}: {review.total}</p>
+                <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">{reviewText("openPdf")}</a>
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" checked={accountingConfirmed} onChange={(e) => setAccountingConfirmed(e.target.checked)} />
+                  <span>{reviewText("accountingConfirmed")}</span>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
             Abbrechen
           </Button>
-          <Button onClick={handleSubmit} disabled={selectedIds.size === 0 || submitting}>
+          <Button onClick={handleSubmit} disabled={selectedIds.size === 0 || submitting || reviewing || (!!onPreview && (!review || !pdfUrl || !accountingConfirmed))}>
             {submitting ? "Wird ausgeführt..." : submitLabel}
           </Button>
         </DialogFooter>

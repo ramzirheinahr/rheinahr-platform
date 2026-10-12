@@ -6,12 +6,10 @@ import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { CheckCircle2, Clock, FileText, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
+import { CheckCircle2, Clock, FileText, ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { qualLabel } from "@/lib/invoicing";
 import { cn } from "@/lib/utils";
-import { generateInvoiceForShift } from "@/app/[locale]/admin/invoicing/actions";
-import { toast } from "sonner";
 
 interface ShiftBillingItem {
   id: string;
@@ -38,7 +36,6 @@ interface ShiftsBillingStatusTabProps {
 export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) {
   const t = useTranslations("invoicing.shiftStatus");
   const [filter, setFilter] = useState<"all" | "invoiced" | "ready" | "awaiting">("all");
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   const invoicedCount = shifts.filter((s) => !!s.invoiceId).length;
   const readyCount = shifts.filter((s) => !s.invoiceId && s.isConfirmed).length;
@@ -50,22 +47,6 @@ export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) 
     if (filter === "awaiting") return !s.invoiceId && !s.isConfirmed;
     return true;
   });
-
-  const handleCreateInvoice = async (shiftId: string) => {
-    setGeneratingId(shiftId);
-    try {
-      const res = await generateInvoiceForShift(shiftId);
-      if (res && res.ok) {
-        toast.success("Rechnung erfolgreich erstellt!");
-      } else {
-        toast.error("Fehler beim Erstellen der Rechnung");
-      }
-    } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Erstellen der Rechnung");
-    } finally {
-      setGeneratingId(null);
-    }
-  };
 
   const columns: Column<ShiftBillingItem>[] = [
     {
@@ -162,34 +143,18 @@ export function ShiftsBillingStatusTab({ shifts }: ShiftsBillingStatusTabProps) 
         }
         if (r.isConfirmed) {
           return (
-            <div className="flex items-center justify-end gap-1.5">
-              <Button
-                size="sm"
-                className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2.5 shadow-xs"
-                disabled={generatingId === r.id}
-                onClick={() => handleCreateInvoice(r.id)}
-              >
-                {generatingId === r.id ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <FileText className="size-3" />
-                )}
-                <span>Rechnung erstellen</span>
-              </Button>
-              {r.requestGroupId && (
-                <Link
-                  href={`/admin/orders/${r.requestGroupId}`}
-                  className={buttonVariants({
-                    variant: "outline",
-                    size: "sm",
-                    className: "text-xs text-slate-600 border-slate-200 hover:bg-slate-50 h-7 px-2",
-                  })}
-                  title="Bestellung ansehen"
-                >
-                  <ArrowRight className="size-3" />
-                </Link>
-              )}
-            </div>
+            <Link
+              href={`/admin/orders/${r.requestGroupId}`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: "text-xs text-slate-600 border-slate-200 hover:bg-slate-50 h-7 px-2",
+              })}
+              title={t("reviewInvoice")}
+            >
+              <ArrowRight className="size-3" />
+              {t("reviewInvoice")}
+            </Link>
           );
         }
         return <span className="text-slate-300 text-xs">—</span>;

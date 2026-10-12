@@ -33,6 +33,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { requireRole } from "@/lib/auth";
 import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
 import type {
@@ -74,40 +75,21 @@ export class StaleDraftError extends Error {
 
 export function computeV2DraftHash(draftResult: V2InvoiceDraftResult): string {
   if (draftResult.status !== "resolved") return "";
-  const parts: string[] = [];
-  for (const a of draftResult.provenance.assignments) {
-    parts.push(
-      [
-        a.assignmentId,
-        a.orderId,
-        a.workerId,
-        a.qualification,
-        a.effectiveHoursVersion,
-        a.effectiveHours,
-        a.effectiveStartTime,
-        a.effectiveEndTime,
-        a.effectiveBreakMinutes,
-        a.priceVersionId,
-        a.policyFrozenHash,
-      ].join(":")
-    );
-  }
-  for (const item of draftResult.items) {
-    parts.push(
-      [
-        item.pos,
-        item.workerId,
-        item.hoursDisplay,
-        item.rateCents,
-        item.amountCents,
-        item.amountDisplay,
-      ].join(":")
-    );
-  }
-  parts.push(`subtotal:${draftResult.totals.subtotalCents}`);
-  parts.push(`tax:${draftResult.totals.taxAmountCents}`);
-  parts.push(`total:${draftResult.totals.totalCents}`);
-  return parts.join("|");
+  // Include every financial and recipient-facing field that can change between
+  // review and issuance. preparedAt is intentionally excluded: it changes on
+  // each read even when the business data is identical.
+  const { preparedAt: _preparedAt, ...stableSnapshot } = draftResult.snapshotData;
+  void _preparedAt;
+  return createHash("sha256")
+    .update(JSON.stringify({
+      clientId: draftResult.clientId,
+      assignmentIds: draftResult.assignmentIds,
+      periodStart: draftResult.periodStart,
+      periodEnd: draftResult.periodEnd,
+      provenance: draftResult.provenance,
+      snapshot: stableSnapshot,
+    }))
+    .digest("hex");
 }
 
 export type IssueV2InvoiceOptions = {

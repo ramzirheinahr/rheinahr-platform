@@ -1273,6 +1273,7 @@
       "invoiceNumber": "Invoice No.",
       "shiftDate": "Shift Date",
       "times": "Time",
+      "reviewInvoice": "Review invoice",
       "empty": "No shifts found in the selected period."
     },
     "unbilledClients": {
@@ -1788,5 +1789,17 @@
     "successMessage": "Invoice updated to V2 successfully!",
     "featureDisabled": "V2 invoice refresh is deactivated on the server.",
     "openPreview": "Update invoice"
+  },
+  "invoiceReview": {
+    "loading": "Calculating draft...",
+    "calculate": "Review invoice before issuing",
+    "previewChanged": "The draft changed while preparing the PDF. Review it again.",
+    "previewFailed": "Could not prepare the invoice draft.",
+    "draftNotice": "Internal invoice draft – no invoice number or client notification yet",
+    "net": "Net",
+    "tax": "VAT",
+    "gross": "Gross",
+    "openPdf": "Open draft PDF",
+    "accountingConfirmed": "I confirm that accounting reviewed this draft and the contract values. Only issuing creates the official invoice."
   }
 }

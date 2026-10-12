@@ -1273,6 +1273,7 @@
       "invoiceNumber": "Rechnungsnr.",
       "shiftDate": "Schichtdatum",
       "times": "Uhrzeit",
+      "reviewInvoice": "Rechnung prüfen",
       "empty": "Keine Schichten im gewählten Zeitraum vorhanden."
     },
     "unbilledClients": {
@@ -1788,5 +1789,17 @@
     "successMessage": "Rechnung wurde erfolgreich auf V2 aktualisiert!",
     "featureDisabled": "V2-Rechnungsaktualisierung ist serverseitig deaktiviert.",
     "openPreview": "Rechnung aktualisieren"
+  },
+  "invoiceReview": {
+    "loading": "Entwurf wird berechnet...",
+    "calculate": "Rechnung vor Ausgabe prüfen",
+    "previewChanged": "Der Entwurf hat sich während der PDF-Erstellung geändert. Bitte erneut prüfen.",
+    "previewFailed": "Rechnungsentwurf konnte nicht erstellt werden.",
+    "draftNotice": "Interner Rechnungsentwurf – noch keine Rechnungsnummer und keine Kundenbenachrichtigung",
+    "net": "Netto",
+    "tax": "MwSt.",
+    "gross": "Brutto",
+    "openPdf": "PDF-Entwurf öffnen",
+    "accountingConfirmed": "Ich bestätige, dass die Buchhaltung diesen Entwurf und die Vertragswerte geprüft hat. Erst die Ausgabe erstellt die offizielle Rechnung."
   }
 }

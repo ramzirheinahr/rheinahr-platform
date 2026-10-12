@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Receipt, FileText, CheckCircle2, Mail, Trash2, Ban, RotateCw } from "lucide-react";
+import { Receipt, FileText, CheckCircle2, Mail, Ban, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { generateOrderInvoices, sendInvoiceEmail, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { generateOrderInvoices, previewOrderInvoice, sendInvoiceEmail, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { InvoiceRefreshDialog } from "./invoice-refresh-dialog";
 import { useTranslations } from "next-intl";
@@ -20,10 +20,12 @@ import {
 
 export function OrderInvoicesBanner({ 
   requestGroupId,
+  v2Enabled,
   invoices,
   uninvoicedAssignments
 }: { 
   requestGroupId: string;
+  v2Enabled: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   invoices: any[];
   uninvoicedAssignments: SelectableAssignment[];
@@ -33,13 +35,15 @@ export function OrderInvoicesBanner({
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
   const [refreshInvoiceId, setRefreshInvoiceId] = useState<string | null>(null);
 
-  const handleGenerate = async (selectedIds: string[], customInvoiceNumber?: string) => {
+  const handleGenerate = async (selectedIds: string[], customInvoiceNumber?: string, _splitByShift?: boolean, expectedDraftHash?: string) => {
     try {
-      await generateOrderInvoices(selectedIds, customInvoiceNumber);
+      await generateOrderInvoices(selectedIds, customInvoiceNumber, undefined, true, false, expectedDraftHash);
       toast.success("Rechnungen erfolgreich generiert!");
       router.refresh();
+      return true;
     } catch (e: unknown) {
       toast.error((e as Error).message || "Fehler beim Generieren der Rechnung");
+      return false;
     }
   };
 
@@ -131,6 +135,7 @@ export function OrderInvoicesBanner({
               submitLabel="Generieren"
               buttonLabel="Fakturieren"
               buttonClassName="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              onPreview={v2Enabled ? previewOrderInvoice : undefined}
               onSubmit={handleGenerate}
             />
           )}

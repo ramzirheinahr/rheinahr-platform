@@ -13,6 +13,7 @@ import path from "path";
 import { getCompanyConfig, type CompanyConfig } from "@/lib/config/company";
 
 export type InvoicePdfData = {
+  draft?: boolean;
   invoiceNumber: string;
   date: string;
   clientId: string; // or shortCode
@@ -142,7 +143,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
         </View>
 
         <View style={styles.titleBlock}>
-          <Text style={styles.titleText}>Rechnung</Text>
+          <Text style={styles.titleText}>{data.draft ? "RECHNUNGSENTWURF" : "Rechnung"}</Text>
           <View style={styles.metaTable}>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>vom:</Text>
@@ -150,7 +151,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
             </View>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Nummer:</Text>
-              <Text style={styles.metaValue}>{data.invoiceNumber}</Text>
+              <Text style={styles.metaValue}>{data.draft ? "NICHT VERGEBEN" : data.invoiceNumber}</Text>
             </View>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Kunde:</Text>
@@ -208,8 +209,9 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
       </View>
 
       <Text style={styles.paymentText}>
-        Bitte überweisen Sie den Endbetrag innerhalb {data.paymentTermsDays} Tagen und geben dabei unbedingt die Rechnungsnummer
-        Als Verwendungszweck an.
+        {data.draft
+          ? "ENTWURF ZUR INTERNEN PRÜFUNG – KEINE RECHNUNG. NICHT AN KUNDEN VERSENDEN."
+          : `Bitte überweisen Sie den Endbetrag innerhalb ${data.paymentTermsDays} Tagen und geben dabei unbedingt die Rechnungsnummer als Verwendungszweck an.`}
       </Text>
 
       {/* Footer */}

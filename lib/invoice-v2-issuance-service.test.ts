@@ -1416,6 +1416,37 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
   // Section 6: Action Integration & Zero-Fallback Guarantees
   // =========================================================================
   describe("6. Action Integration & Zero-Fallback Guarantees", () => {
+    it("requires a reviewed draft before an order action can allocate a V2 invoice", async () => {
+      const { prisma } = await import("./prisma");
+      const createInvoice = vi.spyOn(prisma.invoice, "create");
+
+      await expect(generateOrderInvoices(["assign-1"])).rejects.toThrow("[V2_REVIEW_REQUIRED]");
+      expect(createInvoice).not.toHaveBeenCalled();
+    });
+
+    it("binds review approval to financial and recipient-facing data, not preparation time", () => {
+      const draft = {
+        status: "resolved",
+        clientId: "client-1",
+        assignmentIds: ["assignment-1"],
+        periodStart: "2026-10-01",
+        periodEnd: "2026-10-01",
+        provenance: { assignments: [], policyVersions: [], priceVersions: [] },
+        snapshotData: {
+          preparedAt: "2026-10-12T10:00:00.000Z",
+          facilityName: "Facility A",
+          paymentTermsDays: 14,
+          totalCents: 11900,
+        },
+      } as unknown as Parameters<typeof computeV2DraftHash>[0];
+      const originalHash = computeV2DraftHash(draft);
+      const later = structuredClone(draft) as Extract<typeof draft, { status: "resolved" }>;
+      later.snapshotData.preparedAt = "2026-10-12T10:05:00.000Z";
+      expect(computeV2DraftHash(later)).toBe(originalHash);
+      later.snapshotData.paymentTermsDays = 30;
+      expect(computeV2DraftHash(later)).not.toBe(originalHash);
+    });
+
     it("halts batch in generateOrderInvoices without falling back when price is unresolved", async () => {
       const a1 = createSyntheticAssignment("assign-1");
 
@@ -1630,6 +1661,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       await expect(
         generateMonthInvoices("client-month-1", 2026, 3, "INV-MONTH-01", [], false, false, {
           expectedAssignmentIds: ["assign-1", "assign-3"],
+          expectedDraftHash: "reviewed-draft-hash",
         })
       ).rejects.toThrow("[MONTH_ASSIGNMENT_SET_MUTATED]");
     });
@@ -1661,7 +1693,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
         invoiceNumber: "INV-NOTIF-01",
       } as any);
 
-      const result = await generateOrderInvoices(["a1"], "INV-NOTIF-01", [], false, false);
+      const result = await generateOrderInvoices(["a1"], "INV-NOTIF-01", [], false, false, "reviewed-draft-hash");
       expect(result.ok).toBe(true);
       expect(result.invoiceId).toBe("inv-order-notif-1");
       expect(result.notificationStatus).toBe("failed");
@@ -1704,6 +1736,7 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
 
       const result = await generateMonthInvoices("c1", 2026, 3, "INV-MONTH-NOTIF-01", [], false, false, {
         expectedAssignmentIds: ["a1"],
+        expectedDraftHash: "reviewed-draft-hash",
       });
       expect(result.ok).toBe(true);
       expect(result.invoiceId).toBe("inv-month-notif-1");

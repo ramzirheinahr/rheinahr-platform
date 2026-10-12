@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 
 export async function toggleInvoiceStatus(invoiceId: string, status: "paid" | "unpaid") {
   const user = await requireRole("de", "admin"); // any admin can do this
@@ -61,14 +62,30 @@ export async function updateInvoiceAction(params: {
   if (!invoice) {
     throw new Error("Rechnung nicht gefunden.");
   }
+  if (isV2CalculationVersion(invoice.snapshotData)) {
+    throw new Error("V2-Rechnungen sind unveränderlich. Bitte stornieren und nach Prüfung neu ausstellen.");
+  }
 
   // Calculate base net amount from assignments
   const client = invoice.client;
-  const rates = (invoice.snapshotData as any)?.hourlyRates ? invoice.snapshotData : client;
+  const snapshot = invoice.snapshotData && typeof invoice.snapshotData === "object" && !Array.isArray(invoice.snapshotData)
+    ? invoice.snapshotData as Record<string, unknown>
+    : null;
+  const snapshotNumber = (key: string) => snapshot && typeof snapshot[key] === "number" ? snapshot[key] as number : null;
+  const snapshotText = (key: string) => snapshot && typeof snapshot[key] === "string" ? snapshot[key] as string : null;
+  const rates = snapshot?.hourlyRates ? {
+    hourlyRates: snapshot.hourlyRates,
+    surchargeSat: snapshotNumber("surchargeSat"),
+    surchargeSun: snapshotNumber("surchargeSun"),
+    surchargeHoliday: snapshotNumber("surchargeHoliday"),
+    surchargeNight: snapshotNumber("surchargeNight"),
+    nightStart: snapshotText("nightStart"),
+    nightEnd: snapshotText("nightEnd"),
+  } : client;
   const { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } = await import("@/lib/pricing");
-  const resolvedRates = resolveRates(rates as any);
-  const resolvedSurcharges = resolveSurcharges(rates as any);
-  const resolvedNightWindow = resolveNightWindow(rates as any);
+  const resolvedRates = resolveRates(rates);
+  const resolvedSurcharges = resolveSurcharges(rates);
+  const resolvedNightWindow = resolveNightWindow(rates);
 
   let baseNet = 0;
   if (invoice.assignments.length > 0) {
@@ -78,12 +95,12 @@ export async function updateInvoiceAction(params: {
       endTime: a.order.endTime,
       breakMinutes: a.order.breakMinutes ?? 30,
       quantity: 1,
-      requiredQualification: a.order.requiredQualification as any,
+      requiredQualification: a.order.requiredQualification,
     }));
     baseNet = requestNetTotal(shiftsToPrice, resolvedSurcharges, resolvedRates, resolvedNightWindow);
   } else {
     // If no assignments are directly linked (e.g. legacy), fallback to existing net minus any previous adjustment
-    const prevAdj = (invoice.snapshotData as any)?.netAdjustment || 0;
+    const prevAdj = snapshotNumber("netAdjustment") || 0;
     baseNet = invoice.netAmount - prevAdj;
   }
 
@@ -91,7 +108,7 @@ export async function updateInvoiceAction(params: {
   const finalVat = Math.round(finalNet * VAT_RATE * 100) / 100;
   const finalGross = Math.round((finalNet + finalVat) * 100) / 100;
 
-  const currentSnapshot = (invoice.snapshotData as any) || {};
+  const currentSnapshot = snapshot || {};
   const updatedSnapshot = {
     ...currentSnapshot,
     netAdjustment,

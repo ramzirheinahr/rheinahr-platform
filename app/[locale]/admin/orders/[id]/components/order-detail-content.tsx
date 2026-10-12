@@ -13,6 +13,7 @@ import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { OrderContractsBanner } from "@/components/admin/order-contracts-banner";
 import { OrderInvoicesBanner } from "@/components/admin/order-invoices-banner";
+import { isV2InvoiceIssuanceEnabled } from "@/lib/invoice-v2-issuance-service";
 import { OrderConfirmationsBanner } from "@/components/admin/order-confirmations-banner";
 
 const d = (date: Date) => date.toISOString().slice(0, 10);
@@ -243,13 +244,15 @@ export async function OrderDetailContent({
             assignments={confirmedAssignments}
           />
 
-          <OrderInvoicesBanner
-            requestGroupId={id}
-            invoices={invoices}
-            uninvoicedAssignments={uninvoicedAssignments}
-          />
         </>
       ) : null}
+
+      <OrderInvoicesBanner
+        requestGroupId={id}
+        v2Enabled={isV2InvoiceIssuanceEnabled()}
+        invoices={invoices}
+        uninvoicedAssignments={uninvoicedAssignments}
+      />
 
       <PendingResponsesProvider>
         <AssignSelectionProvider selectableOrderIds={selectableOrderIds}>

@@ -35,6 +35,29 @@ export type EmailDispatchStatus =
   | "sent_but_record_failed"
   | "partially_sent_but_record_failed";
 
+/** Read-only financial review; never reserves a number or creates an invoice. */
+export async function previewOrderInvoice(assignmentIds: string[]) {
+  await requireRole("de", "admin");
+  if (!Array.isArray(assignmentIds) || assignmentIds.length === 0 || assignmentIds.length > 500 ||
+      assignmentIds.some((id) => typeof id !== "string" || !id)) {
+    throw new Error("Ungültige Schichtauswahl für die Rechnungsprüfung.");
+  }
+  const { prepareV2InvoiceReview } = await import("@/lib/invoice-v2-review");
+  const review = await prepareV2InvoiceReview(assignmentIds);
+  if (!review.ok) return review;
+  return {
+    ok: true as const,
+    assignmentIds: review.draft.assignmentIds,
+    draftHash: review.hash,
+    clientName: review.draft.clientInfo.facilityName,
+    period: review.draft.periodDisplay,
+    items: review.draft.pdfItems,
+    subtotal: review.draft.snapshotData.subtotal,
+    taxAmount: review.draft.snapshotData.taxAmount,
+    total: review.draft.snapshotData.total,
+  };
+}
+
 export async function sendInvoiceEmail({
   invoiceId,
   recipients,
@@ -400,7 +423,8 @@ export async function generateOrderInvoices(
   customInvoiceNumber?: string,
   recipients?: string[],
   attachTimesheets: boolean = true,
-  sendEmail: boolean = false
+  sendEmail: boolean = false,
+  expectedDraftHash?: string
 ) {
   const user = await requireRole("de", "admin");
   
@@ -410,9 +434,13 @@ export async function generateOrderInvoices(
 
   // Modern V2 Calculation & Issuance Branch
   if (isV2InvoiceIssuanceEnabled()) {
+    if (!expectedDraftHash) {
+      throw new Error("[V2_REVIEW_REQUIRED] Bitte prüfen und bestätigen Sie zuerst den Rechnungsentwurf.");
+    }
     const issueRes = await issueV2Invoice({
       assignmentIds,
       customInvoiceNumber,
+      expectedDraftHash,
     });
 
     if (!issueRes.success) {

@@ -85,6 +85,9 @@ export async function generateMonthInvoices(
         "[MONTH_PREVIEW_REQUIRED] Für die V2-Monatsabrechnung ist eine vorherige Schichtenvorschau erforderlich."
       );
     }
+    if (!options.expectedDraftHash) {
+      throw new Error("[V2_REVIEW_REQUIRED] Bitte prüfen und bestätigen Sie zuerst den Rechnungsentwurf.");
+    }
 
     const unbilledMonthAssignments = await prisma.assignment.findMany({
       where: {
