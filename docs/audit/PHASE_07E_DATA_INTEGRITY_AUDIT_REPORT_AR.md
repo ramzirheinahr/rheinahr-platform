@@ -1,208 +1,161 @@
-# تقرير تدقيق وسلامة البيانات قبل إصدار الفواتير — المرحلة 07e (أولوية قصوى)
+# تقرير تدقيق وسلامة البيانات قبل إصدار الفواتير — المرحلة 07e (الإصدار المصحح والمعتمد)
 
 **التاريخ:** 12 أكتوبر 2026  
 **الفرع المعزول:** `phase_07e_owner_decisions`  
-**بيئة التنفيذ:** مساحة عمل معزولة (Worktree) دون اتصال بقاعدة بيانات الإنتاج ودون تشغيل seed أو ترحيلات أو بناء حي.  
+**بيئة التنفيذ:** مساحة عمل معزولة (Worktree) مستقلة تمامًا؛ دون اتصال بقاعدة بيانات الإنتاج، ودون تشغيل build أو seed أو ترحيلات حية.  
 **حالة رايات الإصدار:** `FEATURE_INVOICE_V2_ISSUANCE=false` و `FEATURE_INVOICE_V2_REFRESH=false` (مغلقة قطعيًا NO-GO).  
-**المرجع:** توجيهات المالك لسلامة البيانات وملاحظات مراجعة Codex المستقلة.
+**المرجع:** قرار المراجعة المستقلة لسلامة البيانات وتوجيهات المالك الصارمة.
 
 ---
 
-## ١. ملخص تنفيذي ومحددات الأمان الصارم
+## ١. ملخص تنفيذي ومحددات الجاهزية
 
-بناءً على التكليف المباشر ذي الأولوية القصوى لحماية البيانات المحاسبية وسجلات الشركة المالية، أُجري فحص وتدقيق شامل للفرع المعزول بالكامل، مع تطبيق المعالجات الفنية اللازمة لحظر أي إتلاف أو مسح للبيانات، وفق المحددات الصارمة التالية:
-1. **عزل بيئة العمل:** لم يُجرَ أي اتصال بقاعدة بيانات الإنتاج، ولم يُشغّل أمر `build` الملوث القديم، ولم تُطبّق أي ترحيلات أو بذور بيانات (seeds) على أي قاعدة بيانات حية، واقتصرت كافة الاختبارات والتحققات على الذاكرة (`in-memory unit/integration tests`).
-2. **الحفاظ على رايات V2 معطلة (NO-GO):** تظل رايات الفوترة الحديثة `FEATURE_INVOICE_V2_ISSUANCE=false` و`FEATURE_INVOICE_V2_REFRESH=false` معطلة بالكامل حتى استكمال المراجعة المستقلة واعتمادها.
-3. **الامتثال لمتطلبات GoBD وقوانين الضرائب والتجارة الألمانية:** الالتزام الصارم بمتطلبات الاحتفاظ بالسجلات المحاسبية والضريبية لمدة 10 سنوات بموجب المادة 147 من قانون الضرائب الألماني (§ 147 AO) والمادة 257 من القانون التجاري الألماني (§ 257 HGB)، مع مواءمتها بدقة مع طلبات محو البيانات الشخصية بموجب اللائحة العامة لحماية البيانات (GDPR Art. 17(3)(b)) دون المساس بأي سجل مالي.
+بناءً على نتائج المراجعة المستقلة لسلامة البيانات، تمت معالجة النقاط المانعة الثلاث بدقة صارمة وتصحيح التقرير الفني:
+1. **ترحيل PostgreSQL صريح لقيد المفتاح الأجنبي للفواتير:** إنشاء ترحيل Prisma مستقل يغير قيد `invoices.client_id` إلى `ON DELETE RESTRICT` على محرك قاعدة البيانات، مع معالجة سباق حذف العميل برمجياً بالتقاط استثناءات القيود `P2003/P2014`.
+2. **إلغاء ذري للفواتير مع التدقيق وحفظ الروابط التاريخية:** جعل `cancelInvoice` معاملة ذرية متكاملة تشمل كتابة سجل التدقيق داخل المعاملة، وتجميد مراجع غير قابلة للتغيير (`historicalAssignmentIds`, `historicalWorkerIds`, `historicalOrderIds`) في `snapshotData`، وتحديث كافة حراسات الحذف لتقرأ هذا التاريخ وتحظر حذف أي موظف أو وردية مرتبطة بفاتورة ملغاة.
+3. **تطهير كامل لسكربت التهيئة:** إزالة كافة أوامر المسح الجماعي (`deleteMany`) وحذف مستخدمي Supabase Auth وكافة استيرادات المكتبات من `scripts/seed-demo.mjs`، وتحويل الملف إلى هيكل أمان مغلق قطعيًا.
+4. **تصحيح توصيف الترحيلات وأمر البناء:** بيان دقيق لخصائص الأقفال والتحديثات في الترحيلات (خاصة الترحيل 03c والترحيل 07e الجديد)، وتوضيح حدود عزل أمر البناء `next build` باشتراط خلو بيئة البناء من أسرار الإنتاج لمنع أي قراءات ثابتة محتملة.
 
 ---
 
-## ٢. تطهير أوامر البناء وإجراءات الإصدار وتعطيل سكربتات التهيئة التجريبية
+## ٢. ترحيل حماية المفتاح الأجنبي للفواتير في PostgreSQL (`ON DELETE RESTRICT`)
 
-### أ) إزالة المسح التلقائي من أمر البناء (`npm run build`)
-- **الوضع السابق الخطير:** كان ملف `package.json` يحتوي على الأمر:
-  ```json
-  "build": "prisma db push --accept-data-loss && next build"
+### أ) الترحيل المستقل المعتمد
+أُنشئ ترحيل Prisma رسمي في المسار:
+`prisma/migrations/20261012_phase_07e_invoice_client_delete_restrict/migration.sql`
+
+نص الترحيل:
+```sql
+-- Phase 07e: Alter foreign key constraint on invoices.client_id to ON DELETE RESTRICT
+-- RheinAhr Dienstleistungen GmbH - Invoice Engine Modernization (Phase 07e Data Integrity)
+
+-- 1. Drop pre-existing foreign key constraint if it exists (which had ON DELETE CASCADE)
+ALTER TABLE "invoices"
+DROP CONSTRAINT IF EXISTS "invoices_client_id_fkey";
+
+-- 2. Re-create foreign key constraint with ON DELETE RESTRICT and ON UPDATE CASCADE
+ALTER TABLE "invoices"
+ADD CONSTRAINT "invoices_client_id_fkey"
+FOREIGN KEY ("client_id")
+REFERENCES "clients"("id")
+ON DELETE RESTRICT
+ON UPDATE CASCADE;
+```
+
+### ب) خصائص التشغيل والأقفال (Locking & Operations)
+- **طبيعة القفل:** يتطلب تعديل القيد قفل `ACCESS EXCLUSIVE` على جدول الفواتير `invoices` وقفل `SHARE ROW EXCLUSIVE` على جدول `clients` أثناء التنفيذ في PostgreSQL.
+- **إجراء التطبيق:** يجب تشغيله عبر `npx prisma migrate deploy` ضمن نافذة صيانة محددة أو في وقت انخفاض النشاط، وليس أمرًا إضافيًا خاليًا من الأقفال.
+- **استعلام كتالوج PostgreSQL للتحقق (Catalog Proof Query):**
+  ```sql
+  SELECT
+      conname AS constraint_name,
+      conrelid::regclass AS table_name,
+      confrelid::regclass AS foreign_table_name,
+      confdeltype AS delete_action
+  FROM pg_constraint
+  WHERE conname = 'invoices_client_id_fkey';
   ```
-  وكان هذا السلوك يتسبب في تطبيق تغييرات المخطط قسرًا وقبول فقدان البيانات (`--accept-data-loss`) في كل مرة يتم فيها بناء المشروع، مما يعرض بيانات الإنتاج للمسح الفوري عند أي تعارض هيكلي.
-- **الإجراء المتخذ والتعديل الدائم:**
-  - تم تعديل السكربت في `package.json` ليصبح قطعيًا:
-    ```json
-    "build": "next build"
-    ```
-  - أصبحت عملية البناء برمجية بحتة لا تتصل بقاعدة البيانات ولا تُجري أي تعديل أو دفع هيكلي مطلقًا.
+  عندما تكون قيمة `confdeltype = 'r'`، فهذا يثبت في الكتالوج أن الحذف المتتالي ملغى وأن قاعدة البيانات تفرض `RESTRICT`. (القيمة السابقة كانت `'c'` المقابلة لـ `CASCADE`).
+- **كود التراجع في حال الطوارئ (Rollback SQL):**
+  ```sql
+  ALTER TABLE "invoices" DROP CONSTRAINT IF EXISTS "invoices_client_id_fkey";
+  ALTER TABLE "invoices" ADD CONSTRAINT "invoices_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  ```
 
-### ب) التعطيل الإجباري لأوامر `db:push` و`db:seed:demo`
-- **التعديل في `package.json`:**
-  - استُبدل أمر `"db:push"` بالسكربت الوقائي:
-    `"node -e 'console.error(\"FATAL: db:push is permanently blocked to prevent data loss. Use controlled Prisma migrations.\"); process.exit(1);'"`
-  - استُبدل أمر `"db:seed:demo"` بالسكربت الوقائي:
-    `"node -e 'console.error(\"FATAL: db:seed:demo is permanently blocked. Never seed demo data in this environment.\"); process.exit(1);'"`
+### ج) معالجة سباق إنشاء الفاتورة مع حذف العميل (Race Condition Closure)
+في `app/[locale]/admin/clients/actions.ts`:
+إذا أنشئت فاتورة بالتزامن بين فحص `invoiceCount` وتنفيذ `prisma.user.delete`، يمنع محرك PostgreSQL الحذف ويرفع استثناء القيد الأجنبي. تم تحديث الإجراء الخادمي ليلتقط كود الخطأ `P2003` و`P2014` واستثناءات `Restrict` ويرد وقائيًا:
+`{ ok: false, error: "hasFinancialRecords" }`.
 
-### ج) شل حركة سكربت `scripts/seed-demo.mjs` الخطر
-- **الوضع السابق الخطير:** كان السكربت يقوم بمسح شامل لكافة طلبات التعيين، والورديات، والمناوبات، والعملاء، والموظفين، وحذف مستخدمي Supabase Auth عبر مفتاح الإدارة (`supabase.auth.admin.deleteUser`).
-- **الإجراء المتخذ والتعديل الدائم:**
-  - أُضيف كود إغلاق وقائي فوري غير قابل للتجاوز في السطر الأول الفعلي من ملف `scripts/seed-demo.mjs`:
+---
+
+## ٣. الإلغاء الذري للفواتير وتخليد الروابط التاريخية وحماية حراسات الحذف
+
+### أ) المعاملة الذرية وسجل التدقيق الإلزامي في `cancelInvoice`
+أُعيدت صياغة الدالة الخادمية `cancelInvoice` في `app/[locale]/admin/orders/[id]/invoice-actions.ts`:
+1. تُستخرج معرفات المناوبات والموظفين والطلبات المشمولة بالفاتورة قبل الإلغاء.
+2. تُدمج في `snapshotData` مع مصفوفات تاريخية دائمة: `historicalAssignmentIds`, `historicalWorkerIds`, `historicalOrderIds` وتوثيق واقعة الإلغاء (`cancellationHistory`).
+3. تُنفذ العملية كمعاملة تفاعلية ذرية واحدة (`prisma.$transaction(async (tx) => { ... })`):
+   - تحرير الورديات: `tx.assignment.updateMany({ where: { invoiceId }, data: { invoiceId: null } })`.
+   - تعديل حالة الفاتورة وتخليد البيانات: `tx.invoice.update({ where: { id: invoiceId }, data: { status: "cancelled", snapshotData: updatedSnapshotData } })`.
+   - **سجل التدقيق الذري:** كتابة سجل التدقيق داخل المعاملة `tx.auditLog.create(...)`. في حال فشل التدقيق، تتراجع المعاملة بالكامل فورًا (Fail-Closed) ولا يتم إلغاء الفاتورة دون تدقيق.
+   - يتضمن الكود معالجة توافقية لبيئات الاختبار التي تحاكي معاملات المصفوفة، مع ضمان عدم ابتلاع أخطاء التدقيق الحقيقية.
+
+### ب) تخليد الروابط التاريخية وتحديث حراسات الحذف
+طُوّرت دوال مركزية في `lib/invoicing.ts`:
+- `hasHistoricalInvoiceRecordForWorker(workerId)`: تفحص الورديات المفوترة النشطة، وكافة الفواتير (بما فيها الملغاة) التي تشتمل على الموظف في `historicalWorkerIds` أو بنود الفاتورة.
+- `hasHistoricalInvoiceRecordForAssignment(assignmentId)`: تفحص ربط الوردية النشط، وكافة الفواتير التي تشتمل على الوردية في `historicalAssignmentIds` أو البنود.
+
+### ج) حظر الحذف للموظفين والورديات المرتبطة بفواتير ملغاة
+تم ربط هذه الفحوصات في كافة مسارات الحذف:
+1. **حذف الموظف (`deleteWorker`):** يرفض الحذف ويعيد `hasFinancialRecords` حتى لو كانت الفاتورة ملغاة وفُصلت وردياتها، لحماية سجلات الإثبات والاحتفاظ المالي (§ 147 AO).
+2. **إلغاء المناوبة من الجدول (`releaseAssignmentCore` و`deleteShiftFromGrid`):** ترفض الحذف وتعيد `invoiced` إذا كانت المناوبة مسجلة في أي فاتورة تاريخية أو ملغاة.
+3. **تبديل الموظف للوردية (`swapWorker`):** ترفض التبديل وتعيد `invoiced` إذا كانت الوردية مرتبطة بسجل فاتورة ملغاة.
+4. **حذف مجموعات الطلبات (`saveShiftsBatch` و`deleteRequestGroup` و`cancelOrderRequestAsAdmin`):** ترفض الحذف وتعيد `lockedInvoiced` عند وجود مناوبات تاريخية ملغاة.
+
+---
+
+## ٤. التطهير الكامل لسكربت التهيئة وإزالة الشفرة الخطرة (`scripts/seed-demo.mjs`)
+
+- **الوضع السابق:** كان السكربت يوقف التشغيل في السطر 6، لكن جسم الملف كان يحتوي على كود المسح الجماعي `prisma.*.deleteMany({})` وحذف مستخدمي Supabase Auth.
+- **الإجراء المتخذ:**
+  - حُذفت كافة الاستيرادات الخطرة (`@supabase/supabase-js`, `@prisma/client`, `bcryptjs`) من الملف.
+  - حُذفت دالة `cleanup()` بالكامل وكافة أوامر `deleteMany` و`deleteUser`.
+  - تحول الملف بالكامل إلى هيكل أمان بسيط غير ضار:
     ```javascript
-    console.error("FATAL: seed-demo.mjs is permanently disabled to protect production data integrity. Aborting immediately.");
+    // scripts/seed-demo.mjs
+    console.error("FATAL: scripts/seed-demo.mjs is permanently disabled and its destructive logic has been purged. Exiting immediately.");
     process.exit(1);
     ```
-  - تم تعطيل أي قدرة للسكربت على الاتصال بقاعدة البيانات أو استدعاء واجهات البرمجة أو لمس مستخدمي Supabase Auth.
-  - حُدّث ملف `PROJECT_STATUS.md` لتوثيق هذا الحظر الدائم رسميًا.
+  - خلو تام ومثبت في اختبارات الذاكرة من أي كود مسح أو اتصال بقاعدة البيانات.
 
 ---
 
-## ٣. الحظر الشامل للحذف الفعلي للفواتير وحماية السلاسل المتتالية (Cascade Protection)
+## ٥. تدقيق الترحيلات وأمر البناء وفق حدود الدليل الفني
 
-### أ) حظر الحذف الخادمي النهائي للفواتير (`prisma.invoice.delete`)
-- **الوضع السابق:** كان خيار الحذف متاحًا ومربوطًا بإجراء خادمي `deleteInvoice` في `app/[locale]/admin/orders/[id]/invoice-actions.ts`.
-- **الإجراء المعتمد:**
-  1. أُعيد بناء الإجراء الخادمي `deleteInvoice` ليطلق استثناءً قطعيًا دائمًا ومحميًا (Fail-Closed Exception) يمنع الحذف الفعلي:
-     `throw new Error("Das physische Löschen von Rechnungen ist serverseitig permanent verboten (GoBD- und Revisionskonformität). Bitte nutzen Sie die Stornierungsfunktion (Storno).");`
-  2. تم الإبقاء على مسار الإلغاء المحاسبي المعتمد `cancelInvoice` الذي يقوم بتسجيل حالة الإلغاء وتاريخه ومبرراته محاسبيًا دون مساس بالفاتورة التاريخية أو رقمها التسلسلي أو لقطتها المجمدة.
-  3. أُزيلت كافة أزرار وعناصر واجهة المستخدم التي تشير إلى حذف الفاتورة من مكونات الإدارة:
-     - `components/admin/admin-invoices-banner.tsx`
-     - `components/admin/order-invoices-banner.tsx`
-     - `components/admin/invoicing-list.tsx`
+### أ) التدقيق الدقيق لكافة الترحيلات (6 ترحيلات)
+تصحيحًا للوصف السابق، نوضح هنا الطبيعة الفنية الحقيقية لكل ترحيل والأقفال المرتبطة به:
 
-### ب) تعديل مخطط Prisma وحظر الحذف المتتالي من العميل للفواتير
-- **التعديل الهيكلي في `prisma/schema.prisma`:**
-  - عُدّلت العلاقة بين جدول الفواتير وجدول العميل:
-    ```prisma
-    // سابقًا: client User @relation(fields: [clientId], references: [id], onDelete: Cascade)
-    client User @relation(fields: [clientId], references: [id], onDelete: Restrict)
-    ```
-  - يمنع خيار `onDelete: Restrict` قاعدة البيانات مباشرة على مستوى المفتاح الأجنبي من حذف أي عميل يرتبط بسجل فاتورة محاسبية، مما يوفر طبقة دفاعية على مستوى محرك قاعدة البيانات نفسه.
-
-### ج) حماية الكيانات المرتبطة بسجلات مالية (العملاء، الموظفون، الطلبات، الورديات)
-تم فحص كافة مسارات الحذف للكيانات التي تؤثر على العمليات المالية والتشغيلية:
-1. **حذف العميل (`deleteClient` في `app/[locale]/admin/clients/actions.ts`):**
-   - يفحص الإجراء وجود أي فواتير مرتبطة بالعميل (`invoicesCount > 0`) أو ورديات تمت فوترتها (`invoicedAssignmentsCount > 0`).
-   - في حال وجود أي سجل مالي، يُرفض الحذف فورًا ويعيد `{ ok: false, error: "hasFinancialRecords" }`.
-2. **حذف الموظف (`deleteWorker` في `app/[locale]/admin/workers/actions.ts`):**
-   - يفحص الإجراء ارتباط الموظف بأي ورديات تمت فوترتها للعملاء (`invoicedAssignmentsCount > 0`).
-   - في حال وجود ورديات مفوترة، يُرفض الحذف ويعيد `{ ok: false, error: "hasFinancialRecords" }`.
-3. **إلغاء وحذف الطلبات (`cancelOrderRequestAsAdmin` في `app/[locale]/admin/orders/actions.ts` و`deleteOpenOrderFromGrid` في `schedule/actions.ts`):**
-   - تم تقييد الحذف بفحص عدم وجود أي مناوبات مفوترة (`lockedInvoiced`). إذا كانت هناك مناوبات مفوترة، يمنع الإجراء إلغاء أو حذف الطلب لحماية الأساس التعاقدي للفاتورة.
-4. **تعديل وتبديل الورديات والمناوبات (`swapWorker`, `releaseAssignmentCore`, `deleteShiftFromGrid`, `saveShiftsBatch`, `deleteRequestGroup`):**
-   - تفحص جميعها ارتباط المناوبة بفاتورة (`assignment.invoiceId !== null`)، وترفض التعديل أو الحذف فورًا إذا كانت مفوترة.
-
-### د) المواءمة القانونية: الاحتفاظ المالي (§ 147 AO) مقابل محو البيانات الشخصية (GDPR)
-- بموجب المادة 17، الفقرة 3، البند (b) من اللائحة العامة لحماية البيانات (GDPR)، يُستثنى الحق في المحو عند وجود التزام قانوني يستوجب الاحتفاظ بالبيانات.
-- يُلزم القانون الألماني (§ 147 AO و § 257 HGB) بالاحتفاظ بالفواتير ودفاتر الحسابات لمدة 10 سنوات كاملة.
-- تم الفصل الدقيق بين المسارين: السجلات المالية والوثائق المحاسبية محمية دائمًا من الحذف، بينما تُعالج طلبات محو البيانات الشخصية للعملاء أو الموظفين الذين لا يرتبطون بسجلات مالية عبر قنواتها النظامية المعتمدة دون المساس بالنزاهة المحاسبية.
-- أُضيفت مفاتيح الترجمة الثلاثية المعتمدة (`de`, `en`, `ar`) في ملفات `messages/` لكافة رسائل الرفض الوقائي:
-  - `workers.hasFinancialRecords`
-  - `clients.hasFinancialRecords`
-  - `orders.lockedInvoiced`
-  - `orders.invoiced`
-
----
-
-## ٤. تدقيق الترحيلات الخمس وخطة الترتيب الآمن للإطلاق
-
-أُجري فحص وتدقيق سطري شامل لكافة ملفات الترحيل الخمس في الدليل `prisma/migrations/`:
-
-| الترحيل | الاسم البرمجي | الفحص الهيكلي | التحقق من التوافق الخلفي |
+| الترحيل | الاسم البرمجي | طبيعة العمليات الهيكلية | خصائص الأقفال والتوافق |
 | :--- | :--- | :--- | :--- |
-| **01** | `20261008_phase_03a_evidence_and_corrections` | ينشئ جداول إضافية جديدة (`confirmation_documents`, `work_hours_correction_requests`, `consumed_confirmation_tickets`) ومؤشراتها ومفتاح أجنبي `ON DELETE RESTRICT`. | **إضافي بحت (Purely Additive):** لا يحتوي على `DROP TABLE` أو `DROP COLUMN` أو `TRUNCATE` أو تعديل أعمدة قائمة. الكود القديم يتجاهل هذه الجداول تمامًا. |
-| **02** | `20261009_phase_03c_atomic_correction_concurrency` | يضيف عمودين (`base_version`, `revision`) مع قيم افتراضية ومؤشر جزئي فريد. | **متوافق 100%:** لا يمس أي جدول مستخدم في التطبيق القديم؛ عمليات التعبئة مخصصة للجداول الجديدة فقط. |
-| **03** | `20261009_phase_04a_surcharge_policy` | ينشئ أنواع التعداد (`PolicyScope`, `SurchargeRateType`) وجدول `facility_surcharge_policies`. | **إضافي بحت:** لا يغير الجداول الحالية؛ التطبيق القديم لا يقرأ أو يكتب في هذا الجدول. |
-| **04** | `20261010_phase_05b1_client_hourly_rate_versions` | يضيف تمديد `btree_gist` وينشئ جدول `client_hourly_rate_versions` مع قيد زمني فريد (`EXCLUDE USING gist`) وزناد حظر التعديل/الحذف (`rate_versions_no_update_delete`). | **إضافي بحت ومتوافق:** لا يعدل جداول العملاء أو الأسعار القديمة؛ يقدم الحماية الزمنية دون كسر التوافق. |
-| **05** | `20261010_phase_06_invoice_revisions` | ينشئ جدول `invoice_revisions` ومؤشراته وزناد الحماية من الحذف والتعديل (`invoice_revisions_no_update_delete`). | **إضافي بحت ومحصن:** جدول جديد كليًا لتتبع تعديلات الفواتير مع حظر كتابة على مستوى PostgreSQL يمنع التعديل أو الحذف، دون مساس بجدول `invoices` القديم. |
+| **01** | `20261008_phase_03a_evidence_and_corrections` | إنشاء جداول جديدة (`confirmation_documents`, `work_hours_correction_requests`, `consumed_confirmation_tickets`) وتعداداتها. | جداول جديدة بحتة؛ أقفال إنشاء عادية. |
+| **02** | `20261009_phase_03c_atomic_correction_concurrency` | **تعديل وتحديث صفوف قائمة:** يحذف فهرسًا سابقًا (`DROP INDEX IF EXISTS`)، يضيف عمودين، **ويحدّث بيانات الصفوف القائمة** (`UPDATE "work_hours_correction_requests" SET "base_version" = ...`) ثم ينشئ فهرسًا جزئيًا فريدًا. | **ليس إضافيًا بحتًا:** عملية `UPDATE` وبناء الفهرس تستلزم أقفالاً على مستوى الجدول في PostgreSQL. متوافق مع المنطق لكنه يتطلب نافذة تطبيق آمنة. |
+| **03** | `20261009_phase_04a_surcharge_policy` | إنشاء جدول `facility_surcharge_policies` وتعدادات. | جداول جديدة؛ متوافق خلفيًا. |
+| **04** | `20261010_phase_05b1_client_hourly_rate_versions` | إضافة تمديد `btree_gist` وإنشاء جدول أسعار زمني مع زناد حظر التعديل. | تمديد وجدول جديد؛ متوافق خلفيًا. |
+| **05** | `20261010_phase_06_invoice_revisions` | إنشاء جدول `invoice_revisions` وزَناد حظر التعديل والحذف. | جدول جديد بحت؛ متوافق خلفيًا. |
+| **06 (جديد)** | `20261012_phase_07e_invoice_client_delete_restrict` | **تعديل قيد المفتاح الأجنبي:** حذف القيد القديم وإعادة إنشائه بـ `ON DELETE RESTRICT` لجدول `invoices` المرتبط بـ `clients`. | **يتطلب أقفالاً:** يستلزم قفل `ACCESS EXCLUSIVE` على `invoices` وقفل `SHARE ROW EXCLUSIVE` على `clients`. متوافق مع الأعمال لكن يطبق في نافذة صيانة. |
 
-### نتيجة الفحص القطعية:
-- **انعدام تام** لأي أوامر `DROP TABLE` أو `DROP COLUMN` أو `TRUNCATE` أو حذف جماعي.
-- **توافق عكسي كامل بنسبة 100%:** يمكن للتطبيق الحالي الاستمرار في العمل دون أي انقطاع قبل أو بعد تشغيل هذه الترحيلات.
-
-### خطة الترتيب الآمن للإطلاق مستقبلاً (Production Rollout Sequence):
-> **تنبيه:** هذه الخطة للتوثيق والاعتماد فقط؛ **لم يُنفذ ولن يُنفذ أي إجراء منها على الإنتاج حاليًا.**
-1. **الخطوة الأولى (نسخة احتياطية كاملة قابلة للاستعادة):**
-   - أخذ نسخة احتياطية فورية كاملة لقاعدة بيانات الإنتاج عبر `pg_dump` مع التحقق من سلامة البصمة وحجم الملف واختبار استعادتها في بيئة اختبارية للتأكد من جاهزيتها.
-2. **الخطوة الثانية (تطبيق الترحيلات المتوافقة):**
-   - تشغيل `npx prisma migrate deploy` على قاعدة البيانات في وضع التشغيل الطبيعي. نظرًا لأن الترحيلات إضافية بحتة، فلن تسبب قفلًا طويلاً للجداول القائمة ولن تؤثر على الكود قيد التشغيل.
-3. **الخطوة الثالثة (نشر الكود البرمجي مع استمرار إغلاق الرايات):**
-   - نشر الكود الجديد مع التحقق من أن البيئة الإنتاجية تحتوي صراحة على:
-     `FEATURE_INVOICE_V2_ISSUANCE=false` و `FEATURE_INVOICE_V2_REFRESH=false`.
-4. **الخطوة الرابعة (الفحص التشغيلي السريع - Smoke Testing):**
-   - التحقق من عمل مسارات التطبيق المعتادة (الطلبات، التسكين، الفواتير القديمة) والتأكد من استقرار النظام.
-5. **الخطوة الخامسة (التفعيل اللاحق المراقب):**
-   - بعد الاعتماد الإداري والمحاسبي المستقل، يتم تفعيل الرايات تدريجيًا مع مراقبة السجلات والأداء.
+### ب) حدود أمر البناء (`next build`)
+- إزالة `prisma db push --accept-data-loss` أزالت الكتابة والتعديل الهيكلي التلقائي على قاعدة البيانات.
+- ومع ذلك، فإن `next build` في بيئة App Router قد تحاول تنفيذ استعلامات قراءة لبعض الصفحات أثناء التوليد المسبق الثابت (SSG / Pre-rendering) إذا كانت الصفحة تتضمن استدعاءات خادمية غير ديناميكية وتوفرت بيانات الاتصال.
+- **الضمانة الإلزامية:** يجب أن تتم عملية البناء حصريًا في بيئة معزولة تخلو من متغيرات وأسرار الإنتاج (`DATABASE_URL`) لضمان عدم حدوث أي قراءة أو اتصال بالإنتاج أثناء التجميع.
 
 ---
 
-## ٥. حسم تعارض الصافي والضريبة والإجمالي بين السنتات والنصوص (Codex Finding)
+## ٦. نتائج الاختبارات والتحقق الصارم
 
-### أ) توصيف الإغلاق الوقائي (Fail-Closed)
-- في المراجعة السابقة، تم تشخيص ثغرة محتملة في الفواتير المجمدة: في حال وجود تعارض بين مبالغ الإجمالي في اللقطة (مثل `subtotalCents` مقابل `subtotal`، أو `taxAmountCents` مقابل `taxAmount`، أو `totalCents` مقابل `total`)، قد تعتمد بعض مسارات العرض أو التنزيل أحد الحقلين بينما يتحقق مسار آخر من الحقل الآخر، مما يسبب انحرافًا ماليًا في المستند المطبوع أو المرسل.
-- **المعالجة البرمجية الصارمة:**
-  1. طُوّرت دالة مركزية صارمة `validateSnapshotMonetaryTotals(snapshot)` في `lib/invoicing.ts`.
-  2. تقوم الدالة بفرض مطابقة دقيقة لا تقبل أي تسامح (Zero-Tolerance) بين:
-     - `subtotalCents` / `netAmountCents` والقيمة المقابلة في النص `subtotal` / `netAmount`.
-     - `taxAmountCents` / `vatAmountCents` والقيمة المقابلة في النص `taxAmount` / `vatAmount`.
-     - `totalCents` / `grossAmountCents` والقيمة المقابلة في النص `total` / `grossAmount`.
-  3. تُطبّق هذه الدالة وتُفرض قطعيًا في:
-     - `hasReliableInvoiceDocument` (فاحص الواجهة: يحجب أزرار PDF والبريد فورًا عند وجود أي تعارض).
-     - `isCompleteFrozenSnapshot` (فاحص التحديث والتنزيل: يرفض اللقطة ويعيد 422).
-     - `buildInvoicePdfData` (باني ملف PDF التاريخي: يرفض بناء المستند فورًا ويلقي خطأ وقائيًا).
-
-### ب) التحقق بالاختبارات داخل الذاكرة (In-Memory Tests)
-- كُتبت اختبارات عكسية متخصصة ومكثفة في `lib/phase-07e-owner-decisions.test.ts` و`docs/audit/invoice-engine.audit.test.ts`:
-  - اختبار تعارض `subtotalCents: 10000` مع نص `subtotal: "150,00 €"` -> رفض PDF وإرجاع 422 وحجب البريد.
-  - اختبار تعارض `taxAmountCents: 1900` مع نص `taxAmount: "28,50 €"` -> رفض PDF وإرجاع 422 وحجب البريد.
-  - اختبار تعارض `totalCents: 11900` مع نص `total: "178,50 €"` -> رفض PDF وإرجاع 422 وحجب البريد.
-  - اختبار توافق وتطابق السنتات والنصوص بدقة سنت واحد -> قبول المستند وتوليد الـ PDF بنجاح.
+1. **فحص TypeScript الصارم:**
+   `npx tsc --noEmit --incremental false --pretty false` -> **0 أخطاء (Zero Errors)**.
+2. **فحص ESLint للملفات المعدلة:**
+   `npx eslint app/ ... lib/ ... scripts/ ...` -> **0 أخطاء و0 تحذيرات (Zero Errors, Zero Warnings)**.
+3. **فحص الفروقات البرمجية:**
+   `git diff --check` -> **خلو تام من أي أخطاء أو علامات غير مرغوبة**.
+4. **حزمة اختبارات التدقيق المستقلة المحددة (124 اختبارًا):**
+   `npx vitest run lib/phase-07e-owner-decisions.test.ts docs/audit/invoice-engine.audit.test.ts --testTimeout=15000`
+   -> **124 ناجحًا (124 Passed, 0 Failed)**.
+5. **حزمة الاختبارات الشاملة للمنظومة (257 اختبارًا في 6 أجنحة):**
+   - `lib/phase-07e-owner-decisions.test.ts` (93 اختبارًا ناجحًا)
+   - `lib/invoice-v2-refresh-service.test.ts` (55 اختبارًا ناجحًا)
+   - `lib/invoice-v2-issuance-service.test.ts` (50 اختبارًا ناجحًا)
+   - `docs/audit/invoice-engine.audit.test.ts` (31 اختبارًا ناجحًا)
+   - `lib/cancelled-invoices-phase-07b.test.ts` (21 اختبارًا ناجحًا)
+   - `docs/audit/cross-phase-integration.audit.test.ts` (7 اختبارات ناجحة)
+   -> **257 ناجحًا بنسبة 100% (257 Passed, 0 Failed)**.
 
 ---
 
-## ٦. الجرد الشامل والصريح لكافة عمليات الحذف المتبقية في كامل النظام البرمجي
+## ٧. الخلاصة والتسليم
 
-التزامًا بمبدأ الشفافية المطلقة، وعدم إطلاق عبارات عامة مثل «لا يمكن حذف أي بيانات»، نُدرج هنا حصرًا مدققًا وشاملاً لكل أمر حذف (`delete` أو `deleteMany`) متبقٍ في كامل الكود المصدري، مع بيان جدول قاعدة البيانات، والملف البرمجي، ومبرر وجوده، وضوابطه الوقائية:
-
-| # | الجدول والكيان | الملف البرمجي وموضعه | المبرر الوظيفي | القيود الوقائية الصارمة |
-| :---: | :--- | :--- | :--- | :--- |
-| **1** | `prisma.invoice.delete` | `admin/orders/[id]/invoice-actions.ts` | **محظور نهائيًا ومحمي بخطأ قطعي** | **ممنوع تمامًا:** يطلق خطأ خادميًا يمنع الحذف لحماية متطلبات GoBD والمادة 147 AO. يُستخدم الاسترداد والإلغاء `cancelInvoice` فقط. |
-| **2** | `prisma.user.delete` (عملاء / موظفون) | `admin/clients/actions.ts` و `admin/workers/actions.ts` | تنفيذ طلبات محو البيانات بموجب GDPR للمستخدمين الذين لا يملكون أي معاملات مالية. | **مشروط وقائيًا:** يفحص وجود أي فواتير أو ورديات مفوترة (`hasFinancialRecords`). إذا وُجد سجل مالي واحد، يُمنع الحذف نهائيًا بموجب استثناء GDPR 17(3)(b). |
-| **3** | `prisma.order.delete` / `deleteMany` | `admin/orders/actions.ts` و `admin/schedule/actions.ts` | حذف مسودات الطلبات المفتوحة غير المنجزة أو المكررة بالخطأ من جدول المواعيد. | **مشروط وقائيًا:** يفحص عدم ارتباط الطلب بأي مناوبات مفوترة (`lockedInvoiced`). يمنع الحذف قطعياً إذا كانت هناك ورديات مفوترة. |
-| **4** | `prisma.assignment.delete` / `deleteMany` | `admin/schedule/actions.ts` و `client/orders/actions.ts` | إلغاء تخصيص الموظف لوردية أو مسح وردية مفتوحة من جدول التوزيع قبل الفوترة. | **مشروط وقائيًا:** يفحص ارتباط المناوبة بفاتورة (`invoiceId !== null` أو `invoiced`). يمنع الحذف فورًا لأي مناوبة مفوترة. |
-| **5** | `prisma.userSession.deleteMany` | `lib/auth/session.ts` | تسجيل الخروج وإلغاء الجلسات المنتهية أمنيًا. | **بيانات مؤقتة وتشغيلية:** تقتصر على جلسات الدخول للمستخدم ولا تمس أي سجلات تجارية. |
-| **6** | `prisma.pushSubscription.deleteMany` | `lib/notifications/push.ts` | إزالة رموز الإشعارات غير الصالحة أو أجهزة المستخدمين المعطلة. | **بيانات تقنية مؤقتة:** رموز إشعارات الويب المنتهية. |
-| **7** | `prisma.workerAvailability.deleteMany` | `admin/workers/actions.ts` | إعادة ضبط وتحديث جدول إتاحة الموظف للأسبوع عند تعديل أوقات دوامه المتاحة. | **بيانات تشغيلية متجددة:** تحديث أوقات توفر الموظف، ولا علاقة لها بساعات العمل الفعلية أو الفواتير. |
-| **8** | `prisma.leaveDay.deleteMany` | `admin/workers/actions.ts` | إلغاء أو تعديل طلبات الإجازات المسجلة للموظف. | **بيانات إدارية:** تقتصر على أيام الإجازة قبل تثبيتها. |
-| **9** | `prisma.workerHoursAdjustment.deleteMany` | `admin/workers/actions.ts` | تصحيح تسويات ساعات العمل التقديرية للشهر قبل التثبيت النهائي. | **بيانات مرحلية:** تسويات الساعات قبل الإغلاق الشهري المحاسبي. |
-| **10** | `prisma.appointment.delete` | `admin/appointments/actions.ts` | حذف المواعيد والاجتماعات الإدارية من التقويم الداخلي. | **بيانات تقويم إداري:** اجتماعات ومواعيد داخلية لا ترتبط بحسابات مالية. |
-| **11** | `prisma.outgoingEmail.delete` | `admin/system/email-actions.ts` | تنظيف سجلات البريد الصادر المؤقتة أو الفاشلة في الطابور بعد المعالجة. | **بيانات طابور مؤقتة:** سجلات الإرسال الفني للبريد. |
-| **12** | `prisma.workerDocument.delete` | `admin/workers/[id]/documents/actions.ts` | حذف مستند مرفوع غير صالح (مثل شهادة تدريب خاطئة) بواسطة المسؤول. | **ملفات مرفقة:** تقتصر على الشهادات والمستندات الشخصية للموظف. |
-| **13** | `prisma.clientContract.delete` | `admin/clients/[id]/contracts/actions.ts` | حذف مسودة عقد عميل غير موقعة أو ملغاة قبل اعتمادها. | **مسودات غير معتمدة:** تقتصر على المسودات الإدارية غير المرتبطة بفواتير قائمة. |
-
----
-
-## ٧. نتائج الاختبارات وفحص الأنواع والامتثال اللغوي
-
-1. **فحص الأنواع المجمعة (TypeScript):**
-   - تم تشغيل `npx tsc --noEmit` بنجاح تام: **0 أخطاء (Zero Errors)**.
-2. **فحص التنسيق والجودة (ESLint):**
-   - تم تشغيل `npx eslint` على كافة الملفات المعدلة: **0 أخطاء (Zero Warnings / Errors)**.
-3. **فحص الفروقات البرمجية (Git Check):**
-   - تم تشغيل `git diff --check`: خلو تام من أي أخطاء بيضاء أو شوائب دمج.
-4. **حزمة الاختبارات المتخصصة في الذاكرة (In-Memory Tests):**
-   - تم تنفيذ كافة أجنحة الاختبارات المعنية في بيئة معزولة بالكامل دون اتصال بقاعدة البيانات:
-     - `lib/phase-07e-owner-decisions.test.ts` (86 اختبارًا ناجحًا)
-     - `lib/invoice-v2-refresh-service.test.ts` (55 اختبارًا ناجحًا)
-     - `lib/invoice-v2-issuance-service.test.ts` (50 اختبارًا ناجحًا)
-     - `docs/audit/invoice-engine.audit.test.ts` (31 اختبارًا ناجحًا)
-     - `lib/cancelled-invoices-phase-07b.test.ts` (21 اختبارًا ناجحًا)
-     - `docs/audit/cross-phase-integration.audit.test.ts` (7 اختبارات ناجحة)
-   - **النتيجة الإجمالية:** **250 اختبارًا ناجحًا (250 Passed, 0 Failed)**.
-5. **سياسة اللغة والترجمة (`.agents/AGENTS.md`):**
-   - كافة النصوص الظاهرة للمستخدم والرسائل الإدارية كتبت بالألمانية كلغة أولية.
-   - أُضيفت كافة مفاتيح الترجمة بالتطابق التام في ملفات اللغات الثلاث: `messages/de.json` و`messages/en.json` و`messages/ar.json`.
-
----
-
-## ٨. الخلاصة والتسليم للمراجعة المستقلة
-
-- تم إنجاز كافة متطلبات سلامة البيانات وحظر الإتلاف على الفرع المعزول بدقة متناهية.
-- تمت إزالة كافة المسارات الخطرة للبناء والتهيئة التجريبية، وحُظر الحذف الفعلي للفواتير خادميًا وهيكليًا.
-- حُسم تعارض السنتات والنصوص نهائيًا عبر الإغلاق الوقائي (Fail-Closed).
-- العمل متوقف بالكامل عند حدود هذا الفرع المعزول دون أي دمج أو نشر أو تفعيل لرايات V2، والملف جاهز لتسليمه للمراجعة المستقلة (Codex Review).
+- عولجت النقاط المانعة الثلاث بالكامل، وتصحح التقرير ليصف الترحيلات وعملية البناء بدقة علمية واقعية.
+- كافة التحققات نُفذت في الذاكرة دون أي مساس بالإنتاج أو كتابة بيانات تجريبية.
+- يبقى القرار التشغيلي: **NO-GO** التام؛ لا دمج مع `main`، ولا نشر للإنتاج، والرايتان `FEATURE_INVOICE_V2_ISSUANCE=false` و`FEATURE_INVOICE_V2_REFRESH=false` مغلقتان قطعيًا، بانتظار اعتماد المراجعة المستقلة (Codex Review).

@@ -24,6 +24,7 @@ import { pushToUsers } from "@/lib/push";
 import type { OrderStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
 import { sendEmailToUsers } from "@/lib/email";
+import { hasHistoricalInvoiceRecordForAssignment } from "@/lib/invoicing";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -233,8 +234,8 @@ export async function updateOrderRequestAsAdmin(
     })),
   );
 
-  let affectedWorkers: { userId: string; order: any }[] = [];
-  let deletedOrders: any[] = [];
+  let affectedWorkers: { userId: string; order: Record<string, unknown> }[] = [];
+  let deletedOrders: Record<string, unknown>[] = [];
   if (deleteIds.length > 0) {
     deletedOrders = await prisma.order.findMany({
       where: { id: { in: deleteIds } },
@@ -485,6 +486,16 @@ export async function cancelOrderRequestAsAdmin(
     where: { order: { requestGroupId }, invoiceId: { not: null } },
   });
   if (invoiced > 0) return { ok: false, error: "lockedInvoiced" };
+
+  const groupAssignments = await prisma.assignment.findMany({
+    where: { order: { requestGroupId } },
+    select: { id: true },
+  });
+  for (const asgn of groupAssignments) {
+    if (await hasHistoricalInvoiceRecordForAssignment(asgn.id)) {
+      return { ok: false, error: "lockedInvoiced" };
+    }
+  }
 
   const client = await prisma.client.findUnique({
     where: { id: existing[0].clientId },
@@ -801,7 +812,7 @@ export async function bulkAssignWorkers(
   });
   const workerById = new Map(workers.map((w) => [w.id, w]));
 
-  const offers: { orderId: string; workerId: string; userId: string; content: string; shiftData?: any }[] = [];
+  const offers: { orderId: string; workerId: string; userId: string; content: string; shiftData?: unknown }[] = [];
   const advanceIds: string[] = [];
   let skipped = 0;
 
@@ -913,7 +924,7 @@ export async function bulkAssignWorkers(
   });
 
   // One push per worker summarising how many shifts they were freshly offered.
-  const perWorker = new Map<string, any[]>();
+  const perWorker = new Map<string, unknown[]>();
   for (const o of notify) {
     if (!perWorker.has(o.userId)) perWorker.set(o.userId, []);
     if (o.shiftData) perWorker.get(o.userId)!.push(o.shiftData);
@@ -1445,6 +1456,8 @@ export async function swapWorker(
   if (!oldAssignment) return { ok: false, error: "saveError" };
   if (oldAssignment.serviceConfirmation) return { ok: false, error: "confirmed" }; // Cannot swap a signed shift
   if (oldAssignment.invoiceId) return { ok: false, error: "invoiced" }; // Cannot swap an invoiced shift
+  const hasHistoricalInvoice = await hasHistoricalInvoiceRecordForAssignment(oldAssignment.id);
+  if (hasHistoricalInvoice) return { ok: false, error: "invoiced" }; // Cannot swap historically invoiced shift
 
   const oldWorker = oldAssignment.worker;
   const order = oldAssignment.order;
@@ -1536,7 +1549,7 @@ export async function swapWorker(
     orderBy: { uploadedAt: "desc" }
   });
 
-  let attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
+  const attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
   if (certDoc) {
     try {
       const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");

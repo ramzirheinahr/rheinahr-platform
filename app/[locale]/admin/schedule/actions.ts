@@ -12,6 +12,7 @@ import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { qualifications, type Qualification } from "@/lib/validations";
 import { pushToUsers } from "@/lib/push";
+import { hasHistoricalInvoiceRecordForAssignment } from "@/lib/invoicing";
 
 // Cell-level edits on the master schedule grid. Every edit here mutates the
 // SAME entities the order/availability pages use (WorkerAvailability, Order,
@@ -642,6 +643,8 @@ async function releaseAssignmentCore(
   if (!assignment) return { ok: false, error: "saveError" };
   if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
   if (assignment.invoiceId) return { ok: false, error: "invoiced" };
+  const hasHistoricalInvoice = await hasHistoricalInvoiceRecordForAssignment(assignment.id);
+  if (hasHistoricalInvoice) return { ok: false, error: "invoiced" };
 
   const others = assignment.order.assignments.filter((a) => a.id !== assignment.id);
 
@@ -774,6 +777,8 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
   if (!assignment) return { ok: false, error: "saveError" };
   if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
   if (assignment.invoiceId) return { ok: false, error: "invoiced" };
+  const hasHistoricalInvoice = await hasHistoricalInvoiceRecordForAssignment(assignment.id);
+  if (hasHistoricalInvoice) return { ok: false, error: "invoiced" };
 
   const label = `${formatDateDE(assignment.order.shiftDate)} ${assignment.order.startTime}–${assignment.order.endTime} · ${assignment.order.client.facilityName}`;
   const facilityUserIds = await getFacilityClientUserIds(assignment.order.client.id || assignment.order.client.userId);
@@ -1074,9 +1079,8 @@ export async function deleteOpenOrderFromGrid(orderId: string): Promise<ActionSt
 
 // Batch processor for the offline-mode master schedule grid
 export async function saveMasterScheduleGridBatch(ops: GridOperation[]): Promise<ActionState> {
-  let admin;
   try {
-    admin = await assertAdmin();
+    await assertAdmin();
   } catch {
     return { ok: false, error: "forbidden" };
   }

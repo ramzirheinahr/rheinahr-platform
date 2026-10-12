@@ -7,6 +7,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { workerSchema, accountBaseSchema } from "@/lib/validations";
+import { hasHistoricalInvoiceRecordForWorker } from "@/lib/invoicing";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -287,15 +288,28 @@ export async function deleteWorker(id: string): Promise<ActionState> {
   if (!worker) return { ok: false, error: "saveError" };
 
   // Financial records preservation (GoBD / § 147 AO):
-  // Deleting workers with invoiced assignments is strictly prohibited.
-  const invoicedAssignmentsCount = await prisma.assignment.count({
-    where: { workerId: id, invoiceId: { not: null } },
-  });
-  if (invoicedAssignmentsCount > 0) {
+  // Deleting workers with invoiced assignments or historical invoice references is strictly prohibited.
+  const hasFinancialRecords = await hasHistoricalInvoiceRecordForWorker(id);
+  if (hasFinancialRecords) {
     return { ok: false, error: "hasFinancialRecords" };
   }
 
-  await prisma.user.delete({ where: { id: worker.userId } });
+  try {
+    await prisma.user.delete({ where: { id: worker.userId } });
+  } catch (err: unknown) {
+    const error = err as { code?: string; message?: string };
+    if (
+      error?.code === "P2003" ||
+      error?.code === "P2014" ||
+      (typeof error?.message === "string" &&
+        (error.message.includes("Foreign key") ||
+          error.message.includes("foreign key") ||
+          error.message.includes("Restrict")))
+    ) {
+      return { ok: false, error: "hasFinancialRecords" };
+    }
+    throw err;
+  }
 
   await audit({
     userId: admin.id,

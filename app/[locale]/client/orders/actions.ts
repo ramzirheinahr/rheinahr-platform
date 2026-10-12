@@ -12,6 +12,7 @@ import { orderRequestSchema, type OrderRequestInput, type Qualification } from "
 import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { sendEmailToUsers } from "@/lib/email";
+import { hasHistoricalInvoiceRecordForAssignment } from "@/lib/invoicing";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -153,6 +154,16 @@ export async function updateOrderRequest(
     });
     if (invoicedCount > 0) {
       return { ok: false, error: "lockedInvoiced" };
+    }
+
+    const assignedRecords = await prisma.assignment.findMany({
+      where: { orderId: { in: deleteIds } },
+      select: { id: true },
+    });
+    for (const asgn of assignedRecords) {
+      if (await hasHistoricalInvoiceRecordForAssignment(asgn.id)) {
+        return { ok: false, error: "lockedInvoiced" };
+      }
     }
   }
 
@@ -379,6 +390,16 @@ export async function cancelOrderRequest(
     where: { order: { requestGroupId, clientId: client.id }, invoiceId: { not: null } },
   });
   if (invoiced > 0) return { ok: false, error: "lockedInvoiced" };
+
+  const groupAssignments = await prisma.assignment.findMany({
+    where: { order: { requestGroupId, clientId: client.id } },
+    select: { id: true },
+  });
+  for (const asgn of groupAssignments) {
+    if (await hasHistoricalInvoiceRecordForAssignment(asgn.id)) {
+      return { ok: false, error: "lockedInvoiced" };
+    }
+  }
 
   // Workers holding an active invitation/acceptance lose the shift — tell them.
   const affected = await prisma.assignment.findMany({

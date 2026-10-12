@@ -269,7 +269,22 @@ export async function deleteClient(id: string): Promise<ActionState> {
     };
   }
 
-  await prisma.user.delete({ where: { id: client.userId } });
+  try {
+    await prisma.user.delete({ where: { id: client.userId } });
+  } catch (err: unknown) {
+    const error = err as { code?: string; message?: string };
+    if (
+      error?.code === "P2003" ||
+      error?.code === "P2014" ||
+      (typeof error?.message === "string" &&
+        (error.message.includes("Foreign key") ||
+          error.message.includes("foreign key") ||
+          error.message.includes("Restrict")))
+    ) {
+      return { ok: false, error: "hasFinancialRecords" };
+    }
+    throw err;
+  }
 
   await audit({
     userId: admin.id,

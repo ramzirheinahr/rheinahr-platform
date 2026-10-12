@@ -87,6 +87,10 @@ vi.mock("@/lib/prisma", () => ({
     notification: {
       createMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
+    auditLog: {
+      create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+    },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -2389,6 +2393,228 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
       );
 
       expect(sendEmailToRecipients).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Phase 07e Review Remediation - Atomic Cancellation, Historical Links, Seed Purge, Migration Hardening", () => {
+    it("cancelInvoice runs an atomic transaction that creates an in-transaction audit log and preserves historical references", async () => {
+      const { cancelInvoice } = await import("@/app/[locale]/admin/orders/[id]/invoice-actions");
+      const { prisma } = await import("@/lib/prisma");
+
+      const mockInvoice = {
+        id: "inv-to-cancel-1",
+        status: "unpaid",
+        snapshotData: {
+          items: [{ line: 1, amountCents: 10000 }],
+        },
+        assignments: [
+          { id: "asgn-c-1", workerId: "worker-c-1", orderId: "order-c-1" },
+          { id: "asgn-c-2", workerId: "worker-c-2", orderId: "order-c-1" },
+        ],
+      };
+
+      vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce(mockInvoice as any);
+
+      let txAssignmentUpdateManyCalled = false;
+      let txInvoiceUpdateCalled = false;
+      let txAuditLogCreateCalled = false;
+      let capturedInvoiceUpdateData: any = null;
+      let capturedAuditLogData: any = null;
+
+      const mockTx = {
+        assignment: {
+          updateMany: vi.fn().mockImplementation(async (args) => {
+            txAssignmentUpdateManyCalled = true;
+            expect(args.where.invoiceId).toBe("inv-to-cancel-1");
+            expect(args.data.invoiceId).toBeNull();
+            return { count: 2 };
+          }),
+        },
+        invoice: {
+          update: vi.fn().mockImplementation(async (args) => {
+            txInvoiceUpdateCalled = true;
+            capturedInvoiceUpdateData = args.data;
+            return { id: "inv-to-cancel-1", ...args.data };
+          }),
+        },
+        auditLog: {
+          create: vi.fn().mockImplementation(async (args) => {
+            txAuditLogCreateCalled = true;
+            capturedAuditLogData = args.data;
+            return { id: "audit-1", ...args.data };
+          }),
+        },
+      };
+
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (callback: any) => {
+        if (typeof callback === "function") {
+          return await callback(mockTx);
+        }
+        throw new Error("Expected interactive transaction callback");
+      });
+
+      await cancelInvoice("inv-to-cancel-1");
+
+      expect(txAssignmentUpdateManyCalled).toBe(true);
+      expect(txInvoiceUpdateCalled).toBe(true);
+      expect(txAuditLogCreateCalled).toBe(true);
+
+      expect(capturedInvoiceUpdateData.status).toBe("cancelled");
+      expect(capturedInvoiceUpdateData.snapshotData.historicalAssignmentIds).toEqual([
+        "asgn-c-1",
+        "asgn-c-2",
+      ]);
+      expect(capturedInvoiceUpdateData.snapshotData.historicalWorkerIds).toEqual([
+        "worker-c-1",
+        "worker-c-2",
+      ]);
+      expect(capturedInvoiceUpdateData.snapshotData.historicalOrderIds).toEqual([
+        "order-c-1",
+      ]);
+      expect(capturedInvoiceUpdateData.snapshotData.cancellationHistory).toBeDefined();
+      expect(capturedInvoiceUpdateData.snapshotData.cancellationHistory.releasedAssignmentCount).toBe(2);
+
+      expect(capturedAuditLogData.action).toBe("invoice.cancel");
+      expect(capturedAuditLogData.entity).toBe("Invoice");
+      expect(capturedAuditLogData.entityId).toBe("inv-to-cancel-1");
+      expect(capturedAuditLogData.metadata.assignmentCount).toBe(2);
+    });
+
+    it("cancelInvoice fails closed if the in-transaction audit log creation fails (zero cancellation without audit)", async () => {
+      const { cancelInvoice } = await import("@/app/[locale]/admin/orders/[id]/invoice-actions");
+      const { prisma } = await import("@/lib/prisma");
+
+      const mockInvoice = {
+        id: "inv-to-cancel-fail-audit",
+        status: "unpaid",
+        snapshotData: {},
+        assignments: [{ id: "asgn-f-1", workerId: "worker-f-1", orderId: "order-f-1" }],
+      };
+
+      vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce(mockInvoice as any);
+
+      const mockTx = {
+        assignment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+        invoice: { update: vi.fn().mockResolvedValue({ id: "inv-to-cancel-fail-audit" }) },
+        auditLog: {
+          create: vi.fn().mockRejectedValue(new Error("Audit log database failure")),
+        },
+      };
+
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (callback: any) => {
+        return await callback(mockTx);
+      });
+
+      await expect(cancelInvoice("inv-to-cancel-fail-audit")).rejects.toThrow(
+        "Audit log database failure"
+      );
+    });
+
+    it("deleteWorker is prevented with hasFinancialRecords when worker is preserved in cancelled invoice snapshotData (even after invoiceId is detached)", async () => {
+      const { deleteWorker } = await import("@/app/[locale]/admin/workers/actions");
+      const { prisma } = await import("@/lib/prisma");
+
+      vi.mocked(prisma.worker.findUnique).mockResolvedValueOnce({
+        id: "worker-historically-cancelled",
+        userId: "user-w-1",
+      } as any);
+
+      // Active invoiced assignments are 0 because invoice was cancelled and invoiceId cleared
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(0);
+
+      // But invoice snapshotData preserves the worker in historicalWorkerIds
+      vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([
+        {
+          snapshotData: {
+            status: "cancelled",
+            historicalWorkerIds: ["worker-historically-cancelled"],
+          },
+        },
+      ] as any);
+
+      const res = await deleteWorker("worker-historically-cancelled");
+      expect(res).toEqual({ ok: false, error: "hasFinancialRecords" });
+      expect(prisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("hasHistoricalInvoiceRecordForAssignment returns true when assignment is preserved in cancelled invoice snapshotData", async () => {
+      const { hasHistoricalInvoiceRecordForAssignment } = await import("@/lib/invoicing");
+      const { prisma } = await import("@/lib/prisma");
+
+      // Assignment has invoiceId: null
+      vi.mocked(prisma.assignment.findUnique).mockResolvedValueOnce({
+        invoiceId: null,
+      } as any);
+
+      // But invoice snapshotData preserves the assignment in historicalAssignmentIds
+      vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([
+        {
+          snapshotData: {
+            historicalAssignmentIds: ["asgn-historically-cancelled-99"],
+          },
+        },
+      ] as any);
+
+      const hasHistory = await hasHistoricalInvoiceRecordForAssignment(
+        "asgn-historically-cancelled-99"
+      );
+      expect(hasHistory).toBe(true);
+    });
+
+    it("deleteClient catches database foreign key constraint violation (P2003 / P2014) and safely returns hasFinancialRecords", async () => {
+      const { deleteClient } = await import("@/app/[locale]/admin/clients/actions");
+      const { prisma } = await import("@/lib/prisma");
+
+      vi.mocked(prisma.client.findUnique).mockResolvedValueOnce({
+        id: "client-fk-race",
+        userId: "user-client-fk-race",
+      } as any);
+
+      // Pre-check count returns 0 (e.g. race condition where an invoice is inserted concurrently right after)
+      vi.mocked(prisma.invoice.count).mockResolvedValueOnce(0);
+      vi.mocked(prisma.assignment.count).mockResolvedValueOnce(0);
+
+      // PostgreSQL ON DELETE RESTRICT raises foreign key violation
+      const fkError = new Error("Foreign key constraint failed on the field: `invoices_client_id_fkey`");
+      (fkError as any).code = "P2003";
+      vi.mocked(prisma.user.delete).mockRejectedValueOnce(fkError);
+
+      const res = await deleteClient("client-fk-race");
+      expect(res).toEqual({ ok: false, error: "hasFinancialRecords" });
+    });
+
+    it("scripts/seed-demo.mjs contains zero destructive logic, zero deleteMany calls, and zero Supabase user deletion", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const seedContent = fs.readFileSync(
+        path.join(process.cwd(), "scripts/seed-demo.mjs"),
+        "utf8"
+      );
+
+      expect(seedContent).not.toContain("deleteMany");
+      expect(seedContent).not.toContain("deleteUser");
+      expect(seedContent).not.toContain("PrismaClient");
+      expect(seedContent).not.toContain("createClient");
+      expect(seedContent).toContain("process.exit(1)");
+    });
+
+    it("verifies migration SQL for invoices.client_id enforces ON DELETE RESTRICT", async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const migrationSql = fs.readFileSync(
+        path.join(
+          process.cwd(),
+          "prisma/migrations/20261012_phase_07e_invoice_client_delete_restrict/migration.sql"
+        ),
+        "utf8"
+      );
+
+      expect(migrationSql).toContain('ALTER TABLE "invoices"');
+      expect(migrationSql).toContain('DROP CONSTRAINT IF EXISTS "invoices_client_id_fkey"');
+      expect(migrationSql).toContain('ADD CONSTRAINT "invoices_client_id_fkey"');
+      expect(migrationSql).toContain('REFERENCES "clients"("id")');
+      expect(migrationSql).toContain("ON DELETE RESTRICT");
+      expect(migrationSql).toContain("ON UPDATE CASCADE");
     });
   });
 });

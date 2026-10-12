@@ -928,3 +928,116 @@ export function hasReliableInvoiceDocument(
 
   return true;
 }
+
+/**
+ * Checks whether a worker has financial/auditable records, either through:
+ * 1. Currently active invoiced assignments (assignment.invoiceId !== null)
+ * 2. Historical or cancelled invoices whose frozen snapshotData preserves the worker
+ */
+export async function hasHistoricalInvoiceRecordForWorker(
+  workerId: string
+): Promise<boolean> {
+  // 1. Current active invoiced assignments
+  const activeCount = await prisma.assignment.count({
+    where: { workerId, invoiceId: { not: null } },
+  });
+  if (activeCount > 0) return true;
+
+  // 2. Frozen snapshot data across all invoices (including cancelled ones)
+  const invoices = await prisma.invoice.findMany({
+    where: { snapshotData: { not: Prisma.DbNull } },
+    select: { snapshotData: true },
+  });
+
+  for (const inv of invoices) {
+    if (!inv.snapshotData || typeof inv.snapshotData !== "object") continue;
+    const snap = inv.snapshotData as Record<string, unknown>;
+    if (
+      Array.isArray(snap.historicalWorkerIds) &&
+      snap.historicalWorkerIds.includes(workerId)
+    ) {
+      return true;
+    }
+    if (
+      Array.isArray(snap.items) &&
+      snap.items.some(
+        (it) =>
+          it &&
+          typeof it === "object" &&
+          (it as Record<string, unknown>).workerId === workerId
+      )
+    ) {
+      return true;
+    }
+    if (
+      Array.isArray(snap.pdfItems) &&
+      snap.pdfItems.some(
+        (it) =>
+          it &&
+          typeof it === "object" &&
+          (it as Record<string, unknown>).workerId === workerId
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether an assignment has financial/auditable records, either through:
+ * 1. Current active invoice link (assignment.invoiceId !== null)
+ * 2. Historical or cancelled invoices whose frozen snapshotData preserves the assignment
+ */
+export async function hasHistoricalInvoiceRecordForAssignment(
+  assignmentId: string
+): Promise<boolean> {
+  // 1. Current active invoice link
+  const asgn = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: { invoiceId: true },
+  });
+  if (asgn?.invoiceId) return true;
+
+  // 2. Frozen snapshot data across all invoices (including cancelled ones)
+  const invoices = await prisma.invoice.findMany({
+    where: { snapshotData: { not: Prisma.DbNull } },
+    select: { snapshotData: true },
+  });
+
+  for (const inv of invoices) {
+    if (!inv.snapshotData || typeof inv.snapshotData !== "object") continue;
+    const snap = inv.snapshotData as Record<string, unknown>;
+    if (
+      Array.isArray(snap.historicalAssignmentIds) &&
+      snap.historicalAssignmentIds.includes(assignmentId)
+    ) {
+      return true;
+    }
+    if (
+      Array.isArray(snap.items) &&
+      snap.items.some(
+        (it) =>
+          it &&
+          typeof it === "object" &&
+          (it as Record<string, unknown>).assignmentId === assignmentId
+      )
+    ) {
+      return true;
+    }
+    if (
+      Array.isArray(snap.pdfItems) &&
+      snap.pdfItems.some(
+        (it) =>
+          it &&
+          typeof it === "object" &&
+          (it as Record<string, unknown>).assignmentId === assignmentId
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
