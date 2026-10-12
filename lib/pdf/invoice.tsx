@@ -180,7 +180,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
             <Text style={styles.colPos}>{item.pos}</Text>
             <Text style={styles.colDesc}>{item.description}</Text>
             <Text style={styles.colHours}>{item.hours}</Text>
-            <Text style={styles.colRate}>{item.rate.trim().endsWith("€") ? item.rate.trim() : `${item.rate.trim()} €`}</Text>
+            <Text style={styles.colRate}>{item.rate && item.rate.trim() ? (item.rate.trim().endsWith("€") ? item.rate.trim() : `${item.rate.trim()} €`) : ""}</Text>
             <Text style={styles.colAmount}>{item.amount}</Text>
           </View>
         ))}

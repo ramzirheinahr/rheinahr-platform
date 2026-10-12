@@ -1320,7 +1320,9 @@
     "downloadPdf": "تنزيل PDF",
     "sentOnTooltip": "تم الإرسال في {date}",
     "noReliableCopy": "لا تتوفر نسخة موثوقة",
-    "noReliableCopyTooltip": "لا تتوفر بنود مجمدة محفوظة في لقطة هذه الفاتورة الملغاة."
+    "noReliableCopyTooltip": "لا تتوفر بنود مجمدة محفوظة في لقطة هذه الفاتورة الملغاة.",
+    "historicalArchiveNotice": "مراجعة الوثيقة التاريخية في الأرشيف المحاسبي",
+    "historicalPdfUnavailableTooltip": "لا يتوفر لهذه الفاتورة التاريخية مستند أصلي مؤرشف ولا لقطة مجمدة مكتملة. إعادة التوليد من البيانات الحية مغلقة التزاماً بسلامة التدقيق."
   },
   "adminDashboard": {
     "invoiceFinanceTitle": "المالية (الفواتير)",

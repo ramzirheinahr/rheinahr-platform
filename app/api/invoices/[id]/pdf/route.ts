@@ -4,9 +4,14 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
-import { hasReliableInvoiceDocument } from "@/lib/invoicing";
+import { hasReliableInvoiceDocument, resolveStoredPdfCandidatePath } from "@/lib/invoicing";
 
-import { defaultFileVerifier } from "@/lib/invoice-v2-refresh-service";
+import {
+  defaultFileVerifier,
+  isCompleteFrozenSnapshot,
+  buildFrozenClientFromSnapshot,
+  verifyStoredHistoricalPdf,
+} from "@/lib/invoice-v2-refresh-service";
 import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 
 export const runtime = "nodejs";
@@ -359,24 +364,19 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
 
   // Case 2: Historical Pre-V2 / Un-refreshed Invoice
   // Check if historical invoice has a verified stored original PDF file on disk
-  const invoiceRecord = invoice as unknown as Record<string, unknown>;
-  const snap = (invoice.snapshotData && typeof invoice.snapshotData === "object"
-    ? invoice.snapshotData
-    : null) as Record<string, unknown> | null;
-  const storedPdfPath =
-    (typeof invoiceRecord.pdfUrl === "string" && invoiceRecord.pdfUrl.trim()) ||
-    (typeof snap?.pdfUrl === "string" && snap.pdfUrl.trim()) ||
-    (typeof snap?.pdfFilePath === "string" && snap.pdfFilePath.trim()) ||
-    null;
+  const storedPdfPath = resolveStoredPdfCandidatePath(invoice);
 
   if (storedPdfPath) {
-    const fileCheck = defaultFileVerifier(storedPdfPath);
-    if (!fileCheck.exists || !fileCheck.buffer || !fileCheck.sha256) {
-      // Fail closed: Never fall back to live rebuild when a stored original PDF is designated
-      return new NextResponse(
-        "Das hinterlegte historische Rechnungsdokument ist nicht verfügbar oder beschädigt.",
-        { status: 422 }
-      );
+    const verification = await verifyStoredHistoricalPdf(storedPdfPath, invoice.snapshotData, defaultFileVerifier);
+    if (!verification.reliable) {
+      return new NextResponse(verification.reason, {
+        status: verification.status,
+        headers: {
+          "X-Invoice-Missing-Origin": "true",
+          "X-Error-Code": verification.errorCode,
+          "Cache-Control": "no-store",
+        },
+      });
     }
 
     await audit({
@@ -384,32 +384,92 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       action: "invoice.pdf",
       entity: "Invoice",
       entityId: invoice.id,
-      metadata: { source: "stored_historical_file", sha256: fileCheck.sha256 },
+      metadata: { source: "stored_historical_file", sha256: verification.sha256 },
     });
 
     const isDownload = url.searchParams.get("download") === "true";
     const disposition = isDownload ? "attachment" : "inline";
 
-    return new NextResponse(new Uint8Array(fileCheck.buffer), {
+    return new NextResponse(new Uint8Array(verification.buffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
         "X-Document-Source": "stored_historical_file",
-        "X-Document-Checksum": fileCheck.sha256,
+        "X-Document-Checksum": verification.sha256,
         "Cache-Control": "no-store",
       },
     });
   }
 
-  // Non-V2 without stored original file: check if there are frozen snapshot items
-  const hasFrozenSnapshot =
-    (snap && Array.isArray(snap.items) && snap.items.length > 0) ||
-    (snap && Array.isArray(snap.pdfItems) && snap.pdfItems.length > 0);
+  // Non-V2 without stored original file:
+  // Strict Owner Decision (Option A): Block live recalculation from current shifts/rates.
+  // Historical invoice PDF can ONLY be served if backed by a verified complete frozen snapshot.
+  const snapshotCheck = await isCompleteFrozenSnapshot(
+    invoice.snapshotData,
+    {
+      netAmount: Number(invoice.netAmount),
+      vatAmount: Number(invoice.vatAmount),
+      grossAmount: Number(invoice.grossAmount),
+      date: invoice.date,
+      invoiceNumber: invoice.invoiceNumber,
+    },
+    { skipPdfSimulation: true }
+  );
 
-  const documentSourceHeader = hasFrozenSnapshot ? "frozen_snapshot" : "live_generation";
+  if (!snapshotCheck.complete) {
+    return new NextResponse(
+      "Für diese historische Rechnung ist weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt. Die dynamische Neugenerierung aus Live-Daten ist zur Wahrung der Revisionssicherheit gesperrt. Bitte prüfen Sie das Buchhaltungsarchiv.",
+      {
+        status: 422,
+        headers: {
+          "X-Invoice-Missing-Origin": "true",
+          "X-Error-Code": "HISTORICAL_ORIGIN_UNAVAILABLE",
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+  // Construct client identity strictly from frozen snapshot data (Zero live client leakage)
+  const frozenClient = buildFrozenClientFromSnapshot(invoice.snapshotData);
+  if (!frozenClient) {
+    return new NextResponse(
+      "Historischer Snapshot enthält keine vollständigen Mandantendaten (facilityName oder address fehlt).",
+      {
+        status: 422,
+        headers: {
+          "X-Invoice-Missing-Origin": "true",
+          "X-Error-Code": "INCOMPLETE_FROZEN_CLIENT",
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
 
   try {
-    const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
+    const snap = (invoice.snapshotData as Record<string, unknown>) || {};
+    const rawItems =
+      Array.isArray(snap?.items) && snap.items.length > 0
+        ? snap.items
+        : Array.isArray(snap?.pdfItems) && snap.pdfItems.length > 0
+        ? snap.pdfItems
+        : [];
+
+    const frozenInvoice = {
+      invoiceNumber: (typeof snap?.invoiceNumber === "string" && snap.invoiceNumber) || invoice.invoiceNumber,
+      date: snap?.date ? new Date(snap.date as string) : invoice.date,
+      netAmount: invoice.netAmount,
+      vatAmount: invoice.vatAmount,
+      grossAmount: invoice.grossAmount,
+      snapshotData: {
+        ...((invoice.snapshotData as Record<string, unknown>) || {}),
+        items: rawItems,
+      },
+    };
+
+    // Strict: Never pass live client or live assignments
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfData = buildInvoicePdfData(frozenInvoice as any, frozenClient as any, []);
     const pdfBuffer = await generateInvoicePdf(pdfData);
 
     await audit({
@@ -417,6 +477,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       action: "invoice.pdf",
       entity: "Invoice",
       entityId: invoice.id,
+      metadata: { source: "frozen_snapshot" },
     });
 
     const isDownload = url.searchParams.get("download") === "true";
@@ -426,7 +487,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
-        "X-Document-Source": documentSourceHeader,
+        "X-Document-Source": "frozen_snapshot",
         "Cache-Control": "no-store",
       },
     });

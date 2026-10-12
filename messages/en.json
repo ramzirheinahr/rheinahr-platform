@@ -1318,7 +1318,9 @@
     "downloadPdf": "Download PDF",
     "sentOnTooltip": "Sent on {date}",
     "noReliableCopy": "No reliable copy available",
-    "noReliableCopyTooltip": "No frozen items are saved in the snapshot for this cancelled invoice."
+    "noReliableCopyTooltip": "No frozen items are saved in the snapshot for this cancelled invoice.",
+    "historicalArchiveNotice": "Check historical document in accounting archive",
+    "historicalPdfUnavailableTooltip": "Neither an archived original document nor a complete frozen snapshot is available for this historical invoice. Dynamic recalculation from current data is locked to preserve audit compliance."
   },
   "adminDashboard": {
     "invoiceFinanceTitle": "Finances (invoices)",

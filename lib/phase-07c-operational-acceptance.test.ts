@@ -679,10 +679,18 @@ describe("Phase 07c - Comprehensive Integrated Operational Acceptance", () => {
       const cancelledWithSnapshot = {
         id: "inv-c-1",
         status: "cancelled",
+        netAmount: 100.0,
+        vatAmount: 19.0,
+        grossAmount: 119.0,
         client: { facilityName: "Seniorenheim Live Name" },
         snapshotData: {
           facilityName: "Seniorenheim Frozen Name",
-          pdfItems: [{ pos: 1, description: "Pflegekraft" }],
+          address: "Musterstr. 1, 53474 Bad Neuenahr",
+          paymentTermsDays: 14,
+          subtotal: "100,00 €",
+          taxAmount: "19,00 €",
+          total: "119,00 €",
+          pdfItems: [{ pos: 1, description: "Pflegekraft", hours: "2,00", rate: "50,00", amount: "100,00 €" }],
         },
       };
 

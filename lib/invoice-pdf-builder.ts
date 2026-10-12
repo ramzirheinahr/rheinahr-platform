@@ -1,13 +1,10 @@
 import { format } from "@/lib/date-utils";
 import { resolveRates, resolveSurcharges, resolveNightWindow, rateFor, shiftSurchargeHours } from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
-import { qualLabel } from "@/lib/invoicing";
+import { qualLabel, normalizeHistoricalItem, formatNumber, formatAmount } from "@/lib/invoicing";
 import { buildAddressString } from "@/lib/utils";
 import type { InvoicePdfData } from "@/lib/pdf/invoice";
 import type { Qualification } from "@/lib/validations";
-
-const formatNumber = (num: number) => num.toFixed(2).replace(".", ",");
-const formatAmount = (num: number) => `${formatNumber(num)} €`;
 
 import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client";
 
@@ -258,18 +255,49 @@ export function buildInvoicePdfData(
     };
   }
 
-  // If the invoice has an immutable frozen snapshot of the items, return them directly (unless forceRecalculate is requested).
-  if (!options?.forceRecalculate && Array.isArray(snapshot.items) && snapshot.items.length > 0) {
+  // If the invoice has an immutable frozen snapshot of the items (items or pdfItems), return them directly (unless forceRecalculate is requested).
+  const rawHistoricalItems =
+    Array.isArray(snapshot.items) && snapshot.items.length > 0
+      ? snapshot.items
+      : Array.isArray(snapshot.pdfItems) && snapshot.pdfItems.length > 0
+      ? snapshot.pdfItems
+      : null;
+
+  if (!options?.forceRecalculate && rawHistoricalItems && rawHistoricalItems.length > 0) {
+    const sanitizedHistoricalItems: Array<{
+      pos: number;
+      description: string;
+      hours: string;
+      rate: string;
+      amount: string;
+    }> = [];
+
+    for (let idx = 0; idx < rawHistoricalItems.length; idx++) {
+      const normalized = normalizeHistoricalItem(rawHistoricalItems[idx], idx + 1);
+      if (!normalized) {
+        throw new Error(
+          `Historischer Rechnungsposten #${idx + 1} ist unvollständig oder ungültig (Bezeichnung, Stunden oder Betrag fehlen).`
+        );
+      }
+      sanitizedHistoricalItems.push({
+        pos: normalized.pos,
+        description: normalized.description,
+        hours: normalized.hours,
+        rate: normalized.rate,
+        amount: normalized.amount,
+      });
+    }
+
     return {
       invoiceNumber: invoice.invoiceNumber,
       date: snapshot.date || format(invoice.date || new Date(), "dd.MM.yyyy"),
-      clientId: effectiveClient.internalNumber || effectiveClient.shortCode || effectiveClient.id.substring(0, 8),
+      clientId: effectiveClient.internalNumber || effectiveClient.shortCode || effectiveClient.id?.substring(0, 8) || "UNKNOWN",
       clientName: effectiveClient.facilityName,
       billingInfo: effectiveClient.billingInfo || null,
       clientAddress: buildAddressString(effectiveClient) || "Adresse unbekannt",
       periodStart: snapshot.periodStart || "",
       periodEnd: snapshot.periodEnd || "",
-      items: snapshot.items,
+      items: sanitizedHistoricalItems,
       subtotal: snapshot.subtotal || formatAmount(Number(invoice.netAmount)),
       taxAmount: snapshot.taxAmount || formatAmount(Number(invoice.vatAmount)),
       total: snapshot.total || formatAmount(Number(invoice.grossAmount)),

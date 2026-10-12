@@ -43,7 +43,7 @@ describe("Phase 07b - Cancelled Invoices Tab, Resilience, Search, & Document Saf
   const to = new Date("2026-10-31T23:59:59.999Z");
 
   const invoices: CancelledInvoiceRow[] = [
-    // 1. Regular unpaid invoice
+    // 1. Regular unpaid invoice (Modern V2)
     {
       id: "inv-1",
       invoiceNumber: "RE-2026-001",
@@ -54,7 +54,29 @@ describe("Phase 07b - Cancelled Invoices Tab, Resilience, Search, & Document Saf
       assignments: [{ id: "asgn-1" }],
       _count: { assignments: 1 },
       snapshotData: {
+        calculationVersion: "v2",
         facilityName: "Seniorenheim Bonn",
+        items: [
+          {
+            pos: 1,
+            description: "Pflegefachkraft Dienst",
+            hoursDisplay: "20,00",
+            rateDisplay: "50,00",
+            amountCents: 100000,
+          },
+        ],
+        pdfItems: [
+          {
+            pos: 1,
+            description: "Pflegefachkraft Dienst",
+            hours: "20,00",
+            rate: "50,00",
+            amount: "1.000,00 €",
+          },
+        ],
+        subtotalCents: 100000,
+        taxAmountCents: 19000,
+        totalCents: 119000,
       },
     },
     // 2. Regular paid invoice
@@ -83,6 +105,12 @@ describe("Phase 07b - Cancelled Invoices Tab, Resilience, Search, & Document Saf
       _count: { assignments: 0 },
       snapshotData: {
         facilityName: "Pflegezentrum RheinAhr",
+        address: "Musterstraße 1, 53474 Bad Neuenahr-Ahrweiler",
+        paymentTermsDays: 14,
+        date: "2026-10-18",
+        subtotal: "2.000,00 €",
+        taxAmount: "380,00 €",
+        total: "2.380,00 €",
         items: [
           {
             pos: 1,
@@ -351,6 +379,8 @@ describe("Phase 07b - Cancelled Invoices Tab, Resilience, Search, & Document Saf
         grossAmount: 2380.0,
         snapshotData: {
           facilityName: "Pflegezentrum RheinAhr",
+          address: "Musterstraße 1, 53474 Bad Neuenahr-Ahrweiler",
+          paymentTermsDays: 14,
           items: [
             {
               pos: 1,
@@ -360,8 +390,11 @@ describe("Phase 07b - Cancelled Invoices Tab, Resilience, Search, & Document Saf
               amount: "2.000,00 €",
             },
           ],
+          subtotal: "2.000,00 €",
+          taxAmount: "380,00 €",
+          total: "2.380,00 €",
         },
-        client: { id: "client-rheinahr", userId: "client-user-2", facilityName: "Pflegezentrum RheinAhr" },
+        client: { id: "client-rheinahr", userId: "client-user-2", facilityName: "Pflegezentrum RheinAhr", address: "Musterstraße 1, 53474 Bad Neuenahr-Ahrweiler" },
         assignments: [],
       } as unknown as InvoiceDbRecord);
 

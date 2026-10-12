@@ -9,7 +9,7 @@ import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { sendEmailToRecipients, EmailDispatchReport } from "@/lib/email";
 import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
-import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
+import { generateUniqueInvoiceNumber, resolveStoredPdfCandidatePath } from "@/lib/invoicing";
 import { CALCULATION_VERSIONS, isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 import { isV2InvoiceIssuanceEnabled, issueV2Invoice } from "@/lib/invoice-v2-issuance-service";
 import {
@@ -17,6 +17,10 @@ import {
   previewV2InvoiceRefresh,
   confirmV2InvoiceRefresh,
   type V2InvoiceRefreshPreview,
+  isCompleteFrozenSnapshot,
+  buildFrozenClientFromSnapshot,
+  verifyStoredHistoricalPdf,
+  defaultFileVerifier,
 } from "@/lib/invoice-v2-refresh-service";
 
 const VAT_RATE = 0.19;
@@ -65,13 +69,86 @@ export async function sendInvoiceEmail({
   }
 
   const client = invoice.client;
-  const pdfData = buildInvoicePdfData(invoice, client, invoice.assignments);
-  const pdfBuffer = await generateInvoicePdf(pdfData);
+
+  const isV2 = isV2CalculationVersion(invoice.snapshotData);
+  let invoicePdfBuffer: Buffer;
+
+  if (isV2) {
+    // Current V2 invoice: strictly frozen V2 snapshot
+    const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
+    const generated = await generateInvoicePdf(pdfData);
+    invoicePdfBuffer = Buffer.from(generated);
+  } else {
+    // Historical pre-V2 invoice:
+    const storedPdfPath = resolveStoredPdfCandidatePath(invoice);
+
+    if (storedPdfPath) {
+      const verification = await verifyStoredHistoricalPdf(storedPdfPath, invoice.snapshotData, defaultFileVerifier);
+      if (!verification.reliable) {
+        throw new Error(
+          `E-Mail-Versand abgebrochen: Das hinterlegte Rechnungsdokument ist nicht verlässlich (${verification.reason}). Bitte prüfen Sie das Buchhaltungsarchiv.`
+        );
+      }
+      invoicePdfBuffer = verification.buffer;
+    } else {
+      // Strict Owner Decision (Option A): Block live recalculation from current shifts/rates.
+      const snapshotCheck = await isCompleteFrozenSnapshot(
+        invoice.snapshotData,
+        {
+          netAmount: Number(invoice.netAmount),
+          vatAmount: Number(invoice.vatAmount),
+          grossAmount: Number(invoice.grossAmount),
+          date: invoice.date,
+          invoiceNumber: invoice.invoiceNumber,
+        },
+        { skipPdfSimulation: true }
+      );
+
+      if (!snapshotCheck.complete) {
+        throw new Error(
+          "E-Mail-Versand abgebrochen: Für diese historische Rechnung ist weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt. Die dynamische Neugenerierung aus Live-Daten ist zur Wahrung der Revisionssicherheit gesperrt. Bitte prüfen Sie das Buchhaltungsarchiv."
+        );
+      }
+
+      const frozenClient = buildFrozenClientFromSnapshot(invoice.snapshotData);
+      if (!frozenClient) {
+        throw new Error(
+          "E-Mail-Versand abgebrochen: Historischer Snapshot enthält keine vollständigen Mandantendaten (facilityName, address oder Zahlungsziel fehlt)."
+        );
+      }
+
+      const snap = (invoice.snapshotData as Record<string, unknown>) || {};
+      const rawItems =
+        Array.isArray(snap?.items) && snap.items.length > 0
+          ? snap.items
+          : Array.isArray(snap?.pdfItems) && snap.pdfItems.length > 0
+          ? snap.pdfItems
+          : [];
+
+      const frozenInvoice = {
+        invoiceNumber: (typeof snap?.invoiceNumber === "string" && snap.invoiceNumber) || invoice.invoiceNumber,
+        date: snap?.date ? new Date(snap.date as string) : invoice.date,
+        netAmount: invoice.netAmount,
+        vatAmount: invoice.vatAmount,
+        grossAmount: invoice.grossAmount,
+        snapshotData: {
+          ...((invoice.snapshotData as Record<string, unknown>) || {}),
+          items: rawItems,
+        },
+      };
+
+      // Strict: Never pass live client or live assignments
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdfData = buildInvoicePdfData(frozenInvoice as any, frozenClient as any, []);
+      const generated = await generateInvoicePdf(pdfData);
+      invoicePdfBuffer = Buffer.from(generated);
+    }
+  }
 
   const attachments: { filename: string; content: Buffer; contentType: string }[] = [
     {
       filename: `${invoice.invoiceNumber}.pdf`,
-      content: pdfBuffer,
+      content: invoicePdfBuffer,
       contentType: "application/pdf",
     },
   ];

@@ -782,6 +782,7 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
           client: { id: "c-1", facilityName: "Klinik Hybrid", userId: "u-1" },
           assignments: [],
           snapshotData: {
+            pdfSha256: crypto.createHash("sha256").update(Buffer.from(pdfBytes)).digest("hex"),
             calculationVersion: "v1", // Historical un-refreshed invoice
             items: [
               { pos: 1, hoursDisplay: "3,00", rateDisplay: "5,68 €", amountDisplay: "17,04 €", amountCents: 1704 },
@@ -1089,6 +1090,7 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
           client: { id: "c-1", facilityName: "Klinik Hybrid" },
           assignments: [],
           snapshotData: {
+            pdfSha256: crypto.createHash("sha256").update(Buffer.from(pdfBytes)).digest("hex"),
             calculationVersion: "v1",
             items: [
               { pos: 1, hoursDisplay: "3,00", rateDisplay: "5,68 €", amountDisplay: "17,04 €", amountCents: 1704 },

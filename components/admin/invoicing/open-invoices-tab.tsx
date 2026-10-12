@@ -6,14 +6,18 @@ import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, CheckCircle2, Mail, AlertCircle } from "lucide-react";
+import { FileText, Clock, CheckCircle2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
 import { sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "../email-recipients-dialog";
+import { hasReliableInvoiceDocument, getInvoiceFacilityName } from "@/lib/invoicing";
+import type { CancelledInvoiceRow } from "./cancelled-invoices-tab";
+
+export type OpenInvoiceRecord = CancelledInvoiceRow;
 
 interface OpenInvoicesTabProps {
-  invoices: any[];
+  invoices: OpenInvoiceRecord[];
 }
 
 export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
@@ -46,36 +50,38 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
   const sortedOpenInvoices = useMemo(() => {
     if (!sortConfig) return openInvoices;
     return [...openInvoices].sort((a, b) => {
-      let aVal: any = "";
-      let bVal: any = "";
-
       switch (sortConfig.key) {
-        case "invoiceNumber":
-          aVal = a.invoiceNumber || "";
-          bVal = b.invoiceNumber || "";
+        case "invoiceNumber": {
+          const aVal = a.invoiceNumber || "";
+          const bVal = b.invoiceNumber || "";
           return sortConfig.direction === "asc"
             ? aVal.localeCompare(bVal, undefined, { numeric: true })
             : bVal.localeCompare(aVal, undefined, { numeric: true });
-        case "client":
-          aVal = (a.client?.facilityName || a.snapshotData?.facilityName || "").toLowerCase();
-          bVal = (b.client?.facilityName || b.snapshotData?.facilityName || "").toLowerCase();
+        }
+        case "client": {
+          const aVal = getInvoiceFacilityName(a).toLowerCase();
+          const bVal = getInvoiceFacilityName(b).toLowerCase();
           return sortConfig.direction === "asc"
             ? aVal.localeCompare(bVal)
             : bVal.localeCompare(aVal);
-        case "date":
-          aVal = new Date(a.date).getTime();
-          bVal = new Date(b.date).getTime();
+        }
+        case "date": {
+          const aVal = new Date(a.date).getTime();
+          const bVal = new Date(b.date).getTime();
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
-        case "grossAmount":
-          aVal = Number(a.grossAmount) || 0;
-          bVal = Number(b.grossAmount) || 0;
+        }
+        case "grossAmount": {
+          const aVal = Number(a.grossAmount) || 0;
+          const bVal = Number(b.grossAmount) || 0;
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
-        case "status":
-          aVal = a.status || "";
-          bVal = b.status || "";
+        }
+        case "status": {
+          const aVal = a.status || "";
+          const bVal = b.status || "";
           return sortConfig.direction === "asc"
             ? aVal.localeCompare(bVal)
             : bVal.localeCompare(aVal);
+        }
         default:
           return 0;
       }
@@ -115,7 +121,7 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
 
   const selectedForEmail = openInvoices.find((i) => i.id === emailInvoiceId);
 
-  const columns: Column<any>[] = [
+  const columns: Column<OpenInvoiceRecord>[] = [
     {
       id: "invoiceNumber",
       sortable: true,
@@ -133,7 +139,7 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       header: "Kunde / Einrichtung",
       cell: (r) => (
         <span className="font-medium text-slate-900">
-          {r.client?.facilityName || r.snapshotData?.facilityName || "—"}
+          {getInvoiceFacilityName(r)}
         </span>
       ),
     },
@@ -178,39 +184,55 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       header: "Aktionen",
       className: "text-end",
       action: true,
-      cell: (r) => (
-        <div className="flex items-center justify-end gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-2.5 text-xs text-slate-700 hover:text-slate-900"
-            onClick={() => window.open(`/api/invoices/${r.id}/pdf`, "_blank")}
-          >
-            <FileText className="size-3.5 text-emerald-600 mr-1" />
-            PDF
-          </Button>
+      cell: (r) => {
+        const isReliable = hasReliableInvoiceDocument(r);
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            {isReliable ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs text-slate-700 hover:text-slate-900"
+                onClick={() => window.open(`/api/invoices/${r.id}/pdf`, "_blank")}
+                title={t("viewPdf")}
+              >
+                <FileText className="size-3.5 text-emerald-600 mr-1 rtl:ml-1 rtl:mr-0" />
+                {t("viewPdf")}
+              </Button>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-normal text-amber-800 bg-amber-50 border border-amber-200"
+                title={t("historicalPdfUnavailableTooltip")}
+              >
+                <FileText className="size-3 text-amber-600 shrink-0" />
+                {t("historicalArchiveNotice")}
+              </span>
+            )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-2.5 text-xs text-blue-700 border-blue-200 hover:bg-blue-50"
-            onClick={() => setEmailInvoiceId(r.id)}
-          >
-            <Mail className="size-3.5 mr-1" />
-            E-Mail
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!isReliable}
+              className="h-8 px-2.5 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setEmailInvoiceId(r.id)}
+              title={!isReliable ? t("historicalPdfUnavailableTooltip") : undefined}
+            >
+              <Mail className="size-3.5 mr-1 rtl:ml-1 rtl:mr-0" />
+              E-Mail
+            </Button>
 
-          <Button
-            size="sm"
-            disabled={loadingId === r.id}
-            className="h-8 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-            onClick={() => handleMarkPaid(r.id)}
-          >
-            <CheckCircle2 className="size-3.5 mr-1" />
-            {t("markPaid")}
-          </Button>
-        </div>
-      ),
+            <Button
+              size="sm"
+              disabled={loadingId === r.id}
+              className="h-8 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              onClick={() => handleMarkPaid(r.id)}
+            >
+              <CheckCircle2 className="size-3.5 mr-1 rtl:ml-1 rtl:mr-0" />
+              {t("markPaid")}
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -246,8 +268,8 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
         }}
         title={tEmail("invoiceTitle")}
         invoiceId={emailInvoiceId || undefined}
-        clientId={selectedForEmail?.clientId}
-        facilityName={selectedForEmail?.client?.facilityName || selectedForEmail?.snapshotData?.facilityName}
+        clientId={selectedForEmail?.clientId || selectedForEmail?.client?.id || undefined}
+        facilityName={selectedForEmail ? getInvoiceFacilityName(selectedForEmail) : undefined}
         onSend={handleSendEmail}
       />
     </div>

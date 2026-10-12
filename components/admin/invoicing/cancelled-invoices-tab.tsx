@@ -14,7 +14,9 @@ export interface CancelledInvoiceRow {
   status: string;
   date: Date | string;
   grossAmount: number;
+  clientId?: string | null;
   client?: {
+    id?: string | null;
     facilityName?: string | null;
     [key: string]: unknown;
   } | null;
@@ -191,11 +193,11 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
           return (
             <div className="flex items-center justify-end">
               <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-normal text-slate-500 bg-slate-100 border border-slate-200"
-                title={t("noReliableCopyTooltip")}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-normal text-amber-800 bg-amber-50 border border-amber-200"
+                title={t("historicalPdfUnavailableTooltip")}
               >
-                <FileText className="size-3 text-slate-400 shrink-0" />
-                {t("noReliableCopy")}
+                <FileText className="size-3 text-amber-600 shrink-0" />
+                {t("historicalArchiveNotice")}
               </span>
             </div>
           );

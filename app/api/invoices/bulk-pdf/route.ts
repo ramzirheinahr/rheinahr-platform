@@ -6,8 +6,14 @@ import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { PDFDocument } from "pdf-lib";
 import { Prisma } from "@prisma/client";
+import { resolveStoredPdfCandidatePath } from "@/lib/invoicing";
 
-import { defaultFileVerifier } from "@/lib/invoice-v2-refresh-service";
+import {
+  defaultFileVerifier,
+  isCompleteFrozenSnapshot,
+  buildFrozenClientFromSnapshot,
+  verifyStoredHistoricalPdf,
+} from "@/lib/invoice-v2-refresh-service";
 import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 
 export const runtime = "nodejs";
@@ -109,28 +115,92 @@ export async function GET(req: Request) {
         doc = await PDFDocument.load(pdfBuffer);
       } else {
         // Historical pre-V2 invoice: check stored original PDF file
-        const invRecord = inv as unknown as Record<string, unknown>;
-        const snap = (inv.snapshotData && typeof inv.snapshotData === "object"
-          ? inv.snapshotData
-          : null) as Record<string, unknown> | null;
-        const storedPdfPath =
-          (typeof invRecord.pdfUrl === "string" && invRecord.pdfUrl.trim()) ||
-          (typeof snap?.pdfUrl === "string" && snap.pdfUrl.trim()) ||
-          (typeof snap?.pdfFilePath === "string" && snap.pdfFilePath.trim()) ||
-          null;
+        const storedPdfPath = resolveStoredPdfCandidatePath(inv);
 
         if (storedPdfPath) {
-          const fileCheck = defaultFileVerifier(storedPdfPath);
-          if (!fileCheck.exists || !fileCheck.buffer) {
-            // Fail closed: Never fall back to live rebuild when a stored original PDF is designated
+          const verification = await verifyStoredHistoricalPdf(storedPdfPath, inv.snapshotData, defaultFileVerifier);
+          if (!verification.reliable) {
             return new NextResponse(
-              `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: Das hinterlegte historische Rechnungsdokument ist nicht verfügbar oder beschädigt.`,
-              { status: 422 }
+              `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: ${verification.reason}`,
+              {
+                status: verification.status,
+                headers: {
+                  "X-Invoice-Missing-Origin": "true",
+                  "X-Error-Code": verification.errorCode,
+                  "Cache-Control": "no-store",
+                },
+              }
             );
           }
-          doc = await PDFDocument.load(fileCheck.buffer);
+          doc = await PDFDocument.load(verification.buffer);
         } else {
-          const pdfData = buildInvoicePdfData(inv, inv.client, inv.assignments);
+          // Strict Owner Decision (Option A): Block live recalculation from current shifts/rates.
+          // In bulk bundle, historical invoices lacking a verified stored file MUST possess a complete frozen snapshot.
+          const snapshotCheck = await isCompleteFrozenSnapshot(
+            inv.snapshotData,
+            {
+              netAmount: Number(inv.netAmount),
+              vatAmount: Number(inv.vatAmount),
+              grossAmount: Number(inv.grossAmount),
+              date: inv.date,
+              invoiceNumber: inv.invoiceNumber,
+            },
+            { skipPdfSimulation: true }
+          );
+
+          if (!snapshotCheck.complete) {
+            return new NextResponse(
+              `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: Weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt. Die dynamische Neugenerierung aus Live-Daten ist zur Wahrung der Revisionssicherheit gesperrt. Bitte prüfen Sie das Buchhaltungsarchiv.`,
+              {
+                status: 422,
+                headers: {
+                  "X-Invoice-Missing-Origin": "true",
+                  "X-Error-Code": "HISTORICAL_ORIGIN_UNAVAILABLE",
+                  "Cache-Control": "no-store",
+                },
+              }
+            );
+          }
+
+          // Build client identity strictly from frozen snapshot (zero live client leakage)
+          const frozenClient = buildFrozenClientFromSnapshot(inv.snapshotData);
+          if (!frozenClient) {
+            return new NextResponse(
+              `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: Historischer Snapshot enthält keine vollständigen Mandantendaten (facilityName oder address fehlt).`,
+              {
+                status: 422,
+                headers: {
+                  "X-Invoice-Missing-Origin": "true",
+                  "X-Error-Code": "INCOMPLETE_FROZEN_CLIENT",
+                  "Cache-Control": "no-store",
+                },
+              }
+            );
+          }
+
+          const snap = (inv.snapshotData as Record<string, unknown>) || {};
+          const rawItems =
+            Array.isArray(snap?.items) && snap.items.length > 0
+              ? snap.items
+              : Array.isArray(snap?.pdfItems) && snap.pdfItems.length > 0
+              ? snap.pdfItems
+              : [];
+
+          const frozenInvoice = {
+            invoiceNumber: (typeof snap?.invoiceNumber === "string" && snap.invoiceNumber) || inv.invoiceNumber,
+            date: snap?.date ? new Date(snap.date as string) : inv.date,
+            netAmount: inv.netAmount,
+            vatAmount: inv.vatAmount,
+            grossAmount: inv.grossAmount,
+            snapshotData: {
+              ...((inv.snapshotData as Record<string, unknown>) || {}),
+              items: rawItems,
+            },
+          };
+
+          // Strict: Never pass live client or live assignments
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pdfData = buildInvoicePdfData(frozenInvoice as any, frozenClient as any, []);
           const pdfBuffer = await generateInvoicePdf(pdfData);
           doc = await PDFDocument.load(pdfBuffer);
         }

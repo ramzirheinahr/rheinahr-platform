@@ -259,18 +259,541 @@ export function getInvoiceFacilityName(invoice: {
   return invoice.client?.facilityName?.trim() || "—";
 }
 
-export function hasReliableInvoiceDocument(invoice: {
-  status?: string;
-  snapshotData?: unknown;
-}): boolean {
-  if (invoice.status === "cancelled") {
-    const snapshot =
-      invoice.snapshotData && typeof invoice.snapshotData === "object"
-        ? (invoice.snapshotData as Record<string, unknown>)
-        : null;
-    if (!snapshot) return false;
-    if (Array.isArray(snapshot.pdfItems) && snapshot.pdfItems.length > 0) return true;
-    return Array.isArray(snapshot.items) && snapshot.items.length > 0;
+export function parseCurrencyAmountToCents(val: unknown): number | null {
+  if (typeof val === "number" && !isNaN(val)) {
+    return Math.round(val * 100);
   }
+  if (typeof val === "string") {
+    const cleaned = val.replace(/\s*€\s*$/, "").trim();
+    if (!cleaned) return null;
+    if (/^-?\d{1,3}(\.\d{3})*,\d{2}$/.test(cleaned) || /^-?\d+,\d{2}$/.test(cleaned)) {
+      const euroStr = cleaned.split(",")[0].replace(/\./g, "");
+      const centStr = cleaned.split(",")[1];
+      const sign = cleaned.startsWith("-") ? -1 : 1;
+      return sign * (Math.abs(parseInt(euroStr, 10)) * 100 + parseInt(centStr, 10));
+    }
+    if (/^-?\d+(\.\d{1,2})?$/.test(cleaned)) {
+      return Math.round(parseFloat(cleaned) * 100);
+    }
+  }
+  return null;
+}
+
+export const formatNumber = (num: number): string => num.toFixed(2).replace(".", ",");
+export const formatAmount = (num: number): string => `${formatNumber(num)} €`;
+
+export function parseGermanOrDecimalNumber(val: unknown): number | null {
+  if (typeof val === "number") return isNaN(val) ? null : val;
+  if (typeof val !== "string") return null;
+  const s = val.replace(/\s*€\s*$/, "").trim();
+  if (!s) return null;
+  // German format: "1.234,56" or "10,00"
+  if (/^-?\d{1,3}(\.\d{3})*,\d+$/.test(s) || /^-?\d+,\d+$/.test(s)) {
+    const cleaned = s.replace(/\./g, "").replace(",", ".");
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+  }
+  // Standard decimal: "1234.56" or "10.00"
+  if (/^-?\d+(\.\d+)?$/.test(s)) {
+    const num = parseFloat(s);
+    return isNaN(num) ? null : num;
+  }
+  return null;
+}
+
+export type NormalizedHistoricalItem = {
+  pos: number;
+  description: string;
+  hours: string;
+  rate: string;
+  amount: string;
+  hoursNum: number;
+  rateNum: number | null;
+  amountCents: number;
+};
+
+/**
+ * Universal normalization helper for historical invoice line items.
+ * Guarantees that every accepted format is validated for consistency:
+ * - Rejects any item where different amount representations conflict (e.g. amountCents != amount string).
+ * - Rejects invalid, unparseable, or negative/zero amounts and hours.
+ * - Enforces consistency among hour representations.
+ * - Strictly avoids fabricating an hourly rate from amount/hours when not recorded on the item.
+ */
+export function normalizeHistoricalItem(
+  rawItem: unknown,
+  fallbackPos: number = 1
+): NormalizedHistoricalItem | null {
+  if (!rawItem || typeof rawItem !== "object") return null;
+  const it = rawItem as Record<string, unknown>;
+
+  // 1. Description: mandatory non-empty string
+  const description = typeof it.description === "string" ? it.description.trim() : "";
+  if (!description) return null;
+
+  // 2. Position
+  const pos =
+    typeof it.pos === "number" && Number.isSafeInteger(it.pos) && it.pos > 0
+      ? it.pos
+      : fallbackPos;
+
+  // 3. Hours: collect all present representations and enforce consistency
+  const hourValues: number[] = [];
+  if (it.hours !== undefined && it.hours !== null && String(it.hours).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(it.hours);
+    if (val === null || val <= 0) return null;
+    hourValues.push(val);
+  }
+  if (it.hoursDisplay !== undefined && it.hoursDisplay !== null && String(it.hoursDisplay).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(it.hoursDisplay);
+    if (val === null || val <= 0) return null;
+    hourValues.push(val);
+  }
+  if (it.hoursDecimal !== undefined && it.hoursDecimal !== null && String(it.hoursDecimal).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(it.hoursDecimal);
+    if (val === null || val <= 0) return null;
+    hourValues.push(val);
+  }
+  if (it.displayHourHundredths !== undefined && it.displayHourHundredths !== null) {
+    if (typeof it.displayHourHundredths !== "number" || isNaN(it.displayHourHundredths) || it.displayHourHundredths <= 0) {
+      return null;
+    }
+    hourValues.push(it.displayHourHundredths / 100);
+  }
+  if (it.rawMinutes !== undefined && it.rawMinutes !== null) {
+    if (typeof it.rawMinutes !== "number" || isNaN(it.rawMinutes) || it.rawMinutes <= 0) {
+      return null;
+    }
+    hourValues.push(it.rawMinutes / 60);
+  }
+  if (it.quantity !== undefined && it.quantity !== null && String(it.quantity).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(it.quantity);
+    if (val === null || val <= 0) return null;
+    hourValues.push(val);
+  }
+  if (it.count !== undefined && it.count !== null && String(it.count).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(it.count);
+    if (val === null || val <= 0) return null;
+    hourValues.push(val);
+  }
+
+  if (hourValues.length === 0) return null;
+
+  const expectedHours = hourValues[0];
+  for (let idx = 1; idx < hourValues.length; idx++) {
+    if (Math.abs(hourValues[idx] - expectedHours) > 0.001) {
+      return null; // Conflicting hours representations
+    }
+  }
+  const hoursNum = expectedHours;
+
+  const hoursDisplay =
+    typeof it.hours === "string" && it.hours.trim() && parseGermanOrDecimalNumber(it.hours) !== null
+      ? it.hours.trim()
+      : typeof it.hoursDisplay === "string" && it.hoursDisplay.trim() && parseGermanOrDecimalNumber(it.hoursDisplay) !== null
+      ? it.hoursDisplay.trim()
+      : formatNumber(hoursNum);
+
+  // 4. Amount: collect all representations, enforce exact cents match and consistency
+  const centValues: number[] = [];
+
+  if (it.amountCents !== undefined && it.amountCents !== null) {
+    if (typeof it.amountCents !== "number" || !Number.isSafeInteger(it.amountCents) || it.amountCents <= 0) {
+      return null;
+    }
+    centValues.push(it.amountCents);
+  }
+  if (it.totalCents !== undefined && it.totalCents !== null) {
+    if (typeof it.totalCents !== "number" || !Number.isSafeInteger(it.totalCents) || it.totalCents <= 0) {
+      return null;
+    }
+    centValues.push(it.totalCents);
+  }
+  if (it.lineTotalCents !== undefined && it.lineTotalCents !== null) {
+    if (typeof it.lineTotalCents !== "number" || !Number.isSafeInteger(it.lineTotalCents) || it.lineTotalCents <= 0) {
+      return null;
+    }
+    centValues.push(it.lineTotalCents);
+  }
+
+  const textKeys = ["amount", "total", "lineTotal", "totalNet"] as const;
+  for (const k of textKeys) {
+    const raw = it[k];
+    if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+      const parsed = parseCurrencyAmountToCents(raw);
+      if (parsed === null || parsed <= 0) {
+        return null; // unparseable, zero or negative
+      }
+      centValues.push(parsed);
+    }
+  }
+
+  if (centValues.length === 0) return null;
+
+  const expectedCents = centValues[0];
+  for (let idx = 1; idx < centValues.length; idx++) {
+    if (centValues[idx] !== expectedCents) {
+      // Conflicting amounts between representations! (e.g. amountCents: 50000 vs amount: "600,00 €")
+      return null;
+    }
+  }
+  const amountCents = expectedCents;
+
+  let amountDisplay = "";
+  if (typeof it.amount === "string" && it.amount.trim() && parseCurrencyAmountToCents(it.amount) === amountCents) {
+    amountDisplay = it.amount.includes("€") ? it.amount.trim() : `${it.amount.trim()} €`;
+  } else if (typeof it.total === "string" && it.total.trim() && parseCurrencyAmountToCents(it.total) === amountCents) {
+    amountDisplay = it.total.includes("€") ? it.total.trim() : `${it.total.trim()} €`;
+  } else if (typeof it.lineTotal === "string" && it.lineTotal.trim() && parseCurrencyAmountToCents(it.lineTotal) === amountCents) {
+    amountDisplay = it.lineTotal.includes("€") ? it.lineTotal.trim() : `${it.lineTotal.trim()} €`;
+  } else {
+    amountDisplay = formatAmount(amountCents / 100);
+  }
+
+  // 5. Rate: collect all explicit representations and enforce consistency
+  const rateValues: number[] = [];
+  if (it.rate !== undefined && it.rate !== null && String(it.rate).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(typeof it.rate === "string" ? it.rate.replace(/\s*€$/, "") : it.rate);
+    if (val === null || val <= 0) return null;
+    rateValues.push(val);
+  }
+  if (it.rateDisplay !== undefined && it.rateDisplay !== null && String(it.rateDisplay).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(typeof it.rateDisplay === "string" ? it.rateDisplay.replace(/\s*€$/, "") : it.rateDisplay);
+    if (val === null || val <= 0) return null;
+    rateValues.push(val);
+  }
+  if (it.rateDecimal !== undefined && it.rateDecimal !== null && String(it.rateDecimal).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(it.rateDecimal);
+    if (val === null || val <= 0) return null;
+    rateValues.push(val);
+  }
+  if (it.rateCents !== undefined && it.rateCents !== null) {
+    if (typeof it.rateCents !== "number" || !Number.isSafeInteger(it.rateCents) || it.rateCents <= 0) return null;
+    rateValues.push(it.rateCents / 100);
+  }
+  if (it.hourlyRateInCents !== undefined && it.hourlyRateInCents !== null) {
+    if (typeof it.hourlyRateInCents !== "number" || !Number.isSafeInteger(it.hourlyRateInCents) || it.hourlyRateInCents <= 0) return null;
+    rateValues.push(it.hourlyRateInCents / 100);
+  }
+  if (it.hourlyRate !== undefined && it.hourlyRate !== null && String(it.hourlyRate).trim() !== "") {
+    const val = parseGermanOrDecimalNumber(it.hourlyRate);
+    if (val === null || val <= 0) return null;
+    rateValues.push(val);
+  }
+
+  let rateNum: number | null = null;
+  let rateDisplay = "";
+  if (rateValues.length > 0) {
+    const expectedRate = rateValues[0];
+    for (let idx = 1; idx < rateValues.length; idx++) {
+      if (Math.abs(rateValues[idx] - expectedRate) > 0.01) {
+        return null; // Conflicting rates!
+      }
+    }
+    rateNum = expectedRate;
+    rateDisplay =
+      typeof it.rate === "string" && it.rate.trim()
+        ? it.rate.replace(/\s*€$/, "").trim()
+        : typeof it.rateDisplay === "string" && it.rateDisplay.trim()
+        ? it.rateDisplay.replace(/\s*€$/, "").trim()
+        : formatNumber(rateNum);
+  } else {
+    // Strictly avoid deriving rate from amount/hours when absent from snapshot
+    rateNum = null;
+    rateDisplay = "";
+  }
+
+  return {
+    pos,
+    description,
+    hours: hoursDisplay,
+    rate: rateDisplay,
+    amount: amountDisplay,
+    hoursNum,
+    rateNum,
+    amountCents,
+  };
+}
+
+/**
+ * Resolves any candidate stored PDF file path/URL from invoice or snapshotData.
+ * Covers:
+ * - invoice.pdfUrl
+ * - snapshotData.pdfUrl
+ * - snapshotData.pdfFilePath
+ * - snapshotData.originalPdfPath
+ * - snapshotData.storedPdfInfo.path / filePath
+ * - snapshotData.archivedPdfRecord.path / filePath
+ */
+export function resolveStoredPdfCandidatePath(
+  invoice: { pdfUrl?: string | null; snapshotData?: unknown } | null | undefined
+): string | null {
+  if (!invoice) return null;
+  const invRecord = invoice as Record<string, unknown>;
+  const snap = (invoice.snapshotData && typeof invoice.snapshotData === "object"
+    ? invoice.snapshotData
+    : null) as Record<string, unknown> | null;
+  const storedInfo = (snap?.storedPdfInfo && typeof snap.storedPdfInfo === "object"
+    ? snap.storedPdfInfo
+    : null) as Record<string, unknown> | null;
+  const archivedRecord = (snap?.archivedPdfRecord && typeof snap.archivedPdfRecord === "object"
+    ? snap.archivedPdfRecord
+    : null) as Record<string, unknown> | null;
+
+  const candidate =
+    (typeof invRecord.pdfUrl === "string" && invRecord.pdfUrl.trim()) ||
+    (typeof snap?.pdfUrl === "string" && snap.pdfUrl.trim()) ||
+    (typeof snap?.pdfFilePath === "string" && snap.pdfFilePath.trim()) ||
+    (typeof snap?.originalPdfPath === "string" && snap.originalPdfPath.trim()) ||
+    (typeof storedInfo?.path === "string" && storedInfo.path.trim()) ||
+    (typeof storedInfo?.filePath === "string" && storedInfo.filePath.trim()) ||
+    (typeof archivedRecord?.path === "string" && archivedRecord.path.trim()) ||
+    (typeof archivedRecord?.filePath === "string" && archivedRecord.filePath.trim()) ||
+    null;
+
+  return candidate || null;
+}
+
+/**
+ * Resolves the expected reference SHA-256 checksum for a stored PDF from snapshotData.
+ */
+export function resolveStoredPdfExpectedChecksum(
+  snapshotData: unknown
+): string | null {
+  if (!snapshotData || typeof snapshotData !== "object") return null;
+  const snap = snapshotData as Record<string, unknown>;
+  const storedInfo = (snap.storedPdfInfo && typeof snap.storedPdfInfo === "object"
+    ? snap.storedPdfInfo
+    : null) as Record<string, unknown> | null;
+  const archivedRecord = (snap.archivedPdfRecord && typeof snap.archivedPdfRecord === "object"
+    ? snap.archivedPdfRecord
+    : null) as Record<string, unknown> | null;
+
+  const hash =
+    (typeof storedInfo?.sha256 === "string" && storedInfo.sha256.trim()) ||
+    (typeof archivedRecord?.sha256 === "string" && archivedRecord.sha256.trim()) ||
+    (typeof snap.pdfSha256 === "string" && snap.pdfSha256.trim()) ||
+    (typeof snap.pdfChecksum === "string" && snap.pdfChecksum.trim()) ||
+    (typeof snap.sha256 === "string" && snap.sha256.trim()) ||
+    null;
+
+  return hash || null;
+}
+
+export function hasReliableInvoiceDocument(
+  invoice: {
+    id?: string;
+    status?: string;
+    netAmount?: number | Prisma.Decimal;
+    vatAmount?: number | Prisma.Decimal;
+    grossAmount?: number | Prisma.Decimal;
+    pdfUrl?: string | null;
+    snapshotData?: unknown;
+    storedPdfVerified?: boolean;
+    storedPdfInfo?: {
+      exists?: boolean;
+      verified?: boolean;
+      sha256?: string;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  },
+  options?: {
+    fileVerifier?: (path: string) => { exists: boolean; sha256?: string; byteLength?: number };
+  }
+): boolean {
+  const snap =
+    invoice.snapshotData && typeof invoice.snapshotData === "object"
+      ? (invoice.snapshotData as Record<string, unknown>)
+      : null;
+
+  // 1. V2 Invoice: modern frozen V2 invoices are inherently reliable only when containing both pdfItems and items,
+  // valid descriptions, and mathematically sound cent totals matching DB amounts.
+  if (snap && (snap.calculationVersion === "v2" || snap.isV2 === true)) {
+    const hasPdfItems = Array.isArray(snap.pdfItems) && snap.pdfItems.length > 0;
+    const hasItems = Array.isArray(snap.items) && snap.items.length > 0;
+    if (!hasPdfItems || !hasItems) {
+      return false;
+    }
+
+    // Every item in pdfItems must have a non-empty description
+    for (const it of snap.pdfItems as Record<string, unknown>[]) {
+      if (!it || typeof it !== "object" || typeof it.description !== "string" || !it.description.trim()) {
+        return false;
+      }
+    }
+
+    const subCents = snap.subtotalCents;
+    const taxCents = snap.taxAmountCents;
+    const totCents = snap.totalCents;
+
+    if (
+      typeof subCents !== "number" ||
+      typeof taxCents !== "number" ||
+      typeof totCents !== "number" ||
+      subCents + taxCents !== totCents
+    ) {
+      return false;
+    }
+
+    // Parity with invoice DB amounts if provided
+    if (invoice.netAmount !== undefined && invoice.netAmount !== null) {
+      const dbNetCents = Math.round(Number(invoice.netAmount) * 100);
+      if (subCents !== dbNetCents) return false;
+    }
+    if (invoice.vatAmount !== undefined && invoice.vatAmount !== null) {
+      const dbVatCents = Math.round(Number(invoice.vatAmount) * 100);
+      if (taxCents !== dbVatCents) return false;
+    }
+    if (invoice.grossAmount !== undefined && invoice.grossAmount !== null) {
+      const dbGrossCents = Math.round(Number(invoice.grossAmount) * 100);
+      if (totCents !== dbGrossCents) return false;
+    }
+
+    return true;
+  }
+
+  // 2. Stored File Candidate: check if a stored PDF exists AND has a verified reference checksum
+  const candidatePdfPath = resolveStoredPdfCandidatePath(invoice);
+
+  if (candidatePdfPath) {
+    const registeredChecksum = resolveStoredPdfExpectedChecksum(snap);
+
+    if (!registeredChecksum) {
+      return false;
+    }
+
+    // Check verification status flags on invoice or snapshot
+    if (invoice.storedPdfVerified === false) {
+      return false;
+    }
+    const storedInfo = snap?.storedPdfInfo as Record<string, unknown> | undefined;
+    if (storedInfo && (storedInfo.exists === false || storedInfo.verified === false)) {
+      return false;
+    }
+    const invStoredInfo = invoice.storedPdfInfo;
+    if (invStoredInfo && (invStoredInfo.exists === false || invStoredInfo.verified === false)) {
+      return false;
+    }
+    if ((invoice as Record<string, unknown>).fileMissing === true) {
+      return false;
+    }
+    const snapStoredVerif = snap?.storedPdfVerification as Record<string, unknown> | undefined;
+    if (snapStoredVerif && (snapStoredVerif.reliable === false || snapStoredVerif.exists === false)) {
+      return false;
+    }
+
+    // If options.fileVerifier is provided, verify directly
+    if (options?.fileVerifier) {
+      const verifResult = options.fileVerifier(candidatePdfPath);
+      if (!verifResult.exists) {
+        return false;
+      }
+      if (verifResult.sha256 && verifResult.sha256 !== registeredChecksum) {
+        return false;
+      }
+      return true;
+    }
+
+    // When called from the UI without fileVerifier (browser client):
+    // A stored file is only considered reliable if explicitly verified by the server (storedPdfVerified === true).
+    if (invoice.storedPdfVerified === true) {
+      return true;
+    }
+
+    // If the stored file is unverified, missing, or rejected by the server, do NOT declare reliable solely from the path.
+    // Fall through to evaluate whether a complete frozen snapshot exists as alternative origin.
+  }
+
+  // 3. Frozen Snapshot Candidate: requires complete immutable frozen snapshot
+  if (!snap) {
+    return false;
+  }
+
+  const items =
+    Array.isArray(snap.items) && snap.items.length > 0
+      ? snap.items
+      : Array.isArray(snap.pdfItems) && snap.pdfItems.length > 0
+      ? snap.pdfItems
+      : null;
+  if (!items || items.length === 0) {
+    return false;
+  }
+
+  let calculatedItemsNetCents = 0;
+  for (let i = 0; i < items.length; i++) {
+    const normalized = normalizeHistoricalItem(items[i], i + 1);
+    if (!normalized) return false;
+    calculatedItemsNetCents += normalized.amountCents;
+  }
+
+  const clientObj =
+    snap.client && typeof snap.client === "object"
+      ? (snap.client as Record<string, unknown>)
+      : null;
+  const facility =
+    (typeof snap.facilityName === "string" ? snap.facilityName.trim() : "") ||
+    (clientObj && typeof clientObj.facilityName === "string" ? clientObj.facilityName.trim() : "");
+  const address =
+    (typeof snap.address === "string" ? snap.address.trim() : "") ||
+    (clientObj && typeof clientObj.address === "string" ? clientObj.address.trim() : "");
+
+  if (!facility || !address) {
+    return false;
+  }
+
+  // Mandatory Payment Terms (no fabricated default)
+  const paymentTerms =
+    typeof snap.paymentTermsDays === "number" && !isNaN(snap.paymentTermsDays) && snap.paymentTermsDays > 0
+      ? snap.paymentTermsDays
+      : typeof clientObj?.paymentTermsDays === "number" &&
+        !isNaN(clientObj.paymentTermsDays) &&
+        clientObj.paymentTermsDays > 0
+      ? clientObj.paymentTermsDays
+      : null;
+
+  if (paymentTerms === null) {
+    return false;
+  }
+
+  // Mandatory monetary totals
+  const subtotalCents =
+    typeof snap.subtotalCents === "number" && !isNaN(snap.subtotalCents)
+      ? snap.subtotalCents
+      : parseCurrencyAmountToCents(snap.subtotal ?? snap.netAmount);
+
+  const taxAmountCents =
+    typeof snap.taxAmountCents === "number" && !isNaN(snap.taxAmountCents)
+      ? snap.taxAmountCents
+      : parseCurrencyAmountToCents(snap.taxAmount ?? snap.vatAmount);
+
+  const totalCents =
+    typeof snap.totalCents === "number" && !isNaN(snap.totalCents)
+      ? snap.totalCents
+      : parseCurrencyAmountToCents(snap.total ?? snap.grossAmount);
+
+  if (subtotalCents === null || taxAmountCents === null || totalCents === null) {
+    return false;
+  }
+
+  // Discrepancy between calculated items and subtotal (allow <= 1 cent legacy rounding)
+  if (Math.abs(calculatedItemsNetCents - subtotalCents) > 1) {
+    return false;
+  }
+
+  // Parity with invoice row amounts if provided
+  if (invoice.netAmount !== undefined && invoice.netAmount !== null) {
+    const dbNetCents = Math.round(Number(invoice.netAmount) * 100);
+    if (subtotalCents !== dbNetCents) return false;
+  }
+  if (invoice.vatAmount !== undefined && invoice.vatAmount !== null) {
+    const dbVatCents = Math.round(Number(invoice.vatAmount) * 100);
+    if (taxAmountCents !== dbVatCents) return false;
+  }
+  if (invoice.grossAmount !== undefined && invoice.grossAmount !== null) {
+    const dbGrossCents = Math.round(Number(invoice.grossAmount) * 100);
+    if (totalCents !== dbGrossCents) return false;
+  }
+
   return true;
 }

@@ -48,6 +48,7 @@ import { formatCentsGerman } from "./invoice-exact-engine";
 import { computeV2DraftHash } from "./invoice-v2-issuance-service";
 import { buildInvoicePdfData } from "./invoice-pdf-builder";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
+import { normalizeHistoricalItem, resolveStoredPdfCandidatePath } from "./invoicing";
 
 // ============================================================================
 // Error Types
@@ -627,7 +628,7 @@ export async function persistArchivedOriginalPdf(
   // Ensures pre-existing or external directories with wide permissions (e.g. 0755) are secured
   try {
     fs.chmodSync(canonicalArchiveDir, 0o700);
-  } catch (chmodErr) {
+  } catch {
     const stat = fs.statSync(canonicalArchiveDir);
     if ((stat.mode & 0o077) !== 0) {
       throw new InvoiceRefreshError(
@@ -666,7 +667,7 @@ export async function persistArchivedOriginalPdf(
       // Ensures pre-existing or restored files with wide permissions (e.g. 0644) are secured before reuse
       try {
         fs.chmodSync(targetPath, 0o600);
-      } catch (fileChmodErr) {
+      } catch {
         const fileStat = fs.statSync(targetPath);
         if ((fileStat.mode & 0o077) !== 0) {
           throw new InvoiceRefreshError(
@@ -980,6 +981,9 @@ export async function isCompleteFrozenSnapshot(
     grossAmount?: number;
     date?: Date | string;
     invoiceNumber?: string;
+  },
+  options?: {
+    skipPdfSimulation?: boolean;
   }
 ): Promise<FrozenSnapshotVerificationResult> {
   if (!snap || typeof snap !== "object" || Array.isArray(snap)) {
@@ -1006,37 +1010,23 @@ export async function isCompleteFrozenSnapshot(
 
   for (let i = 0; i < items.length; i++) {
     const it = items[i] as Record<string, unknown>;
-    if (!it || typeof it !== "object") {
-      return { complete: false, reason: `Rechnungsposten #${i + 1} im Snapshot ist kein gültiges Objekt.` };
-    }
-    const desc = typeof it.description === "string" ? it.description.trim() : "";
+    const desc = typeof it?.description === "string" ? it.description.trim() : "";
     if (!desc) {
-      return { complete: false, reason: `Rechnungsposten #${i + 1} hat keine Bezeichnung (description fehlt).` };
+      return {
+        complete: false,
+        reason: `Rechnungsposten #${i + 1} hat keine Bezeichnung (description fehlt).`,
+      };
     }
 
-    const hasHours =
-      (typeof it.hours === "number" && !isNaN(it.hours) && it.hours > 0) ||
-      (typeof it.hours === "string" && it.hours.trim() !== "" && (parseCurrencyAmountToCents(it.hours) ?? 0) > 0) ||
-      (typeof it.hoursDisplay === "string" && it.hoursDisplay.trim() !== "") ||
-      (typeof it.hoursDecimal === "string" && it.hoursDecimal.trim() !== "" && parseFloat(it.hoursDecimal) > 0) ||
-      (typeof it.displayHourHundredths === "number" && !isNaN(it.displayHourHundredths) && it.displayHourHundredths > 0) ||
-      (typeof it.rawMinutes === "number" && !isNaN(it.rawMinutes) && it.rawMinutes > 0) ||
-      (typeof it.quantity === "number" && !isNaN(it.quantity) && it.quantity > 0) ||
-      (typeof it.count === "number" && !isNaN(it.count) && it.count > 0);
-
-    let itemAmountCents: number | null = null;
-    if (typeof it.amountCents === "number" && !isNaN(it.amountCents)) {
-      itemAmountCents = it.amountCents;
-    } else {
-      const rawAmount = it.amount ?? it.total ?? it.lineTotal;
-      itemAmountCents = parseCurrencyAmountToCents(rawAmount);
+    const normalized = normalizeHistoricalItem(items[i], i + 1);
+    if (!normalized) {
+      return {
+        complete: false,
+        reason: `Rechnungsposten #${i + 1} ist unvollständig (Stunden oder Betrag fehlen oder sind ungültig).`,
+      };
     }
 
-    if (!hasHours || itemAmountCents === null || itemAmountCents <= 0) {
-      return { complete: false, reason: `Rechnungsposten #${i + 1} ist unvollständig (Stunden oder Betrag fehlen oder sind ungültig).` };
-    }
-
-    calculatedItemsNetCents += itemAmountCents;
+    calculatedItemsNetCents += normalized.amountCents;
   }
 
   // Client Facility Name
@@ -1070,6 +1060,18 @@ export async function isCompleteFrozenSnapshot(
 
   if (!rawDate) {
     return { complete: false, reason: "Snapshot enthält kein Rechnungsdatum (date fehlt)." };
+  }
+
+  // Payment Terms Days (Mandatory for Reproducible PDF - no fabricated default)
+  const paymentTermsDays =
+    typeof s.paymentTermsDays === "number" && !isNaN(s.paymentTermsDays) && s.paymentTermsDays > 0
+      ? s.paymentTermsDays
+      : typeof clientObj?.paymentTermsDays === "number" && !isNaN(clientObj.paymentTermsDays) && clientObj.paymentTermsDays > 0
+      ? clientObj.paymentTermsDays
+      : null;
+
+  if (paymentTermsDays === null) {
+    return { complete: false, reason: "Snapshot enthält kein Zahlungsziel (paymentTermsDays fehlt oder ungültig)." };
   }
 
   // Mandatory Totals Check: subtotal, taxAmount, total
@@ -1164,7 +1166,7 @@ export async function isCompleteFrozenSnapshot(
   }
 
   // Pre-flight PDF Renderer Simulation: verify PDF generation succeeds strictly from snapshot
-  let generatedPdfBuffer: Buffer;
+  let generatedPdfBuffer: Buffer | undefined = undefined;
   try {
     const dummyClient = {
       id: (clientObj?.id as string) || "c-hist",
@@ -1240,16 +1242,18 @@ export async function isCompleteFrozenSnapshot(
       };
     }
 
-    generatedPdfBuffer = await generateInvoicePdf(built);
-    if (
-      !generatedPdfBuffer ||
-      generatedPdfBuffer.length < 100 ||
-      generatedPdfBuffer.toString("utf-8", 0, 5) !== "%PDF-"
-    ) {
-      return {
-        complete: false,
-        reason: "Pre-Flight-Prüfung der PDF-Generierung aus dem Snapshot ergab keine gültigen PDF-Bytes (Magic-Bytes '%PDF-' fehlen oder Puffer zu klein).",
-      };
+    if (!options?.skipPdfSimulation) {
+      generatedPdfBuffer = await generateInvoicePdf(built);
+      if (
+        !generatedPdfBuffer ||
+        generatedPdfBuffer.length < 100 ||
+        generatedPdfBuffer.toString("utf-8", 0, 5) !== "%PDF-"
+      ) {
+        return {
+          complete: false,
+          reason: "Pre-Flight-Prüfung der PDF-Generierung aus dem Snapshot ergab keine gültigen PDF-Bytes (Magic-Bytes '%PDF-' fehlen oder Puffer zu klein).",
+        };
+      }
     }
   } catch (err) {
     return {
@@ -1264,7 +1268,183 @@ export async function isCompleteFrozenSnapshot(
     sha256,
     hasKnownRoundingDiscrepancy,
     knownRoundingDiscrepancyCents,
-    pdfByteLength: generatedPdfBuffer.length,
+    pdfByteLength: generatedPdfBuffer?.length,
+  };
+}
+
+/**
+ * Constructs an immutable client representation strictly from frozen snapshot data.
+ * Guarantees zero leakage or inheritance of mutating properties from the live Client table.
+ * If mandatory client data (facilityName, address) is missing from the snapshot, returns null.
+ */
+export function buildFrozenClientFromSnapshot(snap: unknown): {
+  id: string;
+  facilityName: string;
+  address: string;
+  billingEmail: string | null;
+  billingInfo: string | null;
+  shortCode: string | null;
+  internalNumber: string | null;
+  paymentTermsDays: number;
+  hourlyRates: Record<string, number>;
+  surchargeSat: number;
+  surchargeSun: number;
+  surchargeHoliday: number;
+  surchargeNight: number;
+  nightStart: string;
+  nightEnd: string;
+} | null {
+  if (!snap || typeof snap !== "object" || Array.isArray(snap)) {
+    return null;
+  }
+  const s = snap as Record<string, unknown>;
+  const clientObj = s.client && typeof s.client === "object" ? (s.client as Record<string, unknown>) : null;
+
+  const facility =
+    (typeof s.facilityName === "string" ? s.facilityName.trim() : "") ||
+    (clientObj && typeof clientObj.facilityName === "string" ? clientObj.facilityName.trim() : "");
+
+  const address =
+    (typeof s.address === "string" ? s.address.trim() : "") ||
+    (clientObj && typeof clientObj.address === "string" ? clientObj.address.trim() : "");
+
+  if (!facility || !address) {
+    return null;
+  }
+
+  const shortCode =
+    (typeof s.shortCode === "string" && s.shortCode.trim()) ||
+    (clientObj && typeof clientObj.shortCode === "string" && clientObj.shortCode.trim()) ||
+    null;
+
+  const internalNumber =
+    (typeof s.internalNumber === "string" && s.internalNumber.trim()) ||
+    (clientObj && typeof clientObj.internalNumber === "string" && clientObj.internalNumber.trim()) ||
+    null;
+
+  const billingInfo =
+    (typeof s.billingInfo === "string" ? s.billingInfo : null) ||
+    (clientObj && typeof clientObj.billingInfo === "string" ? clientObj.billingInfo : null);
+
+  const billingEmail =
+    (typeof s.billingEmail === "string" ? s.billingEmail : null) ||
+    (clientObj && typeof clientObj.billingEmail === "string" ? clientObj.billingEmail : null);
+
+  const paymentTermsDays =
+    typeof s.paymentTermsDays === "number" && !isNaN(s.paymentTermsDays) && s.paymentTermsDays > 0
+      ? s.paymentTermsDays
+      : typeof clientObj?.paymentTermsDays === "number" && !isNaN(clientObj.paymentTermsDays) && clientObj.paymentTermsDays > 0
+      ? clientObj.paymentTermsDays
+      : null;
+
+  if (paymentTermsDays === null) {
+    return null;
+  }
+
+  return {
+    id: (clientObj && typeof clientObj.id === "string" ? clientObj.id : null) || (typeof s.clientId === "string" ? s.clientId : "c-hist"),
+    facilityName: facility,
+    address,
+    billingEmail,
+    billingInfo,
+    shortCode,
+    internalNumber,
+    paymentTermsDays,
+    hourlyRates: {},
+    surchargeSat: 0,
+    surchargeSun: 0,
+    surchargeHoliday: 0,
+    surchargeNight: 0,
+    nightStart: "22:00",
+    nightEnd: "06:00",
+  };
+}
+
+export type StoredHistoricalPdfVerificationResult =
+  | { reliable: true; buffer: Buffer; sha256: string; byteLength: number }
+  | {
+      reliable: false;
+      status: 409 | 422;
+      reason: string;
+      errorCode: "UNVERIFIED_STORED_FILE" | "CHECKSUM_MISMATCH" | "SIZE_MISMATCH" | "FILE_MISSING_OR_CORRUPT";
+    };
+
+/**
+ * Strict Verification of Stored Historical PDF Files (Option A Reliability Standard)
+ *
+ * Enforces that a designated stored PDF path on disk is only served as authentic
+ * if its checksum and byte length match a pre-registered reference checksum in snapshot/provenance.
+ * Files lacking registered reference checksums are classified as UNVERIFIED_STORED_FILE and fail closed (422).
+ */
+export async function verifyStoredHistoricalPdf(
+  storedPdfPath: string,
+  snapshotData: unknown,
+  verifier: FileVerifier = defaultFileVerifier
+): Promise<StoredHistoricalPdfVerificationResult> {
+  const snap = snapshotData && typeof snapshotData === "object" ? (snapshotData as Record<string, unknown>) : null;
+
+  // Retrieve pre-recorded reference checksum & byteLength from trusted snapshot / archival metadata
+  const storedInfo = snap?.storedPdfInfo && typeof snap.storedPdfInfo === "object" ? (snap.storedPdfInfo as Record<string, unknown>) : null;
+  const archivedRecord = snap?.archivedPdfRecord && typeof snap.archivedPdfRecord === "object" ? (snap.archivedPdfRecord as Record<string, unknown>) : null;
+
+  const expectedSha256 =
+    (typeof storedInfo?.sha256 === "string" && storedInfo.sha256.trim()) ||
+    (typeof archivedRecord?.sha256 === "string" && archivedRecord.sha256.trim()) ||
+    (typeof snap?.pdfSha256 === "string" && snap.pdfSha256.trim()) ||
+    (typeof snap?.pdfChecksum === "string" && snap.pdfChecksum.trim()) ||
+    (typeof snap?.sha256 === "string" && snap.sha256.trim()) ||
+    null;
+
+  const expectedByteLength =
+    (typeof storedInfo?.byteLength === "number" && storedInfo.byteLength) ||
+    (typeof archivedRecord?.byteLength === "number" && archivedRecord.byteLength) ||
+    (typeof snap?.pdfByteLength === "number" && snap.pdfByteLength) ||
+    null;
+
+  const check = await verifier(storedPdfPath);
+  if (!check.exists || !check.buffer || !check.sha256 || !check.byteLength) {
+    return {
+      reliable: false,
+      status: 422,
+      errorCode: "FILE_MISSING_OR_CORRUPT",
+      reason: `Das hinterlegte historische Rechnungsdokument ist nicht verfügbar oder beschädigt. (${check.reason || "Datei nicht lesbar"})`,
+    };
+  }
+
+  // If no reference checksum is registered in historical metadata, the existing file cannot be proven authentic
+  if (!expectedSha256) {
+    return {
+      reliable: false,
+      status: 422,
+      errorCode: "UNVERIFIED_STORED_FILE",
+      reason:
+        "Das hinterlegte historische Rechnungsdokument besitzt keine registrierte Prüfsumme (unverified stored file) und kann nicht als verlässliches Originaldokument ausgegeben werden. Bitte prüfen Sie das Buchhaltungsarchiv.",
+    };
+  }
+
+  if (check.sha256 !== expectedSha256) {
+    return {
+      reliable: false,
+      status: 409,
+      errorCode: "CHECKSUM_MISMATCH",
+      reason: `Das hinterlegte historische Rechnungsdokument wurde auf dem Server verändert oder stimmt nicht mit der registrierten Prüfsumme überein (Checksum-Mismatch: erwartet ${expectedSha256}, vorgefunden ${check.sha256}).`,
+    };
+  }
+
+  if (expectedByteLength && check.byteLength !== expectedByteLength) {
+    return {
+      reliable: false,
+      status: 409,
+      errorCode: "SIZE_MISMATCH",
+      reason: `Das hinterlegte historische Rechnungsdokument hat eine abweichende Dateigröße (Größen-Mismatch: erwartet ${expectedByteLength} Bytes, vorgefunden ${check.byteLength} Bytes).`,
+    };
+  }
+
+  return {
+    reliable: true,
+    buffer: check.buffer,
+    sha256: check.sha256,
+    byteLength: check.byteLength,
   };
 }
 
@@ -1295,12 +1475,7 @@ export async function checkReliableHistoricalOrigin(
   knownRoundingDiscrepancyCents?: number;
   pdfByteLength?: number;
 }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const snap = invoice.snapshotData as any;
-  const candidatePdfUrl =
-    (typeof invoice.pdfUrl === "string" && invoice.pdfUrl.trim().length > 0 ? invoice.pdfUrl.trim() : null) ||
-    (snap && typeof snap.pdfUrl === "string" && snap.pdfUrl.trim().length > 0 ? snap.pdfUrl.trim() : null) ||
-    (snap && typeof snap.pdfFilePath === "string" && snap.pdfFilePath.trim().length > 0 ? snap.pdfFilePath.trim() : null);
+  const candidatePdfUrl = resolveStoredPdfCandidatePath(invoice);
 
   if (candidatePdfUrl) {
     const verifier = fileVerifier || defaultFileVerifier;
@@ -1354,9 +1529,7 @@ export async function hasReliableHistoricalOrigin(invoice: {
   if (defaultCheck.complete) {
     return { reliable: true, source: "frozen_snapshot" };
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const snap = invoice.snapshotData as any;
-  const rawUrl = invoice.pdfUrl || snap?.pdfUrl || snap?.pdfFilePath;
+  const rawUrl = resolveStoredPdfCandidatePath(invoice);
   if (typeof rawUrl === "string" && rawUrl.trim().length > 0) {
     const fileCheck = defaultFileVerifier(rawUrl.trim());
     if (fileCheck.exists) {

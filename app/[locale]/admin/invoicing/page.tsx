@@ -6,7 +6,11 @@ import { Label } from "@/components/ui/label";
 import { InvoicingHub } from "@/components/admin/invoicing/invoicing-hub";
 import { format } from "@/lib/date-utils";
 
-import { buildInvoicingWhereClause } from "@/lib/invoicing";
+import {
+  buildInvoicingWhereClause,
+  resolveStoredPdfCandidatePath,
+  resolveStoredPdfExpectedChecksum,
+} from "@/lib/invoicing";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +46,7 @@ export default async function InvoicingPage({
   });
 
   // 1. Fetch Invoices in range
-  const invoices = await prisma.invoice.findMany({
+  const rawInvoices = await prisma.invoice.findMany({
     where: invoiceWhere,
     include: {
       client: true,
@@ -52,6 +56,26 @@ export default async function InvoicingPage({
     },
     orderBy: { date: "desc" },
   });
+
+  const { defaultFileVerifier } = await import("@/lib/invoice-v2-refresh-service");
+  const invoices = await Promise.all(
+    rawInvoices.map(async (inv) => {
+      const pdfCandidate = resolveStoredPdfCandidatePath(inv);
+
+      if (pdfCandidate) {
+        const fileCheck = await defaultFileVerifier(pdfCandidate);
+        const expectedSha256 = resolveStoredPdfExpectedChecksum(inv.snapshotData);
+
+        const verified = Boolean(fileCheck.exists && (!expectedSha256 || fileCheck.sha256 === expectedSha256));
+        return {
+          ...inv,
+          storedPdfVerified: verified,
+          fileMissing: !fileCheck.exists,
+        };
+      }
+      return inv;
+    })
+  );
 
   // 2. Fetch all assignments in the period (for shift-level billing status verification)
   const assignments = await prisma.assignment.findMany({
