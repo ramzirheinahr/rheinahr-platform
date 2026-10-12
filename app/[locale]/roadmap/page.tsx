@@ -5,6 +5,8 @@ import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CheckCircle2, Zap, Rocket } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Funktionen & Roadmap — RheinAhr",
 };

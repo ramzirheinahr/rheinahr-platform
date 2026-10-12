@@ -3,6 +3,8 @@ import { setRequestLocale } from "next-intl/server";
 import { LegalShell } from "@/components/legal/legal-shell";
 import { getCompanyConfig } from "@/lib/config/company";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   const companyConfig = await getCompanyConfig();
   return {

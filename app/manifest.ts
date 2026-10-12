@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { getCompanyConfig } from "@/lib/config/company";
 
+export const dynamic = "force-dynamic";
+
 // Web App Manifest → served at /manifest.webmanifest. Makes the platform
 // installable on phones (esp. the mobile-first care-staff portal).
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
