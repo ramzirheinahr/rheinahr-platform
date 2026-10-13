@@ -431,6 +431,8 @@
     "pricingEditorTitle": "Vergütung & Zuschläge bearbeiten",
     "pricingEditorDesc": "Einzige Eingabestelle für Stundensätze und Zuschläge dieser Einrichtung.",
     "pricingEditHint": "Werte bearbeiten und speichern. Bereits ausgestellte Rechnungen und eingefrorene V2-Versionen bleiben unverändert; neue Werte müssen anschließend ausdrücklich für V2 bestätigt werden.",
+    "legacyDefaultsReviewHint": "Einige Felder waren im Kundenprofil nicht gespeichert. Hier stehen die bisher verwendeten Plattform-Standardwerte. Bitte mit den vereinbarten Werten vergleichen, bevor Sie speichern und für V2 freigeben.",
+    "legacyDefaultValue": "Bisheriger Standardwert – nicht im Kundenprofil gespeichert",
     "pricingSave": "Vergütung speichern",
     "pricingSaving": "Wird gespeichert...",
     "pricingSaved": "Vergütung und Zuschläge gespeichert. Bitte V2-Freigabe prüfen.",

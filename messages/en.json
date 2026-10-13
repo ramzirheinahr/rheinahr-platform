@@ -431,6 +431,8 @@
     "pricingEditorTitle": "Edit remuneration and surcharges",
     "pricingEditorDesc": "The only entry point for this facility's hourly rates and surcharges.",
     "pricingEditHint": "Edit and save the values. Issued invoices and frozen V2 versions stay unchanged; explicitly approve the new values for V2 afterward.",
+    "legacyDefaultsReviewHint": "Some fields were not saved in the client profile. The previous platform defaults are shown here. Compare them with the agreed values before saving and approving them for V2.",
+    "legacyDefaultValue": "Previous default – not saved in the client profile",
     "pricingSave": "Save remuneration",
     "pricingSaving": "Saving...",
     "pricingSaved": "Remuneration and surcharges saved. Review V2 approval.",
