@@ -35,6 +35,26 @@ export async function GET(req: Request) {
     });
 
     const ws = xlsx.utils.json_to_sheet(rows);
+
+    ws["!cols"] = [
+      { wch: 15 }, // Personal-Nr.
+      { wch: 30 }, // Mitarbeiter
+      { wch: 18 }, // Fahrtkosten (€)
+      { wch: 28 }, // Verpflegungsmehraufwand (€)
+      { wch: 22 }, // Gesamterstattung (€)
+    ];
+
+    const range = xlsx.utils.decode_range(ws["!ref"] || "A1");
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (let C = 2; C <= 4; ++C) {
+        const cellRef = xlsx.utils.encode_cell({ r: R, c: C });
+        const cell = ws[cellRef];
+        if (cell && typeof cell.v === "number") {
+          cell.z = "#,##0.00";
+        }
+      }
+    }
+
     const wb = xlsx.utils.book_new();
     const sheetName = `Spesen ${year}-${String(month).padStart(2, "0")}`;
     xlsx.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));

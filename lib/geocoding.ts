@@ -122,14 +122,14 @@ export async function getDrivingDistanceKm(
 ): Promise<number | null> {
   if (!originAddress || !destAddress) return null;
   
+  if (options?.fast) {
+    return estimateGermanDistanceKm(originAddress, destAddress);
+  }
+
   const cacheKey = `${originAddress.trim().toLowerCase()}|${destAddress.trim().toLowerCase()}`;
   if (distanceCache.has(cacheKey)) {
     const cached = distanceCache.get(cacheKey);
     return cached ?? estimateGermanDistanceKm(originAddress, destAddress);
-  }
-
-  if (options?.fast) {
-    return estimateGermanDistanceKm(originAddress, destAddress);
   }
 
   if (inFlightDistance.has(cacheKey)) return inFlightDistance.get(cacheKey)!;

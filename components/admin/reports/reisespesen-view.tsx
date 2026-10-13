@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Printer, Calculator, FileSpreadsheet, Loader2, Search, X, Users } from "lucide-react";
 import { fetchReisespesenAction, fetchMonthlySpesenOverviewAction } from "@/app/[locale]/admin/reports/actions";
-import type { ReisespesenRow, MonthlySpesenOverviewData } from "@/lib/reports-data";
+import type { ReisespesenRow, MonthlySpesenOverviewData, MonthlySpesenWorkerRow } from "@/lib/reports-data";
+import * as XLSX from "xlsx";
 
 const MONTHS = [
   { value: 1, label: "Januar" },
@@ -72,8 +73,131 @@ export function ReisespesenView({
     window.open(`/api/reports/reisespesen/pdf?${params.toString()}`, "_blank");
   };
 
+  const exportOverviewRowsToExcel = (
+    rows: MonthlySpesenWorkerRow[],
+    totals: { totalFahrtCost: number; totalMealAllowance: number; totalAmount: number },
+    targetYear: number,
+    targetMonth: number
+  ) => {
+    const exportRows = rows.map((r) => ({
+      "Personal-Nr.": r.internalNumber || "-",
+      Mitarbeiter: r.fullName,
+      "Fahrtkosten (€)": r.totalFahrtCost,
+      "Verpflegungsmehraufwand (€)": r.totalMealAllowance,
+      "Gesamterstattung (€)": r.totalAmount,
+    }));
+
+    exportRows.push({
+      "Personal-Nr.": "",
+      Mitarbeiter: "Gesamtsumme",
+      "Fahrtkosten (€)": totals.totalFahrtCost as any,
+      "Verpflegungsmehraufwand (€)": totals.totalMealAllowance as any,
+      "Gesamterstattung (€)": totals.totalAmount as any,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+
+    ws["!cols"] = [
+      { wch: 15 },
+      { wch: 30 },
+      { wch: 18 },
+      { wch: 28 },
+      { wch: 22 },
+    ];
+
+    const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (let C = 2; C <= 4; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = ws[cellRef];
+        if (cell && typeof cell.v === "number") {
+          cell.z = "#,##0.00";
+        }
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+    const sheetName = `Spesen ${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+
+    const filename = `Spesenuebersicht_Fahrt_Verpflegung_${targetYear}_${String(targetMonth).padStart(2, "0")}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  };
+
+  const exportSingleWorkerToExcel = (
+    workerData: {
+      rows: ReisespesenRow[];
+      totalDistance: number;
+      totalCost: number;
+      worker: { fullName: string; internalNumber: string | null };
+    },
+    targetYear: number,
+    targetMonth: number
+  ) => {
+    const exportRows = workerData.rows.map((r) => ({
+      "#": r.index,
+      Datum: r.date,
+      "Schicht von": r.fromTime,
+      "Schicht bis": r.toTime,
+      Kunde: r.customerName,
+      "Adresse von": r.addressFrom,
+      "Adresse nach": r.addressTo,
+      "Entfernung (km)": r.distanceKm,
+      "Gesamtkosten (€)": r.totalCost,
+    }));
+
+    exportRows.push({
+      "#": "Gesamt" as any,
+      Datum: "",
+      "Schicht von": "",
+      "Schicht bis": "",
+      Kunde: "",
+      "Adresse von": "",
+      "Adresse nach": "",
+      "Entfernung (km)": workerData.totalDistance as any,
+      "Gesamtkosten (€)": workerData.totalCost as any,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+
+    ws["!cols"] = [
+      { wch: 8 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 30 },
+      { wch: 25 },
+      { wch: 25 },
+      { wch: 16 },
+      { wch: 18 },
+    ];
+
+    const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (const C of [7, 8]) {
+        const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = ws[cellRef];
+        if (cell && typeof cell.v === "number") {
+          cell.z = "#,##0.00";
+        }
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+    const sheetName = `Reisespesen ${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+
+    const cleanWorkerName = (workerData.worker.fullName || "Mitarbeiter").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filename = `Reisespesen_${cleanWorkerName}_${targetYear}_${String(targetMonth).padStart(2, "0")}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  };
+
   const handleExcelExport = () => {
     if (!workerId) return;
+    if (data && data.rows) {
+      exportSingleWorkerToExcel(data, year, month);
+      return;
+    }
     const params = new URLSearchParams({
       year: String(year),
       month: String(month),
@@ -94,12 +218,28 @@ export function ReisespesenView({
   };
 
   const handleExcelExportOverview = () => {
-    const params = new URLSearchParams({
-      year: String(overviewYear),
-      month: String(overviewMonth),
-      onlyWithAmounts: String(onlyWithAmounts),
+    if (overviewData && overviewData.year === overviewYear && overviewData.month === overviewMonth) {
+      const rowsToExport = overviewSearchQuery.trim()
+        ? filteredOverviewRows
+        : overviewData.rows;
+
+      const totalsToExport = overviewSearchQuery.trim()
+        ? filteredTotals
+        : overviewData.totals;
+
+      exportOverviewRowsToExcel(rowsToExport, totalsToExport, overviewYear, overviewMonth);
+      return;
+    }
+
+    startOverviewTransition(async () => {
+      const res = await fetchMonthlySpesenOverviewAction({
+        year: overviewYear,
+        month: overviewMonth,
+        onlyWithAmounts,
+      });
+      setOverviewData(res);
+      exportOverviewRowsToExcel(res.rows, res.totals, overviewYear, overviewMonth);
     });
-    window.open(`/api/reports/reisespesen/overview-excel?${params.toString()}`, "_blank");
   };
 
   const filteredOverviewRows = React.useMemo(() => {

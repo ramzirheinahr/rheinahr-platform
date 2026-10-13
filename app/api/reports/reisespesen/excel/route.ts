@@ -47,6 +47,30 @@ export async function GET(req: Request) {
     });
 
     const ws = xlsx.utils.json_to_sheet(rows);
+
+    ws["!cols"] = [
+      { wch: 8 },  // #
+      { wch: 14 }, // Datum
+      { wch: 14 }, // Schicht von
+      { wch: 14 }, // Schicht bis
+      { wch: 30 }, // Kunde
+      { wch: 25 }, // Adresse von
+      { wch: 25 }, // Adresse nach
+      { wch: 16 }, // Entfernung (km)
+      { wch: 18 }, // Gesamtkosten (€)
+    ];
+
+    const range = xlsx.utils.decode_range(ws["!ref"] || "A1");
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (const C of [7, 8]) {
+        const cellRef = xlsx.utils.encode_cell({ r: R, c: C });
+        const cell = ws[cellRef];
+        if (cell && typeof cell.v === "number") {
+          cell.z = "#,##0.00";
+        }
+      }
+    }
+
     const wb = xlsx.utils.book_new();
     const sheetName = `Reisespesen ${year}-${String(month).padStart(2, "0")}`;
     xlsx.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));

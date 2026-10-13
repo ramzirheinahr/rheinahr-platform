@@ -920,8 +920,8 @@ export async function getReisespesenData(params: {
       distance = 0;
     } else {
       addressFrom = "Home";
-      if (worker.address && a.order.client.address) {
-        const d = await getDrivingDistanceKm(worker.address, a.order.client.address);
+      if (worker.address && addressTo) {
+        const d = await getDrivingDistanceKm(worker.address, addressTo);
         distance = d ?? 25.0; // fallback if geocoding cannot calculate
       } else {
         distance = 20.0;
@@ -1249,6 +1249,33 @@ export async function getMonthlySpesenOverviewData(params: {
     assignmentsByWorker.set(a.workerId, list);
   }
 
+  // Pre-fetch driving distances for unique (worker.address, clientAddr) pairs in parallel batches
+  const uniquePairs: Array<{ origin: string; dest: string }> = [];
+  const seenPairs = new Set<string>();
+
+  for (const worker of workers) {
+    if (!worker.travelAllowanceEnabled || !worker.address) continue;
+    const workerAssignments = assignmentsByWorker.get(worker.id) || [];
+    for (const a of workerAssignments) {
+      if (a.excludeTravelAllowance) continue;
+      const clientAddr = a.order.client.address || a.order.client.facilityName;
+      if (!clientAddr) continue;
+      const key = `${worker.address.trim().toLowerCase()}|${clientAddr.trim().toLowerCase()}`;
+      if (!seenPairs.has(key)) {
+        seenPairs.add(key);
+        uniquePairs.push({ origin: worker.address, dest: clientAddr });
+      }
+    }
+  }
+
+  const PREFETCH_BATCH_SIZE = 10;
+  for (let i = 0; i < uniquePairs.length; i += PREFETCH_BATCH_SIZE) {
+    const batch = uniquePairs.slice(i, i + PREFETCH_BATCH_SIZE);
+    await Promise.all(
+      batch.map((p) => getDrivingDistanceKm(p.origin, p.dest))
+    );
+  }
+
   const rows: MonthlySpesenWorkerRow[] = [];
 
   for (const worker of workers) {
@@ -1282,7 +1309,7 @@ export async function getMonthlySpesenOverviewData(params: {
         } else {
           const clientAddr = a.order.client.address || a.order.client.facilityName;
           if (worker.address && clientAddr) {
-            const d = await getDrivingDistanceKm(worker.address, clientAddr, { fast: true });
+            const d = await getDrivingDistanceKm(worker.address, clientAddr);
             distance = d ?? 25.0;
           } else {
             distance = 20.0;
