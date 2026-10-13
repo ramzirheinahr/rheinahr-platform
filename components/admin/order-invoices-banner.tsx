@@ -20,11 +20,13 @@ import {
 
 export function OrderInvoicesBanner({ 
   requestGroupId,
+  clientId,
   v2Enabled,
   invoices,
   uninvoicedAssignments
 }: { 
   requestGroupId: string;
+  clientId: string;
   v2Enabled: boolean;
   invoices: Array<{
     id: string;
@@ -141,6 +143,7 @@ export function OrderInvoicesBanner({
 
           {uninvoicedAssignments.length > 0 && (
             <SelectAssignmentsDialog
+              clientId={clientId}
               assignments={uninvoicedAssignments}
               title="Rechnung erstellen"
               description="Wählen Sie die Schichten aus, für die eine Rechnung generiert werden soll."

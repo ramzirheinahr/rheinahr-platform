@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Plus, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 
 export type InvoiceReviewResult =
   | { ok: false; code: string; message: string }
@@ -47,6 +48,7 @@ export function SelectAssignmentsDialog({
   showSplitOption,
   onPreview,
   onSubmit,
+  clientId,
 }: {
   assignments: SelectableAssignment[];
   title: string;
@@ -58,6 +60,7 @@ export function SelectAssignmentsDialog({
   showSplitOption?: boolean;
   onPreview?: (selectedIds: string[]) => Promise<InvoiceReviewResult>;
   onSubmit: (selectedIds: string[], customInvoiceNumber?: string, splitByShift?: boolean, expectedDraftHash?: string) => Promise<void | boolean>;
+  clientId?: string;
 }) {
   const reviewText = useTranslations("invoiceReview");
   const [open, setOpen] = useState(false);
@@ -68,6 +71,7 @@ export function SelectAssignmentsDialog({
   const [workerFilter, setWorkerFilter] = useState<string>("all");
   const [review, setReview] = useState<Extract<InvoiceReviewResult, { ok: true }> | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewErrorCode, setReviewErrorCode] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [accountingConfirmed, setAccountingConfirmed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -75,6 +79,7 @@ export function SelectAssignmentsDialog({
   const clearReview = () => {
     setReview(null);
     setReviewError(null);
+    setReviewErrorCode(null);
     setAccountingConfirmed(false);
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     setPdfUrl(null);
@@ -84,6 +89,16 @@ export function SelectAssignmentsDialog({
   const filteredAssignments = workerFilter === "all" 
     ? assignments 
     : assignments.filter((a) => a.workerName === workerFilter);
+
+  const selectedShiftDates = assignments
+    .filter((a) => selectedIds.has(a.id))
+    .map((a) => {
+      const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(a.shiftDate);
+      return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
+    })
+    .filter((date): date is string => date !== null)
+    .sort();
+  const firstSelectedShiftDate = selectedShiftDates[0] ?? null;
 
   // Check if all filtered assignments are currently selected
   const allFilteredSelected = filteredAssignments.length > 0 && filteredAssignments.every(a => selectedIds.has(a.id));
@@ -132,6 +147,7 @@ export function SelectAssignmentsDialog({
       const selected = Array.from(selectedIds);
       const result = await onPreview(selected);
       if (!result.ok) {
+        setReviewErrorCode(result.code);
         setReviewError(`${result.code}: ${result.message}`);
         return;
       }
@@ -265,7 +281,22 @@ export function SelectAssignmentsDialog({
             <Button type="button" variant="outline" onClick={handlePreview} disabled={reviewing || submitting || selectedIds.size === 0}>
               {reviewing ? reviewText("loading") : reviewText("calculate")}
             </Button>
-            {reviewError && <p role="alert" className="text-sm text-red-700 break-words">{reviewError}</p>}
+            {reviewError && (
+              <div role="alert" className="space-y-2 text-sm text-red-700 break-words">
+                <p>{reviewError}</p>
+                {clientId && firstSelectedShiftDate &&
+                  (reviewErrorCode === "POLICY_UNRESOLVED" || reviewErrorCode === "PRICE_UNRESOLVED") && (
+                    <Link
+                      href={`/admin/clients/${clientId}/rates?from=${firstSelectedShiftDate}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block font-medium underline underline-offset-2"
+                    >
+                      Tarife und Zuschläge für den Abrechnungszeitraum prüfen
+                    </Link>
+                  )}
+              </div>
+            )}
             {review && pdfUrl && (
               <div className="space-y-2 text-sm">
                 <p className="font-semibold">{reviewText("draftNotice")}</p>

@@ -12,10 +12,13 @@ export const dynamic = "force-dynamic";
 
 export default async function ClientRatesApprovalPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
   const t = await getTranslations("ratesApproval");
   const actor = await getCurrentUser();
 
@@ -122,6 +125,27 @@ export default async function ClientRatesApprovalPage({
     signedAt: ct.signedAt ? ct.signedAt.toISOString() : null,
   }));
 
+  const requestedFrom = typeof from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(from) &&
+    !Number.isNaN(Date.parse(`${from}T00:00:00.000Z`)) &&
+    new Date(`${from}T00:00:00.000Z`).toISOString().slice(0, 10) === from
+    ? from
+    : null;
+  const nextVersionStart = requestedFrom
+    ? [
+        ...client.surchargePolicies.map((policy) => policy.effectiveFrom.toISOString().slice(0, 10)),
+        ...client.hourlyRateVersions
+          .filter((rate) => rate.clientContractId === null)
+          .map((rate) => rate.effectiveFrom.toISOString().slice(0, 10)),
+      ].filter((date) => date > requestedFrom).sort()[0]
+    : null;
+  const yearEnd = requestedFrom ? `${requestedFrom.slice(0, 4)}-12-31` : null;
+  const dayBeforeNextVersion = nextVersionStart
+    ? new Date(Date.parse(`${nextVersionStart}T00:00:00.000Z`) - 86_400_000).toISOString().slice(0, 10)
+    : null;
+  const suggestedEffectiveTo = yearEnd && dayBeforeNextVersion && dayBeforeNextVersion < yearEnd
+    ? dayBeforeNextVersion
+    : yearEnd;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -138,6 +162,8 @@ export default async function ClientRatesApprovalPage({
 
       <ClientRatesApprovalContent
         clientId={client.id}
+        initialEffectiveFrom={requestedFrom}
+        initialEffectiveTo={suggestedEffectiveTo}
         facilityName={client.facilityName}
         hasFrameworkAgreement={Boolean(client.frameworkAgreementSignedAt && client.frameworkAgreementUrl)}
         frameworkAgreementUrl={client.frameworkAgreementUrl}

@@ -293,6 +293,7 @@ export async function OrderDetailContent({
 
       <OrderInvoicesBanner
         requestGroupId={id}
+        clientId={orders[0].client.id}
         v2Enabled={isV2InvoiceIssuanceEnabled()}
         invoices={invoiceDocumentStates}
         uninvoicedAssignments={uninvoicedAssignments}

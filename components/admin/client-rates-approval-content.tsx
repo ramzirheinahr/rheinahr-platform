@@ -87,6 +87,8 @@ type HourlyRateVersionItem = {
 
 export type ClientRatesApprovalProps = {
   clientId: string;
+  initialEffectiveFrom?: string | null;
+  initialEffectiveTo?: string | null;
   facilityName: string;
   hasFrameworkAgreement: boolean;
   frameworkAgreementUrl: string | null;
@@ -115,6 +117,8 @@ const QUALIFICATIONS_LIST = [
 
 export function ClientRatesApprovalContent({
   clientId,
+  initialEffectiveFrom,
+  initialEffectiveTo,
   facilityName,
   profileHourlyRates,
   profileSurcharges,
@@ -136,10 +140,10 @@ export function ClientRatesApprovalContent({
   // The server records the acting administrator and truthful source label.
   const sourceType = "setting" as const;
   const [effectiveFrom, setEffectiveFrom] = useState(
-    new Date().toISOString().slice(0, 10)
+    initialEffectiveFrom || new Date().toISOString().slice(0, 10)
   );
   const [effectiveTo, setEffectiveTo] = useState(
-    new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10)
+    initialEffectiveTo || new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10)
   );
 
   // Surcharges Form State
@@ -606,6 +610,11 @@ export function ClientRatesApprovalContent({
             {/* Existing profile values are explicitly confirmed for future invoices. */}
             <div className="space-y-4 rounded-lg border p-4">
               <p className="text-sm text-muted-foreground">{t("profileApprovalIntro")}</p>
+              {initialEffectiveFrom && initialEffectiveFrom < new Date().toISOString().slice(0, 10) && (
+                <p className="text-sm font-medium text-amber-700">
+                  Bitte prüfen Sie mit der Buchhaltung, ob die heutigen Profilwerte bereits ab {initialEffectiveFrom} galten. Eine rückwirkende Freigabe darf nicht allein aus dem aktuellen Profil abgeleitet werden.
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="min-w-0 space-y-2">
                   <Label>{t("effectiveFrom")}</Label>
