@@ -9,9 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
-import { facilityTypes, type qualifications } from "@/lib/validations";
+import { facilityTypes } from "@/lib/validations";
 import { FacilityNameCodeFields } from "@/components/admin/facility-name-code-fields";
-import { HourlyRatesFieldset } from "@/components/admin/hourly-rates-fieldset";
 import { updateClient } from "@/app/[locale]/admin/clients/actions";
 
 type ClientData = {
@@ -26,27 +25,14 @@ type ClientData = {
   billingEmail?: string | null;
   billingInfo: string | null;
   paymentTermsDays: number;
-  // Surcharge overrides stored as fractions (0.25) — shown here as percent.
-  surchargeSat: number | null;
-  surchargeSun: number | null;
-  surchargeHoliday: number | null;
-  surchargeNight: number | null;
-  // Night window (HH:mm) or null → platform default (20:00–06:00).
-  nightStart: string | null;
-  nightEnd: string | null;
-  // Per-qualification hourly rate overrides (EUR), missing = platform default.
-  hourlyRates: Partial<Record<(typeof qualifications)[number], number | null>>;
   user: {
     receiveEmails: boolean;
   };
 };
 
-const toPct = (v: number | null) =>
-  v === null || v === undefined ? "" : String(Math.round(v * 1000) / 10);
-
 // Edits an existing facility profile; the login account is managed in the
 // AccountSection rendered next to this form.
-export function ClientForm({ client, customFacilityTypes = [] }: { client: ClientData, customFacilityTypes?: string[] }) {
+export function ClientForm({ client, customFacilityTypes = [], returnToRates = false }: { client: ClientData, customFacilityTypes?: string[], returnToRates?: boolean }) {
   const t = useTranslations("clients");
   const c = useTranslations("common");
   const ef = useTranslations("enums.facilityType");
@@ -57,11 +43,15 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
+
     const promise = updateClient(client.id, formData).then((res) => {
       if (res.ok) {
         startTransition(() => {
-          router.refresh();
+          if (returnToRates) {
+            router.push(`/admin/clients/${client.id}/rates`);
+          } else {
+            router.back();
+          }
         });
         return res;
       }
@@ -74,7 +64,6 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
       error: (err) => t(err.message === "codeInUse" ? "codeInUse" : "saveError"),
     });
 
-    router.back();
   }
 
   return (
@@ -163,90 +152,6 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
         </div>
       </div>
 
-      <fieldset className="space-y-3 rounded-lg border p-4">
-        <legend className="px-1 text-sm font-medium">{t("surcharges")}</legend>
-        <p className="text-xs text-muted-foreground">{t("surchargesHint")}</p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2">
-            <Label htmlFor="surchargeSat">{t("surchargeSat")}</Label>
-            <Input
-              id="surchargeSat"
-              name="surchargeSat"
-              type="number"
-              min={0}
-              max={500}
-              step={1}
-              inputMode="decimal"
-              placeholder="25"
-              defaultValue={toPct(initialClient.surchargeSat)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="surchargeSun">{t("surchargeSun")}</Label>
-            <Input
-              id="surchargeSun"
-              name="surchargeSun"
-              type="number"
-              min={0}
-              max={500}
-              step={1}
-              inputMode="decimal"
-              placeholder="50"
-              defaultValue={toPct(initialClient.surchargeSun)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="surchargeHoliday">{t("surchargeHoliday")}</Label>
-            <Input
-              id="surchargeHoliday"
-              name="surchargeHoliday"
-              type="number"
-              min={0}
-              max={500}
-              step={1}
-              inputMode="decimal"
-              placeholder="100"
-              defaultValue={toPct(initialClient.surchargeHoliday)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="surchargeNight">{t("surchargeNight")}</Label>
-            <Input
-              id="surchargeNight"
-              name="surchargeNight"
-              type="number"
-              min={0}
-              max={500}
-              step={1}
-              inputMode="decimal"
-              placeholder="25"
-              defaultValue={toPct(initialClient.surchargeNight)}
-            />
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="nightStart">{t("nightStart")}</Label>
-            <Input
-              id="nightStart"
-              name="nightStart"
-              type="time"
-              defaultValue={initialClient.nightStart ?? "20:00"}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="nightEnd">{t("nightEnd")}</Label>
-            <Input
-              id="nightEnd"
-              name="nightEnd"
-              type="time"
-              defaultValue={initialClient.nightEnd ?? "06:00"}
-            />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">{t("nightWindowHint")}</p>
-      </fieldset>
-
       <div className="flex items-center gap-2">
         <input
           type="checkbox"
@@ -257,8 +162,6 @@ export function ClientForm({ client, customFacilityTypes = [] }: { client: Clien
         />
         <Label htmlFor="receiveEmails">E-Mail Benachrichtigungen senden</Label>
       </div>
-
-      <HourlyRatesFieldset values={initialClient.hourlyRates} />
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

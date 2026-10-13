@@ -10,32 +10,22 @@ import { DeleteClientButton } from "@/components/admin/delete-client-button";
 import { RahmenvertragSection } from "@/components/admin/rahmenvertrag-section";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { qualifications, facilityTypes } from "@/lib/validations";
+import { facilityTypes } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
-
-// Only the qualifications this facility actually overrides — so blank inputs
-// keep showing the platform default as a placeholder (not a prefilled value).
-function resolveRateOverrides(
-  raw: unknown,
-): Partial<Record<(typeof qualifications)[number], number>> {
-  const src = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const out: Partial<Record<(typeof qualifications)[number], number>> = {};
-  for (const q of qualifications) {
-    if (typeof src[q] === "number") out[q] = src[q] as number;
-  }
-  return out;
-}
 
 import { SubUsersSection } from "@/app/[locale]/client/settings/sub-users-section";
 import { ActiveSessionsSection } from "@/components/admin/active-sessions-section";
 
 export default async function EditClientPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnToRates?: string }>;
 }) {
   const { id } = await params;
+  const { returnToRates } = await searchParams;
   const t = await getTranslations("clients");
   const c = await getTranslations("common");
   const actor = await getCurrentUser();
@@ -85,6 +75,7 @@ export default async function EditClientPage({
       </div>
 
       <ClientForm
+        returnToRates={returnToRates === "1"}
         client={{
           id: client.id,
           facilityName: client.facilityName,
@@ -96,13 +87,6 @@ export default async function EditClientPage({
           billingEmail: client.billingEmail,
           billingInfo: client.billingInfo,
           paymentTermsDays: client.paymentTermsDays,
-          surchargeSat: client.surchargeSat,
-          surchargeSun: client.surchargeSun,
-          surchargeHoliday: client.surchargeHoliday,
-          surchargeNight: client.surchargeNight,
-          nightStart: client.nightStart,
-          nightEnd: client.nightEnd,
-          hourlyRates: resolveRateOverrides(client.hourlyRates),
           user: {
             receiveEmails: client.user.receiveEmails,
           },

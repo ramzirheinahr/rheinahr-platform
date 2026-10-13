@@ -292,7 +292,7 @@ export function SelectAssignmentsDialog({
                       rel="noopener noreferrer"
                       className="inline-block font-medium underline underline-offset-2"
                     >
-                      Tarife und Zuschläge für den Abrechnungszeitraum prüfen
+                      Vergütung und Zuschläge für den Abrechnungszeitraum prüfen
                     </Link>
                   )}
               </div>

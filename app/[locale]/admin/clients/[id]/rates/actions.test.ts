@@ -9,6 +9,8 @@ vi.mock("next/cache", () => ({
 const mockAuditLogCreate = vi.fn().mockResolvedValue({ id: "audit-1" });
 const mockPolicyCreate = vi.fn().mockResolvedValue({ id: "policy-1", policyVersion: 1, frozenHash: "hash-pol" });
 const mockRateCreate = vi.fn().mockResolvedValue({ id: "rate-1", rateVersion: 1, frozenHash: "hash-rate" });
+const mockClientUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+const mockClientFindUniqueOrThrow = vi.fn().mockResolvedValue({ updatedAt: new Date("2026-10-13T12:00:00.000Z") });
 
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: vi.fn().mockResolvedValue({
@@ -69,6 +71,10 @@ vi.mock("@/lib/prisma", () => ({
     },
     $transaction: vi.fn(async (callback: any) => {
       const tx = {
+        client: {
+          updateMany: mockClientUpdateMany,
+          findUniqueOrThrow: mockClientFindUniqueOrThrow,
+        },
         facilitySurchargePolicy: {
           create: mockPolicyCreate,
         },
@@ -87,6 +93,7 @@ vi.mock("@/lib/prisma", () => ({
 import {
   previewClientApprovalAction,
   commitClientApprovalAction,
+  saveClientPricingDraftAction,
   type ApprovalPreviewInput,
 } from "./actions";
 import { getCurrentUser } from "@/lib/auth";
@@ -95,6 +102,57 @@ import { prisma } from "@/lib/prisma";
 describe("Rates and Surcharges Approval Server Actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockClientUpdateMany.mockResolvedValue({ count: 1 });
+  });
+
+  const pricingInput = {
+    clientId: "11111111-1111-4111-8111-111111111111",
+    expectedUpdatedAt: "2026-10-13T10:00:00.000Z",
+    surchargeSatPct: 25,
+    surchargeSunPct: 100,
+    surchargeHolidayPct: 125,
+    surchargeNightPct: 50,
+    nightStart: "20:00",
+    nightEnd: "06:00",
+    hourlyRates: {
+      pflegefachkraft: 54.9,
+      pflegehelfer: 34,
+      betreuungskraft: null,
+      pflegedienstleitung: null,
+      kuechenhilfe: null,
+      hausmeister: null,
+    },
+  };
+
+  it("saves editable remuneration and surcharges without touching frozen versions", async () => {
+    const result = await saveClientPricingDraftAction(pricingInput);
+    expect(result.ok).toBe(true);
+    expect(mockClientUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: pricingInput.clientId, updatedAt: new Date(pricingInput.expectedUpdatedAt) },
+      data: expect.objectContaining({
+        surchargeSat: 0.25,
+        surchargeSun: 1,
+        hourlyRates: { pflegefachkraft: 54.9, pflegehelfer: 34 },
+      }),
+    }));
+    expect(mockPolicyCreate).not.toHaveBeenCalled();
+    expect(mockRateCreate).not.toHaveBeenCalled();
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: "client.pricing_draft.updated" }),
+    }));
+  });
+
+  it("rejects a stale edit before creating an audit record", async () => {
+    mockClientUpdateMany.mockResolvedValueOnce({ count: 0 });
+    const result = await saveClientPricingDraftAction(pricingInput);
+    expect(result.ok).toBe(false);
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid pricing before any database write", async () => {
+    const result = await saveClientPricingDraftAction({ ...pricingInput, surchargeSatPct: 500 });
+    expect(result.ok).toBe(false);
+    expect(mockClientUpdateMany).not.toHaveBeenCalled();
   });
 
   const baseInput: ApprovalPreviewInput = {
@@ -213,7 +271,7 @@ describe("Rates and Surcharges Approval Server Actions", () => {
       surchargeSat: 0.99,
     });
     expect(result.ok).toBe(false);
-    expect((result as any).error).toContain("Kundenprofil");
+    expect((result as any).error).toContain("Zuschläge fehlen");
     expect(mockPolicyCreate).not.toHaveBeenCalled();
   });
 
@@ -239,7 +297,7 @@ describe("Rates and Surcharges Approval Server Actions", () => {
       data: expect.objectContaining({
         metadata: expect.objectContaining({
           sourceType: "setting",
-          sourceReference: "Kundenprofil: administrativ bestätigte Tarife und Zuschläge",
+          sourceReference: "Vergütungsseite: administrativ bestätigte Vergütung und Zuschläge",
           contractReference: null,
         }),
       }),

@@ -161,7 +161,9 @@ export default async function ClientRatesApprovalPage({
       </div>
 
       <ClientRatesApprovalContent
+        key={client.updatedAt.toISOString()}
         clientId={client.id}
+        pricingUpdatedAt={client.updatedAt.toISOString()}
         initialEffectiveFrom={requestedFrom}
         initialEffectiveTo={suggestedEffectiveTo}
         facilityName={client.facilityName}

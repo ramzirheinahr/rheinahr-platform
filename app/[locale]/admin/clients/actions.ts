@@ -7,7 +7,6 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { clientSchema, accountBaseSchema } from "@/lib/validations";
-import { Prisma } from "@prisma/client";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -206,13 +205,6 @@ export async function updateClient(
         billingEmail: data.billingEmail || null,
         billingInfo: data.billingInfo || null,
         paymentTermsDays: data.paymentTermsDays,
-        surchargeSat: pctToFrac(data.surchargeSat),
-        surchargeSun: pctToFrac(data.surchargeSun),
-        surchargeHoliday: pctToFrac(data.surchargeHoliday),
-        surchargeNight: pctToFrac(data.surchargeNight),
-        nightStart: data.nightStart ?? null,
-        nightEnd: data.nightEnd ?? null,
-        hourlyRates: ratesJson(data) ?? Prisma.JsonNull,
         // Keep the account display name in sync with the profile.
         user: {
           update: { 
@@ -237,6 +229,7 @@ export async function updateClient(
 
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${id}/edit`);
+  revalidatePath(`/admin/clients/${id}/rates`);
   return { ok: true };
 }
 

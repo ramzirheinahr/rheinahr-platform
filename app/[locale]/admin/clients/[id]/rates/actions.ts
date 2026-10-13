@@ -13,6 +13,94 @@ import {
 } from "@/lib/facility-surcharge-admin-service";
 import type { GermanFederalState } from "@/lib/facility-surcharge-policy-template";
 import type { SurchargeCombinationRule } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { z } from "zod";
+
+const qualificationKeys = [
+  "pflegefachkraft", "pflegehelfer", "betreuungskraft",
+  "pflegedienstleitung", "kuechenhilfe", "hausmeister",
+] as const;
+
+const optionalPercentage = z.number().finite().min(0).max(200)
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, "Percent precision required")
+  .nullable();
+const optionalHourlyRate = z.number().finite().min(0).max(1000)
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, "Cent precision required")
+  .nullable();
+const pricingDraftSchema = z.object({
+  clientId: z.string().uuid(),
+  expectedUpdatedAt: z.string().datetime(),
+  surchargeSatPct: optionalPercentage,
+  surchargeSunPct: optionalPercentage,
+  surchargeHolidayPct: optionalPercentage,
+  surchargeNightPct: optionalPercentage,
+  nightStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
+  nightEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
+  hourlyRates: z.object(Object.fromEntries(qualificationKeys.map((key) => [key, optionalHourlyRate])) as Record<typeof qualificationKeys[number], typeof optionalHourlyRate>),
+});
+
+export type PricingDraftInput = z.input<typeof pricingDraftSchema>;
+
+/** Saves the single editable pricing form; frozen invoice versions remain unchanged. */
+export async function saveClientPricingDraftAction(
+  raw: PricingDraftInput,
+): Promise<ActionResponse<{ updatedAt: string }>> {
+  let actor;
+  try {
+    actor = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+  const parsed = pricingDraftSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: "Ungültige Vergütungswerte. Bitte Zahlen und Zeiten prüfen." };
+  }
+  const input = parsed.data;
+  if ((input.nightStart === null) !== (input.nightEnd === null)) {
+    return { ok: false, error: "Nachtbeginn und Nachtende müssen beide ausgefüllt oder beide leer sein." };
+  }
+  const rates = Object.fromEntries(qualificationKeys.flatMap((key) => {
+    const value = input.hourlyRates[key];
+    return value === null ? [] : [[key, value]];
+  }));
+  try {
+    const updatedAt = await prisma.$transaction(async (tx) => {
+      const changed = await tx.client.updateMany({
+        where: { id: input.clientId, updatedAt: new Date(input.expectedUpdatedAt) },
+        data: {
+          surchargeSat: input.surchargeSatPct === null ? null : input.surchargeSatPct / 100,
+          surchargeSun: input.surchargeSunPct === null ? null : input.surchargeSunPct / 100,
+          surchargeHoliday: input.surchargeHolidayPct === null ? null : input.surchargeHolidayPct / 100,
+          surchargeNight: input.surchargeNightPct === null ? null : input.surchargeNightPct / 100,
+          nightStart: input.nightStart,
+          nightEnd: input.nightEnd,
+          hourlyRates: Object.keys(rates).length ? rates : Prisma.JsonNull,
+        },
+      });
+      if (changed.count !== 1) {
+        throw new Error("Die Vergütung wurde zwischenzeitlich geändert. Bitte die Seite neu laden.");
+      }
+      await tx.auditLog.create({
+        data: {
+          userId: actor.id,
+          action: "client.pricing_draft.updated",
+          entity: "Client",
+          entityId: input.clientId,
+          metadata: { source: "vergütung_v2_page", frozenVersionsChanged: false },
+        },
+      });
+      const client = await tx.client.findUniqueOrThrow({
+        where: { id: input.clientId }, select: { updatedAt: true },
+      });
+      return client.updatedAt.toISOString();
+    });
+    revalidatePath(`/admin/clients/${input.clientId}/rates`);
+    revalidatePath(`/admin/clients/${input.clientId}/edit`);
+    return { ok: true, data: { updatedAt } };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Vergütung konnte nicht gespeichert werden." };
+  }
+}
 
 export type ActionResponse<T = unknown> =
   | { ok: true; data: T }
@@ -116,21 +204,21 @@ export async function previewClientApprovalAction(
       !sameRate(profile.surchargeNight, input.surchargeNight) ||
       profile.nightStart !== input.nightStart || profile.nightEnd !== input.nightEnd
     )) {
-      return { ok: false, error: "Zuschläge im Kundenprofil fehlen oder wurden geändert. Bitte das Profil aktualisieren und diese Seite neu laden." };
+      return { ok: false, error: "Zuschläge fehlen oder wurden geändert. Bitte die Werte oben auf dieser Seite speichern und die Seite neu laden." };
     }
     if (input.approveRates && (!input.selectedRates?.length || input.selectedRates.some((rate) => {
       const stored = profileRates[rate.qualification];
       return typeof stored !== "number" || !Number.isFinite(stored) ||
         Math.round(stored * 100) !== Math.round(rate.hourlyRateEur * 100);
     }))) {
-      return { ok: false, error: "Stundensätze im Kundenprofil fehlen oder wurden geändert. Bitte das Profil aktualisieren und diese Seite neu laden." };
+      return { ok: false, error: "Stundensätze fehlen oder wurden geändert. Bitte die Werte oben auf dieser Seite speichern und die Seite neu laden." };
     }
   }
 
   // Administrative profile approval is identified by the authenticated actor
   // and a truthful source label; the browser cannot supply a fake document.
   const sourceReference = input.sourceType === "setting"
-    ? "Kundenprofil: administrativ bestätigte Tarife und Zuschläge"
+    ? "Vergütungsseite: administrativ bestätigte Vergütung und Zuschläge"
     : input.sourceReference;
 
   // 1. Preview Surcharge Policy if selected
@@ -391,7 +479,7 @@ export async function commitClientApprovalAction(
       },
     };
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : "Fehler beim Einfrieren der Tarife.";
+    const errorMsg = err instanceof Error ? err.message : "Fehler beim Einfrieren der Vergütung.";
     return { ok: false, error: errorMsg };
   }
 }

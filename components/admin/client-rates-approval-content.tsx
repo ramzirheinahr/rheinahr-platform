@@ -24,7 +24,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  ShieldAlert,
   ShieldCheck,
   Lock,
   Calendar,
@@ -39,6 +38,7 @@ import {
   type ApprovalPreviewResult,
 } from "@/app/[locale]/admin/clients/[id]/rates/actions";
 import { GERMAN_FEDERAL_STATES, GERMAN_STATE_NAMES_DE } from "@/lib/german-holidays";
+import { ClientPricingEditor } from "@/components/admin/client-pricing-editor";
 
 type ContractOption = {
   id: string;
@@ -87,6 +87,7 @@ type HourlyRateVersionItem = {
 
 export type ClientRatesApprovalProps = {
   clientId: string;
+  pricingUpdatedAt: string;
   initialEffectiveFrom?: string | null;
   initialEffectiveTo?: string | null;
   facilityName: string;
@@ -117,6 +118,7 @@ const QUALIFICATIONS_LIST = [
 
 export function ClientRatesApprovalContent({
   clientId,
+  pricingUpdatedAt,
   initialEffectiveFrom,
   initialEffectiveTo,
   facilityName,
@@ -135,6 +137,7 @@ export function ClientRatesApprovalContent({
   const [previewResult, setPreviewResult] = useState<ApprovalPreviewResult | null>(null);
   const [confirmedByUser, setConfirmedByUser] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [pricingDirty, setPricingDirty] = useState(false);
 
   // Existing client-profile values are confirmed as an administrative setting.
   // The server records the acting administrator and truthful source label.
@@ -187,7 +190,8 @@ export function ClientRatesApprovalContent({
   >(() => {
     const map: Record<string, boolean> = {};
     for (const q of QUALIFICATIONS_LIST) {
-      map[q] = profileHourlyRates[q] !== null && profileHourlyRates[q] !== undefined;
+      const rate = profileHourlyRates[q];
+      map[q] = typeof rate === "number" && Number.isFinite(rate) && rate > 0;
     }
     return map;
   });
@@ -355,116 +359,29 @@ export function ClientRatesApprovalContent({
           </h1>
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
-        <Button onClick={handleOpenDialog} className="gap-2">
-          <ShieldCheck className="size-4" />
-          {t("openApprovalDialog")}
-        </Button>
+        <div className="space-y-1">
+          <Button onClick={handleOpenDialog} disabled={pricingDirty} className="gap-2">
+            <ShieldCheck className="size-4" />
+            {t("openApprovalDialog")}
+          </Button>
+          {pricingDirty && <p className="text-xs text-muted-foreground">{t("pricingSaveBeforeApproval")}</p>}
+        </div>
       </div>
 
-      {/* SECTION 1: Read-Only Display of Current Profile Values */}
-      <Card className="border-amber-500/30 bg-amber-500/5">
+      {/* Single editing location for billing values; approval below freezes versions separately. */}
+      <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="size-5 text-amber-600 dark:text-amber-500" />
-            <CardTitle className="text-amber-900 dark:text-amber-200">
-              {t("profileValuesTitle")}
-            </CardTitle>
-          </div>
-          <CardDescription className="text-amber-800/80 dark:text-amber-300/80">
-            {t("profileValuesDesc")}
-          </CardDescription>
+          <CardTitle>{t("pricingEditorTitle")}</CardTitle>
+          <CardDescription>{t("pricingEditorDesc")}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="rounded-lg border border-amber-300/40 bg-amber-100/30 p-3 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200">
-            {t("profileValuesNotice")}
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Profile Rates */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">
-                {t("profileRates")}
-              </h3>
-              <div className="divide-y rounded-lg border bg-card">
-                {QUALIFICATIONS_LIST.map((q) => {
-                  const val = profileHourlyRates[q];
-                  return (
-                    <div
-                      key={q}
-                      className="flex items-center justify-between p-3 text-sm"
-                    >
-                      <span className="font-medium">{eq(q)}</span>
-                      <div className="flex items-center gap-2">
-                        {val !== null && val !== undefined ? (
-                          <span className="font-semibold text-foreground">
-                            {val.toFixed(2)} € / Std.
-                          </span>
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground">
-                            {t("notSet")}
-                          </Badge>
-                        )}
-                        <Badge
-                          variant="secondary"
-                          className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                        >
-                          {t("unverified")}
-                        </Badge>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Profile Surcharges */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">
-                {t("profileSurcharges")}
-              </h3>
-              <div className="divide-y rounded-lg border bg-card">
-                <div className="flex items-center justify-between p-3 text-sm">
-                  <span>{t("surchargeSat")}</span>
-                  <span className="font-medium">
-                    {profileSurcharges.surchargeSat !== null
-                      ? `${Math.round(profileSurcharges.surchargeSat * 100)} %`
-                      : t("notSet")}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 text-sm">
-                  <span>{t("surchargeSun")}</span>
-                  <span className="font-medium">
-                    {profileSurcharges.surchargeSun !== null
-                      ? `${Math.round(profileSurcharges.surchargeSun * 100)} %`
-                      : t("notSet")}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 text-sm">
-                  <span>{t("surchargeHoliday")}</span>
-                  <span className="font-medium">
-                    {profileSurcharges.surchargeHoliday !== null
-                      ? `${Math.round(profileSurcharges.surchargeHoliday * 100)} %`
-                      : t("notSet")}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 text-sm">
-                  <span>{t("surchargeNight")}</span>
-                  <span className="font-medium">
-                    {profileSurcharges.surchargeNight !== null
-                      ? `${Math.round(profileSurcharges.surchargeNight * 100)} %`
-                      : t("notSet")}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 text-sm">
-                  <span>{t("nightWindow")}</span>
-                  <span className="font-medium">
-                    {profileSurcharges.nightStart || "20:00"} –{" "}
-                    {profileSurcharges.nightEnd || "06:00"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+        <CardContent>
+          <ClientPricingEditor
+            clientId={clientId}
+            expectedUpdatedAt={pricingUpdatedAt}
+            profileSurcharges={profileSurcharges}
+            profileHourlyRates={profileHourlyRates}
+            onDirtyChange={setPricingDirty}
+          />
         </CardContent>
       </Card>
 
@@ -646,6 +563,9 @@ export function ClientRatesApprovalContent({
 
               {approveSurcharges && (
                 <>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-3 text-sm">
+                    <span>{t("editProfilePricingHint")}</span>
+                  </div>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     <div className="min-w-0 space-y-2">
                       <Label>{t("federalState")}</Label>
@@ -695,62 +615,30 @@ export function ClientRatesApprovalContent({
                     </div>
                     <div className="min-w-0 space-y-2">
                       <Label>{t("nightStart")}</Label>
-                      <Input
-                        value={nightStart}
-                        readOnly
-                        placeholder="20:00"
-                      />
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{nightStart || "—"}</div>
                     </div>
                     <div className="min-w-0 space-y-2">
                       <Label>{t("nightEnd")}</Label>
-                      <Input
-                        value={nightEnd}
-                        readOnly
-                        placeholder="06:00"
-                      />
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{nightEnd || "—"}</div>
                     </div>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div className="min-w-0 space-y-2">
                       <Label>{t("surchargeSat")}</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="200"
-                        value={surchargeSatPct}
-                        readOnly
-                      />
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{surchargeSatPct === "" ? "—" : `${surchargeSatPct} %`}</div>
                     </div>
                     <div className="min-w-0 space-y-2">
                       <Label>{t("surchargeSun")}</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="200"
-                        value={surchargeSunPct}
-                        readOnly
-                      />
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{surchargeSunPct === "" ? "—" : `${surchargeSunPct} %`}</div>
                     </div>
                     <div className="min-w-0 space-y-2">
                       <Label>{t("surchargeHoliday")}</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="200"
-                        value={surchargeHolidayPct}
-                        readOnly
-                      />
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{surchargeHolidayPct === "" ? "—" : `${surchargeHolidayPct} %`}</div>
                     </div>
                     <div className="min-w-0 space-y-2">
                       <Label>{t("surchargeNight")}</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="200"
-                        value={surchargeNightPct}
-                        readOnly
-                      />
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{surchargeNightPct === "" ? "—" : `${surchargeNightPct} %`}</div>
                     </div>
                   </div>
 
@@ -805,16 +693,9 @@ export function ClientRatesApprovalContent({
 
                           {isChecked && (
                             <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                step="0.10"
-                                min="1"
-                                placeholder="0.00"
-                                className="w-32 text-end"
-                                value={ratesEur[q] ?? ""}
-                                readOnly
-                              />
-                              <span className="text-xs text-muted-foreground">€ / Std.</span>
+                              <span className="rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium">
+                                {ratesEur[q] ? `${Number(ratesEur[q]).toFixed(2)} € / Std.` : t("notSet")}
+                              </span>
                             </div>
                           )}
                         </div>

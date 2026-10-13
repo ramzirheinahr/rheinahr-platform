@@ -55,10 +55,10 @@ export function OrderInvoicesBanner({
   };
 
   const handleCancel = async (invoiceId: string) => {
-    if (!confirm("Möchten Sie diese Rechnung wirklich stornieren? Zugehörige Schichten werden wieder freigegeben.")) return;
+    if (!confirm("Rechnung stornieren? Die bisherige Rechnungsnummer bleibt im Verlauf erhalten. Zugehörige Schichten werden freigegeben und können danach über „Fakturieren“ neu berechnet werden.")) return;
     try {
       await cancelInvoice(invoiceId);
-      toast.success("Rechnung erfolgreich storniert!");
+      toast.success("Rechnung storniert. Die Schichten können jetzt über „Fakturieren“ neu berechnet werden.");
       router.refresh();
     } catch (e: unknown) {
       toast.error((e as Error).message || "Fehler beim Stornieren der Rechnung");
@@ -134,7 +134,7 @@ export function OrderInvoicesBanner({
                 {inv.status !== "cancelled" && (
                   <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleCancel(inv.id)}>
                     <Ban className="size-4 mr-2" />
-                    {t("cancelInvoice")}
+                    {t("cancelInvoice")} – danach neu fakturieren
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

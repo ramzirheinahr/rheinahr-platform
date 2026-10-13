@@ -12,7 +12,6 @@ import { Combobox } from "@/components/ui/combobox";
 import { facilityTypes } from "@/lib/validations";
 import { PasswordField } from "@/components/admin/password-field";
 import { FacilityNameCodeFields } from "@/components/admin/facility-name-code-fields";
-import { HourlyRatesFieldset } from "@/components/admin/hourly-rates-fieldset";
 import { createClient } from "@/app/[locale]/admin/clients/actions";
 
 // Creates a facility together with its login account (super_admin only) —
@@ -120,78 +119,6 @@ export function ClientCreateForm({ customFacilityTypes = [] }: { customFacilityT
           />
         </div>
       </div>
-
-      <fieldset className="space-y-3 rounded-lg border p-4">
-        <legend className="px-1 text-sm font-medium">{t("surcharges")}</legend>
-        <p className="text-xs text-muted-foreground">{t("surchargesHint")}</p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2">
-            <Label htmlFor="surchargeSat">{t("surchargeSat")}</Label>
-            <Input
-              id="surchargeSat"
-              name="surchargeSat"
-              type="number"
-              min={0}
-              max={500}
-              step={1}
-              inputMode="decimal"
-              placeholder="25"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="surchargeSun">{t("surchargeSun")}</Label>
-            <Input
-              id="surchargeSun"
-              name="surchargeSun"
-              type="number"
-              min={0}
-              max={500}
-              step={1}
-              inputMode="decimal"
-              placeholder="50"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="surchargeHoliday">{t("surchargeHoliday")}</Label>
-            <Input
-              id="surchargeHoliday"
-              name="surchargeHoliday"
-              type="number"
-              min={0}
-              max={500}
-              step={1}
-              inputMode="decimal"
-              placeholder="100"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="surchargeNight">{t("surchargeNight")}</Label>
-            <Input
-              id="surchargeNight"
-              name="surchargeNight"
-              type="number"
-              min={0}
-              max={500}
-              step={1}
-              inputMode="decimal"
-              placeholder="25"
-            />
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="nightStart">{t("nightStart")}</Label>
-            <Input id="nightStart" name="nightStart" type="time" defaultValue="20:00" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="nightEnd">{t("nightEnd")}</Label>
-            <Input id="nightEnd" name="nightEnd" type="time" defaultValue="06:00" />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">{t("nightWindowHint")}</p>
-      </fieldset>
-
-      <HourlyRatesFieldset />
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>
