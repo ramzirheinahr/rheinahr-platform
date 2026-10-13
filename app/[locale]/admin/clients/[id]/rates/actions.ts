@@ -29,7 +29,7 @@ async function assertAdmin() {
 export type ApprovalPreviewInput = {
   clientId: string;
   clientContractId?: string | null;
-  sourceType: "contract" | "framework_agreement" | "contract_amendment";
+  sourceType: "contract" | "framework_agreement" | "contract_amendment" | "setting";
   sourceReference: string;
   effectiveFrom: string;
   effectiveTo: string;
@@ -86,6 +86,53 @@ export async function previewClientApprovalAction(
     return { ok: false, error: "noApprovalSelection" };
   }
 
+  if (input.sourceType === "setting") {
+    if (input.clientContractId) {
+      return { ok: false, error: "Profileinstellungen müssen ohne Einzelvertrag bestätigt werden." };
+    }
+    const profile = await prisma.client.findUnique({
+      where: { id: input.clientId },
+      select: {
+        hourlyRates: true,
+        surchargeSat: true,
+        surchargeSun: true,
+        surchargeHoliday: true,
+        surchargeNight: true,
+        nightStart: true,
+        nightEnd: true,
+      },
+    });
+    if (!profile) return { ok: false, error: "Kundenprofil nicht gefunden." };
+    const profileRates = profile.hourlyRates && typeof profile.hourlyRates === "object" && !Array.isArray(profile.hourlyRates)
+      ? profile.hourlyRates as Record<string, unknown>
+      : {};
+    const sameRate = (actual: number | null, submitted: number | undefined) =>
+      actual !== null && submitted !== undefined && Number.isFinite(submitted) &&
+      Math.abs(actual - submitted) < 0.000001;
+    if (input.approveSurcharges && (
+      !sameRate(profile.surchargeSat, input.surchargeSat) ||
+      !sameRate(profile.surchargeSun, input.surchargeSun) ||
+      !sameRate(profile.surchargeHoliday, input.surchargeHoliday) ||
+      !sameRate(profile.surchargeNight, input.surchargeNight) ||
+      profile.nightStart !== input.nightStart || profile.nightEnd !== input.nightEnd
+    )) {
+      return { ok: false, error: "Zuschläge im Kundenprofil fehlen oder wurden geändert. Bitte das Profil aktualisieren und diese Seite neu laden." };
+    }
+    if (input.approveRates && (!input.selectedRates?.length || input.selectedRates.some((rate) => {
+      const stored = profileRates[rate.qualification];
+      return typeof stored !== "number" || !Number.isFinite(stored) ||
+        Math.round(stored * 100) !== Math.round(rate.hourlyRateEur * 100);
+    }))) {
+      return { ok: false, error: "Stundensätze im Kundenprofil fehlen oder wurden geändert. Bitte das Profil aktualisieren und diese Seite neu laden." };
+    }
+  }
+
+  // Administrative profile approval is identified by the authenticated actor
+  // and a truthful source label; the browser cannot supply a fake document.
+  const sourceReference = input.sourceType === "setting"
+    ? "Kundenprofil: administrativ bestätigte Tarife und Zuschläge"
+    : input.sourceReference;
+
   // 1. Preview Surcharge Policy if selected
   let surchargePreview: FacilitySurchargePolicyPreviewSummary | null = null;
   if (input.approveSurcharges) {
@@ -119,10 +166,12 @@ export async function previewClientApprovalAction(
       // The policy enum records contractual provenance; the specific amendment
       // remains identifiable in sourceReference. Rate versions retain their own
       // more detailed source type.
-      sourceType: input.sourceType === "framework_agreement" || input.sourceType === "contract_amendment"
+      sourceType: input.sourceType === "setting"
+        ? "setting"
+        : input.sourceType === "framework_agreement" || input.sourceType === "contract_amendment"
         ? "contract"
         : input.sourceType,
-      sourceReference: input.sourceReference,
+      sourceReference,
       effectiveFrom: input.effectiveFrom,
       effectiveTo: input.effectiveTo,
       verifiedByUserId: actor.id,
@@ -167,7 +216,7 @@ export async function previewClientApprovalAction(
         effectiveFrom: input.effectiveFrom,
         effectiveTo: input.effectiveTo,
         sourceType: input.sourceType,
-        sourceReference: input.sourceReference,
+        sourceReference,
         verifyingUserId: actor.id,
       };
 
@@ -321,7 +370,9 @@ export async function commitClientApprovalAction(
             ratesApprovedCount: createdRateIds.length,
             effectiveFrom: input.effectiveFrom,
             effectiveTo: input.effectiveTo,
-            contractReference: input.sourceReference,
+            sourceType: input.sourceType,
+            sourceReference: p.surchargePreview?.provenance.sourceReference ?? p.ratePreviews[0]?.provenance.sourceReference ?? null,
+            contractReference: input.sourceType === "setting" ? null : input.sourceReference,
             clientContractId: input.clientContractId ?? null,
           },
         },

@@ -185,8 +185,9 @@ export function validateFacilitySurchargePolicyIntake(
       errors.push(`'${s.key}' (${s.label}) darf nicht negativ sein.`);
     } else if (s.val > 2.0) {
       errors.push(`'${s.key}' (${s.label}) darf 200% (2.0) nicht überschreiten.`);
-    } else if (s.val === 0) {
-      // Explicit 0 requires rationale proof
+    } else if (s.val === 0 && p.sourceType !== "setting") {
+      // Contract-sourced zero rates retain their documentary rationale.
+      // An administrator-confirmed setting already records an explicit 0% value.
       const rationale = p.zeroRateRationale?.[s.key];
       if (!rationale || typeof rationale !== "string" || !rationale.trim()) {
         errors.push(

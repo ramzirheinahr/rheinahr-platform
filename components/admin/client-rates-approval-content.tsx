@@ -116,8 +116,6 @@ const QUALIFICATIONS_LIST = [
 export function ClientRatesApprovalContent({
   clientId,
   facilityName,
-  hasFrameworkAgreement,
-  contracts,
   profileHourlyRates,
   profileSurcharges,
   activePolicies,
@@ -134,17 +132,9 @@ export function ClientRatesApprovalContent({
   const [confirmedByUser, setConfirmedByUser] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // Form State
-  const [scopeType, setScopeType] = useState<"general" | "contract">(
-    contracts.length > 0 ? "contract" : "general"
-  );
-  const [selectedContractId, setSelectedContractId] = useState<string>(
-    contracts.length > 0 ? contracts[0].id : ""
-  );
-  const [sourceType, setSourceType] = useState<
-    "contract" | "framework_agreement" | "contract_amendment"
-  >(contracts.length > 0 ? "contract" : "framework_agreement");
-  const [sourceReference, setSourceReference] = useState("");
+  // Existing client-profile values are confirmed as an administrative setting.
+  // The server records the acting administrator and truthful source label.
+  const sourceType = "setting" as const;
   const [effectiveFrom, setEffectiveFrom] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -154,44 +144,37 @@ export function ClientRatesApprovalContent({
 
   // Surcharges Form State
   const [approveSurcharges, setApproveSurcharges] = useState(true);
-  const [federalState, setFederalState] = useState<string>("NW");
+  const [federalState, setFederalState] = useState<string>("");
   const [municipality, setMunicipality] = useState("");
   const [districtLocality, setDistrictLocality] = useState("");
-  const [combinationRule, setCombinationRule] = useState<string>(
-    "highest_non_night_plus_night"
+  const [combinationRule, setCombinationRule] = useState<string>("");
+  const [nightStart] = useState(
+    profileSurcharges.nightStart || ""
   );
-  const [nightStart, setNightStart] = useState(
-    profileSurcharges.nightStart || "20:00"
-  );
-  const [nightEnd, setNightEnd] = useState(
-    profileSurcharges.nightEnd || "06:00"
+  const [nightEnd] = useState(
+    profileSurcharges.nightEnd || ""
   );
 
-  const [surchargeSatPct, setSurchargeSatPct] = useState(
+  const [surchargeSatPct] = useState(
     profileSurcharges.surchargeSat !== null
       ? String(Math.round(profileSurcharges.surchargeSat * 100))
-      : "25"
+      : ""
   );
-  const [surchargeSunPct, setSurchargeSunPct] = useState(
+  const [surchargeSunPct] = useState(
     profileSurcharges.surchargeSun !== null
       ? String(Math.round(profileSurcharges.surchargeSun * 100))
-      : "50"
+      : ""
   );
-  const [surchargeHolidayPct, setSurchargeHolidayPct] = useState(
+  const [surchargeHolidayPct] = useState(
     profileSurcharges.surchargeHoliday !== null
       ? String(Math.round(profileSurcharges.surchargeHoliday * 100))
-      : "100"
+      : ""
   );
-  const [surchargeNightPct, setSurchargeNightPct] = useState(
+  const [surchargeNightPct] = useState(
     profileSurcharges.surchargeNight !== null
       ? String(Math.round(profileSurcharges.surchargeNight * 100))
-      : "25"
+      : ""
   );
-
-  const [zeroRationaleSat, setZeroRationaleSat] = useState("");
-  const [zeroRationaleSun, setZeroRationaleSun] = useState("");
-  const [zeroRationaleHoliday, setZeroRationaleHoliday] = useState("");
-  const [zeroRationaleNight, setZeroRationaleNight] = useState("");
 
   // Rates Form State
   const [approveRates, setApproveRates] = useState(true);
@@ -202,14 +185,10 @@ export function ClientRatesApprovalContent({
     for (const q of QUALIFICATIONS_LIST) {
       map[q] = profileHourlyRates[q] !== null && profileHourlyRates[q] !== undefined;
     }
-    // If none was set in profile, default select pflegefachkraft
-    if (!Object.values(map).some(Boolean)) {
-      map.pflegefachkraft = true;
-    }
     return map;
   });
 
-  const [ratesEur, setRatesEur] = useState<Record<string, string>>(() => {
+  const [ratesEur] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const q of QUALIFICATIONS_LIST) {
       const v = profileHourlyRates[q];
@@ -227,11 +206,6 @@ export function ClientRatesApprovalContent({
 
   // Step 1: Pre-flight preview calculation
   const handleCalculatePreview = async () => {
-    if (!sourceReference.trim()) {
-      toast.error(t("sourceReferencePlaceholder"));
-      return;
-    }
-
     if (!effectiveFrom || !effectiveTo) {
       toast.error(t("validityPeriod"));
       return;
@@ -242,30 +216,16 @@ export function ClientRatesApprovalContent({
       return;
     }
 
-    // Build zero rationale
-    const zeroRateRationale: Record<string, string> = {};
-    if (Number(surchargeSatPct) === 0) zeroRateRationale.surchargeSat = zeroRationaleSat;
-    if (Number(surchargeSunPct) === 0) zeroRateRationale.surchargeSun = zeroRationaleSun;
-    if (Number(surchargeHolidayPct) === 0) zeroRateRationale.surchargeHoliday = zeroRationaleHoliday;
-    if (Number(surchargeNightPct) === 0) zeroRateRationale.surchargeNight = zeroRationaleNight;
-
-    // Validate 0% rationales
     if (approveSurcharges) {
-      if (Number(surchargeSatPct) === 0 && !zeroRationaleSat.trim()) {
-        toast.error("Bitte Begründung für 0% Samstagszuschlag angeben.");
+      if (!federalState || !combinationRule || !nightStart || !nightEnd) {
+        toast.error(t("missingPolicySettings"));
         return;
       }
-      if (Number(surchargeSunPct) === 0 && !zeroRationaleSun.trim()) {
-        toast.error("Bitte Begründung für 0% Sonntagszuschlag angeben.");
-        return;
-      }
-      if (Number(surchargeHolidayPct) === 0 && !zeroRationaleHoliday.trim()) {
-        toast.error("Bitte Begründung für 0% Feiertagszuschlag angeben.");
-        return;
-      }
-      if (Number(surchargeNightPct) === 0 && !zeroRationaleNight.trim()) {
-        toast.error("Bitte Begründung für 0% Nachtzuschlag angeben.");
-        return;
+      for (const value of [surchargeSatPct, surchargeSunPct, surchargeHolidayPct, surchargeNightPct]) {
+        if (value.trim() === "" || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 200) {
+          toast.error(t("missingSurchargeValues"));
+          return;
+        }
       }
     }
 
@@ -290,9 +250,9 @@ export function ClientRatesApprovalContent({
 
     const payload = {
       clientId,
-      clientContractId: scopeType === "contract" ? selectedContractId : null,
+      clientContractId: null,
       sourceType,
-      sourceReference: sourceReference.trim(),
+      sourceReference: "",
       effectiveFrom,
       effectiveTo,
       approveSurcharges,
@@ -306,7 +266,7 @@ export function ClientRatesApprovalContent({
       surchargeSun: Number(surchargeSunPct) / 100,
       surchargeHoliday: Number(surchargeHolidayPct) / 100,
       surchargeNight: Number(surchargeNightPct) / 100,
-      zeroRateRationale,
+      zeroRateRationale: {},
       approveRates,
       selectedRates: selectedRatesList,
     };
@@ -337,9 +297,9 @@ export function ClientRatesApprovalContent({
 
     const payload = {
       clientId,
-      clientContractId: scopeType === "contract" ? selectedContractId : null,
+      clientContractId: null,
       sourceType,
-      sourceReference: sourceReference.trim(),
+      sourceReference: "",
       effectiveFrom,
       effectiveTo,
       approveSurcharges,
@@ -353,12 +313,7 @@ export function ClientRatesApprovalContent({
       surchargeSun: Number(surchargeSunPct) / 100,
       surchargeHoliday: Number(surchargeHolidayPct) / 100,
       surchargeNight: Number(surchargeNightPct) / 100,
-      zeroRateRationale: {
-        ...(Number(surchargeSatPct) === 0 ? { surchargeSat: zeroRationaleSat } : {}),
-        ...(Number(surchargeSunPct) === 0 ? { surchargeSun: zeroRationaleSun } : {}),
-        ...(Number(surchargeHolidayPct) === 0 ? { surchargeHoliday: zeroRationaleHoliday } : {}),
-        ...(Number(surchargeNightPct) === 0 ? { surchargeNight: zeroRationaleNight } : {}),
-      },
+      zeroRateRationale: {},
       approveRates,
       selectedRates: previewResult.ratePreviews.map((rp) => ({
         qualification: rp.rateTerms.qualification,
@@ -641,111 +596,24 @@ export function ClientRatesApprovalContent({
 
       {/* APPROVAL FORM DIALOG */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("dialogTitle")}</DialogTitle>
             <DialogDescription>{t("dialogSubtitle")}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-2">
-            {/* 1. Contract & Scope */}
+            {/* Existing profile values are explicitly confirmed for future invoices. */}
             <div className="space-y-4 rounded-lg border p-4">
-              <h4 className="text-sm font-semibold text-foreground">
-                {t("sectionContract")}
-              </h4>
-
+              <p className="text-sm text-muted-foreground">{t("profileApprovalIntro")}</p>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{t("scopeType")}</Label>
-                  <select
-                    className="w-full rounded-md border bg-background p-2 text-sm"
-                    value={scopeType}
-                    onChange={(e) => {
-                      const val = e.target.value as "general" | "contract";
-                      setScopeType(val);
-                      setSourceType(val === "general" ? "framework_agreement" : "contract");
-                    }}
-                  >
-                    <option value="general">{t("scopeGeneral")}</option>
-                    <option value="contract">{t("scopeContract")}</option>
-                  </select>
-                </div>
-
-                {scopeType === "contract" && (
-                  <div className="space-y-2">
-                    <Label>{t("selectContract")}</Label>
-                    {contracts.length === 0 ? (
-                      <p className="text-xs text-destructive">
-                        {t("noSignedContracts")}
-                      </p>
-                    ) : (
-                      <select
-                        className="w-full rounded-md border bg-background p-2 text-sm"
-                        value={selectedContractId}
-                        onChange={(e) => setSelectedContractId(e.target.value)}
-                      >
-                        {contracts.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            Vertrag {c.id.slice(0, 8)} ({c.period || "Ohne Zeitraum"})
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                )}
-                {scopeType === "general" && !hasFrameworkAgreement && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      Hinweis: Keine Rahmenvereinbarung in der Datenbank hinterlegt.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{t("sourceType")}</Label>
-                  <select
-                    className="w-full rounded-md border bg-background p-2 text-sm"
-                    value={sourceType}
-                    onChange={(e) =>
-                      setSourceType(
-                        e.target.value as "contract" | "framework_agreement" | "contract_amendment"
-                      )
-                    }
-                  >
-                    <option value="contract">{t("sourceTypeContract")}</option>
-                    <option value="framework_agreement">{t("sourceTypeFramework")}</option>
-                    <option value="contract_amendment">{t("sourceTypeAmendment")}</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>{t("sourceReference")}</Label>
-                  <Input
-                    placeholder={t("sourceReferencePlaceholder")}
-                    value={sourceReference}
-                    onChange={(e) => setSourceReference(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
+                <div className="min-w-0 space-y-2">
                   <Label>{t("effectiveFrom")}</Label>
-                  <Input
-                    type="date"
-                    value={effectiveFrom}
-                    onChange={(e) => setEffectiveFrom(e.target.value)}
-                  />
+                  <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
                 </div>
-                <div className="space-y-2">
+                <div className="min-w-0 space-y-2">
                   <Label>{t("effectiveTo")}</Label>
-                  <Input
-                    type="date"
-                    value={effectiveTo}
-                    onChange={(e) => setEffectiveTo(e.target.value)}
-                  />
+                  <Input type="date" value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} />
                 </div>
               </div>
             </div>
@@ -769,7 +637,7 @@ export function ClientRatesApprovalContent({
 
               {approveSurcharges && (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-2">
                       <Label>{t("federalState")}</Label>
                       <select
@@ -777,6 +645,7 @@ export function ClientRatesApprovalContent({
                         value={federalState}
                         onChange={(e) => setFederalState(e.target.value)}
                       >
+                        <option value="">{t("selectFederalState")}</option>
                         {GERMAN_FEDERAL_STATES.map((st) => (
                           <option key={st} value={st}>
                             {GERMAN_STATE_NAMES_DE[st]} ({st})
@@ -802,7 +671,7 @@ export function ClientRatesApprovalContent({
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-2">
                       <Label>{t("combinationRule")}</Label>
                       <select
@@ -810,6 +679,7 @@ export function ClientRatesApprovalContent({
                         value={combinationRule}
                         onChange={(e) => setCombinationRule(e.target.value)}
                       >
+                        <option value="">{t("selectCombinationRule")}</option>
                         <option value="highest_non_night_plus_night">{t("ruleHighest")}</option>
                         <option value="cumulative">{t("ruleCumulative")}</option>
                       </select>
@@ -818,7 +688,7 @@ export function ClientRatesApprovalContent({
                       <Label>{t("nightStart")}</Label>
                       <Input
                         value={nightStart}
-                        onChange={(e) => setNightStart(e.target.value)}
+                        readOnly
                         placeholder="20:00"
                       />
                     </div>
@@ -826,13 +696,13 @@ export function ClientRatesApprovalContent({
                       <Label>{t("nightEnd")}</Label>
                       <Input
                         value={nightEnd}
-                        onChange={(e) => setNightEnd(e.target.value)}
+                        readOnly
                         placeholder="06:00"
                       />
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-2">
                       <Label>{t("surchargeSat")}</Label>
                       <Input
@@ -840,7 +710,7 @@ export function ClientRatesApprovalContent({
                         min="0"
                         max="200"
                         value={surchargeSatPct}
-                        onChange={(e) => setSurchargeSatPct(e.target.value)}
+                        readOnly
                       />
                     </div>
                     <div className="space-y-2">
@@ -850,7 +720,7 @@ export function ClientRatesApprovalContent({
                         min="0"
                         max="200"
                         value={surchargeSunPct}
-                        onChange={(e) => setSurchargeSunPct(e.target.value)}
+                        readOnly
                       />
                     </div>
                     <div className="space-y-2">
@@ -860,7 +730,7 @@ export function ClientRatesApprovalContent({
                         min="0"
                         max="200"
                         value={surchargeHolidayPct}
-                        onChange={(e) => setSurchargeHolidayPct(e.target.value)}
+                        readOnly
                       />
                     </div>
                     <div className="space-y-2">
@@ -870,60 +740,11 @@ export function ClientRatesApprovalContent({
                         min="0"
                         max="200"
                         value={surchargeNightPct}
-                        onChange={(e) => setSurchargeNightPct(e.target.value)}
+                        readOnly
                       />
                     </div>
                   </div>
 
-                  {/* 0% Rationale Inputs */}
-                  {Number(surchargeSatPct) === 0 && (
-                    <div className="space-y-1 text-xs">
-                      <Label className="text-destructive font-medium">
-                        {t("surchargeSat")}: {t("zeroRationaleRequired")}
-                      </Label>
-                      <Input
-                        placeholder={t("zeroRationalePlaceholder")}
-                        value={zeroRationaleSat}
-                        onChange={(e) => setZeroRationaleSat(e.target.value)}
-                      />
-                    </div>
-                  )}
-                  {Number(surchargeSunPct) === 0 && (
-                    <div className="space-y-1 text-xs">
-                      <Label className="text-destructive font-medium">
-                        {t("surchargeSun")}: {t("zeroRationaleRequired")}
-                      </Label>
-                      <Input
-                        placeholder={t("zeroRationalePlaceholder")}
-                        value={zeroRationaleSun}
-                        onChange={(e) => setZeroRationaleSun(e.target.value)}
-                      />
-                    </div>
-                  )}
-                  {Number(surchargeHolidayPct) === 0 && (
-                    <div className="space-y-1 text-xs">
-                      <Label className="text-destructive font-medium">
-                        {t("surchargeHoliday")}: {t("zeroRationaleRequired")}
-                      </Label>
-                      <Input
-                        placeholder={t("zeroRationalePlaceholder")}
-                        value={zeroRationaleHoliday}
-                        onChange={(e) => setZeroRationaleHoliday(e.target.value)}
-                      />
-                    </div>
-                  )}
-                  {Number(surchargeNightPct) === 0 && (
-                    <div className="space-y-1 text-xs">
-                      <Label className="text-destructive font-medium">
-                        {t("surchargeNight")}: {t("zeroRationaleRequired")}
-                      </Label>
-                      <Input
-                        placeholder={t("zeroRationalePlaceholder")}
-                        value={zeroRationaleNight}
-                        onChange={(e) => setZeroRationaleNight(e.target.value)}
-                      />
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -982,10 +803,7 @@ export function ClientRatesApprovalContent({
                                 placeholder="0.00"
                                 className="w-32 text-end"
                                 value={ratesEur[q] ?? ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setRatesEur((prev) => ({ ...prev, [q]: val }));
-                                }}
+                                readOnly
                               />
                               <span className="text-xs text-muted-foreground">€ / Std.</span>
                             </div>

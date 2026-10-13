@@ -3,14 +3,12 @@
  * RheinAhr Dienstleistungen GmbH - Invoice Engine Modernization
  *
  * Core Guarantees:
- * 1. Strict Contractual Provenance & Zero Automatic Extraction:
- *    Rates can ONLY be ingested from authentic signed contracts, amendments, framework agreements,
- *    or judicial settlements. Automatic extraction from unversioned live fields (e.g. Client.hourlyRates)
- *    is strictly prohibited and rejected.
- * 2. Mandatory Documentary Backing & Verifier Proof:
- *    Every rate version must be backed by an active, signed contract (for contract scopes) or a signed
- *    facility framework agreement / verified archived document URL (for general scopes).
- *    Free-text references without documentary proof are strictly rejected.
+ * 1. Explicit Provenance & Zero Automatic Extraction:
+ *    Rates come from signed documents or an authenticated administrator's
+ *    explicit confirmation of values already present in the client profile.
+ * 2. Documentary Backing for Contract Sources & Verifier Proof:
+ *    Contract-sourced rate versions require a signed document. Administrative
+ *    profile settings are labeled as such and never claim a document exists.
  *    The verifier identity must match the authenticated acting administrator session.
  * 3. Immutable Pre-Freeze Verification & Canonical Hash Binding:
  *    Provides a structured, human-auditable preview of all rate terms, scope, validity interval,
@@ -44,6 +42,7 @@ export const ALLOWED_DOCUMENTED_SOURCE_TYPES = [
   "contract_amendment",
   "framework_agreement",
   "court_settlement",
+  "setting",
 ] as const;
 
 export type DocumentedPriceSourceType = (typeof ALLOWED_DOCUMENTED_SOURCE_TYPES)[number];
@@ -423,8 +422,12 @@ export async function previewClientHourlyRate(params: {
 
     resolvedDocumentUrl = contractDocUrl;
     contractPeriod = contract.period ?? null;
+  } else if (validated.sourceType === "setting") {
+    // The authenticated administrator confirms an explicit client-profile rate.
+    // This source is recorded as a setting, never misrepresented as a contract.
+    resolvedDocumentUrl = null;
   } else {
-    // General scope rate: Facility must have signed framework agreement in database with both signed date and document URL
+    // General contractual scope requires a signed framework agreement.
     const hasSignedDate = Boolean(client.frameworkAgreementSignedAt);
     const hasDocUrl = Boolean(client.frameworkAgreementUrl && client.frameworkAgreementUrl.trim());
 

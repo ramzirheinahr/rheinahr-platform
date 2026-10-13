@@ -3,11 +3,12 @@
  * RheinAhr Dienstleistungen GmbH - Invoice Engine Modernization
  *
  * Core Guarantees:
- * 1. Strict Contractual Provenance & Zero Implicit Defaults:
+ * 1. Explicit Provenance & Zero Implicit Defaults:
  *    Surcharge policies cannot assume 0% or platform defaults silently.
- *    Any 0% surcharge rate requires an explicit contractual rationale.
- * 2. Mandatory Documentary Backing & Verifier Proof:
- *    Backed by a signed client contract or a signed facility framework agreement.
+ *    An explicit 0% profile setting can be confirmed by an administrator.
+ * 2. Documentary Backing for Contract Sources & Verifier Proof:
+ *    Contract sources require a signed document; administrator-confirmed profile
+ *    settings are labeled as settings and do not claim documentary backing.
  *    Verifier must match the authenticated acting administrator session.
  * 3. Immutable Pre-Freeze Verification & Canonical Hash Binding:
  *    Preview produces an auditable canonical SHA-256 hash. Committing requires
@@ -217,8 +218,12 @@ export async function previewFacilitySurchargePolicy(params: {
 
     resolvedDocumentUrl = contract.documentUrl.trim();
     contractPeriod = contract.period ?? null;
+  } else if (sanitized.sourceType === "setting") {
+    // A named administrator may confirm the existing client-profile values as
+    // an administrative setting; do not claim a contract document exists.
+    resolvedDocumentUrl = null;
   } else {
-    // General facility scope
+    // General contractual facility scope
     const hasSignedDate = Boolean(client.frameworkAgreementSignedAt);
     const hasDocUrl = Boolean(client.frameworkAgreementUrl && client.frameworkAgreementUrl.trim());
 

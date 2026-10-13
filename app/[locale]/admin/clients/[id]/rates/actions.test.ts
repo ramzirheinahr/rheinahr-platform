@@ -37,6 +37,13 @@ vi.mock("@/lib/prisma", () => ({
         facilityName: "Residenz Alpha",
         frameworkAgreementSignedAt: new Date("2026-01-01"),
         frameworkAgreementUrl: "https://storage/fw.pdf",
+        hourlyRates: { pflegefachkraft: 54.90, pflegehelfer: 36.90 },
+        surchargeSat: 0.25,
+        surchargeSun: 0.50,
+        surchargeHoliday: 1.00,
+        surchargeNight: 0.25,
+        nightStart: "20:00",
+        nightEnd: "06:00",
       }),
     },
     clientContract: {
@@ -83,6 +90,7 @@ import {
   type ApprovalPreviewInput,
 } from "./actions";
 import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 describe("Rates and Surcharges Approval Server Actions", () => {
   beforeEach(() => {
@@ -158,6 +166,84 @@ describe("Rates and Surcharges Approval Server Actions", () => {
     expect(result.data.surchargePreview?.integrity.canonicalHash).toMatch(/^[a-f0-9]{64}$/);
     expect(result.data.ratePreviews.length).toBe(2);
     expect(result.data.ratePreviews[0].integrity.canonicalHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("accepts an explicitly confirmed 0% profile setting without claiming a contract document", async () => {
+    const clientWithoutDocument = {
+      id: "client-1",
+      facilityName: "Residenz Alpha",
+      frameworkAgreementSignedAt: null,
+      frameworkAgreementUrl: null,
+      hourlyRates: { pflegefachkraft: 54.90, pflegehelfer: 36.90 },
+      surchargeSat: 0,
+      surchargeSun: 0.50,
+      surchargeHoliday: 1.00,
+      surchargeNight: 0.25,
+      nightStart: "20:00",
+      nightEnd: "06:00",
+    };
+    (prisma.client.findUnique as any)
+      .mockResolvedValueOnce(clientWithoutDocument)
+      .mockResolvedValueOnce(clientWithoutDocument)
+      .mockResolvedValueOnce(clientWithoutDocument);
+    const result = await previewClientApprovalAction({
+      ...baseInput,
+      clientContractId: null,
+      sourceType: "setting",
+      sourceReference: "",
+      surchargeSat: 0,
+      zeroRateRationale: {},
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.surchargePreview?.provenance.sourceType).toBe("setting");
+    expect(result.data.surchargePreview?.provenance.sourceDocumentUrl).toBeNull();
+    expect(result.data.surchargePreview?.terms.surchargeSat).toBe(0);
+    expect(result.data.ratePreviews).toHaveLength(2);
+    expect(result.data.ratePreviews[0].provenance.sourceType).toBe("setting");
+  });
+
+  it("rejects an altered profile setting before approval", async () => {
+    const result = await previewClientApprovalAction({
+      ...baseInput,
+      clientContractId: null,
+      sourceType: "setting",
+      sourceReference: "",
+      surchargeSat: 0.99,
+    });
+    expect(result.ok).toBe(false);
+    expect((result as any).error).toContain("Kundenprofil");
+    expect(mockPolicyCreate).not.toHaveBeenCalled();
+  });
+
+  it("audits profile confirmation as a setting without claiming a contract", async () => {
+    const settingInput: ApprovalPreviewInput = {
+      ...baseInput,
+      clientContractId: null,
+      sourceType: "setting",
+      sourceReference: "",
+    };
+    const preview = await previewClientApprovalAction(settingInput);
+    expect(preview.ok).toBe(true);
+    if (!preview.ok) return;
+    const result = await commitClientApprovalAction({
+      ...settingInput,
+      expectedSurchargeHash: preview.data.surchargePreview?.integrity.canonicalHash,
+      expectedRateHashes: Object.fromEntries(preview.data.ratePreviews.map((rate) => [
+        rate.rateTerms.qualification, rate.integrity.canonicalHash,
+      ])),
+    });
+    expect(result.ok).toBe(true);
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({
+          sourceType: "setting",
+          sourceReference: "Kundenprofil: administrativ bestätigte Tarife und Zuschläge",
+          contractReference: null,
+        }),
+      }),
+    }));
   });
 
   it("rejects commit when expected hashes mismatch (anti-tampering check)", async () => {
