@@ -4,14 +4,13 @@ import React, { useState, useTransition } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertTriangle,
   Clock,
   ExternalLink,
-  Info,
   Loader2,
   Search,
   Users,
@@ -110,14 +109,7 @@ export function ShiftOverlapSection() {
               <Clock className="w-5 h-5 text-amber-600 dark:text-amber-500" />
               {t("title")}
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              {t("subtitle")}
-            </CardDescription>
           </div>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 w-fit">
-            <Info className="w-3.5 h-3.5" />
-            {t("internalNotice")}
-          </span>
         </div>
       </CardHeader>
 

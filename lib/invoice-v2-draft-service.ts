@@ -48,6 +48,7 @@ import {
 } from "./surcharge-policy";
 import { getAssignmentEffectiveWorkHours } from "./confirmation-evidence-service";
 import { resolveClientPriceVersion } from "./client-price-resolver";
+import { describeV2LineWithWorker } from "./invoice-v2-line-description";
 import { prisma } from "./prisma";
 
 function pad2(n: number): string {
@@ -1076,7 +1077,11 @@ export async function prepareV2InvoiceDraft(
     0
   );
 
-  const pdfItems = convertCalculatedLineItemsToPdfItems(calculationResult.items);
+  const invoiceItems = calculationResult.items.map((item) => ({
+    ...item,
+    description: describeV2LineWithWorker(item),
+  }));
+  const pdfItems = convertCalculatedLineItemsToPdfItems(invoiceItems);
 
   const snapshotData: V2InvoiceDraftSnapshotData = {
     calculationVersion: "v2",
@@ -1089,7 +1094,7 @@ export async function prepareV2InvoiceDraft(
     paymentTermsDays: client.paymentTermsDays,
     periodStart,
     periodEnd,
-    items: calculationResult.items,
+    items: invoiceItems,
     pdfItems,
     subtotal: calculationResult.totals.subtotalDisplay,
     taxAmount: calculationResult.totals.taxAmountDisplay,
@@ -1128,7 +1133,7 @@ export async function prepareV2InvoiceDraft(
       policyVersions: uniquePolicies,
       priceVersions: uniquePriceVersions,
     },
-    items: calculationResult.items,
+    items: invoiceItems,
     pdfItems,
     totals: calculationResult.totals,
     snapshotData,

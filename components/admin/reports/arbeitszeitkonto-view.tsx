@@ -352,11 +352,7 @@ export function ArbeitszeitkontoView({
                   <Check className="w-3.5 h-3.5" />
                   {t("common.savedSuccess")}
                 </span>
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  {t("internalNotice")}
-                </span>
-              )}
+              ) : <div />}
 
               <div className="flex gap-2">
                 <Button

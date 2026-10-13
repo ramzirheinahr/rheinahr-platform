@@ -16,7 +16,10 @@ const STORAGE_KEY = "sidebar-collapsed";
 export function PortalSidebar({ items }: { items: NavItem[] }) {
   const pathname = usePathname(); // locale-stripped, e.g. "/admin/schedule"
   const c = useTranslations("common");
-  const isWide = pathname === "/admin/schedule" || pathname.startsWith("/admin/schedule/");
+  const isWide =
+    pathname === "/admin/schedule" ||
+    pathname.startsWith("/admin/schedule/") ||
+    (pathname.startsWith("/admin/workers/") && pathname.endsWith("/schedule"));
   const [collapsed, setCollapsed] = useState(isWide);
 
   // On every navigation: collapse on the wide route, otherwise restore the

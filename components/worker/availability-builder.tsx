@@ -80,7 +80,7 @@ const matchType = (b: InitialBlock): Block => {
 };
 
 const field =
-  "w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50";
+  "w-full rounded-md border border-border/80 bg-background px-2.5 py-1.5 text-sm font-semibold text-foreground shadow-2xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50";
 
 // Seed the editable grid from the server's availability blocks. Extracted so the
 // same shape is used on mount AND when the props later change (see the re-sync
@@ -759,20 +759,20 @@ export function AvailabilityBuilder({
         ) : null}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-lg border sm:block">
+      <div className="hidden overflow-x-auto rounded-lg border border-border/80 shadow-2xs sm:block">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
-              <th className="p-2 text-start whitespace-nowrap w-1">Datum</th>
-              <th className="p-2 text-start w-full">Einsatz</th>
-              <th className="p-2 text-start">{oq("ward")}</th>
-              <th className="p-2 text-start w-1">Status</th>
-              <th className="p-2 text-start whitespace-nowrap w-1">{oq("von")}</th>
-              <th className="p-2 text-start whitespace-nowrap w-1">{oq("bis")}</th>
-              <th className="p-2 text-start w-1">Fahrt</th>
-              <th className="p-2 text-start w-1">Verpf.</th>
-              <th className="p-2 text-start w-1">Bonus</th>
-              <th className="p-2 text-end w-1">{t("hoursHeader")}</th>
+            <tr className="border-b-2 border-border/80 bg-muted/70 text-xs font-bold text-foreground">
+              <th className="p-2.5 text-start whitespace-nowrap min-w-[110px] font-bold">Datum</th>
+              <th className="p-2.5 text-start min-w-[220px] font-bold">Einsatz</th>
+              <th className="p-2.5 text-start min-w-[120px] font-bold">{oq("ward")}</th>
+              <th className="p-2.5 text-start min-w-[180px] font-bold">Status</th>
+              <th className="p-2.5 text-start whitespace-nowrap min-w-[110px] font-bold">{oq("von")}</th>
+              <th className="p-2.5 text-start whitespace-nowrap min-w-[110px] font-bold">{oq("bis")}</th>
+              <th className="p-2.5 text-start whitespace-nowrap min-w-[100px] font-bold">Fahrt</th>
+              <th className="p-2.5 text-start whitespace-nowrap min-w-[80px] font-bold">Verpf.</th>
+              <th className="p-2.5 text-start whitespace-nowrap min-w-[70px] font-bold">Bonus</th>
+              <th className="p-2.5 text-end whitespace-nowrap min-w-[90px] font-bold">{t("hoursHeader")}</th>
             </tr>
           </thead>
           <tbody>
@@ -791,30 +791,30 @@ export function AvailabilityBuilder({
                     isFirstRow = false;
                     const isPending = l.status === "pending";
                     return (
-                      <tr key={l.id} className={cn("border-b", isPending ? "bg-amber-500/10" : "bg-rose-500/10")}>
-                        <td className="whitespace-nowrap p-2 font-medium">
+                      <tr key={l.id} className={cn("border-b border-border/80 transition-colors", isPending ? "bg-amber-500/15" : "bg-rose-500/15")}>
+                        <td className="whitespace-nowrap p-2.5 font-bold text-foreground">
                           {isFirst ? (
                             <div className="flex items-center gap-1.5">
                               <span>{d.label}</span>
-                              {d.holiday ? <span className="text-rose-600">•</span> : null}
+                              {d.holiday ? <span className="text-rose-600 font-black">•</span> : null}
                             </div>
                           ) : null}
                         </td>
-                        <td className="p-2" colSpan={8}>
+                        <td className="p-2.5" colSpan={8}>
                           <div className="flex items-center gap-2">
                             {isPending ? (
-                              <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-transparent">
+                              <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-transparent font-bold">
                                 {t("leavePending") || "Urlaubsantrag ausstehend"}
                               </Badge>
                             ) : (
-                              <Badge className={cn("text-white border-transparent", l.type === "sick" ? "bg-orange-600 hover:bg-orange-700" : "bg-rose-600 hover:bg-rose-700")}>
+                              <Badge className={cn("text-white border-transparent font-bold", l.type === "sick" ? "bg-orange-600 hover:bg-orange-700" : "bg-rose-600 hover:bg-rose-700")}>
                                 {l.type === "sick" ? (t("sickApproved") || "Krank (Bitte nicht stören)") : (t("leaveApproved") || "Urlaub (Bitte nicht stören)")}
                               </Badge>
                             )}
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              className="h-6 text-xs px-2 py-0"
+                              className="h-6.5 text-xs font-semibold px-2 py-0 border-border/80"
                               onClick={() => {
                                 setSelectedLeaveRequestId(l.leaveRequestId);
                                 setEditRequestOpen(true);
@@ -824,13 +824,13 @@ export function AvailabilityBuilder({
                             </Button>
                           </div>
                         </td>
-                        <td className="p-2 whitespace-nowrap text-end">
+                        <td className="p-2.5 whitespace-nowrap text-end">
                           {l.status === "approved" ? (
-                            <span className="font-semibold text-emerald-600">
+                            <span className="font-bold text-base text-emerald-600 dark:text-emerald-400">
                               {hoursFmt.format(l.hours)} {t("hoursUnit")}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground">—</span>
+                            <span className="text-muted-foreground font-semibold">—</span>
                           )}
                         </td>
                       </tr>
@@ -840,20 +840,20 @@ export function AvailabilityBuilder({
                     const isFirst = isFirstRow;
                     isFirstRow = false;
                     return (
-                      <tr key={a.id} className={cn("border-b bg-primary/5", d.past && "opacity-50")}>
-                        <td className="whitespace-nowrap p-2 font-medium">
+                      <tr key={a.id} className={cn("border-b border-border/80 bg-primary/5 hover:bg-primary/10 transition-colors", d.past && "opacity-75")}>
+                        <td className="whitespace-nowrap p-2.5 font-bold text-foreground">
                           {isFirst ? (
                             <div className="flex items-center gap-1.5">
                               <span>{d.label}</span>
-                              {d.holiday ? <span className="text-rose-600">•</span> : null}
+                              {d.holiday ? <span className="text-rose-600 font-black">•</span> : null}
                             </div>
                           ) : null}
                         </td>
-                        <td className="p-2">
-                          <div className="font-medium text-primary">{a.facilityName}</div>
+                        <td className="p-2.5">
+                          <div className="font-bold text-base text-foreground tracking-tight">{a.facilityName}</div>
                           {a.address ? (
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-xs text-muted-foreground">{a.address}</span>
+                              <span className="text-xs font-medium text-foreground/80">{a.address}</span>
                               <a
                                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.address)}`}
                                 target="_blank"
@@ -866,20 +866,20 @@ export function AvailabilityBuilder({
                             </div>
                           ) : null}
                         </td>
-                        <td className="p-2">
-                          {a.notes ? <div className="text-sm font-medium">{a.notes}</div> : <span className="text-muted-foreground">—</span>}
+                        <td className="p-2.5">
+                          {a.notes ? <div className="text-sm font-bold text-foreground">{a.notes}</div> : <span className="text-muted-foreground font-semibold">—</span>}
                         </td>
-                        <td className="p-2">
+                        <td className="p-2.5">
                           <div className="flex items-center gap-2">
                             {a.confirmedHours != null ? (
                               <div className="flex items-center gap-1.5">
-                                <Badge className="gap-1 border-transparent bg-emerald-600 text-white">
-                                  <CheckCircle2 className="size-3" />
+                                <Badge className="gap-1 border-transparent bg-emerald-600 text-white font-bold text-xs py-0.5">
+                                  <CheckCircle2 className="size-3.5" />
                                   {t("confirmedByClient")}
                                 </Badge>
                                 <a
                                   href={`/api/confirmations/${a.id}/pdf`}
-                                  className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-6 px-1.5 text-xs text-muted-foreground"
+                                  className="inline-flex items-center justify-center rounded-md border border-border/80 bg-background hover:bg-accent hover:text-accent-foreground h-6.5 px-2 text-xs font-semibold text-foreground"
                                   title="Download PDF"
                                 >
                                   <Download className="size-3.5" />
@@ -892,8 +892,8 @@ export function AvailabilityBuilder({
                               </div>
                             ) : a.status === "confirmed" ? (
                               <div className="flex items-center gap-1.5">
-                                <Badge className="gap-1 border-transparent bg-amber-500 text-white">
-                                  <CheckCircle2 className="size-3" />
+                                <Badge className="gap-1 border-transparent bg-amber-500 text-white font-bold text-xs py-0.5">
+                                  <CheckCircle2 className="size-3.5" />
                                   {t("confirmedByWorker")}
                                 </Badge>
                                 {canSignShift(a.date, a.startTime) && !isAdmin ? (
@@ -903,7 +903,7 @@ export function AvailabilityBuilder({
                                     initialEndTime={a.endTime}
                                     initialBreakMinutes={a.breakMinutes}
                                     triggerBtn={
-                                      <Button size="sm" variant="outline" className="h-6 px-2 text-xs border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100">
+                                      <Button size="sm" variant="outline" className="h-6.5 px-2 text-xs font-bold border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-300">
                                         {t("confirmShift")}
                                       </Button>
                                     }
@@ -911,7 +911,7 @@ export function AvailabilityBuilder({
                                 ) : null}
                               </div>
                             ) : (
-                              <Badge variant={a.status === "declined" ? "outline" : "secondary"}>
+                              <Badge variant={a.status === "declined" ? "outline" : "secondary"} className="font-bold">
                                 {eas(a.status)}
                               </Badge>
                             )}
@@ -943,32 +943,32 @@ export function AvailabilityBuilder({
                             ) : null}
                           </div>
                         </td>
-                        <td className="p-2 whitespace-nowrap font-medium text-primary">
+                        <td className="p-2.5 whitespace-nowrap font-bold text-base text-primary">
                           {a.startTime}
                         </td>
-                        <td className="p-2 font-medium text-primary">
+                        <td className="p-2.5 whitespace-nowrap font-bold text-base text-primary">
                           {a.endTime}
                         </td>
-                        <td className="p-2 text-muted-foreground">
+                        <td className="p-2.5 text-foreground font-semibold">
                           {isAdmin ? (
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1.5 justify-between">
-                                <span>{a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}</span>
+                                <span className="font-bold">{a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}</span>
                                 {travelAllowanceEnabled && <ToggleTravelAllowanceButton assignmentId={a.id} excludeTravelAllowance={a.excludeTravelAllowance} />}
                               </div>
-                              <span className="text-xs text-muted-foreground/70">{a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}</span>
+                              <span className="text-xs font-bold text-muted-foreground">{a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}</span>
                             </div>
                           ) : (
                             <div className="flex flex-col gap-0.5">
-                              <span>{a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}</span>
-                              <span className="text-xs text-muted-foreground/70">{a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}</span>
+                              <span className="font-bold">{a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}</span>
+                              <span className="text-xs font-bold text-muted-foreground">{a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}</span>
                             </div>
                           )}
                         </td>
-                        <td className="p-2 text-muted-foreground">
+                        <td className="p-2.5 text-foreground font-semibold">
                           {isAdmin ? (
                             <div className="flex items-center gap-1.5 justify-between">
-                              <span>{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
+                              <span className="font-bold">{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
                               <ToggleMealAllowanceButton 
                                 assignmentId={a.id} 
                                 active={a.mealAllowance != null && a.mealAllowance > 0}
@@ -978,75 +978,69 @@ export function AvailabilityBuilder({
                               />
                             </div>
                           ) : (
-                            a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"
+                            <span className="font-bold">{a.mealAllowance != null ? `${a.mealAllowance.toFixed(2)} €` : "—"}</span>
                           )}
                         </td>
-                        <td className="p-2 text-muted-foreground">
+                        <td className="p-2.5 text-foreground font-semibold">
                           {isAdmin ? (
                             <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
                           ) : (
-                            a.bonusHours ? `+${a.bonusHours} Std.` : "—"
+                            <span className="font-bold">{a.bonusHours ? `+${a.bonusHours} Std.` : "—"}</span>
                           )}
                         </td>
-                        <td className="p-2 text-end">
+                        <td className="p-2.5 text-end">
                           {a.confirmedHours != null ? (
-                            <span className="font-semibold text-emerald-600">
+                            <span className="font-bold text-base text-emerald-600 dark:text-emerald-400">
                               {hoursFmt.format(a.confirmedHours)} {t("hoursUnit")}
                             </span>
                           ) : a.status === "confirmed" && a.scheduledHours != null ? (
-                            <span className="font-semibold text-amber-600">
+                            <span className="font-bold text-base text-amber-600 dark:text-amber-400">
                               {hoursFmt.format(a.scheduledHours)} {t("hoursUnit")}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground">—</span>
+                            <span className="text-muted-foreground font-semibold">—</span>
                           )}
                         </td>
                       </tr>
                     );
                   })}
-                  <tr title={d.holiday ?? undefined} className={cn("border-b", rowCls)}>
-                    <td className="whitespace-nowrap p-2 font-medium">
+                  <tr title={d.holiday ?? undefined} className={cn("border-b border-border/80 transition-colors", rowCls)}>
+                    <td className="whitespace-nowrap p-2.5 font-bold text-foreground">
                       <div className="flex items-center gap-1.5">
                         <span className={cn(!isFirstRow && "opacity-0")}>{d.label}</span>
-                        {isFirstRow && d.holiday ? <span className="text-rose-600">•</span> : null}
+                        {isFirstRow && d.holiday ? <span className="text-rose-600 font-black">•</span> : null}
                         {!d.past && count === 1 ? (
-                          <button type="button" onClick={() => addSlot(d.date)} aria-label="+" className="ms-auto flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20">
+                          <button type="button" onClick={() => addSlot(d.date)} aria-label="+" className="ms-auto flex size-5.5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20">
                             <Plus className="size-3.5" />
                           </button>
                         ) : null}
                       </div>
                     </td>
-                    <td className="p-1"></td>
-                    <td className="p-1"></td>
+                    <td colSpan={2} className="p-2 text-xs text-muted-foreground font-medium">
+                      {/* Availability slot description */}
+                    </td>
                     {TypeCells(d.date, 0)}
-                    <td className="p-1"></td>
-                    <td className="p-1"></td>
-                    <td className="p-1"></td>
-                    <td className="p-1"></td>
+                    <td colSpan={4} className="p-1"></td>
                   </tr>
                   {extra.map((slot) => (
-                    <tr key={slot} className={cn("border-b", rowCls)}>
-                      <td className="whitespace-nowrap p-1 ps-3 text-xs text-muted-foreground">
+                    <tr key={slot} className={cn("border-b border-border/80 transition-colors", rowCls)}>
+                      <td className="whitespace-nowrap p-1.5 ps-3 text-xs font-bold text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           {slot === count - 1 ? (
-                            <button type="button" onClick={() => removeLast(d.date)} aria-label={c("delete")} className="flex size-5 items-center justify-center rounded-full text-destructive hover:bg-destructive/10">
+                            <button type="button" onClick={() => removeLast(d.date)} aria-label={c("delete")} className="flex size-5.5 items-center justify-center rounded-full text-destructive hover:bg-destructive/10">
                               <X className="size-3.5" />
                             </button>
                           ) : <span className="size-5" />}
                           {!d.past && slot === count - 1 && count < 3 ? (
-                            <button type="button" onClick={() => addSlot(d.date)} aria-label="+" className="ms-auto flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20">
+                            <button type="button" onClick={() => addSlot(d.date)} aria-label="+" className="ms-auto flex size-5.5 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20">
                               <Plus className="size-3.5" />
                             </button>
                           ) : null}
                         </div>
                       </td>
-                      <td className="p-1"></td>
-                      <td className="p-1"></td>
+                      <td colSpan={2} className="p-1"></td>
                       {TypeCells(d.date, slot)}
-                      <td className="p-1"></td>
-                      <td className="p-1"></td>
-                      <td className="p-1"></td>
-                      <td className="p-1"></td>
+                      <td colSpan={4} className="p-1"></td>
                     </tr>
                   ))}
                 </Fragment>

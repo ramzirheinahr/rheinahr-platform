@@ -138,12 +138,7 @@ export function StundennachweisView({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 mt-5 pt-4 border-t border-border/60">
-            <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-900/60">
-              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block animate-pulse"></span>
-              <span>{t("stundennachweis.sundayNotice")}</span>
-            </div>
-
+          <div className="flex flex-wrap items-center justify-end gap-3 mt-5 pt-4 border-t border-border/60">
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"

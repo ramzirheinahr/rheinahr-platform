@@ -1,9 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { InvoicingHub } from "@/components/admin/invoicing/invoicing-hub";
+import { InvoicingFilterBar } from "@/components/admin/invoicing/invoicing-filter-bar";
 import { format } from "@/lib/date-utils";
 
 import {
@@ -28,7 +26,7 @@ export default async function InvoicingPage({
   const now = new Date();
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth();
-  const defFrom = `${y}-${pad(m + 1)}-01`;
+  const defFrom = "2026-07-01";
   const defTo = `${y}-${pad(m + 1)}-${pad(new Date(Date.UTC(y, m + 1, 0)).getUTCDate())}`;
   const fromStr = sp.from && dateRegex.test(sp.from) ? sp.from : defFrom;
   const toStr = sp.to && dateRegex.test(sp.to) ? sp.to : defTo;
@@ -242,23 +240,13 @@ export default async function InvoicingPage({
         </div>
       </div>
 
-      <form method="get" className="flex flex-wrap items-end gap-3 p-4 bg-white border rounded-xl shadow-xs">
-        <div className="space-y-1.5 flex-1 min-w-[200px]">
-          <Label htmlFor="q" className="text-xs font-semibold text-slate-700">{t("search")}</Label>
-          <Input id="q" name="q" type="search" defaultValue={q} placeholder={t("searchPlaceholder")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="from" className="text-xs font-semibold text-slate-700">{t("from")}</Label>
-          <Input id="from" name="from" type="date" defaultValue={fromStr} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="to" className="text-xs font-semibold text-slate-700">{t("to")}</Label>
-          <Input id="to" name="to" type="date" defaultValue={toStr} />
-        </div>
-        <Button type="submit" variant="default" className="bg-slate-900 hover:bg-slate-800 text-white">
-          {t("apply")}
-        </Button>
-      </form>
+      <InvoicingFilterBar
+        initialFrom={fromStr}
+        initialTo={toStr}
+        initialQuery={q}
+        defaultFrom={defFrom}
+        defaultTo={defTo}
+      />
 
       <InvoicingHub
         invoices={invoices}

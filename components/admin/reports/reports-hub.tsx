@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ShieldAlert, BarChart3, FileText, CalendarDays, Users, Clock, Car, Calculator, TrendingUp, ArrowRightLeft } from "lucide-react";
+import { BarChart3, FileText, CalendarDays, Users, Clock, Car, Calculator, TrendingUp, ArrowRightLeft } from "lucide-react";
 import { StundennachweisView } from "./stundennachweis-view";
 import { MonatslisteView } from "./monatsliste-view";
 import { AuegView } from "./aueg-view";
@@ -127,12 +127,6 @@ export function ReportsHub({
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t("title")}</h1>
           <p className="mt-1 text-xs sm:text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
-      </div>
-
-      {/* Internal Security / No-Notification Notice Alert */}
-      <div className="flex items-start sm:items-center gap-3 p-3 sm:p-3.5 bg-muted/40 border border-border/80 rounded-xl text-xs text-muted-foreground backdrop-blur-xs">
-        <ShieldAlert className="w-4 h-4 mt-0.5 sm:mt-0 flex-shrink-0 text-amber-500" />
-        <span className="leading-relaxed">{t("internalNotice")}</span>
       </div>
 
       {/* Revolutionary 2026 Command Center Cards Grid: Distinct Red & Slate Families */}

@@ -1510,6 +1510,46 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       ).toThrow("forceRecalculate is strictly forbidden for V2 invoices");
     });
 
+    it("shows a worker from frozen V2 item metadata on an already issued PDF without changing money", () => {
+      const invoice = {
+        invoiceNumber: "INV-FROZEN-WORKER",
+        date: new Date("2026-10-13T00:00:00.000Z"),
+        netAmount: 40,
+        vatAmount: 7.6,
+        grossAmount: 47.6,
+        snapshotData: {
+          calculationVersion: "v2",
+          facilityName: "Test Facility",
+          address: "Teststraße 1, 53111 Bonn",
+          paymentTermsDays: 14,
+          pdfItems: [{ pos: 1, description: "Grundvergütung (1.00 Std.)", hours: "1,00", rate: "40,00", amount: "40,00 €" }],
+          items: [{
+            pos: 1,
+            workerId: "worker-1",
+            workerName: "Erika Musterfrau",
+            qualification: "pflegefachkraft",
+            itemCategory: "base",
+            description: "Grundvergütung (1.00 Std.)",
+            hoursDisplay: "1,00",
+            rateDisplay: "40,00 €",
+            amountCents: 4000,
+          }],
+          subtotalCents: 4000,
+          taxAmountCents: 760,
+          totalCents: 4760,
+          subtotal: "40,00 €",
+          taxAmount: "7,60 €",
+          total: "47,60 €",
+        },
+      };
+
+      const pdfData = buildInvoicePdfData(invoice as any, { id: "client-1" } as any, []);
+      expect(pdfData.items[0].description).toBe("Erika Musterfrau (Pflegefachkraft)");
+      expect(pdfData.subtotal).toBe("40,00 €");
+      expect(pdfData.total).toBe("47,60 €");
+
+    });
+
     it("rejects corrupted V2 snapshotData when pdfItems are missing or cent amounts mismatch", () => {
       const corruptedInvoice1 = {
         invoiceNumber: "INV-CORRUPT-1",

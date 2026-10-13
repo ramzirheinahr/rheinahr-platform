@@ -15,6 +15,7 @@ import type { Qualification } from "@/lib/validations";
 import type { Invoice, Client, Assignment, Order, Worker } from "@prisma/client";
 
 import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
+import { describeV2LineWithWorker } from "@/lib/invoice-v2-line-description";
 
 export function parseGermanCurrencyStringToCents(val: unknown): number {
   if (typeof val !== "string") {
@@ -232,6 +233,16 @@ export function buildInvoicePdfData(
           `Corrupted V2 invoice item amount mismatch at pos ${pdfItem.pos}: snapshotData.items.amountCents (${snapItem.amountCents}) does not match pdfItems amount (${pdfItemCents} Cent).`
         );
       }
+
+      // Older V2 snapshots already contain the worker identity in their frozen
+      // calculation item, although their PDF description omitted it. Restore
+      // that display detail without changing the snapshot or any amount.
+      pdfItem.description = describeV2LineWithWorker({
+        description: pdfItem.description,
+        workerName: snapItem.workerName,
+        qualification: snapItem.qualification,
+        itemCategory: snapItem.itemCategory,
+      });
     }
 
     return {

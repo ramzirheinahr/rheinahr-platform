@@ -1685,6 +1685,8 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     expect(pdfItems).toBeDefined();
     expect(snapshotData.pdfItems).toEqual(pdfItems);
     expect(pdfItems).toHaveLength(items.length);
+    expect(pdfItems[0].description).toBe("Parity Tester (Pflegefachkraft)");
+    expect(pdfItems.every((item) => item.description.includes("Parity Tester"))).toBe(true);
 
     // Verify 100% item-by-item contract parity
     for (let i = 0; i < items.length; i++) {

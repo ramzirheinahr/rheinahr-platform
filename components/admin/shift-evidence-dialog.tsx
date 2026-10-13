@@ -190,14 +190,30 @@ export function ShiftEvidenceDialog({
   function openProposeModal() {
     setIsProposing(true);
     setProposeDocId(timeline?.documents[0]?.id || "");
-    setProposeHours(
-      timeline?.effectiveWorkHours ? String(timeline.effectiveWorkHours) : ""
-    );
-    setProposeStartTime(timeline?.effectiveStartTime || "08:00");
-    setProposeEndTime(timeline?.effectiveEndTime || "16:00");
-    setProposeBreakMinutes(String(timeline?.effectiveBreakMinutes ?? 30));
+    const initialStart = timeline?.effectiveStartTime || "08:00";
+    const initialEnd = timeline?.effectiveEndTime || "16:00";
+    const initialBreak = String(timeline?.effectiveBreakMinutes ?? 0);
+    setProposeStartTime(initialStart);
+    setProposeEndTime(initialEnd);
+    setProposeBreakMinutes(initialBreak);
+    
+    const computed = computePreviewNetHours(initialStart, initialEnd, Number(initialBreak) || 0);
+    if (computed != null) {
+      setProposeHours(String(computed));
+    } else {
+      setProposeHours(
+        timeline?.effectiveWorkHours ? String(timeline.effectiveWorkHours) : ""
+      );
+    }
     setProposeReason("");
     setProposeActionError(null);
+  }
+
+  function handleProposeTimeChange(newStart: string, newEnd: string, newBreak: string) {
+    const computed = computePreviewNetHours(newStart, newEnd, Number(newBreak) || 0);
+    if (computed != null) {
+      setProposeHours(String(computed));
+    }
   }
 
   function handleConfirmApprove() {
@@ -948,7 +964,11 @@ export function ShiftEvidenceDialog({
                   min="0"
                   max="720"
                   value={proposeBreakMinutes}
-                  onChange={(e) => setProposeBreakMinutes(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setProposeBreakMinutes(val);
+                    handleProposeTimeChange(proposeStartTime, proposeEndTime, val);
+                  }}
                   className="h-8 text-xs"
                 />
               </div>
@@ -962,7 +982,11 @@ export function ShiftEvidenceDialog({
                 <Input
                   id={proposeStartId}
                   value={proposeStartTime}
-                  onChange={(e) => setProposeStartTime(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setProposeStartTime(val);
+                    handleProposeTimeChange(val, proposeEndTime, proposeBreakMinutes);
+                  }}
                   placeholder="08:00"
                   className="h-8 text-xs"
                 />
@@ -974,7 +998,11 @@ export function ShiftEvidenceDialog({
                 <Input
                   id={proposeEndId}
                   value={proposeEndTime}
-                  onChange={(e) => setProposeEndTime(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setProposeEndTime(val);
+                    handleProposeTimeChange(proposeStartTime, val, proposeBreakMinutes);
+                  }}
                   placeholder="15:13"
                   className="h-8 text-xs"
                 />
