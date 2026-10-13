@@ -7,9 +7,9 @@
  *    Resolves immutable, dated price versions from ClientHourlyRateVersion.
  * 2. Strict Non-Fabrication & Zero Live Fallback:
  *    Never falls back to unversioned, mutable Client.hourlyRates or HOURLY_RATES defaults.
- * 3. Strict Contractual Parity:
- *    Shifts tied to a specific contract must resolve rates tied to that contract.
- *    General rates (contractId === null) cannot cover contract-bound shifts without explicit assignment.
+ * 3. Contract-specific prices take precedence. When none exists, a frozen,
+ *    administrator-confirmed client-profile setting may cover that client's
+ *    contract-bound shifts; other general records may not.
  * 4. Ambiguity & Overlap Detection:
  *    Multiple active price versions for the same client, qualification, and contract scope
  *    fail closed with AMBIGUOUS_PRICE_OVERLAP.
@@ -141,7 +141,7 @@ export async function resolveClientPriceVersion(
   const cleanContractId = contractId?.trim() || null;
 
   try {
-    const matchingRates = await prisma.clientHourlyRateVersion.findMany({
+    let matchingRates = await prisma.clientHourlyRateVersion.findMany({
       where: {
         clientId: cleanClientId,
         clientContractId: cleanContractId,
@@ -156,6 +156,31 @@ export async function resolveClientPriceVersion(
         verifiedByUser: { select: { id: true, fullName: true, email: true } },
       },
     });
+
+    // The existing client profile is client-wide. Its explicitly approved,
+    // immutable V2 copy can cover a contract-bound shift only when no
+    // contract-specific version applies on that date. Never use raw profile
+    // values or an unverified general "contract" rate as a fallback.
+    let usingClientWideSetting = false;
+    if (matchingRates.length === 0 && cleanContractId) {
+      matchingRates = await prisma.clientHourlyRateVersion.findMany({
+        where: {
+          clientId: cleanClientId,
+          clientContractId: null,
+          sourceType: "setting",
+          qualification: { equals: cleanQual, mode: "insensitive" },
+          effectiveFrom: { lte: new Date(shiftDateIso) },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gte: new Date(shiftDateIso) } },
+          ],
+        },
+        include: {
+          verifiedByUser: { select: { id: true, fullName: true, email: true } },
+        },
+      });
+      usingClientWideSetting = true;
+    }
 
     if (matchingRates.length > 1) {
       return {
@@ -187,6 +212,15 @@ export async function resolveClientPriceVersion(
     }
 
     const record = matchingRates[0];
+
+    if (usingClientWideSetting && (record.clientContractId !== null || record.sourceType !== "setting")) {
+      return {
+        status: "unresolved",
+        code: "PRICE_UNRESOLVED",
+        message: `Für Vertrag "${cleanContractId}" ist diese allgemeine Preisversion keine bestätigte Kundenprofileinstellung.`,
+        diagnostics: { clientId: cleanClientId, qualification, shiftDateIso },
+      };
+    }
 
     // Check frozen status
     if (record.isFrozen !== true) {
@@ -313,7 +347,8 @@ export async function resolveClientPriceVersion(
       const matchingRatesEnd = await prisma.clientHourlyRateVersion.findMany({
         where: {
           clientId: cleanClientId,
-          clientContractId: cleanContractId,
+          clientContractId: usingClientWideSetting ? null : cleanContractId,
+          ...(usingClientWideSetting ? { sourceType: "setting" } : {}),
           qualification: { equals: cleanQual, mode: "insensitive" },
           effectiveFrom: { lte: new Date(endShiftDateIso) },
           OR: [
@@ -349,6 +384,29 @@ export async function resolveClientPriceVersion(
           },
         };
       }
+
+      if (usingClientWideSetting) {
+        const contractRatesAtEnd = await prisma.clientHourlyRateVersion.findMany({
+          where: {
+            clientId: cleanClientId,
+            clientContractId: cleanContractId,
+            qualification: { equals: cleanQual, mode: "insensitive" },
+            effectiveFrom: { lte: new Date(endShiftDateIso) },
+            OR: [
+              { effectiveTo: null },
+              { effectiveTo: { gte: new Date(endShiftDateIso) } },
+            ],
+          },
+        });
+        if (contractRatesAtEnd.length > 0) {
+          return {
+            status: "unresolved",
+            code: "PRICE_UNRESOLVED",
+            message: `Während der Nachtschicht beginnt eine vertragsbezogene Preisversion am ${endShiftDateIso}.`,
+            diagnostics: { clientId: cleanClientId, shiftDateIso, endShiftDateIso },
+          };
+        }
+      }
     }
 
     const priceRecord: PriceVersionRecord = {
@@ -359,6 +417,7 @@ export async function resolveClientPriceVersion(
       effectiveFrom: fromIso,
       effectiveTo: toIso,
       contractId: record.clientContractId,
+      sourceType: record.sourceType,
       sourceReference: record.sourceReference,
       sourceDocumentUrl: record.sourceDocumentUrl ?? null,
       verifiedAt: verifiedAtStr,

@@ -106,6 +106,7 @@ export type PriceVersionRecord = {
   effectiveFrom: string; // YYYY-MM-DD
   effectiveTo?: string | null; // YYYY-MM-DD
   contractId?: string | null;
+  sourceType?: string;
   sourceReference: string;
   sourceDocumentUrl?: string | null;
   verifiedAt: string;
@@ -812,7 +813,11 @@ export async function prepareV2InvoiceDraft(
     // 3. Symmetrical validation of contractId
     const assignmentContractId = assignment.contractId?.trim() || null;
     const priceContractId = priceRecord.contractId?.trim() || null;
-    if (assignmentContractId !== priceContractId) {
+    // A frozen, administrator-confirmed client-profile setting applies to the
+    // client across contracts unless a contract-specific price was selected.
+    const clientWideSetting = Boolean(assignmentContractId) &&
+      priceContractId === null && priceRecord.sourceType === "setting";
+    if (assignmentContractId !== priceContractId && !clientWideSetting) {
       return {
         status: "unresolved",
         code: "PRICE_UNRESOLVED",

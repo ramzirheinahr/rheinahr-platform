@@ -1193,6 +1193,47 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     expect(result.diagnostics.priceContractId).toBe(null);
   });
 
+  it("accepts a frozen client-wide profile setting for a contract-bound shift", async () => {
+    const mockAssignment = {
+      id: "asg-profile-setting",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-profile", fullName: "Test Worker", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-profile",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-02T00:00:00.000Z"),
+        startTime: "08:00",
+        endTime: "16:30",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Test Facility", paymentTermsDays: 14 },
+      },
+    };
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([mockAssignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue({
+        ...STANDARD_PRICE_VERSION,
+        contractId: null,
+        sourceType: "setting",
+      }),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: mockAssignment.id,
+        effectiveHours: 8,
+        effectiveStartTime: "08:00",
+        effectiveEndTime: "16:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+    const result = await prepareV2InvoiceDraft({ assignmentIds: [mockAssignment.id] }, deps);
+    expect(result.status).toBe("resolved");
+  });
+
   it("rejects price record with invalid verification metadata (Finding 1)", async () => {
     const mockAssignment = {
       id: "asg-price-meta-invalid",

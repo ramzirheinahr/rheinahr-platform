@@ -81,6 +81,54 @@ describe("ClientPriceResolver (Phase 5b-1)", () => {
     }
   });
 
+  it("uses an approved client-wide setting for a contract shift when no contract price exists", async () => {
+    const setting = createValidDbRate({ sourceType: "setting", sourceReference: "Kundenprofil: administrativ bestätigt" });
+    const findMany = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([setting]);
+    const result = await resolveClientPriceVersion({
+      prisma: { clientHourlyRateVersion: { findMany } },
+      clientId: "client-test-1",
+      qualification: "pflegefachkraft",
+      shiftDateIso: "2026-05-15",
+      contractId: "contract-1",
+    });
+    expect(result.status).toBe("resolved");
+    if (result.status === "resolved") {
+      expect(result.priceRecord.contractId).toBeNull();
+      expect(result.priceRecord.sourceType).toBe("setting");
+    }
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany.mock.calls[1][0].where.sourceType).toBe("setting");
+  });
+
+  it("prefers the contract price over a client-wide setting", async () => {
+    const contractRate = createValidDbRate({ clientContractId: "contract-1" });
+    const findMany = vi.fn().mockResolvedValue([contractRate]);
+    const result = await resolveClientPriceVersion({
+      prisma: { clientHourlyRateVersion: { findMany } },
+      clientId: "client-test-1",
+      qualification: "pflegefachkraft",
+      shiftDateIso: "2026-05-15",
+      contractId: "contract-1",
+    });
+    expect(result.status).toBe("resolved");
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not use an unverified general contract rate as a client-wide setting", async () => {
+    const findMany = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const result = await resolveClientPriceVersion({
+      prisma: { clientHourlyRateVersion: { findMany } },
+      clientId: "client-test-1",
+      qualification: "pflegefachkraft",
+      shiftDateIso: "2026-05-15",
+      contractId: "contract-1",
+    });
+    expect(result.status).toBe("unresolved");
+    expect(findMany.mock.calls[1][0].where.sourceType).toBe("setting");
+  });
+
   it("fails with PRICE_UNRESOLVED when no matching price is found in database", async () => {
     const mockPrisma = {
       clientHourlyRateVersion: {

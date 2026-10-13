@@ -596,7 +596,7 @@ export function ClientRatesApprovalContent({
 
       {/* APPROVAL FORM DIALOG */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{t("dialogTitle")}</DialogTitle>
             <DialogDescription>{t("dialogSubtitle")}</DialogDescription>
@@ -637,8 +637,8 @@ export function ClientRatesApprovalContent({
 
               {approveSurcharges && (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="space-y-2">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("federalState")}</Label>
                       <select
                         className="w-full rounded-md border bg-background p-2 text-sm"
@@ -653,7 +653,7 @@ export function ClientRatesApprovalContent({
                         ))}
                       </select>
                     </div>
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("municipality")}</Label>
                       <Input
                         placeholder="z.B. Bonn"
@@ -661,7 +661,7 @@ export function ClientRatesApprovalContent({
                         onChange={(e) => setMunicipality(e.target.value)}
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("districtLocality")}</Label>
                       <Input
                         placeholder="Optional"
@@ -671,8 +671,8 @@ export function ClientRatesApprovalContent({
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="space-y-2">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("combinationRule")}</Label>
                       <select
                         className="w-full rounded-md border bg-background p-2 text-sm"
@@ -684,7 +684,7 @@ export function ClientRatesApprovalContent({
                         <option value="cumulative">{t("ruleCumulative")}</option>
                       </select>
                     </div>
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("nightStart")}</Label>
                       <Input
                         value={nightStart}
@@ -692,7 +692,7 @@ export function ClientRatesApprovalContent({
                         placeholder="20:00"
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("nightEnd")}</Label>
                       <Input
                         value={nightEnd}
@@ -702,8 +702,8 @@ export function ClientRatesApprovalContent({
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="space-y-2">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("surchargeSat")}</Label>
                       <Input
                         type="number"
@@ -713,7 +713,7 @@ export function ClientRatesApprovalContent({
                         readOnly
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("surchargeSun")}</Label>
                       <Input
                         type="number"
@@ -723,7 +723,7 @@ export function ClientRatesApprovalContent({
                         readOnly
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("surchargeHoliday")}</Label>
                       <Input
                         type="number"
@@ -733,7 +733,7 @@ export function ClientRatesApprovalContent({
                         readOnly
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <Label>{t("surchargeNight")}</Label>
                       <Input
                         type="number"
@@ -830,7 +830,7 @@ export function ClientRatesApprovalContent({
 
       {/* PREVIEW & COMMIT CONFIRMATION MODAL */}
       <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-x-hidden overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileCheck2 className="size-5 text-emerald-600" />
