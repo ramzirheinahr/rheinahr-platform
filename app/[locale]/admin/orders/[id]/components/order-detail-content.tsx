@@ -14,6 +14,13 @@ import { formatDateDE } from "@/lib/utils";
 import { OrderContractsBanner } from "@/components/admin/order-contracts-banner";
 import { OrderInvoicesBanner } from "@/components/admin/order-invoices-banner";
 import { isV2InvoiceIssuanceEnabled } from "@/lib/invoice-v2-issuance-service";
+import { isV2CalculationVersion } from "@/lib/invoice-calculation-version";
+import { resolveStoredPdfCandidatePath } from "@/lib/invoicing";
+import {
+  defaultFileVerifier,
+  isCompleteFrozenSnapshot,
+  verifyStoredHistoricalPdf,
+} from "@/lib/invoice-v2-refresh-service";
 import { OrderConfirmationsBanner } from "@/components/admin/order-confirmations-banner";
 
 const d = (date: Date) => date.toISOString().slice(0, 10);
@@ -120,6 +127,43 @@ export async function OrderDetailContent({
       },
     },
   });
+
+  // Match the PDF route's historical-origin checks before offering a document action.
+  const invoiceDocumentStates = await Promise.all(
+    invoices.map(async (invoice) => {
+      let documentAvailable = isV2CalculationVersion(invoice.snapshotData);
+      if (!documentAvailable) {
+        const storedPath = resolveStoredPdfCandidatePath(invoice);
+        if (storedPath) {
+          const verification = await verifyStoredHistoricalPdf(
+            storedPath,
+            invoice.snapshotData,
+            defaultFileVerifier
+          );
+          documentAvailable = verification.reliable;
+        } else {
+          const snapshot = await isCompleteFrozenSnapshot(
+            invoice.snapshotData,
+            {
+              netAmount: Number(invoice.netAmount),
+              vatAmount: Number(invoice.vatAmount),
+              grossAmount: Number(invoice.grossAmount),
+              date: invoice.date,
+              invoiceNumber: invoice.invoiceNumber,
+            },
+            { skipPdfSimulation: true }
+          );
+          documentAvailable = snapshot.complete;
+        }
+      }
+      return {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        status: invoice.status,
+        documentAvailable,
+      };
+    })
+  );
 
   const uncontractedAssignments = orders.flatMap(o => 
     o.assignments
@@ -250,7 +294,7 @@ export async function OrderDetailContent({
       <OrderInvoicesBanner
         requestGroupId={id}
         v2Enabled={isV2InvoiceIssuanceEnabled()}
-        invoices={invoices}
+        invoices={invoiceDocumentStates}
         uninvoicedAssignments={uninvoicedAssignments}
       />
 

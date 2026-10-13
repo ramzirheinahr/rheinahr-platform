@@ -26,12 +26,17 @@ export function OrderInvoicesBanner({
 }: { 
   requestGroupId: string;
   v2Enabled: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  invoices: any[];
+  invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    status: string;
+    documentAvailable: boolean;
+  }>;
   uninvoicedAssignments: SelectableAssignment[];
 }) {
   const router = useRouter();
   const t = useTranslations("emailDialog");
+  const invoicing = useTranslations("invoicing");
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
   const [refreshInvoiceId, setRefreshInvoiceId] = useState<string | null>(null);
 
@@ -101,17 +106,24 @@ export function OrderInvoicesBanner({
                 {inv.invoiceNumber}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => window.open(`/api/invoices/${inv.id}/pdf`, "_blank")}>
-                  <FileText className="size-4 mr-2" />
-                  {t("showPdf")}
-                </DropdownMenuItem>
+                {inv.documentAvailable ? (
+                  <DropdownMenuItem onClick={() => window.open(`/api/invoices/${inv.id}/pdf`, "_blank")}>
+                    <FileText className="size-4 mr-2" />
+                    {t("showPdf")}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem disabled title={invoicing("historicalPdfUnavailableTooltip")}>
+                    <FileText className="size-4 mr-2" />
+                    {invoicing("historicalArchiveNotice")}
+                  </DropdownMenuItem>
+                )}
                 {inv.status !== "cancelled" && (
                   <DropdownMenuItem onClick={() => handleRefresh(inv.id)}>
                     <RotateCw className="size-4 mr-2" />
                     {t("refreshInvoice")}
                   </DropdownMenuItem>
                 )}
-                {inv.status !== "cancelled" && (
+                {inv.status !== "cancelled" && inv.documentAvailable && (
                   <DropdownMenuItem onClick={() => setEmailInvoiceId(inv.id)}>
                     <Mail className="size-4 mr-2" />
                     {t("sendInvoiceEmail")}
