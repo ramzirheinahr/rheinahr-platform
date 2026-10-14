@@ -357,7 +357,6 @@ export function ClientRatesApprovalContent({
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {t("title")}: {facilityName}
           </h1>
-          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <div className="space-y-1">
           <Button onClick={handleOpenDialog} disabled={pricingDirty} className="gap-2">
@@ -372,7 +371,6 @@ export function ClientRatesApprovalContent({
       <Card>
         <CardHeader>
           <CardTitle>{t("pricingEditorTitle")}</CardTitle>
-          <CardDescription>{t("pricingEditorDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <ClientPricingEditor
@@ -391,7 +389,6 @@ export function ClientRatesApprovalContent({
           <h2 className="text-xl font-bold tracking-tight text-foreground">
             {t("v2ActiveTitle")}
           </h2>
-          <p className="text-sm text-muted-foreground">{t("v2ActiveDesc")}</p>
         </div>
 
         {/* Active Surcharge Policies */}

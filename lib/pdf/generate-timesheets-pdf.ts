@@ -4,6 +4,7 @@ import { qualLabel } from "@/lib/invoicing";
 import { netShiftHours } from "@/lib/pricing";
 import { renderBulkLeistungsnachweisPdf, LeistungsnachweisData } from "@/lib/pdf/leistungsnachweis";
 import { PDFDocument } from "pdf-lib";
+import crypto from "node:crypto";
 import type { Qualification } from "@/lib/validations";
 
 /**
@@ -48,6 +49,15 @@ export async function generateLeistungsnachweisePdf(
           confirmedBy: { select: { email: true } },
         },
       },
+      confirmationDocuments: {
+        where: { storagePath: { not: null } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          storagePath: true,
+          fileHash: true,
+        },
+      },
       order: {
         select: {
           id: true,
@@ -73,16 +83,27 @@ export async function generateLeistungsnachweisePdf(
     return null;
   }
 
+  const getUploadedDocUrl = (a: (typeof assignments)[number]): string | null => {
+    if (a.serviceConfirmation?.method === "upload" && a.serviceConfirmation.documentUrl) {
+      return a.serviceConfirmation.documentUrl;
+    }
+    if (
+      !a.serviceConfirmation &&
+      a.confirmationDocuments &&
+      a.confirmationDocuments.length > 0 &&
+      a.confirmationDocuments[0].storagePath
+    ) {
+      return a.confirmationDocuments[0].storagePath;
+    }
+    return null;
+  };
+
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const supabase = createSupabaseAdminClient();
   const masterPdf = await PDFDocument.create();
 
-  const generatedAssignments = assignments.filter(
-    (a) => !(a.serviceConfirmation?.method === "upload" && a.serviceConfirmation?.documentUrl)
-  );
-  const uploadedAssignments = assignments.filter(
-    (a) => a.serviceConfirmation?.method === "upload" && a.serviceConfirmation?.documentUrl
-  );
+  const generatedAssignments = assignments.filter((a) => !getUploadedDocUrl(a));
+  const uploadedAssignments = assignments.filter((a) => Boolean(getUploadedDocUrl(a)));
 
   if (generatedAssignments.length > 0) {
     const entries: LeistungsnachweisData[] = generatedAssignments.map((a) => {
@@ -132,26 +153,54 @@ export async function generateLeistungsnachweisePdf(
     copiedPages.forEach((page) => masterPdf.addPage(page));
   }
 
-  // Append uploaded documents
+  // Deduplicate and append uploaded documents
+  const seenDocUrls = new Set<string>();
+  const seenFileHashes = new Set<string>();
+
   for (const a of uploadedAssignments) {
-    const docUrl = a.serviceConfirmation!.documentUrl!;
-    const { data, error } = await supabase.storage.from("confirmations").download(docUrl);
+    const rawDocUrl = getUploadedDocUrl(a)!;
+    const cleanDocUrl = rawDocUrl
+      .replace(/^\/?confirmations\//, "")
+      .replace(/^\//, "")
+      .replace(/\.\./g, "");
+
+    // Deduplicate by path/URL if identical
+    if (seenDocUrls.has(rawDocUrl) || seenDocUrls.has(cleanDocUrl)) {
+      continue;
+    }
+    seenDocUrls.add(rawDocUrl);
+    seenDocUrls.add(cleanDocUrl);
+
+    let downloadRes = await supabase.storage.from("confirmations").download(cleanDocUrl);
+    if ((downloadRes.error || !downloadRes.data) && cleanDocUrl !== rawDocUrl) {
+      downloadRes = await supabase.storage.from("confirmations").download(rawDocUrl);
+    }
+
+    const { data, error } = downloadRes;
 
     if (error || !data) {
-      console.error(`Failed to download ${docUrl}:`, error);
+      console.error(`Failed to download ${rawDocUrl}:`, error);
       continue;
     }
 
     const arrayBuffer = await data.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Deduplicate by file content SHA-256 hash in case the same document was uploaded under different paths
+    const fileHash = crypto.createHash("sha256").update(buffer).digest("hex");
+    if (seenFileHashes.has(fileHash)) {
+      continue;
+    }
+    seenFileHashes.add(fileHash);
 
     try {
-      if (data.type === "application/pdf" || docUrl.toLowerCase().endsWith(".pdf")) {
+      if (data.type === "application/pdf" || rawDocUrl.toLowerCase().endsWith(".pdf")) {
         const externalDoc = await PDFDocument.load(arrayBuffer);
         const copiedPages = await masterPdf.copyPages(externalDoc, externalDoc.getPageIndices());
         copiedPages.forEach((page) => masterPdf.addPage(page));
-      } else if (data.type.startsWith("image/") || docUrl.match(/\.(jpeg|jpg|png)$/i)) {
+      } else if (data.type.startsWith("image/") || rawDocUrl.match(/\.(jpeg|jpg|png)$/i)) {
         let image;
-        if (data.type === "image/png" || docUrl.toLowerCase().endsWith(".png")) {
+        if (data.type === "image/png" || rawDocUrl.toLowerCase().endsWith(".png")) {
           image = await masterPdf.embedPng(arrayBuffer);
         } else {
           image = await masterPdf.embedJpg(arrayBuffer);
@@ -176,7 +225,7 @@ export async function generateLeistungsnachweisePdf(
         });
       }
     } catch (err) {
-      console.error(`Error embedding document ${docUrl} into bulk PDF:`, err);
+      console.error(`Error embedding document ${rawDocUrl} into bulk PDF:`, err);
     }
   }
 

@@ -53,15 +53,6 @@ export function ClientPricingEditor({
   const [rates, setRates] = useState<Record<string, string>>(() => Object.fromEntries(
     qualifications.map((key) => [key, String(profileHourlyRates[key] ?? DEFAULT_RATES[key])]),
   ));
-  const hasLegacyDefaults = (
-    profileSurcharges.surchargeSat === null ||
-    profileSurcharges.surchargeSun === null ||
-    profileSurcharges.surchargeHoliday === null ||
-    profileSurcharges.surchargeNight === null ||
-    profileSurcharges.nightStart === null ||
-    profileSurcharges.nightEnd === null ||
-    qualifications.some((key) => profileHourlyRates[key] == null)
-  );
 
   const save = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -89,12 +80,6 @@ export function ClientPricingEditor({
 
   return (
     <form onSubmit={save} onChange={() => onDirtyChange(true)} className="space-y-5">
-      <p className="text-sm text-muted-foreground">{t("pricingEditHint")}</p>
-      {hasLegacyDefaults && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-          {t("legacyDefaultsReviewHint")}
-        </p>
-      )}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold">{t("profileSurcharges")}</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -111,7 +96,6 @@ export function ClientPricingEditor({
                 value={surcharges[key]}
                 onChange={(event) => setSurcharges((previous) => ({ ...previous, [key]: event.target.value }))}
               />
-              {profileSurcharges[key] === null && <p className="text-xs text-amber-700 dark:text-amber-300">{t("legacyDefaultValue")}</p>}
             </div>
           ))}
         </div>
@@ -142,7 +126,6 @@ export function ClientPricingEditor({
                 value={rates[key] ?? ""}
                 onChange={(event) => setRates((previous) => ({ ...previous, [key]: event.target.value }))}
               />
-              {profileHourlyRates[key] == null && <p className="text-xs text-amber-700 dark:text-amber-300">{t("legacyDefaultValue")}</p>}
             </div>
           ))}
         </div>

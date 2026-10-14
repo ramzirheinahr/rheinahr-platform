@@ -27,7 +27,6 @@ export function StundennachweisView({
   const [endDate, setEndDate] = useState(`${y}-${m}-${String(lastD).padStart(2, "0")}`);
   const [qualification, setQualification] = useState("alle");
   const [clientId, setClientId] = useState<string>(clients[0]?.id || "");
-  const [mode, setMode] = useState<"actual" | "planned">("actual");
 
   const [rows, setRows] = useState<StundennachweisRow[] | null>(null);
   const [selectedClientName, setSelectedClientName] = useState<string>("");
@@ -40,7 +39,7 @@ export function StundennachweisView({
         endDate,
         qualification: qualification === "alle" ? undefined : qualification,
         clientId: clientId || undefined,
-        mode,
+        mode: "actual",
       });
       setRows(res.rows);
       setSelectedClientName(res.client?.facilityName || "");
@@ -53,7 +52,7 @@ export function StundennachweisView({
       endDate,
       ...(clientId ? { clientId } : {}),
       ...(qualification !== "alle" ? { qualification } : {}),
-      mode,
+      mode: "actual",
     });
     window.open(`/api/reports/stundennachweis/pdf?${params.toString()}`, "_blank");
   };
@@ -68,7 +67,7 @@ export function StundennachweisView({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-5">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 items-end">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 items-end">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("common.dateFrom")}</label>
               <Input
@@ -86,20 +85,6 @@ export function StundennachweisView({
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">{t("stundennachweis.mode")}</label>
-              <SearchableSelect
-                options={[
-                  { value: "actual", label: t("stundennachweis.modeActual") },
-                  { value: "planned", label: t("stundennachweis.modePlanned") },
-                ]}
-                value={mode}
-                onValueChange={(v) => setMode(v as "actual" | "planned")}
-                placeholder={t("stundennachweis.mode")}
-                searchPlaceholder={t("stundennachweis.mode")}
               />
             </div>
 
@@ -173,7 +158,7 @@ export function StundennachweisView({
                 {t("stundennachweis.resultTitle")}: {selectedClientName || "—"}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {startDate} bis {endDate} · {rows.length} Einträge · {mode === "actual" ? t("stundennachweis.modeActual") : t("stundennachweis.modePlanned")}
+                {startDate} bis {endDate} · {rows.length} Einträge
               </p>
             </div>
             <Button
@@ -255,36 +240,20 @@ export function StundennachweisView({
               </tbody>
               {rows && rows.length > 0 && (
                 <tfoot className="border-t-2 border-border/80 bg-muted/40 font-bold">
-                  {mode === "planned" ? (
-                    <tr>
-                      <td colSpan={6} className="p-2.5 text-right font-bold text-foreground">
-                        {t("stundennachweis.totalPlanned")}:
-                      </td>
-                      <td className="p-2.5 text-right font-bold text-foreground">
-                        {rows
-                          .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
-                          .toFixed(2)
-                          .replace(".", ",")}{" "}
-                        {t("stundennachweis.hoursUnit")}
-                      </td>
-                      <td></td>
-                    </tr>
-                  ) : (
-                    <>
-                      <tr>
-                        <td colSpan={6} className="p-2.5 text-right font-bold text-foreground">
-                          {t("stundennachweis.totalActualHours")}:
-                        </td>
-                        <td className="p-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
-                          {rows
-                            .filter((r) => !r.isPlanned && r.statusType !== "scheduled")
-                            .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
-                            .toFixed(2)
-                            .replace(".", ",")}{" "}
-                          {t("stundennachweis.hoursUnit")}
-                        </td>
-                        <td></td>
-                      </tr>
+                  <tr>
+                    <td colSpan={6} className="p-2.5 text-right font-bold text-foreground">
+                      {t("stundennachweis.totalActualHours")}:
+                    </td>
+                    <td className="p-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                      {rows
+                        .filter((r) => !r.isPlanned && r.statusType !== "scheduled")
+                        .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
+                        .toFixed(2)
+                        .replace(".", ",")}{" "}
+                      {t("stundennachweis.hoursUnit")}
+                    </td>
+                    <td></td>
+                  </tr>
                       {rows.some((r) => r.isPlanned || r.statusType === "scheduled") && (
                         <tr>
                           <td colSpan={6} className="p-2.5 text-right font-medium text-muted-foreground text-xs">
@@ -301,8 +270,6 @@ export function StundennachweisView({
                           <td></td>
                         </tr>
                       )}
-                    </>
-                  )}
                 </tfoot>
               )}
             </table>
