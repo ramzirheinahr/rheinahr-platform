@@ -186,9 +186,10 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       action: true,
       cell: (r) => {
         const isReliable = hasReliableInvoiceDocument(r);
+        const hasDoc = isReliable || (Array.isArray(r.assignments) && r.assignments.length > 0) || (r._count && r._count.assignments > 0) || !!r.client;
         return (
           <div className="flex items-center justify-end gap-1.5">
-            {isReliable ? (
+            {hasDoc ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -212,10 +213,10 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
             <Button
               variant="outline"
               size="sm"
-              disabled={!isReliable}
+              disabled={!hasDoc}
               className="h-8 px-2.5 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => setEmailInvoiceId(r.id)}
-              title={!isReliable ? t("historicalPdfUnavailableTooltip") : undefined}
+              title={!hasDoc ? t("historicalPdfUnavailableTooltip") : undefined}
             >
               <Mail className="size-3.5 mr-1 rtl:ml-1 rtl:mr-0" />
               E-Mail

@@ -33,6 +33,8 @@ export function OrderInvoicesBanner({
     invoiceNumber: string;
     status: string;
     documentAvailable: boolean;
+    emailSent?: boolean;
+    emailSentAt?: string | null;
   }>;
   uninvoicedAssignments: SelectableAssignment[];
 }) {
@@ -110,9 +112,30 @@ export function OrderInvoicesBanner({
                 />
               }>
                 {inv.status === "cancelled" ? <Ban className="size-3.5" /> : inv.status === "paid" ? <CheckCircle2 className="size-3.5" /> : <FileText className="size-3.5" />}
-                {inv.invoiceNumber}
+                <span>{inv.invoiceNumber}</span>
+                {inv.emailSent && (
+                  <span title="Per E-Mail versendet">
+                    <Mail className="size-3.5 text-blue-600 ml-0.5 shrink-0" />
+                  </span>
+                )}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {inv.emailSent && (
+                  <div className="px-3 py-1.5 text-xs text-blue-700 bg-blue-50 border-b flex items-center gap-1.5 font-medium">
+                    <Mail className="size-3 text-blue-600 shrink-0" />
+                    <span>
+                      {inv.emailSentAt
+                        ? `Per E-Mail versendet (${new Intl.DateTimeFormat("de-DE", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }).format(new Date(inv.emailSentAt))})`
+                        : "Per E-Mail versendet"}
+                    </span>
+                  </div>
+                )}
                 {inv.documentAvailable ? (
                   <DropdownMenuItem onClick={() => window.open(`/api/invoices/${inv.id}/pdf`, "_blank")}>
                     <FileText className="size-4 mr-2" />
@@ -133,7 +156,7 @@ export function OrderInvoicesBanner({
                 {inv.status !== "cancelled" && inv.documentAvailable && (
                   <DropdownMenuItem onClick={() => setEmailInvoiceId(inv.id)}>
                     <Mail className="size-4 mr-2" />
-                    {t("sendInvoiceEmail")}
+                    {inv.emailSent ? "Erneut per E-Mail senden" : t("sendInvoiceEmail")}
                   </DropdownMenuItem>
                 )}
                 {inv.status !== "cancelled" && (

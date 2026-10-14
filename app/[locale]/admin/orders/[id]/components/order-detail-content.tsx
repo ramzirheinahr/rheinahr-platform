@@ -126,6 +126,9 @@ export async function OrderDetailContent({
         },
       },
     },
+    include: {
+      assignments: { select: { id: true } },
+    },
   });
 
   // Match the PDF route's historical-origin checks before offering a document action.
@@ -153,14 +156,18 @@ export async function OrderDetailContent({
             },
             { skipPdfSimulation: true }
           );
-          documentAvailable = snapshot.complete;
+          documentAvailable = snapshot.complete || (invoice.assignments.length > 0 && !!invoice.clientId);
         }
       }
+      const snap = (invoice.snapshotData as Record<string, unknown>) || {};
+      const emailSentData = snap.emailSent as { sentAt?: string; status?: string } | undefined;
       return {
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         status: invoice.status,
         documentAvailable,
+        emailSent: emailSentData?.status === "sent" || emailSentData?.status === "partially_sent_and_recorded" || !!emailSentData?.sentAt,
+        emailSentAt: emailSentData?.sentAt ?? null,
       };
     })
   );

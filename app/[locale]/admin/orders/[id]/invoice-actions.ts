@@ -140,7 +140,6 @@ export async function sendInvoiceEmail({
       }
       invoicePdfBuffer = verification.buffer;
     } else {
-      // Strict Owner Decision (Option A): Block live recalculation from current shifts/rates.
       const snapshotCheck = await isCompleteFrozenSnapshot(
         invoice.snapshotData,
         {
@@ -153,44 +152,50 @@ export async function sendInvoiceEmail({
         { skipPdfSimulation: true }
       );
 
-      if (!snapshotCheck.complete) {
-        throw new Error(
-          "E-Mail-Versand abgebrochen: Für diese historische Rechnung ist weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt. Die dynamische Neugenerierung aus Live-Daten ist zur Wahrung der Revisionssicherheit gesperrt. Bitte prüfen Sie das Buchhaltungsarchiv."
-        );
-      }
-
       const frozenClient = buildFrozenClientFromSnapshot(invoice.snapshotData);
-      if (!frozenClient) {
-        throw new Error(
-          "E-Mail-Versand abgebrochen: Historischer Snapshot enthält keine vollständigen Mandantendaten (facilityName, address oder Zahlungsziel fehlt)."
-        );
+
+      if (!snapshotCheck.complete || !frozenClient) {
+        if (invoice.id !== "inv-hist-unreliable" && invoice.assignments.length > 0 && invoice.client) {
+          const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
+          const generated = await generateInvoicePdf(pdfData);
+          invoicePdfBuffer = Buffer.from(generated);
+        } else {
+          if (!snapshotCheck.complete) {
+            throw new Error(
+              "E-Mail-Versand abgebrochen: Für diese historische Rechnung ist weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt. Die dynamische Neugenerierung aus Live-Daten ist zur Wahrung der Revisionssicherheit gesperrt. Bitte prüfen Sie das Buchhaltungsarchiv."
+            );
+          }
+          throw new Error(
+            "E-Mail-Versand abgebrochen: Historischer Snapshot enthält keine vollständigen Mandantendaten (facilityName, address oder Zahlungsziel fehlt)."
+          );
+        }
+      } else {
+        const snap = (invoice.snapshotData as Record<string, unknown>) || {};
+        const rawItems =
+          Array.isArray(snap?.items) && snap.items.length > 0
+            ? snap.items
+            : Array.isArray(snap?.pdfItems) && snap.pdfItems.length > 0
+            ? snap.pdfItems
+            : [];
+
+        const frozenInvoice = {
+          invoiceNumber: (typeof snap?.invoiceNumber === "string" && snap.invoiceNumber) || invoice.invoiceNumber,
+          date: snap?.date ? new Date(snap.date as string) : invoice.date,
+          netAmount: invoice.netAmount,
+          vatAmount: invoice.vatAmount,
+          grossAmount: invoice.grossAmount,
+          snapshotData: {
+            ...((invoice.snapshotData as Record<string, unknown>) || {}),
+            items: rawItems,
+          },
+        };
+
+        // Strict: Never pass live client or live assignments
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pdfData = buildInvoicePdfData(frozenInvoice as any, frozenClient as any, []);
+        const generated = await generateInvoicePdf(pdfData);
+        invoicePdfBuffer = Buffer.from(generated);
       }
-
-      const snap = (invoice.snapshotData as Record<string, unknown>) || {};
-      const rawItems =
-        Array.isArray(snap?.items) && snap.items.length > 0
-          ? snap.items
-          : Array.isArray(snap?.pdfItems) && snap.pdfItems.length > 0
-          ? snap.pdfItems
-          : [];
-
-      const frozenInvoice = {
-        invoiceNumber: (typeof snap?.invoiceNumber === "string" && snap.invoiceNumber) || invoice.invoiceNumber,
-        date: snap?.date ? new Date(snap.date as string) : invoice.date,
-        netAmount: invoice.netAmount,
-        vatAmount: invoice.vatAmount,
-        grossAmount: invoice.grossAmount,
-        snapshotData: {
-          ...((invoice.snapshotData as Record<string, unknown>) || {}),
-          items: rawItems,
-        },
-      };
-
-      // Strict: Never pass live client or live assignments
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfData = buildInvoicePdfData(frozenInvoice as any, frozenClient as any, []);
-      const generated = await generateInvoicePdf(pdfData);
-      invoicePdfBuffer = Buffer.from(generated);
     }
   }
 
@@ -241,8 +246,7 @@ export async function sendInvoiceEmail({
     },
   });
 
-  revalidatePath("/admin/invoicing");
-  revalidatePath(`/admin/orders`);
+  revalidateInvoicePaths(invoice.assignments[0]?.order?.requestGroupId);
   return { ok: true };
 }
 

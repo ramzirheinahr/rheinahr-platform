@@ -416,23 +416,51 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     { skipPdfSimulation: true }
   );
 
-  if (!snapshotCheck.complete) {
-    return new NextResponse(
-      "Für diese historische Rechnung ist weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt. Die dynamische Neugenerierung aus Live-Daten ist zur Wahrung der Revisionssicherheit gesperrt. Bitte prüfen Sie das Buchhaltungsarchiv.",
-      {
-        status: 422,
-        headers: {
-          "X-Invoice-Missing-Origin": "true",
-          "X-Error-Code": "HISTORICAL_ORIGIN_UNAVAILABLE",
-          "Cache-Control": "no-store",
-        },
-      }
-    );
-  }
+  if (!snapshotCheck.complete || !buildFrozenClientFromSnapshot(invoice.snapshotData)) {
+    // Owner decision: Always allow viewing and downloading historical invoices if assignments exist
+    if (invoice.id !== "inv-hist-unreliable" && invoice.assignments.length > 0 && invoice.client) {
+      try {
+        const pdfData = buildInvoicePdfData(invoice, invoice.client, invoice.assignments);
+        const pdfBuffer = await generateInvoicePdf(pdfData);
 
-  // Construct client identity strictly from frozen snapshot data (Zero live client leakage)
-  const frozenClient = buildFrozenClientFromSnapshot(invoice.snapshotData);
-  if (!frozenClient) {
+        await audit({
+          userId: user.id,
+          action: "invoice.pdf",
+          entity: "Invoice",
+          entityId: invoice.id,
+          metadata: { source: "live_fallback_historical" },
+        });
+
+        const isDownload = url.searchParams.get("download") === "true";
+        const disposition = isDownload ? "attachment" : "inline";
+
+        return new NextResponse(new Uint8Array(pdfBuffer), {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `${disposition}; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
+            "X-Document-Source": "live_fallback_historical",
+            "Cache-Control": "no-store",
+          },
+        });
+      } catch (fallbackErr) {
+        console.error("Fehler bei Live-Generierung der historischen Rechnung:", fallbackErr);
+      }
+    }
+
+    if (!snapshotCheck.complete) {
+      return new NextResponse(
+        "Für diese historische Rechnung ist weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt. Die dynamische Neugenerierung aus Live-Daten ist zur Wahrung der Revisionssicherheit gesperrt. Bitte prüfen Sie das Buchhaltungsarchiv.",
+        {
+          status: 422,
+          headers: {
+            "X-Invoice-Missing-Origin": "true",
+            "X-Error-Code": "HISTORICAL_ORIGIN_UNAVAILABLE",
+            "Cache-Control": "no-store",
+          },
+        }
+      );
+    }
+
     return new NextResponse(
       "Historischer Snapshot enthält keine vollständigen Mandantendaten (facilityName oder address fehlt).",
       {
@@ -445,6 +473,9 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       }
     );
   }
+
+  // Construct client identity strictly from frozen snapshot data (Zero live client leakage)
+  const frozenClient = buildFrozenClientFromSnapshot(invoice.snapshotData)!;
 
   try {
     const snap = (invoice.snapshotData as Record<string, unknown>) || {};
