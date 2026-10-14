@@ -1528,7 +1528,7 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
       expect(rawLines[1].itemCategory).toBe("surcharge_saturday");
       expect(rawLines[1].minutes).toBe(60);
       expect((rawLines[1].baseHourlyRate as { cents: number })?.cents).toBe(4000);
-      expect(rawLines[1].surchargeRatio).toBe(0.25);
+      expect(rawLines[1].surchargeRatio).toBe("0.25");
       expect(rawLines[1].deriveSurchargeRate).toBe(true);
 
       // Run exact calculation engine
@@ -1550,6 +1550,33 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
       expect(exactResult.totals.totalCents).toBe(5950);
       expect(exactResult.totals.totalDecimal).toBe("59.50");
       expect(exactResult.totals.totalDisplay).toBe("59,50 €");
+    });
+
+    it.each([
+      { fraction: 0.5, expectedRateCents: 1700, expectedAmountCents: 20400 },
+      { fraction: 1, expectedRateCents: 3400, expectedAmountCents: 40800 },
+      { fraction: 1.25, expectedRateCents: 4250, expectedAmountCents: 51000 },
+    ])("bills a $fraction surcharge as a factor of the 34 EUR hourly rate", ({ fraction, expectedRateCents, expectedAmountCents }) => {
+      const preparedItems: PreparedWorkLineItem[] = [{
+        workerId: "worker-1",
+        workerName: "Test Worker",
+        qualification: "pflegefachkraft",
+        itemCategory: "surcharge_sunday",
+        surchargePolicyId: "policy-1",
+        surchargePolicyVersion: 1,
+        combinationRule: "cumulative",
+        minutes: 720,
+        surchargeFraction: fraction,
+        descriptionDE: `Sonntagszuschlag (+${fraction * 100}%)`,
+      }];
+      const rawLines = convertPreparedItemsToRawInvoiceLines({
+        preparedItems,
+        priceVersionId: "rate-1",
+        baseHourlyRateInCents: 3400,
+      });
+      const result = calculateExactInvoice(rawLines);
+      expect(result.items[0].rateCents).toBe(expectedRateCents);
+      expect(result.items[0].amountCents).toBe(expectedAmountCents);
     });
 
     it("rejects convertPreparedItemsToRawInvoiceLines with missing priceVersionId or invalid base rate", () => {

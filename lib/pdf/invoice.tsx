@@ -56,6 +56,7 @@ const styles = StyleSheet.create({
   
   titleBlock: { marginTop: 0, textAlign: "left", width: "40%", paddingLeft: 20 },
   titleText: { fontSize: 28, fontFamily: "Helvetica-Bold", marginBottom: 30 },
+  draftTitleText: { fontSize: 17, marginBottom: 18 },
   
   metaTable: { width: "100%" },
   metaRow: { flexDirection: "row", justifyContent: "flex-start", marginBottom: 2 },
@@ -143,7 +144,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
         </View>
 
         <View style={styles.titleBlock}>
-          <Text style={styles.titleText}>{data.draft ? "RECHNUNGSENTWURF" : "Rechnung"}</Text>
+          <Text style={[styles.titleText, data.draft ? styles.draftTitleText : {}]}>{data.draft ? "Rechnungsentwurf" : "Rechnung"}</Text>
           <View style={styles.metaTable}>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>vom:</Text>

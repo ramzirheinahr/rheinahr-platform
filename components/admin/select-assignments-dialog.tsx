@@ -200,12 +200,13 @@ export function SelectAssignmentsDialog({
         <Icon className="size-4 mr-2" />
         {buttonLabel}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
+        <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
         <div className="py-2">
           {workers.length > 1 && (
             <div className="mb-2 flex items-center justify-between pb-2 border-b">
@@ -385,6 +386,7 @@ export function SelectAssignmentsDialog({
             )}
           </div>
         )}
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>

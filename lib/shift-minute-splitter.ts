@@ -1797,7 +1797,9 @@ export function convertPreparedItemsToRawInvoiceLines(params: {
         priceVersionId: params.priceVersionId,
         minutes: item.minutes,
         baseHourlyRate: { cents: params.baseHourlyRateInCents },
-        surchargeRatio: item.surchargeFraction,
+        // The exact engine interprets numeric values >= 1 as percentages.
+        // Policy fractions are factors: 1 means 100%, not 1%.
+        surchargeRatio: String(item.surchargeFraction),
         deriveSurchargeRate: true,
         description: item.descriptionDE,
       };
