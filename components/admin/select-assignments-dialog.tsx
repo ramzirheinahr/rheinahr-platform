@@ -16,7 +16,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 
 export type InvoiceReviewResult =
-  | { ok: false; code: string; message: string }
+  | { ok: false; code: string; message: string; diagnostics?: { assignmentId?: string; breakMinutes?: number } }
   | {
       ok: true;
       assignmentIds: string[];
@@ -24,6 +24,7 @@ export type InvoiceReviewResult =
       clientName: string;
       period: string;
       items: Array<{ pos: number; description: string; hours: string; rate: string; amount: string }>;
+      breakAllocations: Array<{ assignmentId: string; workerName: string; shiftDate: string; start: string; end: string; minutes: number }>;
       subtotal: string;
       taxAmount: string;
       total: string;
@@ -58,8 +59,8 @@ export function SelectAssignmentsDialog({
   buttonLabel: string;
   buttonClassName?: string;
   showSplitOption?: boolean;
-  onPreview?: (selectedIds: string[]) => Promise<InvoiceReviewResult>;
-  onSubmit: (selectedIds: string[], customInvoiceNumber?: string, splitByShift?: boolean, expectedDraftHash?: string) => Promise<void | boolean>;
+  onPreview?: (selectedIds: string[], breakStartByAssignment?: Record<string, string>) => Promise<InvoiceReviewResult>;
+  onSubmit: (selectedIds: string[], customInvoiceNumber?: string, splitByShift?: boolean, expectedDraftHash?: string, breakStartByAssignment?: Record<string, string>) => Promise<void | boolean>;
   clientId?: string;
 }) {
   const reviewText = useTranslations("invoiceReview");
@@ -72,6 +73,9 @@ export function SelectAssignmentsDialog({
   const [review, setReview] = useState<Extract<InvoiceReviewResult, { ok: true }> | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewErrorCode, setReviewErrorCode] = useState<string | null>(null);
+  const [reviewErrorAssignmentId, setReviewErrorAssignmentId] = useState<string | null>(null);
+  const [breakStartByAssignment, setBreakStartByAssignment] = useState<Record<string, string>>({});
+  const [breakAllocations, setBreakAllocations] = useState<Extract<InvoiceReviewResult, { ok: true }>["breakAllocations"]>([]);
   const [reviewing, setReviewing] = useState(false);
   const [accountingConfirmed, setAccountingConfirmed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -80,6 +84,7 @@ export function SelectAssignmentsDialog({
     setReview(null);
     setReviewError(null);
     setReviewErrorCode(null);
+    setReviewErrorAssignmentId(null);
     setAccountingConfirmed(false);
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     setPdfUrl(null);
@@ -105,6 +110,12 @@ export function SelectAssignmentsDialog({
 
   const toggleAssignment = (id: string) => {
     clearReview();
+    setBreakAllocations([]);
+    setBreakStartByAssignment((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -121,6 +132,8 @@ export function SelectAssignmentsDialog({
       setCustomInvoiceNumber("");
       setWorkerFilter("all");
       setSplitByShift(false);
+      setBreakStartByAssignment({});
+      setBreakAllocations([]);
     }
   };
 
@@ -129,7 +142,7 @@ export function SelectAssignmentsDialog({
     if (onPreview && (!review || !pdfUrl || !accountingConfirmed)) return;
     setSubmitting(true);
     try {
-      const completed = await onSubmit(Array.from(selectedIds), customInvoiceNumber, splitByShift, review?.draftHash);
+      const completed = await onSubmit(Array.from(selectedIds), customInvoiceNumber, splitByShift, review?.draftHash, breakStartByAssignment);
       if (completed !== false) {
         setOpen(false);
         clearReview();
@@ -145,20 +158,28 @@ export function SelectAssignmentsDialog({
     setReviewing(true);
     try {
       const selected = Array.from(selectedIds);
-      const result = await onPreview(selected);
+      const result = await onPreview(selected, breakStartByAssignment);
       if (!result.ok) {
         setReviewErrorCode(result.code);
-        setReviewError(`${result.code}: ${result.message}`);
+        setReviewErrorAssignmentId(result.diagnostics?.assignmentId ?? null);
+        if (result.diagnostics?.assignmentId && result.code === "UNRESOLVED_BREAK_ALLOCATION") {
+          setReviewError("Für diese Schicht fehlt die genaue Lage der Pause. Bitte den tatsächlichen Pausenbeginn unten eintragen und die Rechnung erneut prüfen.");
+        } else if (result.diagnostics?.assignmentId && result.code === "BREAK_WINDOW_OUTSIDE_SHIFT") {
+          setReviewError("Die angegebene Pause liegt außerhalb der Schicht. Bitte die Uhrzeit korrigieren.");
+        } else {
+          setReviewError(`${result.code}: ${result.message}`);
+        }
         return;
       }
       const response = await fetch("/api/invoices/v2-preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignmentIds: selected, expectedDraftHash: result.draftHash }),
+        body: JSON.stringify({ assignmentIds: selected, expectedDraftHash: result.draftHash, breakStartByAssignment }),
       });
       if (!response.ok) throw new Error(reviewText("previewChanged"));
       setPdfUrl(URL.createObjectURL(await response.blob()));
       setReview(result);
+      setBreakAllocations(result.breakAllocations);
     } catch (error) {
       setReviewError(error instanceof Error ? error.message : reviewText("previewFailed"));
     } finally {
@@ -188,6 +209,8 @@ export function SelectAssignmentsDialog({
                   const worker = e.target.value;
                   setWorkerFilter(worker);
                   clearReview();
+                  setBreakAllocations([]);
+                  setBreakStartByAssignment({});
                   if (worker !== "all") {
                     const workerIds = assignments.filter((a) => a.workerName === worker).map((a) => a.id);
                     setSelectedIds(new Set(workerIds));
@@ -208,6 +231,8 @@ export function SelectAssignmentsDialog({
                 size="sm" 
                 onClick={() => {
                   clearReview();
+                  setBreakAllocations([]);
+                  setBreakStartByAssignment({});
                   if (allFilteredSelected) {
                     const next = new Set(selectedIds);
                     filteredAssignments.forEach(a => next.delete(a.id));
@@ -281,6 +306,28 @@ export function SelectAssignmentsDialog({
             <Button type="button" variant="outline" onClick={handlePreview} disabled={reviewing || submitting || selectedIds.size === 0}>
               {reviewing ? reviewText("loading") : reviewText("calculate")}
             </Button>
+            {breakAllocations.length > 0 && (
+              <details className="rounded-md border p-2 text-sm">
+                <summary className="cursor-pointer font-medium">Pausenzeiten prüfen oder ändern ({breakAllocations.length})</summary>
+                <p className="mt-2 text-xs text-muted-foreground">Standardmäßig liegt jede Pause in der Mitte der Schicht. Falls die tatsächliche Pause anders lag, die Uhrzeit ändern und die Vorschau erneut berechnen.</p>
+                <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+                  {breakAllocations.map((allocation) => (
+                    <label key={allocation.assignmentId} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
+                      <span>{allocation.workerName} · {allocation.shiftDate} · {allocation.minutes} Min.</span>
+                      <input
+                        type="time"
+                        className="rounded border px-2 py-1"
+                        value={breakStartByAssignment[allocation.assignmentId] ?? allocation.start}
+                        onChange={(event) => {
+                          setBreakStartByAssignment((current) => ({ ...current, [allocation.assignmentId]: event.target.value }));
+                          clearReview();
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </details>
+            )}
             {reviewError && (
               <div role="alert" className="space-y-2 text-sm text-red-700 break-words">
                 <p>{reviewError}</p>
@@ -295,6 +342,22 @@ export function SelectAssignmentsDialog({
                       Vergütung und Zuschläge für den Abrechnungszeitraum prüfen
                     </Link>
                   )}
+                {reviewErrorCode && ["UNRESOLVED_BREAK_ALLOCATION", "BREAK_WINDOW_OUTSIDE_SHIFT", "INVALID_BREAK_DURATION", "INVALID_TIME_FORMAT", "INVALID_TIME_INTERVAL"].includes(reviewErrorCode) && reviewErrorAssignmentId &&
+                  selectedIds.has(reviewErrorAssignmentId) && (() => {
+                    const shift = assignments.find((a) => a.id === reviewErrorAssignmentId);
+                    return (
+                      <label className="block rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                        <span className="block font-medium">Tatsächlicher Pausenbeginn für {shift?.workerName ?? "diese Schicht"} am {shift?.shiftDate ?? "Schichttag"}</span>
+                        <span className="block text-xs mt-1">Bitte die Uhrzeit aus dem Leistungsnachweis prüfen. Die erfasste Pausendauer bleibt unverändert; danach „Rechnung vor Ausgabe prüfen“ erneut anklicken.</span>
+                        <input
+                          type="time"
+                          className="mt-2 block rounded border bg-white px-2 py-1 text-sm"
+                          value={breakStartByAssignment[reviewErrorAssignmentId] ?? ""}
+                          onChange={(event) => setBreakStartByAssignment((current) => ({ ...current, [reviewErrorAssignmentId]: event.target.value }))}
+                        />
+                      </label>
+                    );
+                  })()}
               </div>
             )}
             {review && pdfUrl && (
@@ -305,6 +368,7 @@ export function SelectAssignmentsDialog({
                   {review.items.map((item) => <p key={item.pos}>{item.pos}. {item.description} · {item.hours} × {item.rate} € = {item.amount}</p>)}
                 </div>
                 <p>{reviewText("net")}: {review.subtotal} · {reviewText("tax")}: {review.taxAmount} · {reviewText("gross")}: {review.total}</p>
+                {Object.keys(breakStartByAssignment).length > 0 && <p className="text-amber-800">Pausenzeiten wurden manuell für diese Vorschau erfasst. Bitte mit den Leistungsnachweisen abgleichen.</p>}
                 <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">{reviewText("openPdf")}</a>
                 <label className="flex items-start gap-2">
                   <input type="checkbox" checked={accountingConfirmed} onChange={(e) => setAccountingConfirmed(e.target.checked)} />

@@ -687,10 +687,11 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
   });
 
   // ─────────────────────────────────────────────────────────────
-  // 9. Unknown break position across surcharge boundary rejected
+  // 9. Duration-only breaks default to the middle of the effective shift
   // ─────────────────────────────────────────────────────────────
-  it("rejects draft with UNRESOLVED_BREAK_ALLOCATION when break position is unknown across surcharge boundary without verified clause", async () => {
-    // Evening shift 16:00–22:00 (crosses 20:00 night start) with 30m break, but no timestamps and no verified clause
+  it("places a duration-only break at the midpoint even across a surcharge boundary", async () => {
+    // Sunday 14:00–20:30 crosses the 20:00 night boundary. A 30m break
+    // defaults to 17:00–17:30, leaving 6h worked including 30m at night.
     const mockAssignment = {
       id: "asg-night-break",
       status: "confirmed",
@@ -700,9 +701,9 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
       order: {
         id: "ord-night",
         clientId: "client-facility-1",
-        shiftDate: new Date("2026-03-03T00:00:00.000Z"),
-        startTime: "16:00",
-        endTime: "22:00", // 6h gross - 30m break = 5.5h net
+        shiftDate: new Date("2026-09-06T00:00:00.000Z"),
+        startTime: "14:00",
+        endTime: "20:30", // 6.5h gross - 30m break = 6h net
         breakMinutes: 30,
         requiredQualification: "pflegefachkraft",
         client: { id: "client-facility-1", facilityName: "Seniorenresidenz Rheinblick", paymentTermsDays: 14 },
@@ -713,9 +714,52 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
       prisma: createMockPrisma([mockAssignment]),
       priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
       facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
-      // No verified break clause resolver provided
+      // No break timestamps or contract clause required for the midpoint rule
       effectiveHoursResolver: vi.fn().mockResolvedValue({
         assignmentId: "asg-night-break",
+        effectiveHours: 6,
+        effectiveStartTime: "14:00",
+        effectiveEndTime: "20:30",
+        effectiveBreakMinutes: 30,
+        source: "scheduled",
+        effectiveVersion: "v1",
+        isCorrected: false,
+      }),
+    };
+
+    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-night-break"] }, deps);
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.snapshotData.pricingProvenance.breakAllocations).toEqual([
+      { assignmentId: "asg-night-break", start: "17:00", end: "17:30", minutes: 30, source: "midpoint_default" },
+    ]);
+    expect(result.totals.subtotalCents).toBe(36500);
+  });
+
+  it("uses an explicitly reviewed break time across a surcharge boundary and freezes its provenance", async () => {
+    const assignment = {
+      id: "asg-reviewed-break",
+      status: "confirmed",
+      invoiceId: null,
+      contractId: "contract-1",
+      worker: { id: "w-break", fullName: "Test Worker", qualification: "pflegefachkraft" },
+      order: {
+        id: "ord-break",
+        clientId: "client-facility-1",
+        shiftDate: new Date("2026-03-03T00:00:00.000Z"),
+        startTime: "16:00",
+        endTime: "22:00",
+        breakMinutes: 30,
+        requiredQualification: "pflegefachkraft",
+        client: { id: "client-facility-1", facilityName: "Test Facility", paymentTermsDays: 14 },
+      },
+    };
+    const deps: V2DraftDependencies = {
+      prisma: createMockPrisma([assignment]),
+      priceVersionResolver: vi.fn().mockResolvedValue(STANDARD_PRICE_VERSION),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: assignment.id,
         effectiveHours: 5.5,
         effectiveStartTime: "16:00",
         effectiveEndTime: "22:00",
@@ -726,12 +770,28 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
       }),
     };
 
-    const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-night-break"] }, deps);
-    expect(result.status).toBe("unresolved");
-    if (result.status !== "unresolved") return;
+    const beforeNight = await prepareV2InvoiceDraft({
+      assignmentIds: [assignment.id],
+      breakStartByAssignment: { [assignment.id]: "18:00" },
+    }, deps);
+    const duringNight = await prepareV2InvoiceDraft({
+      assignmentIds: [assignment.id],
+      breakStartByAssignment: { [assignment.id]: "20:30" },
+    }, deps);
+    expect(beforeNight.status).toBe("resolved");
+    expect(duringNight.status).toBe("resolved");
+    if (beforeNight.status !== "resolved" || duringNight.status !== "resolved") return;
+    expect(beforeNight.snapshotData.pricingProvenance.breakAllocations).toEqual([
+      { assignmentId: assignment.id, start: "18:00", end: "18:30", minutes: 30, source: "admin_override" },
+    ]);
+    expect(beforeNight.totals.subtotalCents).not.toBe(duringNight.totals.subtotalCents);
 
-    expect(result.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
-    expect(result.diagnostics.assignmentId).toBe("asg-night-break");
+    const outside = await prepareV2InvoiceDraft({
+      assignmentIds: [assignment.id],
+      breakStartByAssignment: { [assignment.id]: "23:00" },
+    }, deps);
+    expect(outside.status).toBe("unresolved");
+    if (outside.status === "unresolved") expect(outside.code).toBe("BREAK_WINDOW_OUTSIDE_SHIFT");
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -787,9 +847,9 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
   });
 
   // ─────────────────────────────────────────────────────────────
-  // 11. Fabricated contract reference for break rejected
+  // 11. Fabricated contract reference cannot change the midpoint rule
   // ─────────────────────────────────────────────────────────────
-  it("proves that a fabricated contract break clause with 100% matching values fails closed with UNRESOLVED_BREAK_ALLOCATION", async () => {
+  it("ignores a fabricated proportional clause and uses the midpoint rule", async () => {
     const mockAssignment = {
       id: "asg-fab-clause",
       status: "confirmed",
@@ -837,11 +897,11 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     };
 
     const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-fab-clause"] }, deps);
-    expect(result.status).toBe("unresolved");
-    if (result.status !== "unresolved") return;
-
-    // Must be rejected as UNRESOLVED_BREAK_ALLOCATION because Phase 5a strictly fails closed against synthetic in-memory clauses!
-    expect(result.code).toBe("UNRESOLVED_BREAK_ALLOCATION");
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.snapshotData.pricingProvenance.breakAllocations?.[0]).toMatchObject({
+      start: "18:45", end: "19:15", source: "midpoint_default",
+    });
   });
 
   // ─────────────────────────────────────────────────────────────

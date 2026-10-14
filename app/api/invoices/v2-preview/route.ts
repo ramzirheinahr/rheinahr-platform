@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
 
-  let body: { assignmentIds?: unknown; expectedDraftHash?: unknown };
+  let body: { assignmentIds?: unknown; expectedDraftHash?: unknown; breakStartByAssignment?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -26,7 +26,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "REVIEW_REQUIRED" }, { status: 400 });
   }
 
-  const result = await prepareV2InvoiceReview(ids);
+  const breaks = body.breakStartByAssignment;
+  if (breaks !== undefined && (
+    !breaks || typeof breaks !== "object" || Array.isArray(breaks) ||
+    Object.keys(breaks).length > ids.length ||
+    Object.values(breaks).some((value) => typeof value !== "string")
+  )) {
+    return NextResponse.json({ error: "INVALID_BREAK_TIMES" }, { status: 400 });
+  }
+  const result = await prepareV2InvoiceReview(ids, breaks as Record<string, string> | undefined);
   if (!result.ok) {
     return NextResponse.json({ error: result.code, message: result.message }, { status: 422 });
   }

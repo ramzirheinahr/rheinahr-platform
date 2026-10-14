@@ -17,10 +17,10 @@
  * 4. Dated Verifiable Price Version Gateway:
  *    Requires a verifiable dated price record. If missing or unverifiable, returns PRICE_UNRESOLVED.
  *    Never fabricates priceVersionId from live client defaults or surcharge policies.
- * 5. Break Clause Contractual Authority Gateway:
- *    Proportional break allocation across surcharge categories requires verified, server-checked
- *    contractual authority matching client, contract, and policy version. Fabricated or loose
- *    text clauses are strictly rejected and return UNRESOLVED_BREAK_ALLOCATION.
+ * 5. Deterministic Break Placement:
+ *    The operational default places a duration-only break in the middle of the
+ *    effective shift. An explicit time entered during review replaces that default.
+ *    The selected allocation is frozen in provenance and the draft hash.
  * 6. Single-Engine Exact Parity:
  *    Uses Phase 4b adapter (`convertPreparedItemsToRawInvoiceLines`) and Phase 2 engine
  *    (`calculateExactInvoice`). Produces identical items, totals, and snapshotData for DB,
@@ -163,6 +163,9 @@ export type V2DraftDependencies = {
 
 export type PrepareV2InvoiceDraftInput = {
   assignmentIds: string[];
+  // The operational default is a break centered in the shift. An administrator
+  // may correct its start during review; both choices are part of the draft hash.
+  breakStartByAssignment?: Record<string, string>;
   taxRate?: TaxRateSpecification; // defaults to 19% VAT
   customPeriodStart?: string;     // optional override (YYYY-MM-DD)
   customPeriodEnd?: string;       // optional override (YYYY-MM-DD)
@@ -183,6 +186,9 @@ export type V2InvoiceDraftAssignmentProvenance = {
   effectiveStartTime?: string;
   effectiveEndTime?: string;
   effectiveBreakMinutes?: number;
+  allocatedBreakStart?: string;
+  allocatedBreakEnd?: string;
+  breakAllocationSource?: "midpoint_default" | "admin_override";
   policyId: string;
   policyVersion: number;
   policyFrozenHash: string;
@@ -218,6 +224,7 @@ export type V2InvoiceDraftSnapshotData = {
   preparedAt: string;
   pricingProvenance: {
     assignmentIds: string[];
+    breakAllocations?: Array<{ assignmentId: string; start: string; end: string; minutes: number; source: "midpoint_default" | "admin_override" }>;
     policyVersions: Array<{
       policyId: string;
       policyVersion: number;
@@ -478,6 +485,17 @@ export async function prepareV2InvoiceDraft(
 
     return String(a.id).localeCompare(String(b.id));
   });
+
+  const selectedIds = new Set(assignments.map((assignment) => assignment.id));
+  const reviewedBreaks = input.breakStartByAssignment ?? {};
+  if (Object.keys(reviewedBreaks).some((id) => !selectedIds.has(id))) {
+    return {
+      status: "unresolved",
+      code: "UNRESOLVED_BREAK_ALLOCATION",
+      message: "Pausenzeiten dürfen nur für ausgewählte Schichten angegeben werden.",
+      diagnostics: {},
+    };
+  }
 
   const clientId = clientIds[0];
   const client = assignments[0].order.client;
@@ -929,14 +947,47 @@ export async function prepareV2InvoiceDraft(
       }
     }
 
-    // D. Contractual Break Clause Gateway (Finding 4)
-    // In Phase 5a, no authentic database table/model exists for ContractBreakClause.
-    // To prevent arbitrary, fabricated, or synthetic in-memory break clause objects from
-    // bypassing statutory rules, proportional break allocation across surcharge boundaries
-    // must strictly fail closed with UNRESOLVED_BREAK_ALLOCATION.
+    // D. Break location. The business rule places an otherwise untimed break
+    // in the middle of the effective shift; a reviewed time replaces that default.
+    // Neither path relies on a fabricated contractual proportional-allocation clause.
     const verifiedBreakClause: VerifiedContractBreakAllocationClause | undefined = undefined;
     const contractualBreakAllocationRule: "proportional" | null = null;
     const breakAllocationSourceReference: string | undefined = undefined;
+
+    const breakMinutes = effectiveHoursData.effectiveBreakMinutes;
+    const [startHours, startMinutes] = effectiveHoursData.effectiveStartTime.split(":").map(Number);
+    const [endHours, endMinutes] = effectiveHoursData.effectiveEndTime.split(":").map(Number);
+    const shiftStartMinute = startHours * 60 + startMinutes;
+    const shiftEndMinute = endHours * 60 + endMinutes;
+    const grossMinutes = (shiftEndMinute - shiftStartMinute + 1440) % 1440;
+    const hasValidDuration = Number.isInteger(breakMinutes) && breakMinutes > 0 && breakMinutes < grossMinutes;
+    const midpointMinute = hasValidDuration
+      ? (shiftStartMinute + Math.floor((grossMinutes - breakMinutes) / 2)) % 1440
+      : null;
+    const midpointStart = midpointMinute === null
+      ? undefined
+      : `${pad2(Math.floor(midpointMinute / 60))}:${pad2(midpointMinute % 60)}`;
+    const overrideStart = reviewedBreaks[assignment.id];
+    const allocatedBreakStart = overrideStart ?? midpointStart;
+    let allocatedBreakEnd: string | undefined;
+    let breakDateIso = shiftDateIso;
+    if (allocatedBreakStart !== undefined) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(allocatedBreakStart) || !hasValidDuration) {
+        return {
+          status: "unresolved",
+          code: "UNRESOLVED_BREAK_ALLOCATION",
+          message: `Ungültiger Pausenbeginn oder Pausendauer für Schicht "${assignment.id}". Bitte die tatsächliche Uhrzeit als HH:mm eingeben.`,
+          diagnostics: { assignmentId: assignment.id, breakMinutes },
+        };
+      }
+      const [hours, minutes] = allocatedBreakStart.split(":").map(Number);
+      const endMinute = (hours * 60 + minutes + breakMinutes) % 1440;
+      allocatedBreakEnd = `${pad2(Math.floor(endMinute / 60))}:${pad2(endMinute % 60)}`;
+      if (effectiveHoursData.effectiveEndTime < effectiveHoursData.effectiveStartTime &&
+          allocatedBreakStart < effectiveHoursData.effectiveStartTime) {
+        breakDateIso = advanceCalendarDay(shiftDateIso);
+      }
+    }
 
     // E. Phase 4b Minute Splitting
     const splitterInput: ShiftMinuteSplitterInput = {
@@ -952,6 +1003,9 @@ export async function prepareV2InvoiceDraft(
       startTime: effectiveHoursData.effectiveStartTime,
       endTime: effectiveHoursData.effectiveEndTime,
       breakMinutes: effectiveHoursData.effectiveBreakMinutes,
+      breakWindows: allocatedBreakStart && allocatedBreakEnd
+        ? [{ start: allocatedBreakStart, end: allocatedBreakEnd, dateIso: breakDateIso }]
+        : undefined,
       contractualBreakAllocationRule,
       breakAllocationSourceReference,
       verifiedBreakClause,
@@ -1005,6 +1059,11 @@ export async function prepareV2InvoiceDraft(
       effectiveStartTime: effectiveHoursData.effectiveStartTime,
       effectiveEndTime: effectiveHoursData.effectiveEndTime,
       effectiveBreakMinutes: effectiveHoursData.effectiveBreakMinutes,
+      allocatedBreakStart,
+      allocatedBreakEnd,
+      breakAllocationSource: allocatedBreakStart
+        ? overrideStart === undefined ? "midpoint_default" : "admin_override"
+        : undefined,
       policyId: policySuccess.policyId,
       policyVersion: policySuccess.policyVersion,
       policyFrozenHash: policySuccess.frozenHash,
@@ -1113,6 +1172,15 @@ export async function prepareV2InvoiceDraft(
     preparedAt: new Date().toISOString(),
     pricingProvenance: {
       assignmentIds: assignments.map((a) => a.id),
+      breakAllocations: assignmentProvenance
+        .filter((a) => a.allocatedBreakStart && a.allocatedBreakEnd && a.breakAllocationSource)
+        .map((a) => ({
+          assignmentId: a.assignmentId,
+          start: a.allocatedBreakStart!,
+          end: a.allocatedBreakEnd!,
+          minutes: a.breakMinutes,
+          source: a.breakAllocationSource!,
+        })),
       policyVersions: uniquePolicies,
       priceVersions: uniquePriceVersions,
     },

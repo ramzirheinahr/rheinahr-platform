@@ -36,14 +36,14 @@ export type EmailDispatchStatus =
   | "partially_sent_but_record_failed";
 
 /** Read-only financial review; never reserves a number or creates an invoice. */
-export async function previewOrderInvoice(assignmentIds: string[]) {
+export async function previewOrderInvoice(assignmentIds: string[], breakStartByAssignment?: Record<string, string>) {
   await requireRole("de", "admin");
   if (!Array.isArray(assignmentIds) || assignmentIds.length === 0 || assignmentIds.length > 500 ||
       assignmentIds.some((id) => typeof id !== "string" || !id)) {
     throw new Error("Ungültige Schichtauswahl für die Rechnungsprüfung.");
   }
   const { prepareV2InvoiceReview } = await import("@/lib/invoice-v2-review");
-  const review = await prepareV2InvoiceReview(assignmentIds);
+  const review = await prepareV2InvoiceReview(assignmentIds, breakStartByAssignment);
   if (!review.ok) return review;
   return {
     ok: true as const,
@@ -52,6 +52,16 @@ export async function previewOrderInvoice(assignmentIds: string[]) {
     clientName: review.draft.clientInfo.facilityName,
     period: review.draft.periodDisplay,
     items: review.draft.pdfItems,
+    breakAllocations: review.draft.provenance.assignments
+      .filter((assignment) => assignment.allocatedBreakStart && assignment.allocatedBreakEnd)
+      .map((assignment) => ({
+        assignmentId: assignment.assignmentId,
+        workerName: assignment.workerName,
+        shiftDate: assignment.shiftDate,
+        start: assignment.allocatedBreakStart!,
+        end: assignment.allocatedBreakEnd!,
+        minutes: assignment.breakMinutes,
+      })),
     subtotal: review.draft.snapshotData.subtotal,
     taxAmount: review.draft.snapshotData.taxAmount,
     total: review.draft.snapshotData.total,
@@ -424,7 +434,8 @@ export async function generateOrderInvoices(
   recipients?: string[],
   attachTimesheets: boolean = true,
   sendEmail: boolean = false,
-  expectedDraftHash?: string
+  expectedDraftHash?: string,
+  breakStartByAssignment?: Record<string, string>
 ) {
   const user = await requireRole("de", "admin");
   
@@ -441,6 +452,7 @@ export async function generateOrderInvoices(
       assignmentIds,
       customInvoiceNumber,
       expectedDraftHash,
+      breakStartByAssignment,
     });
 
     if (!issueRes.success) {

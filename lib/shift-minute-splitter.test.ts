@@ -530,6 +530,28 @@ describe("Phase 4b Engine: Shift Minute Splitting, Breaks & Surcharge Calculatio
       }
     });
 
+    it("rejects an explicit break window whose duration differs from the recorded break", () => {
+      const result = splitShiftMinutes({
+        shiftId: "shift-break-mismatch",
+        workerId: "worker-01",
+        clientId: "client-test-01",
+        qualification: "pflegefachkraft",
+        shiftDate: "2026-06-10",
+        startTime: "18:00",
+        endTime: "22:00",
+        breakMinutes: 30,
+        breakWindows: [{ start: "19:00", end: "19:15" }],
+        effectiveWorkHoursRef: {
+          effectiveHours: 3.5,
+          effectiveVersion: "scheduled-v1",
+          source: "scheduled",
+        },
+        policy: defaultPolicy,
+      });
+      expect(result.status).toBe("unresolved");
+      if (result.status === "unresolved") expect(result.code).toBe("INVALID_BREAK_DURATION");
+    });
+
     it("resolves cleanly when contractual proportional break allocation rule is documented with verified clause", () => {
       // Shift 18:00 to 22:00 (120 min day, 120 min night), breakMinutes: 30.
       // Contractual rule: "proportional".

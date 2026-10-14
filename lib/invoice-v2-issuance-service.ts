@@ -94,6 +94,7 @@ export function computeV2DraftHash(draftResult: V2InvoiceDraftResult): string {
 
 export type IssueV2InvoiceOptions = {
   assignmentIds: string[];
+  breakStartByAssignment?: Record<string, string>;
   customInvoiceNumber?: string;
   customPeriodStart?: string;
   customPeriodEnd?: string;
@@ -426,6 +427,7 @@ export async function issueV2Invoice(
       assignmentIds,
       customPeriodStart: opts.customPeriodStart,
       customPeriodEnd: opts.customPeriodEnd,
+      breakStartByAssignment: opts.breakStartByAssignment,
     },
     deps
   );
@@ -536,6 +538,7 @@ export async function issueV2Invoice(
             assignmentIds,
             customPeriodStart: opts.customPeriodStart,
             customPeriodEnd: opts.customPeriodEnd,
+            breakStartByAssignment: opts.breakStartByAssignment,
           },
           { ...deps, prisma: tx }
         );

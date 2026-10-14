@@ -961,6 +961,14 @@ export function splitShiftMinutes(
         totalBreakMinutes += matchedCount;
       }
     }
+    if (input.breakMinutes !== undefined && totalBreakMinutes !== input.breakMinutes) {
+      return {
+        status: "unresolved",
+        code: "INVALID_BREAK_DURATION",
+        message: `Dokumentierte Pause (${totalBreakMinutes} Min.) stimmt nicht mit der erfassten Pausendauer (${input.breakMinutes} Min.) überein.`,
+        diagnostics: { shiftId: input.shiftId, documentedBreakMinutes: totalBreakMinutes, recordedBreakMinutes: input.breakMinutes },
+      };
+    }
   } else if (input.breakMinutes && input.breakMinutes > 0) {
     // B. Duration-Only Break (no timestamps)
     totalBreakMinutes = input.breakMinutes;

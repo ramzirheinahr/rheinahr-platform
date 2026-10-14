@@ -2,10 +2,13 @@ import { prepareV2InvoiceDraft } from "@/lib/invoice-v2-draft-service";
 import { computeV2DraftHash } from "@/lib/invoice-v2-issuance-service";
 import type { InvoicePdfData } from "@/lib/pdf/invoice";
 
-export async function prepareV2InvoiceReview(assignmentIds: string[]) {
-  const draft = await prepareV2InvoiceDraft({ assignmentIds });
+export async function prepareV2InvoiceReview(
+  assignmentIds: string[],
+  breakStartByAssignment?: Record<string, string>
+) {
+  const draft = await prepareV2InvoiceDraft({ assignmentIds, breakStartByAssignment });
   if (draft.status !== "resolved") {
-    return { ok: false as const, code: draft.code, message: draft.message };
+    return { ok: false as const, code: draft.code, message: draft.message, diagnostics: draft.diagnostics };
   }
   return {
     ok: true as const,

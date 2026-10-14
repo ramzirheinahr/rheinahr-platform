@@ -42,9 +42,9 @@ export function OrderInvoicesBanner({
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
   const [refreshInvoiceId, setRefreshInvoiceId] = useState<string | null>(null);
 
-  const handleGenerate = async (selectedIds: string[], customInvoiceNumber?: string, _splitByShift?: boolean, expectedDraftHash?: string) => {
+  const handleGenerate = async (selectedIds: string[], customInvoiceNumber?: string, _splitByShift?: boolean, expectedDraftHash?: string, breakStartByAssignment?: Record<string, string>) => {
     try {
-      await generateOrderInvoices(selectedIds, customInvoiceNumber, undefined, true, false, expectedDraftHash);
+      await generateOrderInvoices(selectedIds, customInvoiceNumber, undefined, true, false, expectedDraftHash, breakStartByAssignment);
       toast.success("Rechnungen erfolgreich generiert!");
       router.refresh();
       return true;
