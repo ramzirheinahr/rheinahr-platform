@@ -11,9 +11,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Plus, type LucideIcon } from "lucide-react";
+import { Plus, FileText, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { toast } from "sonner";
 
 export type InvoiceReviewResult =
   | { ok: false; code: string; message: string; diagnostics?: { assignmentId?: string; breakMinutes?: number } }
@@ -77,7 +78,6 @@ export function SelectAssignmentsDialog({
   const [breakStartByAssignment, setBreakStartByAssignment] = useState<Record<string, string>>({});
   const [breakAllocations, setBreakAllocations] = useState<Extract<InvoiceReviewResult, { ok: true }>["breakAllocations"]>([]);
   const [reviewing, setReviewing] = useState(false);
-  const [accountingConfirmed, setAccountingConfirmed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const clearReview = () => {
@@ -85,7 +85,6 @@ export function SelectAssignmentsDialog({
     setReviewError(null);
     setReviewErrorCode(null);
     setReviewErrorAssignmentId(null);
-    setAccountingConfirmed(false);
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     setPdfUrl(null);
   };
@@ -139,14 +138,35 @@ export function SelectAssignmentsDialog({
 
   const handleSubmit = async () => {
     if (selectedIds.size === 0) return;
-    if (requiresReview && (!review || !pdfUrl || !accountingConfirmed)) return;
     setSubmitting(true);
     try {
-      const completed = await onSubmit(Array.from(selectedIds), customInvoiceNumber, splitByShift, review?.draftHash, breakStartByAssignment);
+      let draftHash = review?.draftHash;
+      if (requiresReview && !draftHash) {
+        const selected = Array.from(selectedIds);
+        const response = await fetch("/api/invoices/v2-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ assignmentIds: selected, breakStartByAssignment }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || "Vorschau konnte nicht berechnet werden.");
+        }
+        draftHash = payload.draftHash;
+      }
+      const completed = await onSubmit(
+        Array.from(selectedIds),
+        customInvoiceNumber,
+        splitByShift,
+        draftHash,
+        breakStartByAssignment
+      );
       if (completed !== false) {
         setOpen(false);
         clearReview();
       }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fehler bei der Rechnungserstellung");
     } finally {
       setSubmitting(false);
     }
@@ -200,13 +220,13 @@ export function SelectAssignmentsDialog({
         <Icon className="size-4 mr-2" />
         {buttonLabel}
       </DialogTrigger>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-[450px]">
-        <DialogHeader>
+      <DialogContent className="flex flex-col max-h-[85vh] sm:max-w-[480px]">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
         <div className="py-2">
           {workers.length > 1 && (
             <div className="mb-2 flex items-center justify-between pb-2 border-b">
@@ -369,30 +389,27 @@ export function SelectAssignmentsDialog({
               </div>
             )}
             {review && pdfUrl && (
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold">{reviewText("draftNotice")}</p>
-                <p>{review.clientName} · {review.period}</p>
-                <div className="max-h-40 overflow-auto border rounded p-2">
-                  {review.items.map((item) => <p key={item.pos}>{item.pos}. {item.description} · {item.hours} × {item.rate} € = {item.amount}</p>)}
-                </div>
-                <p>{reviewText("net")}: {review.subtotal} · {reviewText("tax")}: {review.taxAmount} · {reviewText("gross")}: {review.total}</p>
-                {Object.keys(breakStartByAssignment).length > 0 && <p className="text-amber-800">Pausenzeiten wurden manuell für diese Vorschau erfasst. Bitte mit den Leistungsnachweisen abgleichen.</p>}
-                <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">{reviewText("openPdf")}</a>
-                <label className="flex items-start gap-2">
-                  <input type="checkbox" checked={accountingConfirmed} onChange={(e) => setAccountingConfirmed(e.target.checked)} />
-                  <span>{reviewText("accountingConfirmed")}</span>
-                </label>
+              <div className="pt-2">
+                <a
+                  href={pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 underline"
+                >
+                  <FileText className="size-4" />
+                  {reviewText("openPdf")}
+                </a>
               </div>
             )}
           </div>
         )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 pt-3 border-t mt-2">
           <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
             Abbrechen
           </Button>
-          <Button onClick={handleSubmit} disabled={selectedIds.size === 0 || submitting || reviewing || (!!requiresReview && (!review || !pdfUrl || !accountingConfirmed))}>
+          <Button onClick={handleSubmit} disabled={selectedIds.size === 0 || submitting || reviewing}>
             {submitting ? "Wird ausgeführt..." : submitLabel}
           </Button>
         </DialogFooter>

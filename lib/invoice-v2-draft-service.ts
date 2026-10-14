@@ -46,7 +46,11 @@ import {
   type ResolvedSurchargePolicy,
   type ResolvedSurchargePolicySuccess,
 } from "./surcharge-policy";
-import { getAssignmentEffectiveWorkHours } from "./confirmation-evidence-service";
+import {
+  getAssignmentEffectiveWorkHours,
+  computeAssignmentEffectiveVersion,
+} from "./confirmation-evidence-service";
+import { netShiftHours } from "./pricing";
 import { resolveClientPriceVersion } from "./client-price-resolver";
 import { describeV2LineWithWorker } from "./invoice-v2-line-description";
 import { prisma } from "./prisma";
@@ -511,12 +515,162 @@ export async function prepareV2InvoiceDraft(
   // in series. Results remain consumed in the deterministic assignment order.
   const effectiveHoursById = new Map<string, PromiseSettledResult<Awaited<ReturnType<typeof getAssignmentEffectiveWorkHours>>>>();
   if (!deps?.effectiveHoursResolver) {
-    for (let offset = 0; offset < assignments.length; offset += 8) {
-      const batch = assignments.slice(offset, offset + 8);
-      const results = await Promise.allSettled(
-        batch.map((assignment) => getAssignmentEffectiveWorkHours(assignment.id, tx))
-      );
-      batch.forEach((assignment, index) => effectiveHoursById.set(assignment.id, results[index]));
+    try {
+      // Single database query for all approved corrections across the entire batch
+      const approvedCorrections = await tx.workHoursCorrectionRequest.findMany({
+        where: {
+          assignmentId: { in: assignments.map((a) => a.id) },
+          status: "approved",
+        },
+        orderBy: [
+          { revision: "desc" },
+          { decidedAt: "desc" },
+          { requestedAt: "desc" },
+          { id: "desc" },
+        ],
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const latestApprovedByAssignmentId = new Map<string, any>();
+      for (const corr of approvedCorrections) {
+        if (!latestApprovedByAssignmentId.has(corr.assignmentId)) {
+          latestApprovedByAssignmentId.set(corr.assignmentId, corr);
+        }
+      }
+
+      for (const assignment of assignments) {
+        const approvedCorrection = latestApprovedByAssignmentId.get(assignment.id) || null;
+        const scheduledHours = netShiftHours(
+          assignment.order.startTime,
+          assignment.order.endTime,
+          assignment.order.breakMinutes
+        );
+
+        const baselineHours =
+          assignment.serviceConfirmation?.hoursWorked != null
+            ? Number(assignment.serviceConfirmation.hoursWorked)
+            : scheduledHours;
+
+        const effectiveVersion = computeAssignmentEffectiveVersion(
+          assignment.id,
+          approvedCorrection,
+          assignment.serviceConfirmation,
+          assignment.order
+        );
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let effectiveData: any;
+        if (approvedCorrection) {
+          effectiveData = {
+            assignmentId: assignment.id,
+            effectiveHours: Number(approvedCorrection.proposedHoursWorked),
+            effectiveStartTime: approvedCorrection.proposedStartTime || assignment.order.startTime,
+            effectiveEndTime: approvedCorrection.proposedEndTime || assignment.order.endTime,
+            effectiveBreakMinutes:
+              approvedCorrection.proposedBreakMinutes ?? assignment.order.breakMinutes,
+            source: "approved_correction",
+            effectiveVersion,
+            isCorrected: true,
+            baselineHours,
+            approvedCorrection: {
+              id: approvedCorrection.id,
+              documentId: approvedCorrection.documentId,
+              baseVersion: approvedCorrection.baseVersion || null,
+              revision: approvedCorrection.revision ?? 1,
+              status: approvedCorrection.status,
+              previousHoursWorked:
+                approvedCorrection.previousHoursWorked != null
+                  ? Number(approvedCorrection.previousHoursWorked)
+                  : null,
+              proposedHoursWorked: Number(approvedCorrection.proposedHoursWorked),
+              proposedStartTime: approvedCorrection.proposedStartTime,
+              proposedEndTime: approvedCorrection.proposedEndTime,
+              proposedBreakMinutes: approvedCorrection.proposedBreakMinutes,
+              reason: approvedCorrection.reason,
+              requestedById: approvedCorrection.requestedById,
+              requestedAt: approvedCorrection.requestedAt instanceof Date ? approvedCorrection.requestedAt.toISOString() : String(approvedCorrection.requestedAt),
+              decidedById: approvedCorrection.decidedById,
+              decidedAt: approvedCorrection.decidedAt
+                ? (approvedCorrection.decidedAt instanceof Date ? approvedCorrection.decidedAt.toISOString() : String(approvedCorrection.decidedAt))
+                : null,
+              decisionNote: approvedCorrection.decisionNote,
+            },
+          };
+        } else if (assignment.serviceConfirmation?.hoursWorked != null) {
+          effectiveData = {
+            assignmentId: assignment.id,
+            effectiveHours: Number(assignment.serviceConfirmation.hoursWorked),
+            effectiveStartTime: assignment.order.startTime,
+            effectiveEndTime: assignment.order.endTime,
+            effectiveBreakMinutes: assignment.order.breakMinutes,
+            source: "service_confirmation",
+            effectiveVersion,
+            isCorrected: false,
+            baselineHours,
+            approvedCorrection: null,
+          };
+        } else {
+          effectiveData = {
+            assignmentId: assignment.id,
+            effectiveHours: scheduledHours,
+            effectiveStartTime: assignment.order.startTime,
+            effectiveEndTime: assignment.order.endTime,
+            effectiveBreakMinutes: assignment.order.breakMinutes,
+            source: "scheduled",
+            effectiveVersion,
+            isCorrected: false,
+            baselineHours,
+            approvedCorrection: null,
+          };
+        }
+
+        effectiveHoursById.set(assignment.id, {
+          status: "fulfilled",
+          value: effectiveData,
+        });
+      }
+    } catch (batchErr) {
+      console.error("Batch effective hours failed:", batchErr);
+      // Fallback to individual reads if batch query fails
+      for (let offset = 0; offset < assignments.length; offset += 8) {
+        const batch = assignments.slice(offset, offset + 8);
+        const results = await Promise.allSettled(
+          batch.map((assignment) => getAssignmentEffectiveWorkHours(assignment.id, tx))
+        );
+        batch.forEach((assignment, index) => effectiveHoursById.set(assignment.id, results[index]));
+      }
+    }
+  }
+  // Preload all frozen surcharge policies and hourly rate versions for this client once.
+  // This collapses N * 6 sequential round-trips over the remote pooler into 2 fast reads.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let preloadedPolicies: any[] | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let preloadedRates: any[] | null = null;
+
+  if (!deps?.facilityPolicyResolver) {
+    try {
+      preloadedPolicies = await tx.facilitySurchargePolicy.findMany({
+        where: {
+          clientId,
+          isFrozen: true,
+        },
+      });
+    } catch {
+      preloadedPolicies = null;
+    }
+  }
+
+  if (!deps?.priceVersionResolver) {
+    try {
+      preloadedRates = await tx.clientHourlyRateVersion.findMany({
+        where: { clientId },
+        include: {
+          verifiedByUser: { select: { id: true, fullName: true, email: true } },
+        },
+      });
+    } catch {
+      preloadedRates = null;
     }
   }
 
@@ -616,17 +770,37 @@ export async function prepareV2InvoiceDraft(
     } else {
       // Direct database resolution for frozen policy with strict ambiguity check
       try {
-        const matchingPolicies = await tx.facilitySurchargePolicy.findMany({
-          where: {
-            clientId,
-            effectiveFrom: { lte: new Date(shiftDateIso) },
-            OR: [
-              { effectiveTo: null },
-              { effectiveTo: { gte: new Date(shiftDateIso) } },
-            ],
-            isFrozen: true,
-          },
-        });
+        const queryPolicies = async (targetDateIso: string) => {
+          if (preloadedPolicies) {
+            const targetDate = new Date(targetDateIso);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return preloadedPolicies.filter((p: any) => {
+              if (p.clientId && p.clientId !== clientId) return false;
+              if (p.isFrozen === false) return false;
+              const from = p.effectiveFrom instanceof Date ? p.effectiveFrom : new Date(p.effectiveFrom);
+              if (from > targetDate) return false;
+              if (p.effectiveTo) {
+                const to = p.effectiveTo instanceof Date ? p.effectiveTo : new Date(p.effectiveTo);
+                if (to < targetDate) return false;
+              }
+              return true;
+            });
+          }
+
+          return await tx.facilitySurchargePolicy.findMany({
+            where: {
+              clientId,
+              effectiveFrom: { lte: new Date(targetDateIso) },
+              OR: [
+                { effectiveTo: null },
+                { effectiveTo: { gte: new Date(targetDateIso) } },
+              ],
+              isFrozen: true,
+            },
+          });
+        };
+
+        const matchingPolicies = await queryPolicies(shiftDateIso);
 
         if (matchingPolicies.length > 1) {
           return {
@@ -647,17 +821,7 @@ export async function prepareV2InvoiceDraft(
           const policyRecord = matchingPolicies[0];
 
           if (spansIntoNextDay) {
-            const matchingPoliciesEnd = await tx.facilitySurchargePolicy.findMany({
-              where: {
-                clientId,
-                effectiveFrom: { lte: new Date(endShiftDateIso) },
-                OR: [
-                  { effectiveTo: null },
-                  { effectiveTo: { gte: new Date(endShiftDateIso) } },
-                ],
-                isFrozen: true,
-              },
-            });
+            const matchingPoliciesEnd = await queryPolicies(endShiftDateIso);
 
             if (matchingPoliciesEnd.length > 1) {
               return {
@@ -794,6 +958,7 @@ export async function prepareV2InvoiceDraft(
         contractId: assignment.contractId,
         spansIntoNextDay,
         endShiftDateIso,
+        preloadedRates: preloadedRates ?? undefined,
       });
 
       if (resolvedDbPrice.status !== "resolved") {

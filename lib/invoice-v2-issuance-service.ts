@@ -693,7 +693,7 @@ export async function issueV2Invoice(
       },
       {
         isolationLevel: "Serializable",
-        timeout: 15000,
+        timeout: 30000,
       }
     );
 

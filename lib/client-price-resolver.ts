@@ -30,6 +30,8 @@ export type ResolveClientPriceVersionParams = {
   contractId?: string | null;
   spansIntoNextDay?: boolean;
   endShiftDateIso?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  preloadedRates?: any[];
 };
 
 export type ResolveClientPriceVersionSuccess = {
@@ -124,7 +126,7 @@ export function computeRateVersionCanonicalHash(terms: {
 export async function resolveClientPriceVersion(
   params: ResolveClientPriceVersionParams
 ): Promise<ResolveClientPriceVersionResult> {
-  const { prisma, clientId, qualification, shiftDateIso, contractId, spansIntoNextDay, endShiftDateIso } =
+  const { prisma, clientId, qualification, shiftDateIso, contractId, spansIntoNextDay, endShiftDateIso, preloadedRates } =
     params;
 
   if (!isValidIsoDateString(shiftDateIso)) {
@@ -140,22 +142,50 @@ export async function resolveClientPriceVersion(
   const cleanQual = qualification.trim().toLowerCase();
   const cleanContractId = contractId?.trim() || null;
 
-  try {
-    let matchingRates = await prisma.clientHourlyRateVersion.findMany({
+  const queryRates = async (
+    targetContractId: string | null,
+    sourceTypeSettingOnly: boolean,
+    targetDateIso: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any[]> => {
+    if (preloadedRates) {
+      const d = new Date(targetDateIso);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return preloadedRates.filter((r: any) => {
+        if (r.clientId !== cleanClientId) return false;
+        if (r.clientContractId !== targetContractId) return false;
+        if (sourceTypeSettingOnly && r.sourceType !== "setting") return false;
+        if (r.qualification.trim().toLowerCase() !== cleanQual) return false;
+        const from = r.effectiveFrom instanceof Date ? r.effectiveFrom : new Date(r.effectiveFrom);
+        if (from > d) return false;
+        if (r.effectiveTo) {
+          const to = r.effectiveTo instanceof Date ? r.effectiveTo : new Date(r.effectiveTo);
+          if (to < d) return false;
+        }
+        return true;
+      });
+    }
+
+    return await prisma.clientHourlyRateVersion.findMany({
       where: {
         clientId: cleanClientId,
-        clientContractId: cleanContractId,
+        clientContractId: targetContractId,
+        ...(sourceTypeSettingOnly ? { sourceType: "setting" } : {}),
         qualification: { equals: cleanQual, mode: "insensitive" },
-        effectiveFrom: { lte: new Date(shiftDateIso) },
+        effectiveFrom: { lte: new Date(targetDateIso) },
         OR: [
           { effectiveTo: null },
-          { effectiveTo: { gte: new Date(shiftDateIso) } },
+          { effectiveTo: { gte: new Date(targetDateIso) } },
         ],
       },
       include: {
         verifiedByUser: { select: { id: true, fullName: true, email: true } },
       },
     });
+  };
+
+  try {
+    let matchingRates = await queryRates(cleanContractId, false, shiftDateIso);
 
     // The existing client profile is client-wide. Its explicitly approved,
     // immutable V2 copy can cover a contract-bound shift only when no
@@ -163,22 +193,7 @@ export async function resolveClientPriceVersion(
     // values or an unverified general "contract" rate as a fallback.
     let usingClientWideSetting = false;
     if (matchingRates.length === 0 && cleanContractId) {
-      matchingRates = await prisma.clientHourlyRateVersion.findMany({
-        where: {
-          clientId: cleanClientId,
-          clientContractId: null,
-          sourceType: "setting",
-          qualification: { equals: cleanQual, mode: "insensitive" },
-          effectiveFrom: { lte: new Date(shiftDateIso) },
-          OR: [
-            { effectiveTo: null },
-            { effectiveTo: { gte: new Date(shiftDateIso) } },
-          ],
-        },
-        include: {
-          verifiedByUser: { select: { id: true, fullName: true, email: true } },
-        },
-      });
+      matchingRates = await queryRates(null, true, shiftDateIso);
       usingClientWideSetting = true;
     }
 
@@ -344,19 +359,11 @@ export async function resolveClientPriceVersion(
       }
 
       // Check for conflicting or overlapping rate records at shift end
-      const matchingRatesEnd = await prisma.clientHourlyRateVersion.findMany({
-        where: {
-          clientId: cleanClientId,
-          clientContractId: usingClientWideSetting ? null : cleanContractId,
-          ...(usingClientWideSetting ? { sourceType: "setting" } : {}),
-          qualification: { equals: cleanQual, mode: "insensitive" },
-          effectiveFrom: { lte: new Date(endShiftDateIso) },
-          OR: [
-            { effectiveTo: null },
-            { effectiveTo: { gte: new Date(endShiftDateIso) } },
-          ],
-        },
-      });
+      const matchingRatesEnd = await queryRates(
+        usingClientWideSetting ? null : cleanContractId,
+        usingClientWideSetting,
+        endShiftDateIso
+      );
 
       if (matchingRatesEnd.length > 1) {
         return {
@@ -386,18 +393,7 @@ export async function resolveClientPriceVersion(
       }
 
       if (usingClientWideSetting) {
-        const contractRatesAtEnd = await prisma.clientHourlyRateVersion.findMany({
-          where: {
-            clientId: cleanClientId,
-            clientContractId: cleanContractId,
-            qualification: { equals: cleanQual, mode: "insensitive" },
-            effectiveFrom: { lte: new Date(endShiftDateIso) },
-            OR: [
-              { effectiveTo: null },
-              { effectiveTo: { gte: new Date(endShiftDateIso) } },
-            ],
-          },
-        });
+        const contractRatesAtEnd = await queryRates(cleanContractId, false, endShiftDateIso);
         if (contractRatesAtEnd.length > 0) {
           return {
             status: "unresolved",

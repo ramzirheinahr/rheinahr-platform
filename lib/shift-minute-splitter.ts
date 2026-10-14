@@ -774,14 +774,10 @@ export function splitShiftMinutes(
       if (currDateIso === targetEndDateIso && currMinuteOfDay === targetEndMinuteOfDay) {
         break;
       }
-      const [y, m, d] = currDateIso.split("-").map(Number);
-      const h = Math.floor(currMinuteOfDay / 60);
-      const min = currMinuteOfDay % 60;
-      const wallRes = resolveWallTimeToUtc(y, m, d, h, min, tz);
-
+      const currentIdx = minuteIdx++;
       minutes.push({
-        minuteIndex: minuteIdx++,
-        utcMs: wallRes.utcMs,
+        minuteIndex: currentIdx,
+        utcMs: startUtcMs + currentIdx * 60000,
         dateIso: currDateIso,
         minuteOfDay: currMinuteOfDay,
         isBreak: false,
