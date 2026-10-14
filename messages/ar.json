@@ -1350,6 +1350,9 @@
     "markedUnpaid": "تمت إعادة الفاتورة إلى حالة غير مدفوعة.",
     "statusUpdateError": "تعذر تحديث حالة الفاتورة.",
     "downloadAllPdf": "تحميل جميع الفواتير (PDF)",
+    "downloadingAllPdf": "جاري دمج ملفات PDF …",
+    "bulkDownloadSuccess": "تم تحميل ملف PDF المجمع بنجاح.",
+    "bulkDownloadError": "حدث خطأ أثناء تحميل ملف PDF المجمع.",
     "createInvoice": "إنشاء فاتورة",
     "invoiceCreatedSuccess": "تم إنشاء الفاتورة بنجاح!",
     "tabs": {

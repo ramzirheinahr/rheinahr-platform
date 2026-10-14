@@ -7,7 +7,7 @@ import { format } from "@/lib/date-utils";
 import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail, Edit3, Send, Download } from "lucide-react";
+import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail, Edit3, Send, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
 import { cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
@@ -28,6 +28,7 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
+  const [downloadingBulk, setDownloadingBulk] = useState(false);
 
   // Sorting state
   const [sortConfig, setSortConfig] = useState<{
@@ -89,7 +90,46 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
   const from = searchParams.get("from") || "";
   const to = searchParams.get("to") || "";
   const q = searchParams.get("q") || "";
-  const bulkPdfUrl = `/api/invoices/bulk-pdf?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&q=${encodeURIComponent(q)}`;
+
+  const ids = useMemo(() => {
+    return invoices.map((i) => i.id).filter(Boolean);
+  }, [invoices]);
+
+  const bulkPdfUrl = useMemo(() => {
+    if (ids.length > 0 && ids.length <= 100) {
+      return `/api/invoices/bulk-pdf?ids=${encodeURIComponent(ids.join(","))}`;
+    }
+    const defFrom = "2026-07-01";
+    const effectiveFrom = from || defFrom;
+    return `/api/invoices/bulk-pdf?from=${encodeURIComponent(effectiveFrom)}&to=${encodeURIComponent(to)}&q=${encodeURIComponent(q)}`;
+  }, [ids, from, to, q]);
+
+  const handleDownloadBulk = async () => {
+    if (invoices.length === 0 || downloadingBulk) return;
+    setDownloadingBulk(true);
+    try {
+      const res = await fetch(bulkPdfUrl);
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || t("bulkDownloadError"));
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Rechnungen_${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(t("bulkDownloadSuccess"));
+    } catch (e: unknown) {
+      console.error("Bulk PDF download error:", e);
+      toast.error((e as Error).message || t("bulkDownloadError"));
+    } finally {
+      setDownloadingBulk(false);
+    }
+  };
 
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
@@ -291,11 +331,16 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
         <Button
           variant="outline"
           size="sm"
+          disabled={downloadingBulk || invoices.length === 0}
           className="gap-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 self-start sm:self-auto shadow-xs"
-          onClick={() => window.open(bulkPdfUrl, "_blank")}
+          onClick={handleDownloadBulk}
         >
-          <Download className="size-4 text-emerald-600" />
-          <span>{t("downloadAllPdf")}</span>
+          {downloadingBulk ? (
+            <Loader2 className="size-4 animate-spin text-emerald-600" />
+          ) : (
+            <Download className="size-4 text-emerald-600" />
+          )}
+          <span>{downloadingBulk ? t("downloadingAllPdf") : t("downloadAllPdf")}</span>
         </Button>
       </div>
 

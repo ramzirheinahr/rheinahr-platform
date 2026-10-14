@@ -1348,6 +1348,9 @@
     "markedUnpaid": "Invoice reset to unpaid.",
     "statusUpdateError": "The invoice status could not be updated.",
     "downloadAllPdf": "Download all invoices (PDF)",
+    "downloadingAllPdf": "Merging PDFs …",
+    "bulkDownloadSuccess": "Bulk PDF downloaded successfully.",
+    "bulkDownloadError": "Error downloading bulk PDF.",
     "createInvoice": "Create Invoice",
     "invoiceCreatedSuccess": "Invoice created successfully!",
     "tabs": {

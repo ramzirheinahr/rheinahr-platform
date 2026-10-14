@@ -1348,6 +1348,9 @@
     "markedUnpaid": "Rechnung wurde wieder als unbezahlt markiert.",
     "statusUpdateError": "Der Rechnungsstatus konnte nicht aktualisiert werden.",
     "downloadAllPdf": "Alle Rechnungen herunterladen (PDF)",
+    "downloadingAllPdf": "PDFs werden zusammengeführt …",
+    "bulkDownloadSuccess": "Sammel-PDF erfolgreich heruntergeladen.",
+    "bulkDownloadError": "Fehler beim Herunterladen der Sammel-PDF.",
     "createInvoice": "Rechnung erstellen",
     "invoiceCreatedSuccess": "Rechnung erfolgreich erstellt!",
     "tabs": {

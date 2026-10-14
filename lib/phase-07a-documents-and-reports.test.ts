@@ -1121,6 +1121,42 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
         }
       }
     });
+
+    it("Test 5d: Bulk PDF supports ids parameter and falls back cleanly for historical invoices with linked assignments", async () => {
+      (getCurrentUser as any).mockResolvedValue({ id: "admin-user", role: "admin" });
+
+      const historicalFallbackInvoice = {
+        id: "inv-hist-bulk-fallback",
+        invoiceNumber: "RE-2026-FALLBACK",
+        status: "unpaid",
+        date: new Date("2026-08-01"),
+        netAmount: 100.0,
+        vatAmount: 19.0,
+        grossAmount: 119.0,
+        pdfUrl: null,
+        client: { id: "c-1", facilityName: "Seniorenheim Fallback", address: "Musterstr. 1" },
+        assignments: [
+          {
+            id: "as-1",
+            worker: { id: "w-1", fullName: "Worker One" },
+            order: { id: "ord-1", shiftDate: new Date("2026-08-01"), startTime: "08:00", endTime: "16:00" },
+          },
+        ],
+        snapshotData: {
+          calculationVersion: "v1",
+        },
+      };
+
+      (prisma.invoice.findMany as any).mockResolvedValue([historicalFallbackInvoice]);
+
+      const res = await getBulkPdfRoute(
+        new Request("http://localhost/api/invoices/bulk-pdf?ids=inv-hist-bulk-fallback")
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("application/pdf");
+      expect(res.headers.get("Content-Disposition")).toContain("Rechnungen_");
+    });
   });
 
   describe("5. Hours Account Integration with Approved Corrections", () => {
