@@ -166,7 +166,12 @@ export function SelectAssignmentsDialog({
         clearReview();
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Fehler bei der Rechnungserstellung");
+      const rawMsg = err instanceof Error ? err.message : "";
+      const isMaskedNextError = rawMsg.includes("Server Components render") || rawMsg.includes("digest");
+      const userMessage = isMaskedNextError
+        ? "Fehler bei der Rechnungserstellung. Bitte versuchen Sie es erneut."
+        : rawMsg || "Fehler bei der Rechnungserstellung";
+      toast.error(userMessage);
     } finally {
       setSubmitting(false);
     }

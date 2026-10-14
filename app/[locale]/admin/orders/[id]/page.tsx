@@ -14,6 +14,7 @@ import { ScheduleSkeleton } from "@/components/admin/skeletons/schedule-skeleton
 import { OrderDetailContent } from "./components/order-detail-content";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export default async function AdminRequestDetail({
   params,

@@ -11,6 +11,7 @@ import {
 } from "@/lib/invoicing";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;

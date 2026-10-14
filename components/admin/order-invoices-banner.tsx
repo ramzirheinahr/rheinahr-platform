@@ -49,7 +49,12 @@ export function OrderInvoicesBanner({
       router.refresh();
       return true;
     } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Generieren der Rechnung");
+      const rawMsg = (e as Error)?.message || "";
+      const isMaskedNextError = rawMsg.includes("Server Components render") || rawMsg.includes("digest");
+      const userMessage = isMaskedNextError
+        ? "Fehler beim Generieren der Rechnung. Bitte versuchen Sie es erneut."
+        : rawMsg || "Fehler beim Generieren der Rechnung";
+      toast.error(userMessage);
       return false;
     }
   };

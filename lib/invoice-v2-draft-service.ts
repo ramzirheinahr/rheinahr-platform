@@ -514,21 +514,47 @@ export async function prepareV2InvoiceDraft(
   // them in bounded batches so a month of shifts does not wait for every pair
   // in series. Results remain consumed in the deterministic assignment order.
   const effectiveHoursById = new Map<string, PromiseSettledResult<Awaited<ReturnType<typeof getAssignmentEffectiveWorkHours>>>>();
+  // Preload approved corrections, surcharge policies, and hourly rates in PARALLEL.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let preloadedPolicies: any[] | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let preloadedRates: any[] | null = null;
+
   if (!deps?.effectiveHoursResolver) {
     try {
-      // Single database query for all approved corrections across the entire batch
-      const approvedCorrections = await tx.workHoursCorrectionRequest.findMany({
-        where: {
-          assignmentId: { in: assignments.map((a) => a.id) },
-          status: "approved",
-        },
-        orderBy: [
-          { revision: "desc" },
-          { decidedAt: "desc" },
-          { requestedAt: "desc" },
-          { id: "desc" },
-        ],
-      });
+      const [approvedCorrections, policiesRes, ratesRes] = await Promise.all([
+        tx.workHoursCorrectionRequest.findMany({
+          where: {
+            assignmentId: { in: assignments.map((a) => a.id) },
+            status: "approved",
+          },
+          orderBy: [
+            { revision: "desc" },
+            { decidedAt: "desc" },
+            { requestedAt: "desc" },
+            { id: "desc" },
+          ],
+        }),
+        !deps?.facilityPolicyResolver
+          ? tx.facilitySurchargePolicy.findMany({
+              where: {
+                clientId,
+                isFrozen: true,
+              },
+            }).catch(() => null)
+          : Promise.resolve(null),
+        !deps?.priceVersionResolver
+          ? tx.clientHourlyRateVersion.findMany({
+              where: { clientId },
+              include: {
+                verifiedByUser: { select: { id: true, fullName: true, email: true } },
+              },
+            }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+      preloadedPolicies = policiesRes;
+      preloadedRates = ratesRes;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const latestApprovedByAssignmentId = new Map<string, any>();
@@ -640,38 +666,25 @@ export async function prepareV2InvoiceDraft(
         batch.forEach((assignment, index) => effectiveHoursById.set(assignment.id, results[index]));
       }
     }
-  }
-  // Preload all frozen surcharge policies and hourly rate versions for this client once.
-  // This collapses N * 6 sequential round-trips over the remote pooler into 2 fast reads.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let preloadedPolicies: any[] | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let preloadedRates: any[] | null = null;
-
-  if (!deps?.facilityPolicyResolver) {
-    try {
-      preloadedPolicies = await tx.facilitySurchargePolicy.findMany({
-        where: {
-          clientId,
-          isFrozen: true,
-        },
-      });
-    } catch {
-      preloadedPolicies = null;
-    }
-  }
-
-  if (!deps?.priceVersionResolver) {
-    try {
-      preloadedRates = await tx.clientHourlyRateVersion.findMany({
-        where: { clientId },
-        include: {
-          verifiedByUser: { select: { id: true, fullName: true, email: true } },
-        },
-      });
-    } catch {
-      preloadedRates = null;
-    }
+  } else {
+    // If effectiveHoursResolver was provided, preload policies and rates separately
+    const [policiesRes, ratesRes] = await Promise.all([
+      !deps?.facilityPolicyResolver
+        ? tx.facilitySurchargePolicy.findMany({
+            where: { clientId, isFrozen: true },
+          }).catch(() => null)
+        : Promise.resolve(null),
+      !deps?.priceVersionResolver
+        ? tx.clientHourlyRateVersion.findMany({
+            where: { clientId },
+            include: {
+              verifiedByUser: { select: { id: true, fullName: true, email: true } },
+            },
+          }).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    preloadedPolicies = policiesRes;
+    preloadedRates = ratesRes;
   }
 
   for (const assignment of assignments) {

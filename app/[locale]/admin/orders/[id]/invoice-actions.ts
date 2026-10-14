@@ -26,6 +26,21 @@ import {
 
 const VAT_RATE = 0.19;
 
+function revalidateInvoicePaths(requestGroupId?: string | null) {
+  try {
+    revalidatePath("/admin/invoicing");
+    revalidatePath("/admin/orders");
+    if (requestGroupId) {
+      revalidatePath(`/admin/orders/${requestGroupId}`);
+      revalidatePath(`/client/orders/${requestGroupId}`);
+    }
+    revalidatePath("/client/orders");
+    revalidatePath("/client/invoices");
+  } catch (err) {
+    console.error("Fehler bei gezielter Revalidierung:", err);
+  }
+}
+
 export type EmailDispatchStatus =
   | "not_requested"
   | "no_eligible_recipients"
@@ -242,6 +257,8 @@ export async function deleteInvoice(_invoiceId: string): Promise<never> {
 export async function cancelInvoice(invoiceId: string) {
   const user = await requireRole("de", "admin");
 
+  let targetRequestGroupId: string | null = null;
+
   // Atomic transaction: verify status, release assignments, update invoice status & snapshotData, AND write audit log
   await prisma.$transaction(async (tx) => {
     // 0. Ensure audit log capability exists in this transaction context (fail-closed)
@@ -263,7 +280,12 @@ export async function cancelInvoice(invoiceId: string) {
       where: { id: invoiceId },
       include: {
         assignments: {
-          select: { id: true, workerId: true, orderId: true },
+          select: {
+            id: true,
+            workerId: true,
+            orderId: true,
+            order: { select: { requestGroupId: true } },
+          },
         },
       },
     });
@@ -271,6 +293,8 @@ export async function cancelInvoice(invoiceId: string) {
     if (!invoice) {
       throw new Error("Rechnung nicht gefunden.");
     }
+
+    targetRequestGroupId = invoice.assignments[0]?.order?.requestGroupId ?? null;
 
     // Guard: Prevent double-cancellation and tampering with cancellation history / audit logs
     if (invoice.status === "cancelled") {
@@ -356,7 +380,7 @@ export async function cancelInvoice(invoiceId: string) {
     });
   });
 
-  revalidatePath("/", "layout");
+  revalidateInvoicePaths(targetRequestGroupId);
 }
 
 export async function previewInvoiceRefresh(
@@ -378,7 +402,7 @@ export async function confirmInvoiceRefresh(
     reason,
     performedByUserId: user.id,
   });
-  revalidatePath("/", "layout");
+  revalidateInvoicePaths();
   return result;
 }
 
@@ -581,7 +605,7 @@ export async function generateOrderInvoices(
       }
     }
 
-    revalidatePath("/", "layout");
+    revalidateInvoicePaths(requestGroupId);
     return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport, notificationStatus };
   }
 
@@ -822,7 +846,7 @@ export async function generateOrderInvoices(
     }
   }
 
-  revalidatePath("/", "layout");
+  revalidateInvoicePaths(requestGroupId);
   return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport };
 }
 
