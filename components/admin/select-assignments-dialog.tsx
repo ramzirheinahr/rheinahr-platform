@@ -47,7 +47,7 @@ export function SelectAssignmentsDialog({
   buttonLabel,
   buttonClassName,
   showSplitOption,
-  onPreview,
+  requiresReview,
   onSubmit,
   clientId,
 }: {
@@ -59,7 +59,7 @@ export function SelectAssignmentsDialog({
   buttonLabel: string;
   buttonClassName?: string;
   showSplitOption?: boolean;
-  onPreview?: (selectedIds: string[], breakStartByAssignment?: Record<string, string>) => Promise<InvoiceReviewResult>;
+  requiresReview?: boolean;
   onSubmit: (selectedIds: string[], customInvoiceNumber?: string, splitByShift?: boolean, expectedDraftHash?: string, breakStartByAssignment?: Record<string, string>) => Promise<void | boolean>;
   clientId?: string;
 }) {
@@ -139,7 +139,7 @@ export function SelectAssignmentsDialog({
 
   const handleSubmit = async () => {
     if (selectedIds.size === 0) return;
-    if (onPreview && (!review || !pdfUrl || !accountingConfirmed)) return;
+    if (requiresReview && (!review || !pdfUrl || !accountingConfirmed)) return;
     setSubmitting(true);
     try {
       const completed = await onSubmit(Array.from(selectedIds), customInvoiceNumber, splitByShift, review?.draftHash, breakStartByAssignment);
@@ -153,12 +153,23 @@ export function SelectAssignmentsDialog({
   };
 
   const handlePreview = async () => {
-    if (!onPreview || selectedIds.size === 0) return;
+    if (!requiresReview || selectedIds.size === 0) return;
     clearReview();
     setReviewing(true);
     try {
       const selected = Array.from(selectedIds);
-      const result = await onPreview(selected, breakStartByAssignment);
+      const response = await fetch("/api/invoices/v2-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ assignmentIds: selected, breakStartByAssignment }),
+      });
+      const payload = await response.json();
+      const result: InvoiceReviewResult = response.ok ? payload : {
+        ok: false,
+        code: payload.error ?? "PREVIEW_FAILED",
+        message: payload.message ?? reviewText("previewFailed"),
+        diagnostics: payload.diagnostics,
+      };
       if (!result.ok) {
         setReviewErrorCode(result.code);
         setReviewErrorAssignmentId(result.diagnostics?.assignmentId ?? null);
@@ -171,13 +182,9 @@ export function SelectAssignmentsDialog({
         }
         return;
       }
-      const response = await fetch("/api/invoices/v2-preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignmentIds: selected, expectedDraftHash: result.draftHash, breakStartByAssignment }),
-      });
-      if (!response.ok) throw new Error(reviewText("previewChanged"));
-      setPdfUrl(URL.createObjectURL(await response.blob()));
+      if (typeof payload.pdfBase64 !== "string") throw new Error(reviewText("previewFailed"));
+      const pdfBytes = Uint8Array.from(atob(payload.pdfBase64), (char) => char.charCodeAt(0));
+      setPdfUrl(URL.createObjectURL(new Blob([pdfBytes], { type: "application/pdf" })));
       setReview(result);
       setBreakAllocations(result.breakAllocations);
     } catch (error) {
@@ -301,7 +308,7 @@ export function SelectAssignmentsDialog({
           </div>
         )}
 
-        {onPreview && (
+        {requiresReview && (
           <div className="space-y-3 rounded-md border p-3">
             <Button type="button" variant="outline" onClick={handlePreview} disabled={reviewing || submitting || selectedIds.size === 0}>
               {reviewing ? reviewText("loading") : reviewText("calculate")}
@@ -383,7 +390,7 @@ export function SelectAssignmentsDialog({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
             Abbrechen
           </Button>
-          <Button onClick={handleSubmit} disabled={selectedIds.size === 0 || submitting || reviewing || (!!onPreview && (!review || !pdfUrl || !accountingConfirmed))}>
+          <Button onClick={handleSubmit} disabled={selectedIds.size === 0 || submitting || reviewing || (!!requiresReview && (!review || !pdfUrl || !accountingConfirmed))}>
             {submitting ? "Wird ausgeführt..." : submitLabel}
           </Button>
         </DialogFooter>

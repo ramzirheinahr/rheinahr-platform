@@ -22,7 +22,9 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || ids.some((id) => typeof id !== "string" || !id)) {
     return NextResponse.json({ error: "INVALID_ASSIGNMENTS" }, { status: 400 });
   }
-  if (typeof body.expectedDraftHash !== "string" || !/^[a-f0-9]{64}$/.test(body.expectedDraftHash)) {
+  const wantsJson = req.headers.get("Accept")?.includes("application/json") ?? false;
+  if ((!wantsJson || body.expectedDraftHash !== undefined) &&
+      (typeof body.expectedDraftHash !== "string" || !/^[a-f0-9]{64}$/.test(body.expectedDraftHash))) {
     return NextResponse.json({ error: "REVIEW_REQUIRED" }, { status: 400 });
   }
 
@@ -36,13 +38,38 @@ export async function POST(req: NextRequest) {
   }
   const result = await prepareV2InvoiceReview(ids, breaks as Record<string, string> | undefined);
   if (!result.ok) {
-    return NextResponse.json({ error: result.code, message: result.message }, { status: 422 });
+    return NextResponse.json({ error: result.code, message: result.message, diagnostics: result.diagnostics }, { status: 422 });
   }
-  if (result.hash !== body.expectedDraftHash) {
+  if (body.expectedDraftHash && result.hash !== body.expectedDraftHash) {
     return NextResponse.json({ error: "STALE_DRAFT_DETECTED" }, { status: 409 });
   }
 
   const pdf = await generateInvoicePdf(reviewPdfData(result.draft));
+  if (wantsJson) {
+    const draft = result.draft;
+    return NextResponse.json({
+      ok: true,
+      assignmentIds: draft.assignmentIds,
+      draftHash: result.hash,
+      clientName: draft.clientInfo.facilityName,
+      period: draft.periodDisplay,
+      items: draft.pdfItems,
+      breakAllocations: draft.provenance.assignments
+        .filter((assignment) => assignment.allocatedBreakStart && assignment.allocatedBreakEnd)
+        .map((assignment) => ({
+          assignmentId: assignment.assignmentId,
+          workerName: assignment.workerName,
+          shiftDate: assignment.shiftDate,
+          start: assignment.allocatedBreakStart!,
+          end: assignment.allocatedBreakEnd!,
+          minutes: assignment.breakMinutes,
+        })),
+      subtotal: draft.snapshotData.subtotal,
+      taxAmount: draft.snapshotData.taxAmount,
+      total: draft.snapshotData.total,
+      pdfBase64: Buffer.from(pdf).toString("base64"),
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  }
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,
     headers: {

@@ -506,6 +506,20 @@ export async function prepareV2InvoiceDraft(
   const policyVersionsMap = new Map<string, { policyId: string; policyVersion: number; frozenHash: string }>();
   const priceVersionsMap = new Map<string, { priceVersionId: string; qualification: string; hourlyRateInCents: number; sourceReference: string }>();
 
+  // Each effective-hours lookup performs two independent database reads. Warm
+  // them in bounded batches so a month of shifts does not wait for every pair
+  // in series. Results remain consumed in the deterministic assignment order.
+  const effectiveHoursById = new Map<string, PromiseSettledResult<Awaited<ReturnType<typeof getAssignmentEffectiveWorkHours>>>>();
+  if (!deps?.effectiveHoursResolver) {
+    for (let offset = 0; offset < assignments.length; offset += 8) {
+      const batch = assignments.slice(offset, offset + 8);
+      const results = await Promise.allSettled(
+        batch.map((assignment) => getAssignmentEffectiveWorkHours(assignment.id, tx))
+      );
+      batch.forEach((assignment, index) => effectiveHoursById.set(assignment.id, results[index]));
+    }
+  }
+
   for (const assignment of assignments) {
     const shiftDateIso =
       assignment.order.shiftDate instanceof Date
@@ -566,7 +580,10 @@ export async function prepareV2InvoiceDraft(
       if (deps?.effectiveHoursResolver) {
         effectiveHoursData = await deps.effectiveHoursResolver(assignment.id, tx);
       } else {
-        effectiveHoursData = await getAssignmentEffectiveWorkHours(assignment.id, tx);
+        const prefetched = effectiveHoursById.get(assignment.id);
+        if (!prefetched) throw new Error("Effective-hours result missing");
+        if (prefetched.status === "rejected") throw prefetched.reason;
+        effectiveHoursData = prefetched.value;
       }
     } catch (err) {
       return {

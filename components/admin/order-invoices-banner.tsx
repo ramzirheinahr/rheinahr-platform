@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Receipt, FileText, CheckCircle2, Mail, Ban, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { generateOrderInvoices, previewOrderInvoice, sendInvoiceEmail, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { generateOrderInvoices, sendInvoiceEmail, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { InvoiceRefreshDialog } from "./invoice-refresh-dialog";
 import { useTranslations } from "next-intl";
@@ -150,7 +150,7 @@ export function OrderInvoicesBanner({
               submitLabel="Generieren"
               buttonLabel="Fakturieren"
               buttonClassName="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-              onPreview={v2Enabled ? previewOrderInvoice : undefined}
+              requiresReview={v2Enabled}
               onSubmit={handleGenerate}
             />
           )}
