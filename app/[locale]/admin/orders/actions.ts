@@ -28,6 +28,7 @@ import {
   hasHistoricalInvoiceRecordForAssignment,
   hasHistoricalInvoiceRecordForOrder,
 } from "@/lib/invoicing";
+import { netShiftHours } from "@/lib/pricing";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -307,6 +308,7 @@ export async function updateOrderRequestAsAdmin(
     affectedWorkers = assignments.map((a) => ({ userId: a.worker.userId, order: a.order }));
   }
 
+  const affectedWorkerIds = new Set<string>();
   const now = new Date();
   if (updates.length + creates.length + deleteIds.length > 0) {
     try {
@@ -358,6 +360,13 @@ export async function updateOrderRequestAsAdmin(
 
         // Apply updates
         for (const u of updates) {
+          const oldOrder = existing.find((e) => e.id === u.id);
+          const timeOrBreakChanged =
+            oldOrder &&
+            (oldOrder.startTime !== u.startTime ||
+              oldOrder.endTime !== u.endTime ||
+              oldOrder.breakMinutes !== u.breakMinutes);
+
           await tx.order.update({
             where: { id: u.id },
             data: {
@@ -372,6 +381,23 @@ export async function updateOrderRequestAsAdmin(
               editedById: admin.id,
             },
           });
+
+          if (timeOrBreakChanged) {
+            const newNet = Number(netShiftHours(u.startTime, u.endTime, u.breakMinutes).toFixed(2));
+            const assignments = await tx.assignment.findMany({
+              where: { orderId: u.id },
+              include: { serviceConfirmation: true },
+            });
+            for (const asgn of assignments) {
+              if (asgn.workerId) affectedWorkerIds.add(asgn.workerId);
+              if (asgn.serviceConfirmation) {
+                await tx.serviceConfirmation.update({
+                  where: { id: asgn.serviceConfirmation.id },
+                  data: { hoursWorked: newNet },
+                });
+              }
+            }
+          }
         }
 
         // Apply creates
@@ -527,6 +553,10 @@ export async function updateOrderRequestAsAdmin(
   revalidatePath("/admin/orders");
   revalidatePath(`/admin/orders/${requestGroupId}`);
   revalidatePath("/client/orders");
+  for (const wId of affectedWorkerIds) {
+    revalidatePath(`/admin/workers/${wId}/schedule`);
+  }
+  revalidatePath("/admin/workers");
   return { ok: true };
 }
 
