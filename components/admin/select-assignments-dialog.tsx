@@ -317,6 +317,7 @@ export function SelectAssignmentsDialog({
             value={customInvoiceNumber}
             onChange={(e) => setCustomInvoiceNumber(e.target.value)}
           />
+          <p className="mt-1 text-xs text-muted-foreground">Stornierte Rechnungsnummern bleiben vergeben. Für eine Ersatzrechnung dieses Feld leer lassen.</p>
         </div>
 
         {showSplitOption && (

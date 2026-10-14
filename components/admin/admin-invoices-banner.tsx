@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Receipt, Plus, FileText, CheckCircle2, Trash2, Ban, Mail, RotateCw } from "lucide-react";
+import { Receipt, Plus, FileText, CheckCircle2, Ban, Mail, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -88,7 +88,7 @@ export function AdminInvoicesBanner({
   };
 
   const handleCancel = async (invoiceId: string) => {
-    if (!confirm("Möchten Sie diese Rechnung wirklich stornieren? Zugehörige Schichten werden wieder freigegeben.")) return;
+    if (!confirm("Rechnung stornieren? Die alte Rechnungsnummer bleibt dauerhaft vergeben. Die Schichten werden freigegeben; eine Ersatzrechnung erhält eine neue Nummer.")) return;
     try {
       await cancelInvoice(invoiceId);
       toast.success("Rechnung erfolgreich storniert!");
@@ -203,6 +203,7 @@ export function AdminInvoicesBanner({
                     value={customInvoiceNumber}
                     onChange={(e) => setCustomInvoiceNumber(e.target.value)}
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">Stornierte Rechnungsnummern bleiben vergeben. Für eine Ersatzrechnung dieses Feld leer lassen.</p>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setOpenDialog(false)} disabled={generating}>
