@@ -476,17 +476,28 @@ export async function generateOrderInvoices(
     if (!expectedDraftHash) {
       throw new Error("[V2_REVIEW_REQUIRED] Bitte prüfen und bestätigen Sie zuerst den Rechnungsentwurf.");
     }
-    const issueRes = await issueV2Invoice({
-      assignmentIds,
-      customInvoiceNumber,
-      expectedDraftHash,
-      breakStartByAssignment,
-    });
-
-    if (!issueRes.success) {
-      throw new Error(`[V2_ISSUANCE_FAILED] ${issueRes.code}: ${issueRes.message}`);
+    let issueRes: Awaited<ReturnType<typeof issueV2Invoice>>;
+    try {
+      issueRes = await issueV2Invoice({
+        assignmentIds,
+        customInvoiceNumber,
+        expectedDraftHash,
+        breakStartByAssignment,
+      });
+    } catch (err) {
+      console.error("Unerwarteter Fehler vor der V2-Rechnungserstellung:", err);
+      return { ok: false as const, code: "ISSUANCE_ERROR", message: "Die Rechnung konnte nicht erstellt werden. Bitte laden Sie die Seite neu und prüfen Sie den Entwurf erneut." };
     }
 
+    if (!issueRes.success) {
+      const message = issueRes.code === "INVOICE_NUMBER_CONFLICT"
+        ? `${issueRes.message} Eine stornierte Rechnungsnummer bleibt vergeben. Lassen Sie das Feld „Manuelle Rechnungsnummer“ leer, damit eine neue Nummer vergeben wird.`
+        : issueRes.message;
+      console.error("V2-Rechnungserstellung abgebrochen:", issueRes.code, issueRes.message);
+      return { ok: false as const, code: issueRes.code, message };
+    }
+
+    try {
     const invoice = await prisma.invoice.findUnique({
       where: { id: issueRes.invoiceId },
       include: {
@@ -502,7 +513,9 @@ export async function generateOrderInvoices(
     });
 
     if (!invoice) {
-      throw new Error("V2-Rechnung wurde erstellt, konnte jedoch nicht zur Nachbereitung geladen werden.");
+      console.error("V2-Rechnung erstellt, aber nicht zur Nachbereitung gefunden:", issueRes.invoiceId);
+      revalidateInvoicePaths();
+      return { ok: true as const, invoiceId: issueRes.invoiceId, invoiceNumber: issueRes.invoiceNumber, postProcessingWarning: true };
     }
 
     const client = invoice.client;
@@ -610,7 +623,14 @@ export async function generateOrderInvoices(
     }
 
     revalidateInvoicePaths(requestGroupId);
-    return { ok: true, invoiceId: invoice.id, emailDispatchStatus, emailDispatchReport: dispatchReport, notificationStatus };
+    return { ok: true as const, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, emailDispatchStatus, emailDispatchReport: dispatchReport, notificationStatus };
+    } catch (err) {
+      // The financial transaction has already committed. Never report issuance as
+      // failed here: a retry could create a second invoice for the same shifts.
+      console.error("V2-Rechnung erstellt; Nachbereitung fehlgeschlagen:", issueRes.invoiceId, err);
+      revalidateInvoicePaths();
+      return { ok: true as const, invoiceId: issueRes.invoiceId, invoiceNumber: issueRes.invoiceNumber, postProcessingWarning: true };
+    }
   }
 
   // Find all invoiceable assignments

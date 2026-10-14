@@ -1424,6 +1424,25 @@ describe("V2 Invoice Issuance Service & Integration (Phase 5b-2b)", () => {
       expect(createInvoice).not.toHaveBeenCalled();
     });
 
+    it("returns a cancelled-number conflict as an actionable result instead of a masked Server Action error", async () => {
+      const issuanceService = await import("./invoice-v2-issuance-service");
+      const issueSpy = vi.spyOn(issuanceService, "issueV2Invoice").mockResolvedValueOnce({
+        success: false,
+        code: "INVOICE_NUMBER_CONFLICT",
+        message: 'Die Rechnungsnummer "551-147-0926" ist bereits vergeben.',
+      });
+      try {
+        const result = await generateOrderInvoices(["assign-1"], "551-147-0926", undefined, true, false, "reviewed-hash");
+        expect(result).toMatchObject({
+          ok: false,
+          code: "INVOICE_NUMBER_CONFLICT",
+        });
+        if (!result.ok) expect(result.message).toContain("Manuelle Rechnungsnummer");
+      } finally {
+        issueSpy.mockRestore();
+      }
+    });
+
     it("binds review approval to financial and recipient-facing data, not preparation time", () => {
       const draft = {
         status: "resolved",

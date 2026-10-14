@@ -46,8 +46,14 @@ export function OrderInvoicesBanner({
 
   const handleGenerate = async (selectedIds: string[], customInvoiceNumber?: string, _splitByShift?: boolean, expectedDraftHash?: string, breakStartByAssignment?: Record<string, string>) => {
     try {
-      await generateOrderInvoices(selectedIds, customInvoiceNumber, undefined, true, false, expectedDraftHash, breakStartByAssignment);
-      toast.success("Rechnungen erfolgreich generiert!");
+      const result = await generateOrderInvoices(selectedIds, customInvoiceNumber, undefined, true, false, expectedDraftHash, breakStartByAssignment);
+      if (!result.ok) {
+        toast.error(`[${result.code}] ${result.message}`, { duration: 12000 });
+        return false;
+      }
+      toast.success(result.postProcessingWarning
+        ? `Rechnung ${result.invoiceNumber} wurde erstellt. Die Seite wird aktualisiert; bitte prüfen Sie Benachrichtigungen und Versand separat.`
+        : `Rechnung ${result.invoiceNumber} wurde erstellt.`);
       router.refresh();
       return true;
     } catch (e: unknown) {
