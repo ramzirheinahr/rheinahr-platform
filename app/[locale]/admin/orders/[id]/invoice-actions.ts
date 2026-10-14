@@ -8,6 +8,8 @@ import { audit } from "@/lib/audit";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal } from "@/lib/pricing";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
+import { buildStornoInvoiceData } from "@/lib/storno-invoice";
+import { getCompanyConfig } from "@/lib/config/company";
 import { sendEmailToRecipients, EmailDispatchReport } from "@/lib/email";
 import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
 import { generateUniqueInvoiceNumber, resolveStoredPdfCandidatePath } from "@/lib/invoicing";
@@ -260,6 +262,7 @@ export async function deleteInvoice(_invoiceId: string): Promise<never> {
 
 export async function cancelInvoice(invoiceId: string) {
   const user = await requireRole("de", "admin");
+  const companyConfig = await getCompanyConfig();
 
   let targetRequestGroupId: string | null = null;
 
@@ -339,10 +342,11 @@ export async function cancelInvoice(invoiceId: string) {
       new Set([...existingOrderIds, ...currentOrderIds])
     );
 
+    const cancelledAt = new Date();
     const updatedSnapshotData = {
       ...existingSnapshot,
       cancellationHistory: {
-        cancelledAt: new Date().toISOString(),
+        cancelledAt: cancelledAt.toISOString(),
         cancelledByUserId: user.id,
         releasedAssignmentCount: invoice.assignments.length,
         releasedAssignmentIds: currentAssignmentIds,
@@ -350,6 +354,19 @@ export async function cancelInvoice(invoiceId: string) {
       historicalAssignmentIds,
       historicalWorkerIds,
       historicalOrderIds,
+    };
+    const stornoData = buildStornoInvoiceData(
+      { ...invoice, status: "cancelled", snapshotData: updatedSnapshotData },
+      cancelledAt
+    );
+    const completedSnapshotData = {
+      ...updatedSnapshotData,
+      stornoDocument: {
+        version: 1,
+        issuedAt: cancelledAt.toISOString(),
+        data: stornoData,
+        companyConfig,
+      },
     };
 
     // 4. Release the assignments so they can be re-invoiced
@@ -365,7 +382,7 @@ export async function cancelInvoice(invoiceId: string) {
       where: { id: invoiceId },
       data: {
         status: "cancelled",
-        snapshotData: updatedSnapshotData,
+        snapshotData: completedSnapshotData,
       },
     });
 
@@ -379,6 +396,7 @@ export async function cancelInvoice(invoiceId: string) {
         metadata: {
           assignmentCount: invoice.assignments.length,
           assignmentIds: currentAssignmentIds.join(","),
+          stornoNumber: stornoData.invoiceNumber,
         },
       },
     });

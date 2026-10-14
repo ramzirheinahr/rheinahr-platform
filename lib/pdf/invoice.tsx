@@ -14,6 +14,10 @@ import { getCompanyConfig, type CompanyConfig } from "@/lib/config/company";
 
 export type InvoicePdfData = {
   draft?: boolean;
+  cancellation?: {
+    originalInvoiceNumber: string;
+    originalInvoiceDate: string;
+  };
   invoiceNumber: string;
   date: string;
   clientId: string; // or shortCode
@@ -31,6 +35,7 @@ export type InvoicePdfData = {
   }>;
   subtotal: string;
   taxAmount: string;
+  taxRatePercent?: number;
   total: string;
   paymentTermsDays: number;
 };
@@ -144,7 +149,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
         </View>
 
         <View style={styles.titleBlock}>
-          <Text style={[styles.titleText, data.draft ? styles.draftTitleText : {}]}>{data.draft ? "Rechnungsentwurf" : "Rechnung"}</Text>
+          <Text style={[styles.titleText, data.draft || data.cancellation ? styles.draftTitleText : {}]}>{data.draft ? "Rechnungsentwurf" : data.cancellation ? "Stornorechnung" : "Rechnung"}</Text>
           <View style={styles.metaTable}>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>vom:</Text>
@@ -154,6 +159,10 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
               <Text style={styles.metaLabel}>Nummer:</Text>
               <Text style={styles.metaValue}>{data.draft ? "NICHT VERGEBEN" : data.invoiceNumber}</Text>
             </View>
+            {data.cancellation && <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Zu Rechnung:</Text>
+              <Text style={styles.metaValue}>{data.cancellation.originalInvoiceNumber} vom {data.cancellation.originalInvoiceDate}</Text>
+            </View>}
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Kunde:</Text>
               <Text style={styles.metaValue}>{data.clientId}</Text>
@@ -166,7 +175,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
         </View>
       </View>
 
-      <Text style={styles.greeting}>Wir berechnen Ihnen</Text>
+      <Text style={styles.greeting}>{data.cancellation ? "Wir stornieren die oben genannte Rechnung vollständig" : "Wir berechnen Ihnen"}</Text>
 
       {/* Main Table */}
       <View style={styles.table}>
@@ -203,7 +212,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
         </View>
         <View style={styles.taxRow}>
           <Text style={[styles.tCol1, styles.tBold]}>{data.subtotal.trim().endsWith("€") ? data.subtotal.trim() : `${data.subtotal.trim()} €`}</Text>
-          <Text style={[styles.tCol2, styles.tBold]}>19 %</Text>
+          <Text style={[styles.tCol2, styles.tBold]}>{data.taxRatePercent ?? 19} %</Text>
           <Text style={[styles.tCol3, styles.tBold]}>{data.taxAmount.trim().endsWith("€") ? data.taxAmount.trim() : `${data.taxAmount.trim()} €`}</Text>
           <Text style={[styles.tCol4, styles.tBold]}>{data.total.trim().endsWith("€") ? data.total.trim() : `${data.total.trim()} €`}</Text>
         </View>
@@ -212,6 +221,8 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
       <Text style={styles.paymentText}>
         {data.draft
           ? "ENTWURF ZUR INTERNEN PRÜFUNG – KEINE RECHNUNG. NICHT AN KUNDEN VERSENDEN."
+          : data.cancellation
+          ? "Diese Stornorechnung hebt die oben genannte Rechnung vollständig auf. Die ursprüngliche Rechnung bleibt als Beleg erhalten. Bitte prüfen Sie bereits geleistete Zahlungen gesondert."
           : `Bitte überweisen Sie den Endbetrag innerhalb ${data.paymentTermsDays} Tagen und geben dabei unbedingt die Rechnungsnummer als Verwendungszweck an.`}
       </Text>
 
@@ -244,7 +255,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
   </Document>
 );
 
-export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
-  const companyConfig = await getCompanyConfig();
+export async function generateInvoicePdf(data: InvoicePdfData, frozenCompanyConfig?: CompanyConfig): Promise<Buffer> {
+  const companyConfig = frozenCompanyConfig ?? await getCompanyConfig();
   return await renderToBuffer(<InvoiceTemplate companyConfig={companyConfig} data={data} />);
 }

@@ -7,6 +7,7 @@ import { ResponsiveTable, type Column } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, Ban, Download, Send } from "lucide-react";
+import { toast } from "sonner";
 
 export interface CancelledInvoiceRow {
   id: string;
@@ -43,6 +44,24 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
     key: string;
     direction: "asc" | "desc";
   } | null>({ key: "date", direction: "desc" });
+  const [openingId, setOpeningId] = useState<string | null>(null);
+
+  const openStorno = async (invoiceId: string, download = false) => {
+    const tab = window.open("", "_blank");
+    setOpeningId(invoiceId);
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/storno`, { method: "POST" });
+      if (!response.ok) throw new Error(await response.text());
+      const url = `/api/invoices/${invoiceId}/storno${download ? "?download=true" : ""}`;
+      if (tab) tab.location.href = url;
+      else window.location.href = url;
+    } catch (error) {
+      tab?.close();
+      toast.error(error instanceof Error ? error.message : t("stornoCreationError"));
+    } finally {
+      setOpeningId(null);
+    }
+  };
 
   const handleSort = (key: string) => {
     setSortConfig((prev) => {
@@ -141,7 +160,7 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
       header: t("grossAmountHeader"),
       cell: (r) => (
         <span className="font-bold text-slate-900">
-          {Number(r.grossAmount).toLocaleString("de-DE", {
+          {(-Math.abs(Number(r.grossAmount))).toLocaleString("de-DE", {
             style: "currency",
             currency: "EUR",
           })}
@@ -189,42 +208,30 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
       action: true,
       cell: (r) => {
         const isReliable = hasReliableInvoiceDocument(r);
-        if (!isReliable) {
-          return (
-            <div className="flex items-center justify-end">
-              <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-normal text-amber-800 bg-amber-50 border border-amber-200"
-                title={t("historicalPdfUnavailableTooltip")}
-              >
-                <FileText className="size-3 text-amber-600 shrink-0" />
-                {t("historicalArchiveNotice")}
-              </span>
-            </div>
-          );
-        }
-
         return (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2.5 text-xs text-slate-700 hover:text-slate-900"
+              className="h-8 px-2.5 text-xs text-rose-800 border-rose-200 hover:text-rose-900"
+              onClick={() => void openStorno(r.id)}
+              disabled={openingId === r.id}
+              title={t("viewStornoPdf")}
+            >
+              <FileText className="size-3.5 mr-1 rtl:ml-1 rtl:mr-0" />
+              {t("viewStornoPdf")}
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs"
+              onClick={() => void openStorno(r.id, true)}
+              disabled={openingId === r.id}
+              title={t("downloadStornoPdf")}>
+              <Download className="size-3.5 mr-1 rtl:ml-1 rtl:mr-0" />{t("downloadStornoPdf")}
+            </Button>
+            {isReliable ? <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs"
               onClick={() => window.open(`/api/invoices/${r.id}/pdf`, "_blank")}
-              title={t("viewPdf")}
-            >
-              <FileText className="size-3.5 text-slate-600 mr-1 rtl:ml-1 rtl:mr-0" />
-              {t("viewPdf")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2.5 text-xs text-slate-700 hover:text-slate-900"
-              onClick={() => window.open(`/api/invoices/${r.id}/pdf?download=true`, "_blank")}
-              title={t("downloadPdf")}
-            >
-              <Download className="size-3.5 text-slate-600 mr-1 rtl:ml-1 rtl:mr-0" />
-              {t("downloadPdf")}
-            </Button>
+              title={t("viewOriginalPdf")}>
+              {t("viewOriginalPdf")}
+            </Button> : <span className="text-xs text-amber-800" title={t("historicalPdfUnavailableTooltip")}>{t("historicalArchiveNotice")}</span>}
           </div>
         );
       },
@@ -251,6 +258,7 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
           {cancelledInvoices.length === 1 ? t("cancelledInvoiceSingle") : t("cancelledInvoicePlural")}
         </span>
       </div>
+      <p className="text-xs text-slate-600">{t("stornoListDescription")}</p>
 
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
         <ResponsiveTable

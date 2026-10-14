@@ -1437,7 +1437,12 @@
     "noReliableCopy": "No reliable copy available",
     "noReliableCopyTooltip": "No frozen items are saved in the snapshot for this cancelled invoice.",
     "historicalArchiveNotice": "Check historical document in accounting archive",
-    "historicalPdfUnavailableTooltip": "Neither an archived original document nor a complete frozen snapshot is available for this historical invoice. Dynamic recalculation from current data is locked to preserve audit compliance."
+    "historicalPdfUnavailableTooltip": "Neither an archived original document nor a complete frozen snapshot is available for this historical invoice. Dynamic recalculation from current data is locked to preserve audit compliance.",
+    "viewStornoPdf": "Create / view cancellation invoice",
+    "downloadStornoPdf": "Download cancellation invoice",
+    "viewOriginalPdf": "View original invoice",
+    "stornoListDescription": "Amounts show the full reversal. Original invoice numbers remain reserved and are referenced by the cancellation document.",
+    "stornoCreationError": "Could not create cancellation invoice."
   },
   "adminDashboard": {
     "invoiceFinanceTitle": "Finances (invoices)",

@@ -1437,7 +1437,12 @@
     "noReliableCopy": "Keine verlässliche Belegfassung verfügbar",
     "noReliableCopyTooltip": "Für diese stornierte Rechnung sind keine eingefrorenen Posten im Snapshot gespeichert.",
     "historicalArchiveNotice": "Historisches Dokument im Buchhaltungsarchiv prüfen",
-    "historicalPdfUnavailableTooltip": "Für diese historische Rechnung liegt weder ein archiviertes Originaldokument noch ein vollständiger eingefrorener Snapshot vor. Eine Neugenerierung aus aktuellen Daten ist zur Wahrung der Revisionssicherheit gesperrt."
+    "historicalPdfUnavailableTooltip": "Für diese historische Rechnung liegt weder ein archiviertes Originaldokument noch ein vollständiger eingefrorener Snapshot vor. Eine Neugenerierung aus aktuellen Daten ist zur Wahrung der Revisionssicherheit gesperrt.",
+    "viewStornoPdf": "Stornorechnung erstellen / ansehen",
+    "downloadStornoPdf": "Stornorechnung herunterladen",
+    "viewOriginalPdf": "Originalrechnung ansehen",
+    "stornoListDescription": "Die Beträge zeigen die vollständige Gegenbuchung. Die ursprünglichen Rechnungsnummern bleiben erhalten; die Stornorechnung verweist ausdrücklich darauf.",
+    "stornoCreationError": "Stornorechnung konnte nicht erstellt werden."
   },
   "adminDashboard": {
     "invoiceFinanceTitle": "Finanzen (Rechnungen)",
