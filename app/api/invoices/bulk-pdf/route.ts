@@ -32,6 +32,7 @@ export async function GET(req: Request) {
   const fromStr = url.searchParams.get("from");
   const toStr = url.searchParams.get("to");
   const q = url.searchParams.get("q")?.trim() || "";
+  const allowPartial = url.searchParams.get("allowPartial") === "true";
 
   const now = new Date();
   const y = now.getUTCFullYear();
@@ -109,6 +110,7 @@ export async function GET(req: Request) {
   }
 
   const mergedPdf = await PDFDocument.create();
+  const skippedInvoiceNumbers: string[] = [];
 
   for (const inv of invoices) {
     // Defense-in-depth: strictly exclude cancelled invoices even if returned
@@ -132,6 +134,10 @@ export async function GET(req: Request) {
         if (storedPdfPath) {
           const verification = await verifyStoredHistoricalPdf(storedPdfPath, inv.snapshotData, defaultFileVerifier);
           if (!verification.reliable) {
+            if (allowPartial) {
+              skippedInvoiceNumbers.push(inv.invoiceNumber);
+              continue;
+            }
             return new NextResponse(
               `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: ${verification.reason}`,
               {
@@ -176,6 +182,10 @@ export async function GET(req: Request) {
               const pdfBuffer = await generateInvoicePdf(pdfData);
               doc = await PDFDocument.load(pdfBuffer);
             } else if (!snapshotCheck.complete) {
+              if (allowPartial) {
+                skippedInvoiceNumbers.push(inv.invoiceNumber);
+                continue;
+              }
               return new NextResponse(
                 `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: Weder ein verifiziertes Originaldokument noch ein vollständiger eingefrorener Snapshot hinterlegt. Die dynamische Neugenerierung aus Live-Daten ist zur Wahrung der Revisionssicherheit gesperrt. Bitte prüfen Sie das Buchhaltungsarchiv.`,
                 {
@@ -188,6 +198,10 @@ export async function GET(req: Request) {
                 }
               );
             } else {
+              if (allowPartial) {
+                skippedInvoiceNumbers.push(inv.invoiceNumber);
+                continue;
+              }
               return new NextResponse(
                 `Fehler beim Zusammenstellen der Sammel-PDF für Rechnung ${inv.invoiceNumber}: Historischer Snapshot enthält keine vollständigen Mandantendaten (facilityName oder address fehlt).`,
                 {
@@ -234,6 +248,10 @@ export async function GET(req: Request) {
       copiedPages.forEach((page) => mergedPdf.addPage(page));
     } catch (err: unknown) {
       console.error(`Error generating PDF for invoice ${inv.invoiceNumber}:`, err);
+      if (allowPartial) {
+        skippedInvoiceNumbers.push(inv.invoiceNumber);
+        continue;
+      }
       const errMsg = err instanceof Error ? err.message : "Ungültige Rechnungsdaten";
       // Fail closed: corrupted invoice snapshot or rendering failure must not produce incomplete bulk bundle
       return new NextResponse(
@@ -241,6 +259,18 @@ export async function GET(req: Request) {
         { status: 422 }
       );
     }
+  }
+
+  if (mergedPdf.getPageCount() === 0) {
+    return new NextResponse("Für keine der ausgewählten Rechnungen ist ein verlässliches PDF verfügbar.", {
+      status: 422,
+      headers: {
+        "X-Invoice-Export-Incomplete": "true",
+        "X-Skipped-Invoices": encodeURIComponent(JSON.stringify(skippedInvoiceNumbers.slice(0, 100))),
+        "X-Skipped-Invoice-Count": String(skippedInvoiceNumbers.length),
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
   const mergedPdfBytes = await mergedPdf.save();
@@ -251,6 +281,8 @@ export async function GET(req: Request) {
     entity: "Invoice",
     metadata: {
       count: invoices.length,
+      exportedCount: invoices.length - skippedInvoiceNumbers.length,
+      skippedInvoiceNumbers: skippedInvoiceNumbers.join(","),
       from: fromDateStr,
       to: toDateStr,
     },
@@ -259,11 +291,17 @@ export async function GET(req: Request) {
   const filename = ids.length > 0
     ? `Rechnungen_${now.toISOString().slice(0, 10)}.pdf`
     : `Rechnungen_${fromDateStr}_${toDateStr}.pdf`;
+  const downloadFilename = skippedInvoiceNumbers.length > 0
+    ? filename.replace(/\.pdf$/, "_TEILWEISE.pdf")
+    : filename;
 
   return new NextResponse(new Uint8Array(mergedPdfBytes), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Disposition": `attachment; filename="${downloadFilename}"`,
+      "X-Invoice-Export-Incomplete": skippedInvoiceNumbers.length > 0 ? "true" : "false",
+      "X-Skipped-Invoices": encodeURIComponent(JSON.stringify(skippedInvoiceNumbers.slice(0, 100))),
+      "X-Skipped-Invoice-Count": String(skippedInvoiceNumbers.length),
       "Cache-Control": "no-store",
     },
   });

@@ -1353,6 +1353,8 @@
     "downloadAllPdf": "تحميل جميع الفواتير (PDF)",
     "downloadingAllPdf": "جاري دمج ملفات PDF …",
     "bulkDownloadSuccess": "تم تحميل ملف PDF المجمع بنجاح.",
+    "bulkDownloadPartial": "نُزّلت الفواتير المتاحة فقط. هناك {count} فاتورة غير مضمّنة، والملف موسوم بأنه جزئي.",
+    "bulkDownloadSkippedNumbers": "أرقام الفواتير غير المضمّنة",
     "bulkDownloadError": "حدث خطأ أثناء تحميل ملف PDF المجمع.",
     "createInvoice": "إنشاء فاتورة",
     "invoiceCreatedSuccess": "تم إنشاء الفاتورة بنجاح!",

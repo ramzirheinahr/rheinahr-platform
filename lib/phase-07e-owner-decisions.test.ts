@@ -743,6 +743,76 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
       expect(text).toContain("Buchhaltungsarchiv");
     });
 
+    it("downloads available invoices and reports missing numbers only when partial export is requested", async () => {
+      vi.mocked(getCurrentUser).mockResolvedValue(adminUser);
+      vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+        {
+          id: "inv-bulk-unreliable",
+          invoiceNumber: "RE-OLD-MISSING",
+          status: "unpaid",
+          date: new Date("2026-09-01T10:00:00.000Z"),
+          netAmount: 500,
+          vatAmount: 95,
+          grossAmount: 595,
+          pdfUrl: null,
+          snapshotData: null,
+          client: { id: "c-1", facilityName: "Live client" },
+          assignments: [],
+        },
+        {
+          id: "inv-bulk-frozen-valid",
+          invoiceNumber: "RE-AVAILABLE",
+          status: "unpaid",
+          date: new Date("2026-09-02T10:00:00.000Z"),
+          netAmount: 100,
+          vatAmount: 19,
+          grossAmount: 119,
+          pdfUrl: null,
+          snapshotData: {
+            facilityName: "Frozen client",
+            address: "Teststraße 1, 53111 Bonn",
+            paymentTermsDays: 14,
+            items: [{ description: "Dienst", hours: "2,00", rate: "50,00", amount: "100,00 €" }],
+            subtotal: "100,00 €",
+            taxAmount: "19,00 €",
+            total: "119,00 €",
+          },
+          client: { id: "c-2", facilityName: "Live client" },
+          assignments: [],
+        },
+      ] as unknown as InvoiceDbRecord[]);
+
+      const res = await getBulkPdfRoute(new Request("http://localhost:3000/api/invoices/bulk-pdf?allowPartial=true"));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Invoice-Export-Incomplete")).toBe("true");
+      expect(res.headers.get("X-Skipped-Invoice-Count")).toBe("1");
+      expect(JSON.parse(decodeURIComponent(res.headers.get("X-Skipped-Invoices")!))).toEqual(["RE-OLD-MISSING"]);
+      expect(res.headers.get("Content-Disposition")).toContain("_TEILWEISE.pdf");
+      expect(generateInvoicePdf).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not offer an empty partial PDF when every invoice is unavailable", async () => {
+      vi.mocked(getCurrentUser).mockResolvedValue(adminUser);
+      vi.mocked(prisma.invoice.findMany).mockResolvedValue([{
+        id: "inv-bulk-unreliable",
+        invoiceNumber: "RE-OLD-MISSING",
+        status: "unpaid",
+        date: new Date("2026-09-01T10:00:00.000Z"),
+        netAmount: 500,
+        vatAmount: 95,
+        grossAmount: 595,
+        pdfUrl: null,
+        snapshotData: null,
+        client: { id: "c-1", facilityName: "Live client" },
+        assignments: [],
+      }] as unknown as InvoiceDbRecord[]);
+
+      const res = await getBulkPdfRoute(new Request("http://localhost:3000/api/invoices/bulk-pdf?allowPartial=true"));
+      expect(res.status).toBe(422);
+      expect(res.headers.get("X-Skipped-Invoice-Count")).toBe("1");
+      expect(generateInvoicePdf).not.toHaveBeenCalled();
+    });
+
     it("bulk-pdf route serves 200 PDF with line items when historical invoice snapshotData contains pdfItems only", async () => {
       vi.mocked(getCurrentUser).mockResolvedValue(adminUser);
 

@@ -315,7 +315,14 @@ export async function previewClientApprovalAction(
       });
 
       if (!res.success) {
-        return { ok: false, error: res.message, details: res.details };
+        const validationErrors = Array.isArray(res.details?.errors)
+          ? res.details.errors.filter((error): error is string => typeof error === "string")
+          : [];
+        return {
+          ok: false,
+          error: validationErrors.length > 0 ? `${res.message} ${validationErrors.join(" ")}` : res.message,
+          details: res.details,
+        };
       }
       ratePreviews.push(res.data);
     }

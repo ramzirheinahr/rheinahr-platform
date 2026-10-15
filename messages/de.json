@@ -1351,6 +1351,8 @@
     "downloadAllPdf": "Alle Rechnungen herunterladen (PDF)",
     "downloadingAllPdf": "PDFs werden zusammengeführt …",
     "bulkDownloadSuccess": "Sammel-PDF erfolgreich heruntergeladen.",
+    "bulkDownloadPartial": "Nur verfügbare PDFs heruntergeladen. {count} Rechnung(en) fehlen; die Datei ist als TEILWEISE gekennzeichnet.",
+    "bulkDownloadSkippedNumbers": "Nicht enthaltene Rechnungsnummern",
     "bulkDownloadError": "Fehler beim Herunterladen der Sammel-PDF.",
     "createInvoice": "Rechnung erstellen",
     "invoiceCreatedSuccess": "Rechnung erfolgreich erstellt!",

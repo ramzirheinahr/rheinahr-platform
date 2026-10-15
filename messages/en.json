@@ -1351,6 +1351,8 @@
     "downloadAllPdf": "Download all invoices (PDF)",
     "downloadingAllPdf": "Merging PDFs …",
     "bulkDownloadSuccess": "Bulk PDF downloaded successfully.",
+    "bulkDownloadPartial": "Only available PDFs were downloaded. {count} invoice(s) are missing; the file is marked incomplete.",
+    "bulkDownloadSkippedNumbers": "Invoice numbers not included",
     "bulkDownloadError": "Error downloading bulk PDF.",
     "createInvoice": "Create Invoice",
     "invoiceCreatedSuccess": "Invoice created successfully!",

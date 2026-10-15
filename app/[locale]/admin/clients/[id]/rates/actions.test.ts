@@ -226,6 +226,48 @@ describe("Rates and Surcharges Approval Server Actions", () => {
     expect(result.data.ratePreviews[0].integrity.canonicalHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("previews six saved profile rates with a long validity period", async () => {
+    const savedRates = {
+      pflegefachkraft: 54.9,
+      pflegehelfer: 39.9,
+      betreuungskraft: 39.9,
+      pflegedienstleitung: 64.9,
+      kuechenhilfe: 36.9,
+      hausmeister: 36.9,
+    };
+    (prisma.client.findUnique as any).mockResolvedValueOnce({
+      hourlyRates: savedRates,
+      surchargeSat: 0.25,
+      surchargeSun: 0.5,
+      surchargeHoliday: 1,
+      surchargeNight: 0.25,
+      nightStart: "20:00",
+      nightEnd: "06:00",
+    });
+    const result = await previewClientApprovalAction({
+      ...baseInput,
+      clientContractId: null,
+      sourceType: "setting",
+      sourceReference: "",
+      effectiveFrom: "2026-09-01",
+      effectiveTo: "2035-12-31",
+      approveSurcharges: false,
+      selectedRates: Object.entries(savedRates).map(([qualification, hourlyRateEur]) => ({ qualification, hourlyRateEur })),
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.ratePreviews).toHaveLength(6);
+  });
+
+  it("shows the actual invalid rate field when price preview input is rejected", async () => {
+    const result = await previewClientApprovalAction({
+      ...baseInput,
+      approveSurcharges: false,
+      effectiveTo: "not-a-date",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("effectiveTo");
+  });
+
   it("accepts an explicitly confirmed 0% profile setting without claiming a contract document", async () => {
     const clientWithoutDocument = {
       id: "client-1",

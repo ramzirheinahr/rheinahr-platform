@@ -282,7 +282,7 @@ export function ClientRatesApprovalContent({
     startTransition(async () => {
       const res = await previewClientApprovalAction(payload);
       if (!res.ok) {
-        toast.error(res.error);
+        toast.error(res.error, { duration: 12000 });
         return;
       }
       setPreviewResult(res.data);

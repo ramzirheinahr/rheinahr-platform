@@ -29,6 +29,8 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
   const [emailInvoiceId, setEmailInvoiceId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
   const [downloadingBulk, setDownloadingBulk] = useState(false);
+  const [skippedBulkInvoices, setSkippedBulkInvoices] = useState<string[]>([]);
+  const [skippedBulkCount, setSkippedBulkCount] = useState(0);
 
   // Sorting state
   const [sortConfig, setSortConfig] = useState<{
@@ -97,32 +99,44 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
 
   const bulkPdfUrl = useMemo(() => {
     if (ids.length > 0 && ids.length <= 100) {
-      return `/api/invoices/bulk-pdf?ids=${encodeURIComponent(ids.join(","))}`;
+      return `/api/invoices/bulk-pdf?allowPartial=true&ids=${encodeURIComponent(ids.join(","))}`;
     }
     const defFrom = "2026-07-01";
     const effectiveFrom = from || defFrom;
-    return `/api/invoices/bulk-pdf?from=${encodeURIComponent(effectiveFrom)}&to=${encodeURIComponent(to)}&q=${encodeURIComponent(q)}`;
+    return `/api/invoices/bulk-pdf?allowPartial=true&from=${encodeURIComponent(effectiveFrom)}&to=${encodeURIComponent(to)}&q=${encodeURIComponent(q)}`;
   }, [ids, from, to, q]);
 
   const handleDownloadBulk = async () => {
     if (invoices.length === 0 || downloadingBulk) return;
     setDownloadingBulk(true);
+    setSkippedBulkInvoices([]);
+    setSkippedBulkCount(0);
     try {
       const res = await fetch(bulkPdfUrl);
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(errorText || t("bulkDownloadError"));
       }
+      const skippedCount = Number(res.headers.get("X-Skipped-Invoice-Count") || "0");
+      const skippedNumbers = JSON.parse(decodeURIComponent(res.headers.get("X-Skipped-Invoices") || "%5B%5D")) as string[];
+      if (skippedCount > 0) {
+        setSkippedBulkCount(skippedCount);
+        setSkippedBulkInvoices(skippedNumbers);
+      }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Rechnungen_${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.download = `Rechnungen_${new Date().toISOString().slice(0, 10)}${skippedCount > 0 ? "_TEILWEISE" : ""}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(t("bulkDownloadSuccess"));
+      if (skippedCount > 0) {
+        toast.warning(t("bulkDownloadPartial", { count: skippedCount }));
+      } else {
+        toast.success(t("bulkDownloadSuccess"));
+      }
     } catch (e: unknown) {
       console.error("Bulk PDF download error:", e);
       toast.error((e as Error).message || t("bulkDownloadError"));
@@ -343,6 +357,13 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
           <span>{downloadingBulk ? t("downloadingAllPdf") : t("downloadAllPdf")}</span>
         </Button>
       </div>
+
+      {skippedBulkCount > 0 && (
+        <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+          <p>{t("bulkDownloadPartial", { count: skippedBulkCount })}</p>
+          <p className="mt-1 break-words">{t("bulkDownloadSkippedNumbers")}: {skippedBulkInvoices.join(", ")}</p>
+        </div>
+      )}
 
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <ResponsiveTable 
