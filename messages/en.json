@@ -1158,6 +1158,7 @@
       "to": "to",
       "resultTitle": "Hours Overview",
       "status": "Status",
+      "sum": "Total",
       "mode": "View Mode",
       "modeActual": "Actual Hours (Confirmed & Corrected)",
       "modePlanned": "Target Schedule (Planned / Unverified)",

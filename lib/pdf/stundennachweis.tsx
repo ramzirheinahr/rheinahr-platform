@@ -21,17 +21,14 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#374151" },
   tableRowSunday: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#374151", backgroundColor: "#fef08a" },
   col: { padding: 4, borderRightWidth: 0.8, borderRightColor: "#4b5563", justifyContent: "center" },
-  colDate: { width: "13%", textAlign: "center" },
-  colWorker: { width: "22%" },
-  colArea: { width: "14%", textAlign: "center" },
-  colTime: { width: "9%", textAlign: "center" },
-  colHours: { width: "9%", textAlign: "right" },
-  colNetHours: { width: "10%", textAlign: "right" },
-  colStatus: { width: "14%", textAlign: "center", borderRightWidth: 0 },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingVertical: 4 },
-  totalRowWithNotice: { flexDirection: "column", alignItems: "stretch", marginTop: 10, paddingVertical: 4, gap: 6 },
+  colDate: { width: "15%", textAlign: "center" },
+  colWorker: { width: "25%" },
+  colArea: { width: "16%", textAlign: "center" },
+  colTime: { width: "11%", textAlign: "center" },
+  colHours: { width: "11%", textAlign: "right" },
+  colNetHours: { width: "11%", textAlign: "right", borderRightWidth: 0 },
+  totalRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8, paddingVertical: 4 },
   totalText: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#111827" },
-  disclaimer: { fontSize: 8, color: "#991b1b", fontFamily: "Helvetica-Bold" },
 });
 
 export type StundennachweisPdfProps = {
@@ -71,19 +68,9 @@ export const StundennachweisTemplate = ({
     return `${d}.${m}.${y}`;
   };
 
-  const totalActualHours = Math.round(
-    rows
-      .filter((r) => !r.isPlanned && r.statusType !== "scheduled")
-      .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0) * 100
+  const totalHours = Math.round(
+    rows.reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0) * 100
   ) / 100;
-
-  const totalPlannedHours = Math.round(
-    rows
-      .filter((r) => r.isPlanned || r.statusType === "scheduled")
-      .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0) * 100
-  ) / 100;
-
-  const hasPlannedShifts = rows.some((r) => r.isPlanned || r.statusType === "scheduled");
 
   return (
     <Document>
@@ -157,7 +144,6 @@ export const StundennachweisTemplate = ({
             <Text style={[styles.col, styles.colTime]}>bis</Text>
             <Text style={[styles.col, styles.colHours]}>Stunden</Text>
             <Text style={[styles.col, styles.colNetHours]}>Stunden Ohne Pause</Text>
-            <Text style={[styles.col, styles.colStatus]}>Status</Text>
           </View>
 
           {rows.map((r, idx) => (
@@ -173,48 +159,15 @@ export const StundennachweisTemplate = ({
               <Text style={[styles.col, styles.colNetHours]}>
                 {r.hoursWithoutPause.toFixed(2).replace(".", ",")}
               </Text>
-              <Text style={[styles.col, styles.colStatus]}>
-                {r.statusLabel || (r.isPlanned ? "Geplant" : "Bestätigt")}
-              </Text>
             </View>
           ))}
         </View>
 
-        {/* Total Sum & Disclaimer */}
-        <View wrap={false} style={mode === "actual" && hasPlannedShifts ? styles.totalRowWithNotice : styles.totalRow}>
-          {mode === "planned" ? (
-            <>
-              <Text style={{ fontSize: 8, color: "#6b7280" }}>
-                Planungsübersicht (Soll-Stunden).
-              </Text>
-              <Text style={styles.totalText}>
-                Gesamtsumme (Geplant): {totalPlannedHours.toFixed(2).replace(".", ",")} Stunden
-              </Text>
-            </>
-          ) : hasPlannedShifts ? (
-            <>
-              <Text style={styles.disclaimer}>
-                * Hinweis: Enthält ungeprüfte / geplante Schichten. Diese stellen keine freigegebenen Ist-Stunden dar.
-              </Text>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.totalText}>
-                  Ist-Stunden (bestätigt/freigegeben): {totalActualHours.toFixed(2).replace(".", ",")} Stunden
-                </Text>
-                <Text style={{ fontSize: 9, fontFamily: "Helvetica", color: "#6b7280", marginTop: 2 }}>
-                  Ungeprüft / Geplant: {totalPlannedHours.toFixed(2).replace(".", ",")} Stunden
-                </Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={{ fontSize: 8, color: "#6b7280" }}>
-                Alle enthaltenen Schichten sind bestätigt bzw. freigegeben.
-              </Text>
-              <Text style={styles.totalText}>
-                Gesamtsumme: {totalActualHours.toFixed(2).replace(".", ",")} Stunden
-              </Text>
-            </>
-          )}
+        {/* Total Sum */}
+        <View wrap={false} style={styles.totalRow}>
+          <Text style={styles.totalText}>
+            Summe: {totalHours.toFixed(2).replace(".", ",")} Stunden
+          </Text>
         </View>
       </Page>
     </Document>

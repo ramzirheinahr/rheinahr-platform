@@ -6,3 +6,7 @@
    - `messages/en.json` (English)
    - `messages/ar.json` (Arabic)
 3. **No Hardcoded Strings**: Never hardcode user-facing strings in the components. Always use `next-intl`'s `useTranslations` and reference the translation keys.
+
+# UI Layout & Table Immutability Policy
+
+4. **Strict Layout Preservation**: Never add, remove, rename, or modify columns, headers, footers, disclaimers, or layout structure of any table or report (especially `Stundenübersicht`, `Stundennachweis`, invoices, and exports) unless the user explicitly and directly requests that specific change. Keep tables and reports clean with only the columns and sums explicitly approved by the user.

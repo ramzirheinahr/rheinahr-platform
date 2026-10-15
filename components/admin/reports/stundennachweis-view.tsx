@@ -182,13 +182,12 @@ export function StundennachweisView({
                   <th className="p-2.5 text-center">{t("stundennachweis.to")}</th>
                   <th className="p-2.5 text-right">{t("stundennachweis.hours")}</th>
                   <th className="p-2.5 text-right">{t("stundennachweis.hoursWithoutPause")}</th>
-                  <th className="p-2.5 text-center">{t("stundennachweis.status")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={7} className="p-6 text-center text-muted-foreground">
                       {t("common.noResults")}
                     </td>
                   </tr>
@@ -215,25 +214,6 @@ export function StundennachweisView({
                       <td className="p-2.5 text-right font-semibold">
                         {r.hoursWithoutPause.toFixed(2).replace(".", ",")}
                       </td>
-                      <td className="p-2.5 text-center">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            r.statusType === "approved_correction"
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
-                              : r.statusType === "service_confirmation"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
-                              : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
-                          }`}
-                        >
-                          {r.statusType === "approved_correction"
-                            ? t("stundennachweis.statusCorrected")
-                            : r.statusType === "service_confirmation"
-                            ? t("stundennachweis.statusConfirmed")
-                            : r.isPlanned
-                            ? t("stundennachweis.statusPlanned")
-                            : r.statusLabel || t("stundennachweis.statusConfirmed")}
-                        </span>
-                      </td>
                     </tr>
                   ))
                 )}
@@ -242,34 +222,16 @@ export function StundennachweisView({
                 <tfoot className="border-t-2 border-border/80 bg-muted/40 font-bold">
                   <tr>
                     <td colSpan={6} className="p-2.5 text-right font-bold text-foreground">
-                      {t("stundennachweis.totalActualHours")}:
+                      {t("stundennachweis.sum")}:
                     </td>
-                    <td className="p-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                    <td className="p-2.5 text-right font-bold text-foreground">
                       {rows
-                        .filter((r) => !r.isPlanned && r.statusType !== "scheduled")
                         .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
                         .toFixed(2)
                         .replace(".", ",")}{" "}
                       {t("stundennachweis.hoursUnit")}
                     </td>
-                    <td></td>
                   </tr>
-                      {rows.some((r) => r.isPlanned || r.statusType === "scheduled") && (
-                        <tr>
-                          <td colSpan={6} className="p-2.5 text-right font-medium text-muted-foreground text-xs">
-                            {t("stundennachweis.unverifiedPlannedHours")}:
-                          </td>
-                          <td className="p-2.5 text-right font-medium text-amber-700 dark:text-amber-400 text-xs">
-                            {rows
-                              .filter((r) => r.isPlanned || r.statusType === "scheduled")
-                              .reduce((sum, r) => sum + (r.hoursWithoutPause || 0), 0)
-                              .toFixed(2)
-                              .replace(".", ",")}{" "}
-                            {t("stundennachweis.hoursUnit")}
-                          </td>
-                          <td></td>
-                        </tr>
-                      )}
                 </tfoot>
               )}
             </table>

@@ -1158,6 +1158,7 @@
       "to": "bis",
       "resultTitle": "Stundenübersicht",
       "status": "Status",
+      "sum": "Summe",
       "mode": "Ansicht",
       "modeActual": "Ist-Stunden (Bestätigt & Korrigiert)",
       "modePlanned": "Soll-Plan (Geplant / Ungeprüft)",
