@@ -319,6 +319,47 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
       expect(generateInvoicePdf).toHaveBeenCalledTimes(1);
     });
 
+    it("opens a historical invoice with a recorded 0% surcharge using only its frozen snapshot", async () => {
+      vi.mocked(getCurrentUser).mockResolvedValue(adminUser);
+      vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+        id: "inv-hist-zero-surcharge",
+        invoiceNumber: "RE-2026-588",
+        status: "unpaid",
+        date: new Date("2026-10-07T13:50:33.000Z"),
+        netAmount: 3320.1,
+        vatAmount: 630.819,
+        grossAmount: 3950.919,
+        pdfUrl: null,
+        snapshotData: {
+          isFrozen: true,
+          facilityName: "Testeinrichtung",
+          address: "Teststraße 1, 53111 Bonn",
+          paymentTermsDays: 14,
+          items: [
+            { description: "Grundvergütung", hours: "63,00", rate: "51,00", amount: "3.213,00 €" },
+            { description: "Samstagszuschlag (+0%)", hours: "7,00", rate: "0,00", amount: "0,00 €" },
+            { description: "Sonntagszuschlag (+30%)", hours: "7,00", rate: "15,30", amount: "107,10 €" },
+          ],
+          subtotal: "3.320,10 €",
+          taxAmount: "630,82 €",
+          total: "3.950,92 €",
+        },
+        client: { id: "c-zero", facilityName: "Live-Daten dürfen nicht einfließen", address: "Andere Straße 2" },
+        assignments: [],
+      } as unknown as InvoiceDbRecord);
+
+      const res = await getInvoicePdfRoute(
+        new Request("http://localhost:3000/api/invoices/inv-hist-zero-surcharge/pdf"),
+        { params: Promise.resolve({ id: "inv-hist-zero-surcharge" }) }
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Document-Source")).toBe("frozen_snapshot");
+      const pdfData = vi.mocked(generateInvoicePdf).mock.calls[0][0];
+      expect(pdfData.items[1]).toMatchObject({ rate: "0,00", amount: "0,00 €" });
+      expect(pdfData.subtotal).toBe("3.320,10 €");
+    });
+
     it("serves 200 PDF with line items when historical invoice snapshotData contains pdfItems only (no items key)", async () => {
       vi.mocked(getCurrentUser).mockResolvedValue(adminUser);
 
@@ -1214,6 +1255,24 @@ describe("Phase 07e: Owner & Management Accounting Decisions", () => {
       expect(normalizeHistoricalItem({ description: "Dienst", hours: "10,00", rate: "50,00", amount: "ungueltig" })).toBeNull();
       expect(normalizeHistoricalItem({ description: "Dienst", hours: "10,00", rate: "50,00", amount: "-100,00 €" })).toBeNull();
       expect(normalizeHistoricalItem({ description: "Dienst", hours: "10,00", rate: "50,00", amountCents: -5000 })).toBeNull();
+    });
+
+    it("accepts an explicitly zero-priced historical surcharge but rejects unexplained or conflicting zero amounts", () => {
+      const zeroSurcharge = {
+        description: "Samstagszuschlag (+0%)",
+        hours: "7,00",
+        rate: "0,00",
+        amount: "0,00 €",
+      };
+      expect(normalizeHistoricalItem(zeroSurcharge)).toMatchObject({
+        hoursNum: 7,
+        rateNum: 0,
+        amountCents: 0,
+      });
+      expect(normalizeHistoricalItem({ ...zeroSurcharge, rate: "15,30" })).toBeNull();
+      expect(normalizeHistoricalItem({ ...zeroSurcharge, rate: undefined })).toBeNull();
+      expect(normalizeHistoricalItem({ ...zeroSurcharge, amountCents: 1 })).toBeNull();
+      expect(normalizeHistoricalItem({ ...zeroSurcharge, amount: "1,00 €" })).toBeNull();
     });
 
     it("normalizeHistoricalItem does NOT fabricate rate from amount/hours when rate is absent", () => {

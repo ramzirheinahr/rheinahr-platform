@@ -316,7 +316,8 @@ export type NormalizedHistoricalItem = {
  * Universal normalization helper for historical invoice line items.
  * Guarantees that every accepted format is validated for consistency:
  * - Rejects any item where different amount representations conflict (e.g. amountCents != amount string).
- * - Rejects invalid, unparseable, or negative/zero amounts and hours.
+ * - Rejects invalid, unparseable, or negative amounts and non-positive hours.
+ * - Accepts a zero-amount line only when an explicit zero hourly rate is recorded.
  * - Enforces consistency among hour representations.
  * - Strictly avoids fabricating an hourly rate from amount/hours when not recorded on the item.
  */
@@ -398,19 +399,19 @@ export function normalizeHistoricalItem(
   const centValues: number[] = [];
 
   if (it.amountCents !== undefined && it.amountCents !== null) {
-    if (typeof it.amountCents !== "number" || !Number.isSafeInteger(it.amountCents) || it.amountCents <= 0) {
+    if (typeof it.amountCents !== "number" || !Number.isSafeInteger(it.amountCents) || it.amountCents < 0) {
       return null;
     }
     centValues.push(it.amountCents);
   }
   if (it.totalCents !== undefined && it.totalCents !== null) {
-    if (typeof it.totalCents !== "number" || !Number.isSafeInteger(it.totalCents) || it.totalCents <= 0) {
+    if (typeof it.totalCents !== "number" || !Number.isSafeInteger(it.totalCents) || it.totalCents < 0) {
       return null;
     }
     centValues.push(it.totalCents);
   }
   if (it.lineTotalCents !== undefined && it.lineTotalCents !== null) {
-    if (typeof it.lineTotalCents !== "number" || !Number.isSafeInteger(it.lineTotalCents) || it.lineTotalCents <= 0) {
+    if (typeof it.lineTotalCents !== "number" || !Number.isSafeInteger(it.lineTotalCents) || it.lineTotalCents < 0) {
       return null;
     }
     centValues.push(it.lineTotalCents);
@@ -421,8 +422,8 @@ export function normalizeHistoricalItem(
     const raw = it[k];
     if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
       const parsed = parseCurrencyAmountToCents(raw);
-      if (parsed === null || parsed <= 0) {
-        return null; // unparseable, zero or negative
+      if (parsed === null || parsed < 0) {
+        return null; // unparseable or negative
       }
       centValues.push(parsed);
     }
@@ -454,30 +455,30 @@ export function normalizeHistoricalItem(
   const rateValues: number[] = [];
   if (it.rate !== undefined && it.rate !== null && String(it.rate).trim() !== "") {
     const val = parseGermanOrDecimalNumber(typeof it.rate === "string" ? it.rate.replace(/\s*€$/, "") : it.rate);
-    if (val === null || val <= 0) return null;
+    if (val === null || val < 0) return null;
     rateValues.push(val);
   }
   if (it.rateDisplay !== undefined && it.rateDisplay !== null && String(it.rateDisplay).trim() !== "") {
     const val = parseGermanOrDecimalNumber(typeof it.rateDisplay === "string" ? it.rateDisplay.replace(/\s*€$/, "") : it.rateDisplay);
-    if (val === null || val <= 0) return null;
+    if (val === null || val < 0) return null;
     rateValues.push(val);
   }
   if (it.rateDecimal !== undefined && it.rateDecimal !== null && String(it.rateDecimal).trim() !== "") {
     const val = parseGermanOrDecimalNumber(it.rateDecimal);
-    if (val === null || val <= 0) return null;
+    if (val === null || val < 0) return null;
     rateValues.push(val);
   }
   if (it.rateCents !== undefined && it.rateCents !== null) {
-    if (typeof it.rateCents !== "number" || !Number.isSafeInteger(it.rateCents) || it.rateCents <= 0) return null;
+    if (typeof it.rateCents !== "number" || !Number.isSafeInteger(it.rateCents) || it.rateCents < 0) return null;
     rateValues.push(it.rateCents / 100);
   }
   if (it.hourlyRateInCents !== undefined && it.hourlyRateInCents !== null) {
-    if (typeof it.hourlyRateInCents !== "number" || !Number.isSafeInteger(it.hourlyRateInCents) || it.hourlyRateInCents <= 0) return null;
+    if (typeof it.hourlyRateInCents !== "number" || !Number.isSafeInteger(it.hourlyRateInCents) || it.hourlyRateInCents < 0) return null;
     rateValues.push(it.hourlyRateInCents / 100);
   }
   if (it.hourlyRate !== undefined && it.hourlyRate !== null && String(it.hourlyRate).trim() !== "") {
     const val = parseGermanOrDecimalNumber(it.hourlyRate);
-    if (val === null || val <= 0) return null;
+    if (val === null || val < 0) return null;
     rateValues.push(val);
   }
 
@@ -502,6 +503,11 @@ export function normalizeHistoricalItem(
     rateNum = null;
     rateDisplay = "";
   }
+
+  // A historical 0% surcharge is a documented, non-billable line. Do not
+  // accept an unexplained zero amount or a positive amount at a zero rate.
+  if (amountCents === 0 && rateNum !== 0) return null;
+  if (amountCents > 0 && rateNum === 0) return null;
 
   return {
     pos,

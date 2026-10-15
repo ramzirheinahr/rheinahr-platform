@@ -964,7 +964,8 @@ export function parseCurrencyAmountToCents(val: unknown): number | null {
 /**
  * Validates that a frozen snapshot is 100% complete, mathematically consistent,
  * and guaranteed to produce a reproducible PDF without relying on live DB entities:
- * 1. Every line item must have description, valid positive hours/quantity, and valid positive amount.
+ * 1. Every line item must have description, valid positive hours/quantity, and a
+ *    valid non-negative amount; zero lines require an explicit zero rate.
  * 2. Sum of line item amounts must match snapshot subtotal (tolerance <= 2 cents).
  * 3. Sum of line item amounts must match database netAmount if provided (tolerance <= 5 cents).
  * 4. Mandates facilityName, address, and invoice date.
