@@ -20,7 +20,7 @@ import {
   createConfirmationUploadTicket, 
   finalizeDirectSignedConfirmation
 } from "@/app/[locale]/admin/orders/[id]/confirmation-actions";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createLocalStorageBrowserClient } from "@/lib/local-storage-browser";
 
 export type SelectableConfirmationAssignment = {
   id: string;
@@ -122,7 +122,7 @@ export function DirectConfirmationUploadDialog({
       }
 
       // Step 2: Upload directly to Supabase storage from the browser (no serverless payload limit)
-      const supabase = createSupabaseBrowserClient();
+      const supabase = createLocalStorageBrowserClient();
       let contentType = selectedFile.type?.toLowerCase().split(";")[0]?.trim();
       if (!contentType || contentType === "application/octet-stream") {
         const ext = selectedFile.name.split(".").pop()?.toLowerCase();

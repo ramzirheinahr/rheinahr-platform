@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { netShiftHours } from "@/lib/pricing";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,7 +150,7 @@ export async function POST(req: Request) {
     const randomSlug = crypto.randomBytes(8).toString("hex");
     const cleanFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const path = `signed-confirmations/${cleanGroupId}/${Date.now()}-${randomSlug}-${cleanFilename}`;
-    const supabase = createSupabaseAdminClient();
+    const supabase = createLocalStorageClient();
 
     const { error: uploadError } = await supabase.storage
       .from("confirmations")

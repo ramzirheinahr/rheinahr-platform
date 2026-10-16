@@ -98,8 +98,8 @@ export async function generateLeistungsnachweisePdf(
     return null;
   };
 
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
   const masterPdf = await PDFDocument.create();
 
   const generatedAssignments = assignments.filter((a) => !getUploadedDocUrl(a));

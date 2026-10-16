@@ -1,5 +1,4 @@
 import { redirect } from "@/i18n/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import type { Locale } from "@/i18n/routing";

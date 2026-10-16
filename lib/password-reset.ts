@@ -3,7 +3,6 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, getEmailFooterHtml } from "@/lib/email";
 import { audit } from "@/lib/audit";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type PasswordResetState = {
   ok: boolean;
@@ -187,14 +186,6 @@ export async function executePasswordReset(
   await prisma.userSession.deleteMany({
     where: { userId: verified.userId },
   });
-
-  // Mirror update to Supabase Auth if user exists there
-  try {
-    const supabase = createSupabaseAdminClient();
-    await supabase.auth.admin.updateUserById(verified.userId, { password: newPassword });
-  } catch (err) {
-    console.warn("Supabase auth password update skipped or failed:", err);
-  }
 
   await audit({
     userId: verified.userId,

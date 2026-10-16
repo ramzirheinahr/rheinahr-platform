@@ -8,7 +8,7 @@ import { audit } from "@/lib/audit";
 import { workerShiftLink, orderLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { formatDateTimeDE, formatDateDE } from "@/lib/utils";
 import { pushToUsers } from "@/lib/push";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 
 export type ActionState = { ok: boolean; error?: string; documentUrl?: string };
 
@@ -82,7 +82,7 @@ export async function confirmServicePublic(
   });
 
   const path = `${data.assignmentId}/signed/leistungsnachweis-${Date.now()}.pdf`;
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)

@@ -19,7 +19,7 @@ import {
   createContractUploadTicket,
   finalizeDirectSignedContract,
 } from "@/app/[locale]/admin/orders/[id]/contract-actions";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createLocalStorageBrowserClient } from "@/lib/local-storage-browser";
 
 export type SelectableAssignment = {
   id: string;
@@ -102,7 +102,7 @@ export function DirectContractUploadDialog({
       }
 
       // Step 2: Direct browser upload
-      const supabase = createSupabaseBrowserClient();
+      const supabase = createLocalStorageBrowserClient();
       let contentType = selectedFile.type?.toLowerCase().split(";")[0]?.trim();
       if (!contentType || contentType === "application/octet-stream") {
         const ext = selectedFile.name.split(".").pop()?.toLowerCase();

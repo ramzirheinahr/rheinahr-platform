@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -23,7 +23,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     return new NextResponse("Old local file cannot be retrieved", { status: 404 });
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   const { data, error } = await supabase.storage
     .from("confirmations")
     .createSignedUrl(client.frameworkAgreementUrl, 300);
@@ -32,5 +32,5 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     return new NextResponse("Error generating signed URL", { status: 500 });
   }
 
-  return NextResponse.redirect(data.signedUrl);
+  return NextResponse.redirect(new URL(data.signedUrl, _req.url));
 }

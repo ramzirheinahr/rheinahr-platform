@@ -1156,8 +1156,8 @@ export async function approveTimeChange(input: {
     draft: false,
   });
   const path = `${assignment.id}/signed/leistungsnachweis-${Date.now()}.pdf`;
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
   const { error } = await supabase.storage
     .from("confirmations")
     .upload(path, new Uint8Array(pdf), { contentType: "application/pdf", upsert: false });
@@ -1666,9 +1666,9 @@ export async function swapWorker(
   const attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
   if (certDoc) {
     try {
-      const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+      const { createLocalStorageClient } = await import("@/lib/local-storage");
       const { WORKER_FILES_BUCKET } = await import("@/lib/worker-files");
-      const supabase = createSupabaseAdminClient();
+      const supabase = createLocalStorageClient();
       const { data, error } = await supabase.storage
         .from(WORKER_FILES_BUCKET)
         .download(certDoc.filePath);

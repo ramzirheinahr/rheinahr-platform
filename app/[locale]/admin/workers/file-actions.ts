@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 import { documentCategories } from "@/lib/validations";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 import type { DocumentCategory } from "@prisma/client";
@@ -25,7 +25,7 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB (matches the bucket limit)
 // Confirm an object actually exists at `path` before we record it, so a client
 // that requests a ticket but never uploads can't create a dangling row.
 async function objectExists(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createLocalStorageClient>,
   path: string,
 ): Promise<boolean> {
   const idx = path.lastIndexOf("/");
@@ -68,7 +68,7 @@ export async function createWorkerPhotoUpload(
   if (!IMAGE_TYPES.includes(meta.fileType)) return { ok: false, error: "fileType" };
   if (meta.fileSize > MAX_BYTES) return { ok: false, error: "fileTooLarge" };
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   const path = `photos/${workerId}/${Date.now()}-${safeName(meta.fileName)}`;
   const { data, error } = await supabase.storage
     .from(WORKER_FILES_BUCKET)
@@ -87,7 +87,7 @@ export async function finalizeWorkerPhoto(
   if (!ctx) return { ok: false, error: "forbidden" };
   if (!path.startsWith(`photos/${workerId}/`)) return { ok: false, error: "saveError" };
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   if (!(await objectExists(supabase, path))) return { ok: false, error: "saveError" };
 
   // Best-effort removal of the previous photo so we don't orphan files.
@@ -115,7 +115,7 @@ export async function deleteWorkerPhoto(workerId: string): Promise<ActionState> 
   const ctx = await authorizeWorker(workerId);
   if (!ctx) return { ok: false, error: "forbidden" };
   if (ctx.worker.photoPath) {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createLocalStorageClient();
     await supabase.storage
       .from(WORKER_FILES_BUCKET)
       .remove([ctx.worker.photoPath])
@@ -147,7 +147,7 @@ export async function createWorkerDocumentUpload(
   if (!DOC_TYPES.includes(meta.fileType)) return { ok: false, error: "fileType" };
   if (meta.fileSize > MAX_BYTES) return { ok: false, error: "fileTooLarge" };
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   const path = `documents/${workerId}/${Date.now()}-${safeName(meta.fileName)}`;
   const { data, error } = await supabase.storage
     .from(WORKER_FILES_BUCKET)
@@ -170,7 +170,7 @@ export async function finalizeWorkerDocument(
     return { ok: false, error: "saveError" };
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   if (!(await objectExists(supabase, meta.path))) return { ok: false, error: "saveError" };
 
   await prisma.workerDocument.create({
@@ -206,7 +206,7 @@ export async function deleteWorkerDocument(docId: string): Promise<ActionState> 
     roleSatisfies(user.role, ["admin"]) || doc.worker.userId === user.id;
   if (!allowed) return { ok: false, error: "forbidden" };
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   await supabase.storage.from(WORKER_FILES_BUCKET).remove([doc.filePath]).catch(() => {});
   await prisma.workerDocument.delete({ where: { id: docId } });
   await audit({

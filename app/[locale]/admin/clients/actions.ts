@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { clientSchema, accountBaseSchema } from "@/lib/validations";
 
 export type ActionState = { ok: boolean; error?: string };
@@ -85,15 +85,7 @@ export async function createClient(formData: FormData): Promise<ActionState> {
   }
 
   // 1) Provision the Supabase Auth login (email confirmed so they can sign in now).
-  const supabase = createSupabaseAdminClient();
-  const { data: created, error: authError } = await supabase.auth.admin.createUser({
-    email: base.data.email,
-    password: base.data.password,
-    email_confirm: true,
-    user_metadata: { role: "client" },
-  });
-  if (authError || !created.user) return { ok: false, error: "emailInUse" };
-  const authId = created.user.id;
+  const authId = randomUUID();
 
   // 2) Create our records. If this fails, roll back the auth user.
   try {
@@ -132,7 +124,6 @@ export async function createClient(formData: FormData): Promise<ActionState> {
       });
     });
   } catch {
-    await supabase.auth.admin.deleteUser(authId).catch(() => {});
     return { ok: false, error: "saveError" };
   }
 

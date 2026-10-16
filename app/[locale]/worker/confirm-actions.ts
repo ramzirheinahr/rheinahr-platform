@@ -10,7 +10,7 @@ import { workerShiftLink, orderLink, buildShiftHtmlTable, getFacilityClientUserI
 import { pushToUsers } from "@/lib/push";
 import { sendEmail } from "@/lib/email";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 
 export type ActionState = { ok: boolean; error?: string; documentUrl?: string };
 
@@ -121,7 +121,7 @@ export async function confirmServiceByWorkerOnDevice(
   const pdf = await renderLeistungsnachweisPdf(documentData);
 
   const path = `${data.assignmentId}/signed/leistungsnachweis-${Date.now()}.pdf`;
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)

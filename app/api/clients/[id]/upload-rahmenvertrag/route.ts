@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 
 export const runtime = "nodejs";
 
@@ -27,7 +27,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
 
     const filename = `rahmenvertrag_${params.id}_${Date.now()}.pdf`;
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = createLocalStorageClient();
     const { error: uploadError } = await supabase.storage
       .from("confirmations")
       .upload(filename, buffer, {

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { UserRound, Upload, Trash2 } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createLocalStorageBrowserClient } from "@/lib/local-storage-browser";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 import {
   createWorkerPhotoUpload,
@@ -66,7 +66,7 @@ export function WorkerPhoto({
         reset();
         return;
       }
-      const supabase = createSupabaseBrowserClient();
+      const supabase = createLocalStorageBrowserClient();
       const { error } = await supabase.storage
         .from(WORKER_FILES_BUCKET)
         .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });

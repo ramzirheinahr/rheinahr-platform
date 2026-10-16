@@ -4,7 +4,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 
 export const runtime = "nodejs";
@@ -157,7 +157,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         ) || worker.documents[0];
 
       try {
-        const supabase = createSupabaseAdminClient();
+        const supabase = createLocalStorageClient();
         const { data, error } = await supabase.storage
           .from(WORKER_FILES_BUCKET)
           .download(doc.filePath);

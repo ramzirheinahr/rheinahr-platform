@@ -127,7 +127,7 @@ export class MissingRefreshSecretError extends InvoiceRefreshError {
   constructor() {
     super(
       "MISSING_REFRESH_SECRET",
-      "Kein sicheres serverseitiges Geheimnis für V2-Vorschau-Tokens konfiguriert (INVOICE_REFRESH_SECRET oder NEXTAUTH_SECRET erforderlich)."
+      "Kein sicheres serverseitiges Geheimnis für V2-Vorschau-Tokens konfiguriert (INVOICE_REFRESH_SECRET, NEXTAUTH_SECRET oder ENCRYPTION_KEY erforderlich)."
     );
   }
 }
@@ -203,8 +203,7 @@ export function getRefreshSecret(explicitSecret?: string): string {
     explicitSecret ||
     process.env.INVOICE_REFRESH_SECRET ||
     process.env.NEXTAUTH_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "rheinahr-invoice-refresh-fallback-secret-2026-minimum-32-chars";
+    process.env.ENCRYPTION_KEY;
 
   if (!secret || typeof secret !== "string" || secret.trim().length === 0) {
     throw new MissingRefreshSecretError();

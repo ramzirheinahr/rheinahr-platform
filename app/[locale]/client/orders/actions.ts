@@ -866,8 +866,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     }
     const uploadedFile = file as File;
     const path = `${data.assignmentId}/${Date.now()}-${uploadedFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
-    const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createSupabaseAdminClient();
+    const { createLocalStorageClient } = await import("@/lib/local-storage");
+    const supabase = createLocalStorageClient();
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, await uploadedFile.arrayBuffer(), {
@@ -919,8 +919,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
     });
 
     const path = `${data.assignmentId}/signed/leistungsnachweis-${Date.now()}.pdf`;
-    const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createSupabaseAdminClient();
+    const { createLocalStorageClient } = await import("@/lib/local-storage");
+    const supabase = createLocalStorageClient();
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, new Uint8Array(pdf), {
@@ -1319,8 +1319,8 @@ export async function confirmHoursCorrection(input: {
     draft: false,
   });
   const path = `${assignment.id}/signed/leistungsnachweis-${Date.now()}.pdf`;
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, new Uint8Array(pdf), { contentType: "application/pdf", upsert: false });

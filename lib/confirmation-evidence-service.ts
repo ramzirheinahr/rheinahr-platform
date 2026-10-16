@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 import { netShiftHours } from "@/lib/pricing";
 import { detectMimeTypeFromBuffer } from "@/lib/confirmation-tickets";
 import type { ConfirmationDocumentSourceType, HoursCorrectionStatus } from "@prisma/client";
@@ -466,7 +466,7 @@ export async function addConfirmationEvidence(params: AddEvidenceParams) {
     const safeName = sanitizeFileName(file.fileName);
     storagePath = `signed-confirmations/${assignment.order.clientId}/${assignmentId}/${Date.now()}-${randomSlug}-${safeName}`;
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = createLocalStorageClient();
     const { error: uploadError } = await supabase.storage
       .from("confirmations")
       .upload(storagePath, file.buffer, {
@@ -609,7 +609,7 @@ export async function addConfirmationEvidence(params: AddEvidenceParams) {
   } catch (dbErr: unknown) {
     if (uploadedToStorage && storagePath) {
       try {
-        const supabase = createSupabaseAdminClient();
+        const supabase = createLocalStorageClient();
         await supabase.storage.from("confirmations").remove([storagePath]);
       } catch (cleanupErr) {
         console.error("Failed to clean up orphaned storage file after DB failure:", cleanupErr);
@@ -1852,7 +1852,7 @@ export async function uploadWorkerMultiShiftEvidence(
   const randomSlug = crypto.randomBytes(6).toString("hex");
   const storagePath = `signed-confirmations/worker-${worker.id}/${Date.now()}-${randomSlug}-${safeName}`;
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   const { error: uploadError } = await supabase.storage
     .from("confirmations")
     .upload(storagePath, params.file.buffer, {

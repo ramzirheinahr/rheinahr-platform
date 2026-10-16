@@ -127,8 +127,8 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
 
   // If the contract is signed and has a document URL, serve it instead of rendering a new one.
   if (contract.documentUrl && contract.status === "signed") {
-    const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createSupabaseAdminClient();
+    const { createLocalStorageClient } = await import("@/lib/local-storage");
+    const supabase = createLocalStorageClient();
     const { data, error } = await supabase.storage
       .from("confirmations")
       .download(contract.documentUrl);

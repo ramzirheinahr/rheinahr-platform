@@ -5,8 +5,8 @@ vi.mock("server-only", () => ({}));
 
 // Mock Supabase storage
 const mockDownload = vi.fn();
-vi.mock("@/lib/supabase/admin", () => ({
-  createSupabaseAdminClient: () => ({
+vi.mock("@/lib/local-storage", () => ({
+  createLocalStorageClient: () => ({
     storage: {
       from: () => ({
         download: mockDownload,

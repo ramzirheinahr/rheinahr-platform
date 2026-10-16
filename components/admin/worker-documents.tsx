@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { FileText, Upload, Trash2, Check, ExternalLink } from "lucide-react";
 import { documentCategories } from "@/lib/validations";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createLocalStorageBrowserClient } from "@/lib/local-storage-browser";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 import {
   createWorkerDocumentUpload,
@@ -92,7 +92,7 @@ export function WorkerDocuments({
       }
       // 2) Upload the file straight to Storage from the browser — no size limit
       //    from the Server Action / serverless function.
-      const supabase = createSupabaseBrowserClient();
+      const supabase = createLocalStorageBrowserClient();
       const { error } = await supabase.storage
         .from(WORKER_FILES_BUCKET)
         .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });

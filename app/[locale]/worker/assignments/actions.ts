@@ -9,7 +9,7 @@ import { audit } from "@/lib/audit";
 import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { formatDateDE } from "@/lib/utils";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 import { formatWorkerSalutation, formatWorkerDisplayName, formatWorkerEmailIntro, formatWorkerBirthDate } from "@/lib/worker-utils";
 
@@ -21,7 +21,7 @@ export async function getCertificatesForWorkers(workerIds: string[]) {
   });
   if (docs.length === 0) return undefined;
   
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   const loaded = await Promise.all(
     docs.map(async (doc) => {
       const { data, error } = await supabase.storage.from(WORKER_FILES_BUCKET).download(doc.filePath);

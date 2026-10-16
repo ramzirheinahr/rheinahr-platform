@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { client: { update: vi.fn().mockResolvedValue({ id: "client-1" }) } },
 }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
+vi.mock("@/lib/local-storage", () => ({ createLocalStorageClient: vi.fn() }));
 
 import { updateClient } from "./actions";
 import { prisma } from "@/lib/prisma";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 
 // Short-lived signed URL (redirect) for a worker's profile photo. Access: admin,
@@ -28,11 +28,11 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   }
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createLocalStorageClient();
   const { data, error } = await supabase.storage
     .from(WORKER_FILES_BUCKET)
     .createSignedUrl(worker.photoPath, 300);
   if (error || !data) return new NextResponse("Error", { status: 500 });
 
-  return NextResponse.redirect(data.signedUrl);
+  return NextResponse.redirect(new URL(data.signedUrl, _req.url));
 }

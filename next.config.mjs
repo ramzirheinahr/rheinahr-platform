@@ -11,18 +11,6 @@ const nextConfig = {
     "bcryptjs",
     "@react-pdf/renderer",
   ],
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-      },
-      {
-        protocol: "https",
-        hostname: "*.supabase.in",
-      },
-    ],
-  },
   experimental: {
     serverActions: {
       bodySizeLimit: "25mb",

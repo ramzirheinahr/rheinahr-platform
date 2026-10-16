@@ -179,8 +179,8 @@ export async function uploadSignedContract(formData: FormData) {
   }
 
   const path = `contracts/${contractId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
   const { error } = await supabase.storage
     .from("confirmations")
     .upload(path, await file.arrayBuffer(), {
@@ -238,8 +238,8 @@ export async function createContractUploadTicket({
 
   const cleanFilename = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
   const path = `contracts/${Date.now()}-${cleanFilename}`;
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
 
   const { data, error } = await supabase.storage
     .from("confirmations")
@@ -421,8 +421,8 @@ export async function uploadDirectSignedContract(formData: FormData) {
   if (contentType === "image/jpg") contentType = "image/jpeg";
   if (!contentType) contentType = "application/pdf";
 
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
   const { error: uploadError } = await supabase.storage
     .from("confirmations")
     .upload(path, await file.arrayBuffer(), {

@@ -232,6 +232,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.FEATURE_INVOICE_V2_REFRESH;
+    delete process.env.ENCRYPTION_KEY;
     process.env.INVOICE_REFRESH_SECRET = TEST_SECRET;
   });
 
@@ -279,7 +280,7 @@ describe("V2 Single-Invoice Explicit Refresh & Revision Preservation Service (Ph
   // Section 2: HMAC Preview Token Security & Secret Requirement (Finding 1)
   // =========================================================================
   describe("2. HMAC Preview Token Security & Secret Requirement (Finding 1)", () => {
-    it("throws MissingRefreshSecretError when neither INVOICE_REFRESH_SECRET nor NEXTAUTH_SECRET is set", () => {
+    it("throws MissingRefreshSecretError when no refresh or encryption secret is set", () => {
       delete process.env.INVOICE_REFRESH_SECRET;
       delete process.env.NEXTAUTH_SECRET;
 

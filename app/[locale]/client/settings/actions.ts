@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 
 export type ActionState = { ok: boolean; error?: string };
@@ -60,15 +60,7 @@ export async function createClientSubUser(
   });
   if (existing) return { ok: false, error: "emailInUse" };
 
-  const supabase = createSupabaseAdminClient();
-  const { data: created, error: authError } = await supabase.auth.admin.createUser({
-    email: data.email,
-    password: data.password,
-    email_confirm: true,
-    user_metadata: { role: "client" },
-  });
-  if (authError || !created.user) return { ok: false, error: "emailInUse" };
-  const authId = created.user.id;
+  const authId = randomUUID();
 
   try {
     const passwordHash = await bcrypt.hash(data.password!, 12);
@@ -87,7 +79,6 @@ export async function createClientSubUser(
       },
     });
   } catch {
-    await supabase.auth.admin.deleteUser(authId).catch(() => {});
     return { ok: false, error: "saveError" };
   }
 
@@ -153,14 +144,6 @@ export async function updateClientSubUser(
     if (existing && existing.id !== id) {
       return { ok: false, error: "emailInUse" };
     }
-    const supabase = createSupabaseAdminClient();
-    const { error: authErr } = await supabase.auth.admin.updateUserById(id, {
-      email: data.email,
-      email_confirm: true,
-    });
-    if (authErr) {
-      return { ok: false, error: "emailInUse" };
-    }
   }
 
   // Handle optional password update
@@ -170,8 +153,6 @@ export async function updateClientSubUser(
       return { ok: false, error: "passwordMinLength" };
     }
     newPasswordHash = await bcrypt.hash(data.password, 12);
-    const supabase = createSupabaseAdminClient();
-    await supabase.auth.admin.updateUserById(id, { password: data.password }).catch(() => {});
   }
 
   try {
@@ -299,15 +280,7 @@ export async function deleteClientSubUser(
     return { ok: false, error: "forbidden" };
   }
 
-  // Delete from Supabase Auth
-  try {
-    const supabase = createSupabaseAdminClient();
-    await supabase.auth.admin.deleteUser(id);
-  } catch (err) {
-    console.warn("Supabase user delete skipped or failed:", err);
-  }
-
-  // Delete from Prisma (cascades sessions, appointments, etc.)
+  // Delete from the local identity database (cascades sessions, appointments, etc.)
   try {
     await prisma.user.delete({ where: { id } });
   } catch (err) {
@@ -385,17 +358,11 @@ export async function updateMyEmail(formData: FormData): Promise<ActionState> {
   const clash = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (clash && clash.id !== actor.id) return { ok: false, error: "emailInUse" };
 
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.auth.admin.updateUserById(actor.id, {
-    email,
-    email_confirm: true, // Auto-confirm for simplicity as requested by user
-  });
-
-  if (error) {
+  try {
+    await prisma.user.update({ where: { id: actor.id }, data: { email } });
+  } catch {
     return { ok: false, error: "emailInUse" };
   }
-
-  await prisma.user.update({ where: { id: actor.id }, data: { email } });
   
   await audit({
     userId: actor.id,
@@ -413,10 +380,6 @@ export async function updateMyPassword(formData: FormData): Promise<ActionState>
 
   const password = formData.get("password")?.toString();
   if (!password || password.length < 12) return { ok: false, error: "saveError" };
-
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.auth.admin.updateUserById(actor.id, { password });
-  if (error) return { ok: false, error: "saveError" };
 
   const passwordHash = await bcrypt.hash(password, 12);
   await prisma.user.update({ where: { id: actor.id }, data: { passwordHash } });

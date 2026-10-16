@@ -125,8 +125,8 @@ export async function signContractPublic({
   const pdfBuffer = await renderContractPdf(pdfData);
 
   const path = `contracts/${contractId}/${Date.now()}-AUEG-Vertrag.pdf`;
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
   const { error } = await supabase.storage
     .from("confirmations")
     .upload(path, new Uint8Array(pdfBuffer), {

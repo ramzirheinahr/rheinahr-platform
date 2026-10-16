@@ -80,8 +80,8 @@ vi.mock("@/lib/pdf/invoice", () => ({
   }),
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createSupabaseAdminClient: vi.fn(() => ({
+vi.mock("@/lib/local-storage", () => ({
+  createLocalStorageClient: vi.fn(() => ({
     storage: {
       from: vi.fn(() => ({
         download: vi.fn().mockResolvedValue({
@@ -97,7 +97,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { getCurrentUser, roleSatisfies, resolveClientId } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 
 describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", () => {
   beforeEach(() => {

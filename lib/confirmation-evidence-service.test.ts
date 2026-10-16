@@ -173,8 +173,8 @@ const storageMock = {
   }),
 };
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createSupabaseAdminClient: () => ({
+vi.mock("@/lib/local-storage", () => ({
+  createLocalStorageClient: () => ({
     storage: {
       from: () => storageMock,
     },

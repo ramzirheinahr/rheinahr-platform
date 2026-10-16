@@ -5,11 +5,10 @@ const IV_LENGTH = 12; // 96-bit IV recommended for GCM
 const TAG_LENGTH = 16; // 128-bit authentication tag
 
 function getEncryptionKey(): Buffer {
-  const secret =
-    process.env.ENCRYPTION_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "rheinahr-platform-system-secure-key-2026";
+  const secret = process.env.ENCRYPTION_KEY;
+  if (!secret || secret.length < 32) {
+    throw new Error("ENCRYPTION_KEY must be configured before encrypted settings are used");
+  }
   // Derive a reliable 32-byte key using SHA-256
   return crypto.createHash("sha256").update(secret).digest();
 }

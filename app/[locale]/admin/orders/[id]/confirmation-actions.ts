@@ -118,8 +118,8 @@ export async function createConfirmationUploadTicket({
   const randomSlug = crypto.randomBytes(8).toString("hex");
   const cleanFilename = safeName(fileName);
   const path = `signed-confirmations/${boundGroupId}/${Date.now()}-${randomSlug}-${cleanFilename}`;
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
 
   const { data, error } = await supabase.storage
     .from("confirmations")
@@ -511,8 +511,8 @@ export async function finalizeDirectSignedConfirmation(
   }
 
   // Mandatory object download and byte verification from Supabase storage
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
   const storageFrom = supabase.storage.from("confirmations");
 
   if (typeof (storageFrom as unknown as { download?: (p: string) => Promise<{ data: unknown; error: unknown }> }).download !== "function") {
@@ -631,8 +631,8 @@ export async function uploadDirectSignedConfirmation(formData: FormData) {
   }
 
   let uploadedPath: string | null = null;
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
 
   try {
     const assignmentIdsStr = formData.get("assignmentIds") as string;

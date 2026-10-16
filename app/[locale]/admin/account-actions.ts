@@ -5,7 +5,6 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { generateLoginToken, roleUsesAccessLink } from "@/lib/access";
 import { resetPasswordSchema, updateEmailSchema } from "@/lib/validations";
 
@@ -37,12 +36,6 @@ export async function resetAccountPassword(
   });
   if (!parsed.success) return { ok: false, error: "saveError" };
 
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.auth.admin.updateUserById(id, {
-    password: parsed.data.password,
-  });
-  if (error) return { ok: false, error: "saveError" };
-
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await prisma.user.update({ where: { id }, data: { passwordHash } });
 
@@ -55,9 +48,7 @@ export async function resetAccountPassword(
   return { ok: true };
 }
 
-// Change the account's login email. It is the Supabase Auth identity, so we
-// update Auth first (email_confirm so the user can sign in immediately) and
-// mirror it onto our User row. Returns "emailInUse" if the address is taken.
+// Change the account's login email in the local identity database.
 export async function updateAccountEmail(
   id: string,
   formData: FormData,
@@ -86,21 +77,11 @@ export async function updateAccountEmail(
   });
   if (clash && clash.id !== id) return { ok: false, error: "emailInUse" };
 
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.auth.admin.updateUserById(id, {
-    email,
-    email_confirm: true,
-  });
-  if (error) {
-    // Only report "email in use" when Auth actually rejects a duplicate;
-    // other failures (e.g. the Auth user is missing) must not masquerade as that.
-    const msg = error.message?.toLowerCase() ?? "";
-    const duplicate =
-      msg.includes("already") || msg.includes("registered") || msg.includes("exists");
-    return { ok: false, error: duplicate ? "emailInUse" : "saveError" };
+  try {
+    await prisma.user.update({ where: { id }, data: { email } });
+  } catch {
+    return { ok: false, error: "emailInUse" };
   }
-
-  await prisma.user.update({ where: { id }, data: { email } });
 
   await audit({
     userId: actor.id,

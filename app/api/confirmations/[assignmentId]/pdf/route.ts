@@ -65,8 +65,8 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
   // Electronic confirmations archive an immutable signed PDF at confirm time —
   // serve that authoritative artifact instead of re-rendering.
   if (sc.method === "electronic" && sc.documentUrl?.includes("/signed/")) {
-    const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createSupabaseAdminClient();
+    const { createLocalStorageClient } = await import("@/lib/local-storage");
+    const supabase = createLocalStorageClient();
     const { data, error } = await supabase.storage
       .from("confirmations")
       .download(sc.documentUrl);

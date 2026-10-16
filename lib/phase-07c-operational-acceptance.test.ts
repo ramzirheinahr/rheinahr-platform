@@ -138,8 +138,8 @@ vi.mock("@/lib/audit", () => ({
   audit: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createSupabaseAdminClient: vi.fn(() => ({
+vi.mock("@/lib/local-storage", () => ({
+  createLocalStorageClient: vi.fn(() => ({
     storage: {
       from: vi.fn(() => ({
         upload: vi.fn().mockResolvedValue({ error: null }),

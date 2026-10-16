@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLocalStorageClient } from "@/lib/local-storage";
 import { audit } from "@/lib/audit";
 import fs from "node:fs";
 import path from "node:path";
@@ -77,7 +77,7 @@ async function downloadFromSupabase(storagePath: string): Promise<Buffer | null>
     .replace(/\.\./g, "");
 
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createLocalStorageClient();
     const { data, error } = await supabase.storage.from("confirmations").download(cleanPath);
     if (error || !data) return null;
 

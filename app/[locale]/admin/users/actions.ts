@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 
 export type ActionState = { ok: boolean; error?: string };
@@ -49,15 +49,7 @@ export async function createAdminUser(
   });
   if (existing) return { ok: false, error: "emailInUse" };
 
-  const supabase = createSupabaseAdminClient();
-  const { data: created, error: authError } = await supabase.auth.admin.createUser({
-    email: data.email,
-    password: data.password,
-    email_confirm: true,
-    user_metadata: { role: "admin" },
-  });
-  if (authError || !created.user) return { ok: false, error: "emailInUse" };
-  const authId = created.user.id;
+  const authId = randomUUID();
 
   try {
     const passwordHash = await bcrypt.hash(data.password!, 12);
@@ -74,7 +66,6 @@ export async function createAdminUser(
       },
     });
   } catch {
-    await supabase.auth.admin.deleteUser(authId).catch(() => {});
     return { ok: false, error: "saveError" };
   }
 

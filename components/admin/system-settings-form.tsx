@@ -4,7 +4,7 @@ import { useState, useRef, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Image as ImageIcon, Upload, Trash2 } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createLocalStorageBrowserClient } from "@/lib/local-storage-browser";
 import { updateSystemSetting, createSystemAssetUploadUrl } from "@/app/[locale]/admin/settings/system/actions";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
@@ -40,7 +40,7 @@ function ImageUploadField({
       try {
         const { path, token } = await createSystemAssetUploadUrl(file.name);
         
-        const supabase = createSupabaseBrowserClient();
+        const supabase = createLocalStorageBrowserClient();
         const { error: uploadError } = await supabase.storage
           .from("system-assets")
           .uploadToSignedUrl(path, token, file, { contentType: file.type });

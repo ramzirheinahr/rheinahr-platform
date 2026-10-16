@@ -33,8 +33,8 @@ export async function createSystemAssetUploadUrl(fileName: string) {
     throw new Error("Unauthorized");
   }
 
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createSupabaseAdminClient();
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
   
   const path = `landing/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const { data, error } = await supabase.storage
