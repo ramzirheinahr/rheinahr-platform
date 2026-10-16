@@ -6,6 +6,8 @@ import { CompanySettingsForm } from "@/components/admin/company-settings-form";
 import { EmailSettingsForm } from "@/components/admin/email-settings-form";
 import { QualificationCatalogEditor } from "@/components/admin/qualification-catalog-editor";
 import { getQualificationCatalog } from "@/lib/qualification-catalog";
+import { FacilityTypeCatalogEditor } from "@/components/admin/facility-type-catalog-editor";
+import { getFacilityTypeCatalog } from "@/lib/facility-type-catalog";
 import { prisma } from "@/lib/prisma";
 
 export default async function SystemSettingsPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -18,6 +20,11 @@ export default async function SystemSettingsPage({ params }: { params: Promise<{
   const qualificationRows = await prisma.qualificationCatalog.findMany({
     orderBy: [{ sortOrder: "asc" }, { nameDe: "asc" }],
     select: { code: true, nameDe: true, nameEn: true, nameAr: true, defaultClientRateCents: true, active: true, sortOrder: true, updatedAt: true },
+  });
+
+  const facilityTypeItems = await getFacilityTypeCatalog({
+    includeArchived: true,
+    includeClientCount: true,
   });
 
   const defaultEnvConfig = {
@@ -38,6 +45,10 @@ export default async function SystemSettingsPage({ params }: { params: Promise<{
       </div>
       
       <div className="max-w-4xl mt-8 space-y-12">
+        <FacilityTypeCatalogEditor
+          key={facilityTypeItems.map((item) => `${item.code}:${item.active}`).join("|")}
+          initialItems={facilityTypeItems}
+        />
         <QualificationCatalogEditor key={qualificationRows.map((row) => `${row.code}:${row.updatedAt.toISOString()}`).join("|")} initialRows={qualificationRows.map((row) => ({ ...row, updatedAt: row.updatedAt.toISOString() }))} />
         <EmailSettingsForm settings={settings} defaultEnvConfig={defaultEnvConfig} />
         <CompanySettingsForm settings={settings} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,16 +13,35 @@ import { facilityTypes } from "@/lib/validations";
 import { PasswordField } from "@/components/admin/password-field";
 import { FacilityNameCodeFields } from "@/components/admin/facility-name-code-fields";
 import { createClient } from "@/app/[locale]/admin/clients/actions";
+import { facilityTypeName } from "@/lib/facility-type-shared";
 
 // Creates a facility together with its login account (super_admin only) —
 // profile and credentials in one step, no separate accounts page.
-export function ClientCreateForm({ customFacilityTypes = [] }: { customFacilityTypes?: string[] }) {
+export function ClientCreateForm({
+  customFacilityTypes = [],
+  facilityTypes: catalogTypes,
+}: {
+  customFacilityTypes?: string[];
+  facilityTypes?: Array<{ code: string; nameDe: string; nameEn?: string | null; nameAr?: string | null }>;
+}) {
   const t = useTranslations("clients");
   const ta = useTranslations("accounts");
   const c = useTranslations("common");
   const ef = useTranslations("enums.facilityType");
+  const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  const options =
+    catalogTypes && catalogTypes.length > 0
+      ? catalogTypes.map((f) => ({
+          value: f.code,
+          label: facilityTypeName(f, locale),
+        }))
+      : [
+          ...facilityTypes.map((f) => ({ value: f, label: ef(f) })),
+          ...customFacilityTypes.map((f) => ({ value: f, label: f })),
+        ];
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,11 +74,8 @@ export function ClientCreateForm({ customFacilityTypes = [] }: { customFacilityT
           <Label>{t("facilityType")}</Label>
           <Combobox
             name="facilityType"
-            defaultValue={[facilityTypes[0]]}
-            options={[
-              ...facilityTypes.map((f) => ({ value: f, label: ef(f) })),
-              ...customFacilityTypes.map((f) => ({ value: f, label: f })),
-            ]}
+            defaultValue={[options[0]?.value || "pflegeheim"]}
+            options={options}
             allowCreate
             placeholder={t("facilityType")}
           />

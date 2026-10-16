@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { facilityTypes } from "@/lib/validations";
 import { FacilityNameCodeFields } from "@/components/admin/facility-name-code-fields";
 import { updateClient } from "@/app/[locale]/admin/clients/actions";
+import { facilityTypeName } from "@/lib/facility-type-shared";
 
 type ClientData = {
   id: string;
@@ -32,7 +33,18 @@ type ClientData = {
 
 // Edits an existing facility profile; the login account is managed in the
 // AccountSection rendered next to this form.
-export function ClientForm({ client, customFacilityTypes = [], returnToRates = false }: { client: ClientData, customFacilityTypes?: string[], returnToRates?: boolean }) {
+export function ClientForm({
+  client,
+  customFacilityTypes = [],
+  facilityTypes: catalogTypes,
+  returnToRates = false,
+}: {
+  client: ClientData;
+  customFacilityTypes?: string[];
+  facilityTypes?: Array<{ code: string; nameDe: string; nameEn?: string | null; nameAr?: string | null }>;
+  returnToRates?: boolean;
+}) {
+  const locale = useLocale();
   const t = useTranslations("clients");
   const c = useTranslations("common");
   const ef = useTranslations("enums.facilityType");
@@ -86,10 +98,23 @@ export function ClientForm({ client, customFacilityTypes = [], returnToRates = f
           <Combobox
             name="facilityType"
             defaultValue={[initialClient.facilityType]}
-            options={[
-              ...facilityTypes.map((f) => ({ value: f, label: ef(f) })),
-              ...customFacilityTypes.map((f) => ({ value: f, label: f })),
-            ]}
+            options={
+              catalogTypes && catalogTypes.length > 0
+                ? [
+                    ...catalogTypes.map((f) => ({
+                      value: f.code,
+                      label: facilityTypeName(f, locale),
+                    })),
+                    ...(initialClient.facilityType &&
+                    !catalogTypes.some((f) => f.code === initialClient.facilityType)
+                      ? [{ value: initialClient.facilityType, label: initialClient.facilityType }]
+                      : []),
+                  ]
+                : [
+                    ...facilityTypes.map((f) => ({ value: f, label: ef(f) })),
+                    ...customFacilityTypes.map((f) => ({ value: f, label: f })),
+                  ]
+            }
             allowCreate
             placeholder={t("facilityType")}
           />

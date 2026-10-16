@@ -10,7 +10,7 @@ import { DeleteClientButton } from "@/components/admin/delete-client-button";
 import { RahmenvertragSection } from "@/components/admin/rahmenvertrag-section";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { facilityTypes } from "@/lib/validations";
+import { getFacilityTypeCatalog } from "@/lib/facility-type-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +49,7 @@ export default async function EditClientPage({
     prisma.facilitySurchargePolicy.count({ where: { clientId: id, isFrozen: true } }),
   ]).catch(() => null);
 
-  const allTypes = await prisma.client.findMany({ select: { facilityType: true }, distinct: ["facilityType"] });
-  const customFacilityTypes = allTypes
-    .map((c) => c.facilityType)
-    .filter((t) => !facilityTypes.includes(t as (typeof facilityTypes)[number]));
+  const catalogFacilityTypes = await getFacilityTypeCatalog({ includeArchived: true });
 
   return (
     <div className="space-y-6">
@@ -91,7 +88,7 @@ export default async function EditClientPage({
             receiveEmails: client.user.receiveEmails,
           },
         }}
-        customFacilityTypes={customFacilityTypes}
+        facilityTypes={catalogFacilityTypes}
       />
 
       {/* Rahmenvertrag Management */}

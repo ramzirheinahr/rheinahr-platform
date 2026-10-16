@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ClientCreateForm } from "@/components/admin/client-create-form";
 import { ArrowLeft } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
-import { prisma } from "@/lib/prisma";
-import { facilityTypes } from "@/lib/validations";
+import { getFacilityTypeCatalog } from "@/lib/facility-type-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +20,7 @@ export default async function NewClientPage({
   const t = await getTranslations("clients");
   const c = await getTranslations("common");
 
-  const allTypes = await prisma.client.findMany({ select: { facilityType: true }, distinct: ["facilityType"] });
-  const customFacilityTypes = allTypes
-    .map((c) => c.facilityType)
-    .filter((t) => !facilityTypes.includes(t as any));
+  const facilityTypes = await getFacilityTypeCatalog();
 
   return (
     <div className="space-y-6">
@@ -40,7 +36,7 @@ export default async function NewClientPage({
         </Button>
         <h1 className="text-2xl font-semibold">{t("new")}</h1>
       </div>
-      <ClientCreateForm customFacilityTypes={customFacilityTypes} />
+      <ClientCreateForm facilityTypes={facilityTypes} />
     </div>
   );
 }

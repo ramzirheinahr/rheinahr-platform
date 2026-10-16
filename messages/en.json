@@ -1959,5 +1959,31 @@
     "gross": "Gross",
     "openPdf": "Open draft PDF",
     "accountingConfirmed": "I confirm that accounting reviewed this draft and the contract values. Only issuing creates the official invoice."
+  },
+  "facilityTypeCatalog": {
+    "title": "Facility types (Art der Einrichtung)",
+    "description": "Manage available facility types (e.g. nursing home, rehab, hospice, sports club). These options are available when creating and editing facilities.",
+    "addNewTitle": "Add new facility type",
+    "code": "Identifier",
+    "codePlaceholder": "e.g. rehab_clinic",
+    "nameDe": "Name (German)",
+    "nameEn": "Name (English)",
+    "nameAr": "Name (Arabic)",
+    "sortOrder": "Sort order",
+    "addButton": "Create facility type",
+    "save": "Save",
+    "active": "Active",
+    "archived": "Archived",
+    "archive": "Archive",
+    "reactivate": "Reactivate",
+    "delete": "Delete",
+    "usedBy": "{count} facility(ies)",
+    "unused": "0 facilities",
+    "fillRequired": "Please fill in identifier and German name.",
+    "createdSuccess": "Facility type successfully created.",
+    "savedSuccess": "Changes saved.",
+    "deletedSuccess": "Facility type deleted.",
+    "deleteConfirm": "Are you sure you want to permanently delete this facility type?",
+    "cannotDeleteUsed": "In use by facilities (Please archive instead)"
   }
 }

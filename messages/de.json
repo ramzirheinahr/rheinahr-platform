@@ -1959,5 +1959,31 @@
     "gross": "Brutto",
     "openPdf": "PDF-Entwurf öffnen",
     "accountingConfirmed": "Ich bestätige, dass die Buchhaltung diesen Entwurf und die Vertragswerte geprüft hat. Erst die Ausgabe erstellt die offizielle Rechnung."
+  },
+  "facilityTypeCatalog": {
+    "title": "Einrichtungstypen (Art der Einrichtung)",
+    "description": "Verwalten Sie die verfügbaren Arten von Einrichtungen (z. B. Pflegeheim, Reha, Hospiz, Sportverein). Diese Optionen stehen beim Anlegen und Bearbeiten von Einrichtungen zur Auswahl.",
+    "addNewTitle": "Neuen Einrichtungstyp anlegen",
+    "code": "Kennung",
+    "codePlaceholder": "z. B. rehaklinik",
+    "nameDe": "Name (Deutsch)",
+    "nameEn": "Name (Englisch)",
+    "nameAr": "Name (Arabisch)",
+    "sortOrder": "Reihenfolge",
+    "addButton": "Einrichtungstyp anlegen",
+    "save": "Speichern",
+    "active": "Aktiv",
+    "archived": "Archiviert",
+    "archive": "Archivieren",
+    "reactivate": "Reaktivieren",
+    "delete": "Löschen",
+    "usedBy": "{count} Einrichtung(en)",
+    "unused": "0 Einrichtungen",
+    "fillRequired": "Bitte Kennung und deutschen Namen ausfüllen.",
+    "createdSuccess": "Einrichtungstyp erfolgreich angelegt.",
+    "savedSuccess": "Änderungen gespeichert.",
+    "deletedSuccess": "Einrichtungstyp gelöscht.",
+    "deleteConfirm": "Möchten Sie diesen Einrichtungstyp wirklich dauerhaft löschen?",
+    "cannotDeleteUsed": "Wird von Einrichtungen verwendet (Bitte stattdessen archivieren)"
   }
 }

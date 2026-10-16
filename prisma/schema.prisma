@@ -733,6 +733,21 @@ model QualificationCatalog {
   @@map("qualification_catalog")
 }
 
+// Configurable facility types (Art der Einrichtung) managed by administrators.
+model FacilityTypeCatalog {
+  code      String   @id @db.VarChar(120)
+  nameDe    String   @map("name_de") @db.VarChar(120)
+  nameEn    String   @map("name_en") @db.VarChar(120)
+  nameAr    String   @map("name_ar") @db.VarChar(120)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([active, sortOrder])
+  @@map("facility_type_catalog")
+}
+
 // Platform defaults are dated and append-only so a later settings edit cannot
 // change the price selected for an earlier shift or issued invoice.
 model QualificationDefaultRateVersion {
