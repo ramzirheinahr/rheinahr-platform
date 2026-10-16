@@ -118,7 +118,7 @@ export function estimateGermanDistanceKm(originAddress: string | null, destAddre
 export async function getDrivingDistanceKm(
   originAddress: string | null,
   destAddress: string | null,
-  options?: { fast?: boolean }
+  options?: { fast?: boolean; strict?: boolean }
 ): Promise<number | null> {
   if (!originAddress || !destAddress) return null;
   
@@ -129,10 +129,14 @@ export async function getDrivingDistanceKm(
   const cacheKey = `${originAddress.trim().toLowerCase()}|${destAddress.trim().toLowerCase()}`;
   if (distanceCache.has(cacheKey)) {
     const cached = distanceCache.get(cacheKey);
-    return cached ?? estimateGermanDistanceKm(originAddress, destAddress);
+    if (cached != null) return cached;
+    if (!options?.strict) return estimateGermanDistanceKm(originAddress, destAddress);
+    // A previous request may have failed temporarily; retry before freezing a value.
+    distanceCache.delete(cacheKey);
   }
 
-  if (inFlightDistance.has(cacheKey)) return inFlightDistance.get(cacheKey)!;
+  const flightKey = `${cacheKey}|${options?.strict ? "strict" : "fallback"}`;
+  if (inFlightDistance.has(flightKey)) return inFlightDistance.get(flightKey)!;
 
   const promise = (async () => {
     const origin = await geocode(originAddress);
@@ -140,7 +144,7 @@ export async function getDrivingDistanceKm(
 
     if (!origin || !dest) {
       distanceCache.set(cacheKey, null);
-      return estimateGermanDistanceKm(originAddress, destAddress);
+      return options?.strict ? null : estimateGermanDistanceKm(originAddress, destAddress);
     }
 
     try {
@@ -158,15 +162,15 @@ export async function getDrivingDistanceKm(
       }
       
       distanceCache.set(cacheKey, null);
-      return estimateGermanDistanceKm(originAddress, destAddress);
+      return options?.strict ? null : estimateGermanDistanceKm(originAddress, destAddress);
     } catch (error) {
       console.error("Distance calculation failed", error);
-      return estimateGermanDistanceKm(originAddress, destAddress);
+      return options?.strict ? null : estimateGermanDistanceKm(originAddress, destAddress);
     }
   })();
 
-  inFlightDistance.set(cacheKey, promise);
+  inFlightDistance.set(flightKey, promise);
   const result = await promise;
-  inFlightDistance.delete(cacheKey);
+  inFlightDistance.delete(flightKey);
   return result;
 }

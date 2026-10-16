@@ -482,6 +482,15 @@ model Assignment {
   addMealAllowance       Boolean          @default(false) @map("add_meal_allowance")
   excludeMealAllowance   Boolean          @default(false) @map("exclude_meal_allowance")
   excludeTravelAllowance Boolean          @default(false) @map("exclude_travel_allowance")
+  // Frozen first-use travel calculation; later address/route changes must not rewrite old reports.
+  travelDistanceKm       Float?            @map("travel_distance_km")
+  travelRatePerKm        Float?            @map("travel_rate_per_km")
+  travelCostCents        Int?              @map("travel_cost_cents")
+  travelEligible         Boolean?          @map("travel_eligible")
+  travelSnapshotAt       DateTime?         @map("travel_snapshot_at")
+  travelOriginAddress    String?           @map("travel_origin_address")
+  travelDestinationAddress String?         @map("travel_destination_address")
+  travelSnapshotSource   String?           @map("travel_snapshot_source")
   // Bonus hours added exceptionally to this assignment (only paid to worker, not billed to client)
   bonusHours             Float            @default(0) @map("bonus_hours")
 

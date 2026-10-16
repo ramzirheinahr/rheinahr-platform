@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { getWorkerHoursAccount, getMultipleWorkersHoursAccount } from "@/lib/hours-account";
-import { getDrivingDistanceKm } from "@/lib/geocoding";
+import { getOrFreezeTravelLine } from "@/lib/travel-allowance-snapshot";
 import { dailyMealAllowanceAssignmentIds, normalizeMealAllowancePolicy } from "@/lib/meal-allowance";
 
 // Helper to format Date to YYYY-MM-DD
@@ -888,12 +888,14 @@ export async function getReisespesenData(params: {
     orderBy: [{ order: { shiftDate: "asc" } }, { order: { startTime: "asc" } }],
   });
 
-  const hasTravelAllowance = Boolean(worker.travelAllowanceEnabled);
   const ratePerKm = worker.travelAllowancePerKm ?? 0.3; // standard 0.30 €/km
 
   const rows: ReisespesenRow[] = [];
   let totalDistance = 0;
   let totalCost = 0;
+  const frozenLines = await Promise.all(assignments.map((assignment, i) =>
+    getOrFreezeTravelLine(assignment, i > 0 ? assignments[i - 1] : null, worker)
+  ));
 
   for (let i = 0; i < assignments.length; i++) {
     const a = assignments[i];
@@ -905,7 +907,6 @@ export async function getReisespesenData(params: {
     ).padStart(2, "0")}.${shiftD.getUTCFullYear()}`;
 
     let addressFrom = "Home";
-    const addressTo = a.order.client.address || a.order.client.facilityName;
 
     // Check if shift is on the same day as previous shift at same facility
     const isSameDayAsPrev =
@@ -913,25 +914,13 @@ export async function getReisespesenData(params: {
       prevA.order.shiftDate.toISOString().slice(0, 10) ===
         shiftD.toISOString().slice(0, 10);
 
-    let distance = 0;
+    const frozen = frozenLines[i];
+    const addressTo = frozen.destinationAddress;
+    if (isSameDayAsPrev && prevA.order.clientId === a.order.clientId) addressFrom = addressTo;
+    const distance = frozen.distanceKm;
+    const cost = frozen.costCents / 100;
 
-    if (isSameDayAsPrev && prevA.order.clientId === a.order.clientId) {
-      addressFrom = addressTo;
-      distance = 0;
-    } else {
-      addressFrom = "Home";
-      if (worker.address && addressTo) {
-        const d = await getDrivingDistanceKm(worker.address, addressTo);
-        distance = d ?? 25.0; // fallback if geocoding cannot calculate
-      } else {
-        distance = 20.0;
-      }
-    }
-
-    const isEligible = hasTravelAllowance && !a.excludeTravelAllowance;
-    const cost = isEligible ? Math.round(distance * ratePerKm * 100) / 100 : 0;
-
-    if (isEligible) {
+    if (frozen.eligible) {
       totalDistance += distance;
       totalCost += cost;
     }
@@ -1249,33 +1238,6 @@ export async function getMonthlySpesenOverviewData(params: {
     assignmentsByWorker.set(a.workerId, list);
   }
 
-  // Pre-fetch driving distances for unique (worker.address, clientAddr) pairs in parallel batches
-  const uniquePairs: Array<{ origin: string; dest: string }> = [];
-  const seenPairs = new Set<string>();
-
-  for (const worker of workers) {
-    if (!worker.travelAllowanceEnabled || !worker.address) continue;
-    const workerAssignments = assignmentsByWorker.get(worker.id) || [];
-    for (const a of workerAssignments) {
-      if (a.excludeTravelAllowance) continue;
-      const clientAddr = a.order.client.address || a.order.client.facilityName;
-      if (!clientAddr) continue;
-      const key = `${worker.address.trim().toLowerCase()}|${clientAddr.trim().toLowerCase()}`;
-      if (!seenPairs.has(key)) {
-        seenPairs.add(key);
-        uniquePairs.push({ origin: worker.address, dest: clientAddr });
-      }
-    }
-  }
-
-  const PREFETCH_BATCH_SIZE = 10;
-  for (let i = 0; i < uniquePairs.length; i += PREFETCH_BATCH_SIZE) {
-    const batch = uniquePairs.slice(i, i + PREFETCH_BATCH_SIZE);
-    await Promise.all(
-      batch.map((p) => getDrivingDistanceKm(p.origin, p.dest))
-    );
-  }
-
   const rows: MonthlySpesenWorkerRow[] = [];
 
   for (const worker of workers) {
@@ -1284,41 +1246,16 @@ export async function getMonthlySpesenOverviewData(params: {
       continue;
     }
 
-    const hasTravelAllowance = Boolean(worker.travelAllowanceEnabled);
-    const ratePerKm = worker.travelAllowancePerKm ?? 0.3;
     let workerDistance = 0;
     let workerFahrtCost = 0;
 
-    if (hasTravelAllowance) {
-      for (let i = 0; i < workerAssignments.length; i++) {
-        const a = workerAssignments[i];
-        if (a.excludeTravelAllowance) {
-          continue;
-        }
-
-        const prevA = i > 0 ? workerAssignments[i - 1] : null;
-
-        const isSameDayAsPrev =
-          prevA &&
-          prevA.order.shiftDate.toISOString().slice(0, 10) ===
-            a.order.shiftDate.toISOString().slice(0, 10);
-
-        let distance = 0;
-        if (isSameDayAsPrev && prevA.order.clientId === a.order.clientId) {
-          distance = 0;
-        } else {
-          const clientAddr = a.order.client.address || a.order.client.facilityName;
-          if (worker.address && clientAddr) {
-            const d = await getDrivingDistanceKm(worker.address, clientAddr);
-            distance = d ?? 25.0;
-          } else {
-            distance = 20.0;
-          }
-        }
-
-        const cost = Math.round(distance * ratePerKm * 100) / 100;
-        workerDistance += distance;
-        workerFahrtCost += cost;
+    const frozenLines = await Promise.all(workerAssignments.map((assignment, i) =>
+      getOrFreezeTravelLine(assignment, i > 0 ? workerAssignments[i - 1] : null, worker)
+    ));
+    for (const frozen of frozenLines) {
+      if (frozen.eligible) {
+        workerDistance += frozen.distanceKm;
+        workerFahrtCost += frozen.costCents / 100;
       }
     }
 

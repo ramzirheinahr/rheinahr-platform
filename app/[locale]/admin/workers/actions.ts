@@ -265,7 +265,9 @@ export async function updateWorker(
   await ensureQualificationCatalog();
   const [selectableQualification, originalWorker] = await Promise.all([
     prisma.qualificationCatalog.findFirst({ where: { code: data.qualification, active: true }, select: { code: true } }),
-    prisma.worker.findUnique({ where: { id }, select: { qualification: true } }),
+    prisma.worker.findUnique({ where: { id }, select: {
+      qualification: true, address: true, travelAllowanceEnabled: true, travelAllowancePerKm: true,
+    } }),
   ]);
   if (!selectableQualification && originalWorker?.qualification !== data.qualification) return { ok: false, error: "saveError" };
   const extraRates = await workerCustomRates(formData);
@@ -298,6 +300,11 @@ export async function updateWorker(
     action: "worker.update",
     entity: "Worker",
     entityId: id,
+    metadata: {
+      addressChanged: originalWorker?.address !== (data.address ?? null),
+      travelAllowanceEnabledChanged: originalWorker?.travelAllowanceEnabled !== data.travelAllowanceEnabled,
+      travelRateChanged: originalWorker?.travelAllowancePerKm !== (data.travelAllowancePerKm ?? null),
+    },
   });
 
   revalidatePath("/admin/workers");
