@@ -6,6 +6,7 @@ import { qualLabel } from "@/lib/invoicing";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal, rateFor } from "@/lib/pricing";
 import { renderContractPdf } from "@/lib/pdf/contract";
 import { format } from "@/lib/date-utils";
+import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,7 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
 
   // Map data to PDF template props
-  const rates = resolveRates(contract.client);
+  const rates = resolveRates(contract.client, catalogRateMap(await getQualificationCatalog({ includeArchived: true })));
   const surcharges = resolveSurcharges(contract.client);
   const nightWindow = resolveNightWindow(contract.client);
 

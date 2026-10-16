@@ -74,7 +74,7 @@ export function buildPayrollPdfData(
   if (totalBaseHours > 0) {
     items.push({
       pos: pos++,
-      description: `Grundstunden (${qualLabel[worker.qualification]})`,
+      description: `Grundstunden (${qualLabel[worker.qualification] || worker.qualification})`,
       hours: formatNumber(totalBaseHours),
       rate: formatAmount(baseRate),
       amount: formatAmount(totalBaseHours * baseRate),

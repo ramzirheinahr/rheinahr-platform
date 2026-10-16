@@ -9,6 +9,7 @@ import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserI
 import { pushToUsers } from "@/lib/push";
 import { formatDateDE } from "@/lib/utils";
 import { getCertificatesForWorkers } from "@/app/[locale]/worker/assignments/actions";
+import { formatWorkerSalutation, formatWorkerDisplayName, formatWorkerEmailIntro, formatWorkerBirthDate } from "@/lib/worker-utils";
 
 async function assertAdmin() {
   const user = await getCurrentUser();
@@ -83,6 +84,8 @@ export async function acceptAssignmentOnBehalfOfWorker(
           id: true,
           userId: true,
           fullName: true,
+          salutation: true,
+          birthDate: true,
           bio: true,
           qualification: true,
           skills: true,
@@ -221,23 +224,33 @@ export async function acceptAssignmentOnBehalfOfWorker(
       notes: assignment.order.notes || undefined,
       facilityName: assignment.order.client.facilityName,
       workerName: assignment.worker.fullName,
+      workerSalutation: assignment.worker.salutation,
+      workerBirthDate: assignment.worker.birthDate,
     };
     const shiftHtml = buildShiftHtmlTable([shiftData]);
 
+    const salutationLabel = formatWorkerSalutation(assignment.worker.salutation);
+    const birthDateStr = formatWorkerBirthDate(assignment.worker.birthDate);
+    const workerIntro = formatWorkerEmailIntro(assignment.worker);
+
     const workerProfile = `
-      <div style="margin-top: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;">
-        <h3 style="margin-top: 0; margin-bottom: 15px; color: #111827;">Mitarbeiterprofil</h3>
-        <p style="margin: 5px 0;"><strong>Name:</strong> ${assignment.worker.fullName}</p>
-        <p style="margin: 5px 0;"><strong>Qualifikation:</strong> ${assignment.worker.qualification}</p>
-        ${assignment.worker.yearsExperience ? `<p style="margin: 5px 0;"><strong>Erfahrung:</strong> ${assignment.worker.yearsExperience} Jahre</p>` : ''}
-        ${assignment.worker.skills.length > 0 ? `<p style="margin: 5px 0;"><strong>Fähigkeiten:</strong> ${assignment.worker.skills.join(', ')}</p>` : ''}
-        ${assignment.worker.bio ? `<p style="margin: 5px 0;"><strong>Über mich:</strong> ${assignment.worker.bio}</p>` : ''}
+      <div style="margin-top: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e2e8f0; border-radius: 6px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; color: #0f172a; font-size: 15px;">Mitarbeiterprofil</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #334155;">
+          ${salutationLabel ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Anrede:</strong></td><td style="padding: 4px 0;">${salutationLabel}</td></tr>` : ""}
+          <tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Name:</strong></td><td style="padding: 4px 0; font-weight: 600;">${assignment.worker.fullName}</td></tr>
+          ${birthDateStr ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Geburtsdatum:</strong></td><td style="padding: 4px 0;">${birthDateStr}</td></tr>` : ""}
+          <tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Qualifikation:</strong></td><td style="padding: 4px 0;">${assignment.worker.qualification}</td></tr>
+          ${assignment.worker.yearsExperience ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Erfahrung:</strong></td><td style="padding: 4px 0;">${assignment.worker.yearsExperience} Jahre</td></tr>` : ""}
+          ${assignment.worker.skills.length > 0 ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Fähigkeiten:</strong></td><td style="padding: 4px 0;">${assignment.worker.skills.join(", ")}</td></tr>` : ""}
+          ${assignment.worker.bio ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Über mich:</strong></td><td style="padding: 4px 0;">${assignment.worker.bio}</td></tr>` : ""}
+        </table>
       </div>
     `;
 
     const clientHtml = `
       <p>Sehr geehrte Damen und Herren,</p>
-      <p>wir freuen uns, Ihnen mitteilen zu können, dass der folgende Einsatz von unserem Mitarbeiter <strong>${assignment.worker.fullName}</strong> bestätigt wurde:</p>
+      <p>wir freuen uns, Ihnen mitteilen zu können, dass der folgende Einsatz von ${workerIntro} bestätigt wurde:</p>
       ${shiftHtml}
       ${workerProfile}
       <p>Unser Mitarbeiter wird pünktlich zum Dienstbeginn bei Ihnen vor Ort sein.</p>

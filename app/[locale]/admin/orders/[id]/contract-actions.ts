@@ -59,7 +59,7 @@ export async function generateOrderContracts(assignmentIds: string[], splitByShi
     },
     select: { 
       id: true,
-      worker: { select: { fullName: true, qualification: true } },
+      worker: { select: { fullName: true, salutation: true, birthDate: true, qualification: true } },
       order: { 
         select: { 
           shiftDate: true, 
@@ -133,6 +133,8 @@ export async function generateOrderContracts(assignmentIds: string[], splitByShi
       notes: a.order.notes || undefined,
       facilityName: a.order.client.facilityName,
       workerName: a.worker.fullName,
+      workerSalutation: a.worker.salutation,
+      workerBirthDate: a.worker.birthDate,
     })))}
     <p>Bitte prüfen und unterzeichnen Sie den Vertrag in Ihrem Kundenportal.</p>
   `;

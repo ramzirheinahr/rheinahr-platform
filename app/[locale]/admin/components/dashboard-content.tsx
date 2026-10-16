@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requestNetTotal, resolveRates, resolveSurcharges, resolveNightWindow, VAT_RATE } from "@/lib/pricing";
+import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Clock, CheckCircle, FileText, Euro } from "lucide-react";
 import { ActionItems } from "@/app/[locale]/admin/components/action-items";
@@ -242,13 +243,14 @@ async function getStats(monthStr?: string) {
       value: o._count,
     }));
     
+    const catalogDefaults = catalogRateMap(await getQualificationCatalog({ includeArchived: true }));
     // Calculate expected total revenue for all orders (gross)
     let totalRevenue = 0;
     for (const order of allOrdersThisMonth) {
-      const rates = resolveRates(order.client);
+      const rates = resolveRates(order.client, catalogDefaults);
       const surcharges = resolveSurcharges(order.client);
       const nightWindow = resolveNightWindow(order.client);
-      const net = requestNetTotal([order], surcharges, rates, nightWindow);
+      const net = requestNetTotal([order], surcharges, rates, nightWindow, order.client.billingHolidayCalendar);
       totalRevenue += net * (1 + VAT_RATE);
     }
 
@@ -266,8 +268,9 @@ async function getStats(monthStr?: string) {
       previousRevenue += requestNetTotal(
         [order],
         resolveSurcharges(order.client),
-        resolveRates(order.client),
+        resolveRates(order.client, catalogDefaults),
         resolveNightWindow(order.client),
+        order.client.billingHolidayCalendar,
       ) * (1 + VAT_RATE);
     }
     const previousAssignedShifts = previousOrders.filter((order) =>

@@ -8,7 +8,7 @@ import {
   getWorkerMonthSchedule,
   getWorkerMonthAvailability,
 } from "@/lib/worker-schedule";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -59,9 +59,20 @@ export default async function WorkerSchedulePage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">{p("schedule")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{p("scheduleSubtitle")}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">{p("schedule")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{p("scheduleSubtitle")}</p>
+        </div>
+        <a
+          href={`/api/worker/dienstplan?year=${year}&month=${month}`}
+          className="inline-flex items-center gap-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white px-3.5 py-2 text-sm font-semibold shadow-sm transition-colors w-fit"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <FileText className="size-4" />
+          {p("downloadDienstplan")}
+        </a>
       </div>
 
       {/* Shared month navigator — drives both the assignments table and the availability editor. */}

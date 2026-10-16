@@ -1,12 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import { requireSuperAdmin } from "@/lib/auth";
-import { qualifications } from "@/lib/validations";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { WorkerCreateForm } from "@/components/admin/worker-create-form";
 import { ArrowLeft } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
-import { prisma } from "@/lib/prisma";
+import { getQualificationCatalog } from "@/lib/qualification-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +20,10 @@ export default async function NewWorkerPage({
   await requireSuperAdmin(locale as Locale);
 
   const { qualification } = await searchParams;
-  const initialQualification = (qualifications as readonly string[]).includes(
-    qualification ?? "",
-  )
+  const qualificationOptions = await getQualificationCatalog();
+  const initialQualification = qualificationOptions.some((item) => item.code === qualification)
     ? qualification
     : undefined;
-
-  const allQuals = await prisma.worker.findMany({ select: { qualification: true }, distinct: ["qualification"] });
-  const customQualifications = allQuals
-    .map((w) => w.qualification)
-    .filter((q) => !qualifications.includes(q as any));
 
   const t = await getTranslations("workers");
   const c = await getTranslations("common");
@@ -51,7 +44,7 @@ export default async function NewWorkerPage({
       </div>
       <WorkerCreateForm
         initialQualification={initialQualification}
-        customQualifications={customQualifications}
+        qualificationOptions={qualificationOptions}
       />
     </div>
   );

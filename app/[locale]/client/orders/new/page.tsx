@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { resolveSurcharges, resolveRates, resolveNightWindow } from "@/lib/pricing";
 import { ArrowLeft } from "lucide-react";
+import { getQualificationCatalog, catalogRateMap } from "@/lib/qualification-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +27,13 @@ export default async function NewOrderPage() {
         nightStart: true,
         nightEnd: true,
         hourlyRates: true,
+        billingHolidayCalendar: true,
           },
         })
         .catch(() => null)
     : null;
+  const qualificationOptions = await getQualificationCatalog();
+  const defaults = catalogRateMap(qualificationOptions);
 
   return (
     <div className="space-y-6">
@@ -45,7 +49,7 @@ export default async function NewOrderPage() {
         </Button>
         <h1 className="text-2xl font-semibold">{t("newOrder")}</h1>
       </div>
-      <OrderRequestBuilder surcharges={resolveSurcharges(client)} rates={resolveRates(client)} nightWindow={resolveNightWindow(client)} />
+      <OrderRequestBuilder qualificationOptions={qualificationOptions} surcharges={resolveSurcharges(client)} rates={resolveRates(client, defaults)} nightWindow={resolveNightWindow(client)} billingHolidayCalendar={client?.billingHolidayCalendar} />
     </div>
   );
 }

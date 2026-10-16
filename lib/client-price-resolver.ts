@@ -20,6 +20,7 @@
 
 import { createHash } from "node:crypto";
 import type { PriceVersionRecord } from "./invoice-v2-draft-service";
+import { hashClientPricingRateChange } from "./client-pricing-rate-change";
 
 export type ResolveClientPriceVersionParams = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,6 +33,10 @@ export type ResolveClientPriceVersionParams = {
   endShiftDateIso?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preloadedRates?: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  preloadedDefaultRates?: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  preloadedRateChanges?: any[];
 };
 
 export type ResolveClientPriceVersionSuccess = {
@@ -126,7 +131,7 @@ export function computeRateVersionCanonicalHash(terms: {
 export async function resolveClientPriceVersion(
   params: ResolveClientPriceVersionParams
 ): Promise<ResolveClientPriceVersionResult> {
-  const { prisma, clientId, qualification, shiftDateIso, contractId, spansIntoNextDay, endShiftDateIso, preloadedRates } =
+  const { prisma, clientId, qualification, shiftDateIso, contractId, spansIntoNextDay, endShiftDateIso, preloadedRates, preloadedDefaultRates, preloadedRateChanges } =
     params;
 
   if (!isValidIsoDateString(shiftDateIso)) {
@@ -184,15 +189,66 @@ export async function resolveClientPriceVersion(
     });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const latestRateChange = async (dateIso: string): Promise<any | null> => {
+    const all = preloadedRateChanges ?? (prisma.clientPricingRateChange
+      ? await prisma.clientPricingRateChange.findMany({ where: {
+          clientId: cleanClientId, qualificationCode: cleanQual,
+          effectiveFrom: { lte: new Date(`${dateIso}T00:00:00.000Z`) },
+        } }) : []);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return all.filter((item: any) => item.clientId === cleanClientId &&
+        item.qualificationCode === cleanQual && toIsoDay(item.effectiveFrom)! <= dateIso)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .sort((a: any, b: any) => toIsoDay(b.effectiveFrom)!.localeCompare(toIsoDay(a.effectiveFrom)!) ||
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || b.id.localeCompare(a.id))[0] ?? null;
+  };
+
   try {
     let matchingRates = await queryRates(cleanContractId, false, shiftDateIso);
+    // A signed contract-specific rate wins. A later explicit edit in the
+    // Vergütung editor supersedes an older general setting without mutating it.
+    const hasContractRate = Boolean(cleanContractId && matchingRates.length);
+    const rateChange = hasContractRate ? null : await latestRateChange(shiftDateIso);
+    if (rateChange) {
+      const terms = {
+        clientId: rateChange.clientId, qualificationCode: rateChange.qualificationCode,
+        hourlyRateInCents: rateChange.hourlyRateInCents,
+        effectiveFrom: toIsoDay(rateChange.effectiveFrom)!,
+        verifiedByUserId: rateChange.verifiedByUserId,
+        sourceReference: rateChange.sourceReference,
+      };
+      if (!terms.effectiveFrom || rateChange.frozenHash !== hashClientPricingRateChange(terms) ||
+        !terms.verifiedByUserId || !terms.sourceReference ||
+        (terms.hourlyRateInCents !== null && (!Number.isSafeInteger(terms.hourlyRateInCents) || terms.hourlyRateInCents <= 0))) {
+        return { status: "unresolved", code: "PRICE_UNRESOLVED", message: `Beschädigte Kundenpreisänderung für "${qualification}".` };
+      }
+      if (spansIntoNextDay && endShiftDateIso && endShiftDateIso !== shiftDateIso &&
+        ((await latestRateChange(endShiftDateIso))?.id !== rateChange.id ||
+          (cleanContractId && (await queryRates(cleanContractId, false, endShiftDateIso)).length > 0))) {
+        return { status: "unresolved", code: "PRICE_UNRESOLVED", message: `Während der Nachtschicht ändert sich der Kundensatz für "${qualification}".` };
+      }
+      if (terms.hourlyRateInCents !== null) {
+        return { status: "resolved", priceRecord: {
+          priceVersionId: rateChange.id, clientId: cleanClientId, qualification: cleanQual,
+          hourlyRateInCents: terms.hourlyRateInCents, effectiveFrom: terms.effectiveFrom,
+          effectiveTo: null, contractId: null, sourceType: "setting",
+          sourceReference: terms.sourceReference,
+          verifiedAt: rateChange.createdAt instanceof Date ? rateChange.createdAt.toISOString() : String(rateChange.createdAt),
+          verifiedBy: terms.verifiedByUserId,
+        } };
+      }
+      // Explicitly blank means inherit the dated platform default, even when
+      // an older immutable customer setting still spans this date.
+      matchingRates = [];
+    }
 
     // The existing client profile is client-wide. Its explicitly approved,
     // immutable V2 copy can cover a contract-bound shift only when no
     // contract-specific version applies on that date. Never use raw profile
     // values or an unverified general "contract" rate as a fallback.
     let usingClientWideSetting = false;
-    if (matchingRates.length === 0 && cleanContractId) {
+    if (matchingRates.length === 0 && cleanContractId && !rateChange) {
       matchingRates = await queryRates(null, true, shiftDateIso);
       usingClientWideSetting = true;
     }
@@ -213,6 +269,59 @@ export async function resolveClientPriceVersion(
     }
 
     if (matchingRates.length === 0) {
+      // A platform default is a dated, hashed price version. Never use the
+      // mutable catalog price or the legacy HOURLY_RATES map in V2 invoices.
+      const defaultVersions = preloadedDefaultRates ??
+        (prisma.qualificationDefaultRateVersion
+          ? await prisma.qualificationDefaultRateVersion.findMany({ where: { qualificationCode: cleanQual } })
+          : []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pickDefault = (dateIso: string): any | null => defaultVersions
+        .filter((version: { qualificationCode: string; effectiveFrom: Date | string }) =>
+          version.qualificationCode === cleanQual && toIsoDay(version.effectiveFrom)! <= dateIso)
+        .sort((a: { effectiveFrom: Date | string; version: number }, b: { effectiveFrom: Date | string; version: number }) =>
+          toIsoDay(b.effectiveFrom)!.localeCompare(toIsoDay(a.effectiveFrom)!) || b.version - a.version)[0] ?? null;
+      const defaultRecord = pickDefault(shiftDateIso);
+      if (defaultRecord) {
+        const fromIso = toIsoDay(defaultRecord.effectiveFrom);
+        const terms = {
+          qualificationCode: defaultRecord.qualificationCode,
+          version: defaultRecord.version,
+          hourlyRateInCents: defaultRecord.hourlyRateInCents,
+          effectiveFrom: fromIso,
+          sourceReference: defaultRecord.sourceReference,
+          verifiedByUserId: defaultRecord.verifiedByUserId,
+        };
+        const expectedHash = createHash("sha256").update(JSON.stringify(terms)).digest("hex");
+        const verifiedAt = defaultRecord.verifiedAt instanceof Date
+          ? defaultRecord.verifiedAt.toISOString() : String(defaultRecord.verifiedAt ?? "");
+        if (!fromIso || defaultRecord.frozenHash !== expectedHash ||
+          !Number.isSafeInteger(defaultRecord.hourlyRateInCents) || defaultRecord.hourlyRateInCents <= 0 ||
+          !defaultRecord.verifiedByUserId || !defaultRecord.sourceReference ||
+          Number.isNaN(Date.parse(verifiedAt))) {
+          return { status: "unresolved", code: "PRICE_UNRESOLVED", message: `Ungültige oder beschädigte Standard-Preisversion für Qualifikation "${qualification}".`, diagnostics: { qualification, shiftDateIso } };
+        }
+        if (spansIntoNextDay && endShiftDateIso && endShiftDateIso !== shiftDateIso) {
+          if (pickDefault(endShiftDateIso)?.id !== defaultRecord.id ||
+            (!rateChange && (await queryRates(cleanContractId, false, endShiftDateIso)).length > 0) ||
+            (!rateChange && cleanContractId && (await queryRates(null, true, endShiftDateIso)).length > 0)) {
+            return { status: "unresolved", code: "PRICE_UNRESOLVED", message: `Während der Nachtschicht ändert sich die Preisversion für "${qualification}".`, diagnostics: { qualification, shiftDateIso, endShiftDateIso } };
+          }
+        }
+        return { status: "resolved", priceRecord: {
+          priceVersionId: defaultRecord.id,
+          clientId: cleanClientId,
+          qualification: cleanQual,
+          hourlyRateInCents: defaultRecord.hourlyRateInCents,
+          effectiveFrom: fromIso,
+          effectiveTo: null,
+          contractId: null,
+          sourceType: "setting",
+          sourceReference: defaultRecord.sourceReference,
+          verifiedAt,
+          verifiedBy: defaultRecord.verifiedByUserId,
+        } };
+      }
       return {
         status: "unresolved",
         code: "PRICE_UNRESOLVED",

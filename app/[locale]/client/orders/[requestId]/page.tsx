@@ -20,6 +20,7 @@ import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { fromZonedTime } from "date-fns-tz";
 import { ArrowLeft, Pencil, Download } from "lucide-react";
+import { getQualificationCatalog, catalogRateMap } from "@/lib/qualification-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -52,10 +53,13 @@ export default async function ClientRequestDetail({
         nightStart: true,
         nightEnd: true,
         hourlyRates: true,
+        billingHolidayCalendar: true,
       },
     })
     .catch(() => null);
   if (!client) notFound();
+  const qualificationOptions = await getQualificationCatalog({ includeArchived: true });
+  const defaults = catalogRateMap(qualificationOptions);
 
   const orders = await prisma.order.findMany({
     where: { requestGroupId: requestId, clientId: client.id },
@@ -241,10 +245,12 @@ export default async function ClientRequestDetail({
       <ClientInvoicesBanner invoices={invoices} />
 
       <OrderRequestBuilder
+        qualificationOptions={qualificationOptions}
         initial={initial}
         surcharges={resolveSurcharges(client)}
-        rates={resolveRates(client)}
+        rates={resolveRates(client, defaults)}
         nightWindow={resolveNightWindow(client)}
+        billingHolidayCalendar={client.billingHolidayCalendar}
         readOnly
         backHref="/client/orders"
         shiftMeta={shiftMeta}

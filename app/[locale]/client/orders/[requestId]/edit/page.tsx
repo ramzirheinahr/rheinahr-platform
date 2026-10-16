@@ -10,6 +10,7 @@ import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { resolveSurcharges, resolveRates, resolveNightWindow } from "@/lib/pricing";
 import { ArrowLeft } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
+import { getQualificationCatalog, catalogRateMap } from "@/lib/qualification-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -40,10 +41,13 @@ export default async function EditRequestPage({
         nightStart: true,
         nightEnd: true,
         hourlyRates: true,
+        billingHolidayCalendar: true,
       },
     })
     .catch(() => null);
   if (!client) notFound();
+  const qualificationOptions = await getQualificationCatalog({ includeArchived: true });
+  const defaults = catalogRateMap(qualificationOptions);
 
   const orders = await prisma.order.findMany({
     where: { requestGroupId: requestId, clientId: client.id },
@@ -96,7 +100,7 @@ export default async function EditRequestPage({
         </Button>
         <h1 className="text-2xl font-semibold">{t("detailTitle")}</h1>
       </div>
-      <OrderRequestBuilder initial={initial} surcharges={resolveSurcharges(client)} rates={resolveRates(client)} nightWindow={resolveNightWindow(client)} />
+      <OrderRequestBuilder qualificationOptions={qualificationOptions} initial={initial} surcharges={resolveSurcharges(client)} rates={resolveRates(client, defaults)} nightWindow={resolveNightWindow(client)} billingHolidayCalendar={client.billingHolidayCalendar} />
     </div>
   );
 }

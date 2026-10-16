@@ -1138,8 +1138,8 @@ describe("Phase 07a - Documents, Invoices, Timesheets & Approved Corrections", (
         assignments: [
           {
             id: "as-1",
-            worker: { id: "w-1", fullName: "Worker One" },
-            order: { id: "ord-1", shiftDate: new Date("2026-08-01"), startTime: "08:00", endTime: "16:00" },
+            worker: { id: "w-1", fullName: "Worker One", qualification: "pflegefachkraft" },
+            order: { id: "ord-1", shiftDate: new Date("2026-08-01"), startTime: "08:00", endTime: "16:00", requiredQualification: "pflegefachkraft" },
           },
         ],
         snapshotData: {

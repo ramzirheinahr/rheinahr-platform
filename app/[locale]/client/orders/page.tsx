@@ -15,6 +15,7 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { OrdersList, type OrderGroupSummary } from "@/components/admin/orders-list";
 import { orderStatuses } from "@/lib/validations";
+import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
 import { Plus } from "lucide-react";
 import type { OrderStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
@@ -97,7 +98,7 @@ async function getOrders(): Promise<{
     return {
       rows,
       surcharges: resolveSurcharges(client),
-      rates: resolveRates(client),
+      rates: resolveRates(client, catalogRateMap(await getQualificationCatalog({ includeArchived: true }))),
       night: resolveNightWindow(client),
       facilityName: client.facilityName,
     };

@@ -15,6 +15,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { billingHolidayAtMinute, billingHolidayRecord, type BillingHoliday } from "./client-billing-holidays";
 import {
   type GermanFederalState,
   GERMAN_STATE_NAMES_DE,
@@ -74,6 +75,8 @@ export type PolicyUnresolvedCode =
 
 export type ResolvedSurchargePolicySuccess = {
   status: "resolved";
+  /** When supplied by invoice preparation, overrides location-based statutory detection for billing. */
+  billingHolidayRows?: Record<string, BillingHoliday[]>;
   policyId: string;
   policyVersion: number;
   clientId: string;
@@ -814,14 +817,14 @@ export function evaluateMinuteSurcharges(
   }
 
   // 4. Resolve statutory holiday and explicitly fail if unresolved (no silent fallback to regular day)
-  const holidayRes = resolveGermanHoliday(
+  const holidayRes = policy.billingHolidayRows ? null : resolveGermanHoliday(
     cleanDateIso,
     policy.federalState,
     policy.municipality,
     undefined,
     policy.districtLocality
   );
-  if (holidayRes.status === "policy_unresolved") {
+  if (holidayRes?.status === "policy_unresolved") {
     return {
       status: "policy_unresolved",
       code: holidayRes.code,
@@ -836,8 +839,11 @@ export function evaluateMinuteSurcharges(
     };
   }
 
-  const isHoliday = holidayRes.isHoliday;
-  const holidayRecord = holidayRes.holiday;
+  const contractualHoliday = policy.billingHolidayRows
+    ? billingHolidayAtMinute(policy.billingHolidayRows[String(y)] ?? [], cleanDateIso, minuteOfDay)
+    : null;
+  const isHoliday = policy.billingHolidayRows ? Boolean(contractualHoliday) : holidayRes!.isHoliday;
+  const holidayRecord = contractualHoliday ? billingHolidayRecord(contractualHoliday) : holidayRes?.holiday;
 
   // 5. Calendar day properties in UTC
   const dateUtc = new Date(Date.UTC(y, m - 1, d));

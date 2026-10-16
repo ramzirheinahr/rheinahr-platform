@@ -1047,7 +1047,7 @@ function NewOrderEditor({
       <DialogHeader>
         <DialogTitle>{t("newOrderTitle")}</DialogTitle>
         <DialogDescription>
-          {dateLabel} · {eq(qualification)}
+          {dateLabel} · {eq.has(qualification) ? eq(qualification) : qualification}
         </DialogDescription>
       </DialogHeader>
 

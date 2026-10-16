@@ -15,6 +15,7 @@ import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf
 import { generateUniqueInvoiceNumber, resolveStoredPdfCandidatePath } from "@/lib/invoicing";
 import { CALCULATION_VERSIONS, isV2CalculationVersion } from "@/lib/invoice-calculation-version";
 import { isV2InvoiceIssuanceEnabled, issueV2Invoice } from "@/lib/invoice-v2-issuance-service";
+import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
 import {
   isV2RefreshEnabled,
   previewV2InvoiceRefresh,
@@ -690,7 +691,10 @@ export async function generateOrderInvoices(
   }
 
   // Calculate totals
-  const rates = resolveRates(client);
+  const catalog = await getQualificationCatalog({ includeArchived: true });
+  const catalogDefaults = catalogRateMap(catalog);
+  const qualificationNames = Object.fromEntries(catalog.map((item) => [item.code, item.nameDe]));
+  const rates = resolveRates(client, catalogDefaults);
   const surcharges = resolveSurcharges(client);
   const nightWindow = resolveNightWindow(client);
   
@@ -703,7 +707,7 @@ export async function generateOrderInvoices(
     requiredQualification: a.order.requiredQualification
   }));
   
-  const netAmount = requestNetTotal(shiftsToPrice, surcharges, rates, nightWindow);
+  const netAmount = requestNetTotal(shiftsToPrice, surcharges, rates, nightWindow, client.billingHolidayCalendar);
   const vatAmount = netAmount * VAT_RATE;
   const grossAmount = netAmount + vatAmount;
 
@@ -731,7 +735,8 @@ export async function generateOrderInvoices(
         address: client.address,
         billingEmail: client.billingEmail,
         billingInfo: client.billingInfo,
-        hourlyRates: client.hourlyRates,
+        hourlyRates: rates,
+        billingHolidayCalendar: client.billingHolidayCalendar,
         surchargeSat: client.surchargeSat,
         surchargeSun: client.surchargeSun,
         surchargeHoliday: client.surchargeHoliday,
@@ -756,7 +761,7 @@ export async function generateOrderInvoices(
   });
 
   // Permanently freeze invoice line items and totals in snapshotData
-  const pdfData = buildInvoicePdfData(invoice, client, assignments);
+  const pdfData = buildInvoicePdfData(invoice, client, assignments, { catalogDefaults, qualificationNames });
   const frozenInvoice = await prisma.invoice.update({
     where: { id: invoice.id },
     data: {
@@ -767,7 +772,8 @@ export async function generateOrderInvoices(
         address: client.address,
         billingEmail: client.billingEmail,
         billingInfo: client.billingInfo,
-        hourlyRates: client.hourlyRates,
+        hourlyRates: rates,
+        billingHolidayCalendar: client.billingHolidayCalendar,
         surchargeSat: client.surchargeSat,
         surchargeSun: client.surchargeSun,
         surchargeHoliday: client.surchargeHoliday,

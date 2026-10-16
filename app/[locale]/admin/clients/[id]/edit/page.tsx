@@ -126,7 +126,7 @@ export default async function EditClientPage({
                 </div>
                 <p className="text-xs text-muted-foreground">{t("v2CardDesc")}</p>
               </div>
-              {v2Counts && <Button
+              <Button
                 variant="outline"
                 size="sm"
                 className="gap-2 shrink-0"
@@ -134,7 +134,7 @@ export default async function EditClientPage({
               >
                 <ShieldCheck className="size-4" />
                 {t("manageRates")}
-              </Button>}
+              </Button>
             </div>
           </div>
         );

@@ -54,6 +54,8 @@ import { netShiftHours } from "./pricing";
 import { resolveClientPriceVersion } from "./client-price-resolver";
 import { describeV2LineWithWorker } from "./invoice-v2-line-description";
 import { prisma } from "./prisma";
+import { billingHolidaysForYear, parseBillingHolidayCalendar, type BillingHoliday } from "./client-billing-holidays";
+import { ensureQualificationCatalog } from "./qualification-catalog";
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -227,6 +229,7 @@ export type V2InvoiceDraftSnapshotData = {
   isFrozen: true;
   preparedAt: string;
   pricingProvenance: {
+    billingHolidayRows?: Record<string, BillingHoliday[]>;
     assignmentIds: string[];
     breakAllocations?: Array<{ assignmentId: string; start: string; end: string; minutes: number; source: "midpoint_default" | "admin_override" }>;
     policyVersions: Array<{
@@ -372,6 +375,7 @@ export async function prepareV2InvoiceDraft(
   }
 
   // 3. Read Assignments from Database (Read-Only)
+  if (!deps?.prisma) await ensureQualificationCatalog();
   const tx = deps?.prisma || prisma;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let rawAssignments: any[];
@@ -503,6 +507,16 @@ export async function prepareV2InvoiceDraft(
 
   const clientId = clientIds[0];
   const client = assignments[0].order.client;
+  const billingCalendar = parseBillingHolidayCalendar(client.billingHolidayCalendar);
+  const billingYears = new Set<number>();
+  for (const assignment of assignments) {
+    const year = (assignment.order.shiftDate instanceof Date ? assignment.order.shiftDate : new Date(assignment.order.shiftDate)).getUTCFullYear();
+    billingYears.add(year);
+    billingYears.add(year + 1); // overnight shift on New Year's Eve
+  }
+  const billingHolidayRows: Record<string, BillingHoliday[]> = Object.fromEntries(
+    [...billingYears].sort((a, b) => a - b).map((year) => [String(year), billingHolidaysForYear(billingCalendar, year)]),
+  );
 
   // 5. Process Each Assignment Sequentially & Deterministically
   const allRawLines: RawWorkLineInput[] = [];
@@ -686,6 +700,21 @@ export async function prepareV2InvoiceDraft(
     preloadedPolicies = policiesRes;
     preloadedRates = ratesRes;
   }
+
+  // One query for all dated platform defaults avoids a query per shift when a
+  // client has no individual price version for a qualification.
+  const preloadedDefaultRates = !deps?.priceVersionResolver && tx.qualificationDefaultRateVersion
+    ? await tx.qualificationDefaultRateVersion.findMany({
+        where: { qualificationCode: { in: [...new Set(assignments.map((item) => item.order.requiredQualification.trim().toLowerCase()))] } },
+      })
+    : [];
+  const preloadedRateChanges = !deps?.priceVersionResolver && tx.clientPricingRateChange
+    ? await tx.clientPricingRateChange.findMany({ where: { clientId } })
+    : [];
+  const catalogNames: Record<string, string> = tx.qualificationCatalog
+    ? Object.fromEntries((await tx.qualificationCatalog.findMany({ select: { code: true, nameDe: true } }))
+        .map((item: { code: string; nameDe: string }) => [item.code, item.nameDe]))
+    : {};
 
   for (const assignment of assignments) {
     const shiftDateIso =
@@ -897,7 +926,7 @@ export async function prepareV2InvoiceDraft(
       };
     }
 
-    const policySuccess = resolvedPolicy as ResolvedSurchargePolicySuccess;
+    const policySuccess = { ...resolvedPolicy, billingHolidayRows } as ResolvedSurchargePolicySuccess;
     if (!policySuccess.isFrozen) {
       return {
         status: "unresolved",
@@ -972,6 +1001,8 @@ export async function prepareV2InvoiceDraft(
         spansIntoNextDay,
         endShiftDateIso,
         preloadedRates: preloadedRates ?? undefined,
+        preloadedDefaultRates,
+        preloadedRateChanges,
       });
 
       if (resolvedDbPrice.status !== "resolved") {
@@ -1293,7 +1324,7 @@ export async function prepareV2InvoiceDraft(
   try {
     calculationResult = calculateExactInvoice(allRawLines, {
       taxRate: input.taxRate,
-      allowedQualifications: input.allowedQualifications,
+      allowedQualifications: input.allowedQualifications ?? (Object.keys(catalogNames).length ? Object.keys(catalogNames) : undefined),
     });
   } catch (err) {
     return {
@@ -1333,7 +1364,7 @@ export async function prepareV2InvoiceDraft(
 
   const invoiceItems = calculationResult.items.map((item) => ({
     ...item,
-    description: describeV2LineWithWorker(item),
+    description: describeV2LineWithWorker(item, catalogNames),
   }));
   const pdfItems = convertCalculatedLineItemsToPdfItems(invoiceItems);
 
@@ -1366,6 +1397,7 @@ export async function prepareV2InvoiceDraft(
     isFrozen: true,
     preparedAt: new Date().toISOString(),
     pricingProvenance: {
+      billingHolidayRows,
       assignmentIds: assignments.map((a) => a.id),
       breakAllocations: assignmentProvenance
         .filter((a) => a.allocatedBreakStart && a.allocatedBreakEnd && a.breakAllocationSource)

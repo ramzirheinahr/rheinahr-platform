@@ -11,6 +11,7 @@ import { OrdersList, type OrderGroupSummary } from "@/components/admin/orders-li
 import { orderStatuses } from "@/lib/validations";
 import type { OrderStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
+import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
 
 type Row = {
   id: string;
@@ -40,6 +41,7 @@ type Row = {
     nightStart: string | null;
     nightEnd: string | null;
     hourlyRates: unknown;
+    billingHolidayCalendar: unknown;
   };
 };
 
@@ -91,6 +93,7 @@ async function getOrders(year: number, month: number): Promise<Row[]> {
             nightStart: true,
             nightEnd: true,
             hourlyRates: true,
+            billingHolidayCalendar: true,
           },
         },
       },
@@ -129,6 +132,7 @@ export async function OrdersListContent({
   const fmtEur = (n: number) =>
     n.toLocaleString(locale, { style: "currency", currency: "EUR" });
 
+  const catalogDefaults = catalogRateMap(await getQualificationCatalog({ includeArchived: true }));
   const summaries: OrderGroupSummary[] = groups.map((g) => {
     const first = g.shifts[0];
     const last = g.shifts[g.shifts.length - 1];
@@ -139,8 +143,9 @@ export async function OrdersListContent({
     const total = requestNetTotal(
       g.shifts,
       resolveSurcharges(first.client),
-      resolveRates(first.client),
+      resolveRates(first.client, catalogDefaults),
       resolveNightWindow(first.client),
+      first.client.billingHolidayCalendar,
     );
 
     const isFullyCompleted = g.shifts.length > 0 && g.shifts.every(s => 

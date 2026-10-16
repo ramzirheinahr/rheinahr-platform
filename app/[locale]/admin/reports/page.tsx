@@ -1,7 +1,8 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { orderStatuses, qualifications } from "@/lib/validations";
+import { orderStatuses } from "@/lib/validations";
+import { getQualificationCatalog } from "@/lib/qualification-catalog";
 import type { OrderStatus } from "@prisma/client";
 import { ReportsHub } from "@/components/admin/reports/reports-hub";
 
@@ -209,11 +210,13 @@ export default async function ReportsPage() {
     </div>
   );
 
+  const catalog = await getQualificationCatalog({ includeArchived: true });
   return (
     <ReportsHub
       workers={workers}
       clients={clients}
-      qualifications={qualifications as unknown as string[]}
+      qualifications={catalog.map((item) => item.code)}
+      qualificationNames={Object.fromEntries(catalog.map((item) => [item.code, item.nameDe]))}
       kpiContent={kpiContent}
     />
   );

@@ -52,7 +52,7 @@ import {
   type AvailableWorker,
   type MiniCalendarDay,
 } from "@/lib/daily-notebook";
-import { qualifications, type Qualification } from "@/lib/validations";
+import type { Qualification } from "@/lib/validations";
 import {
   saveDailyNote,
   acceptAssignmentOnBehalfOfWorker,
@@ -101,15 +101,21 @@ function getWorkerWhatsAppUrl(w: { fullName: string; phone: string | null }, dat
 export function DailyNotebookView({
   data,
   qualificationFilter = "all",
+  qualificationOptions,
 }: {
   data: DailyNotebookData;
   qualificationFilter?: string;
+  qualificationOptions: Array<{ code: string; nameDe: string; nameEn: string; nameAr: string; active: boolean }>;
 }) {
   const t = useTranslations("dailyNotebook");
   const tm = useTranslations("masterSchedule");
   const oq = useTranslations("orderRequest");
   const eq = useTranslations("enums.qualification");
   const locale = useLocale();
+  const qualificationName = (code: string) => {
+    const item = qualificationOptions.find((entry) => entry.code === code);
+    return item ? (locale === "ar" ? item.nameAr : locale === "en" ? item.nameEn : item.nameDe) : (eq.has(code) ? eq(code) : code);
+  };
   const router = useRouter();
 
   const [isPending, startTransition] = useTransition();
@@ -155,7 +161,7 @@ export function DailyNotebookView({
   const [newShiftBreak, setNewShiftBreak] = useState<number>(30);
   const [newShiftWard, setNewShiftWard] = useState<string>("");
   const [newShiftQuantity, setNewShiftQuantity] = useState<number>(1);
-  const [newShiftQual, setNewShiftQual] = useState<Qualification>("pflegefachkraft");
+  const [newShiftQual, setNewShiftQual] = useState<Qualification>(qualificationOptions.find((item) => item.active)?.code ?? "pflegefachkraft");
 
   // View grouping mode: "client" (group by client: F, S, N) or "time" (classic timeline slots)
   const [sortMode, setSortMode] = useState<"client" | "time">("client");
@@ -691,7 +697,7 @@ export function DailyNotebookView({
           >
             {t("allQualifications")}
           </Link>
-          {qualifications.map((q) => (
+          {qualificationOptions.map(({ code: q }) => (
             <Link
               key={q}
               href={`/admin/schedule/book?date=${data.dateStr}&qualification=${q}`}
@@ -702,7 +708,7 @@ export function DailyNotebookView({
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              {eq(q)}
+              {qualificationName(q)}
             </Link>
           ))}
         </div>
@@ -1351,7 +1357,7 @@ export function DailyNotebookView({
                             {shift.shiftLetter}
                           </span>
                           <span className="font-medium text-amber-900">
-                            [{t("unassigned")}] {eq(shift.requiredQualification)}
+                            [{t("unassigned")}] {qualificationName(shift.requiredQualification)}
                           </span>
                           <span className="font-serif italic text-slate-800">
                             {shift.facilityName}
@@ -1486,7 +1492,7 @@ export function DailyNotebookView({
               {assigningShift?.facilityName} · {assigningShift?.startTime}–{assigningShift?.endTime}
               {assigningShift?.ward ? ` · ${assigningShift.ward}` : ""}
               {" · "}
-              {assigningShift?.requiredQualification && eq(assigningShift.requiredQualification)}
+              {assigningShift?.requiredQualification && qualificationName(assigningShift.requiredQualification)}
             </DialogDescription>
           </DialogHeader>
 
@@ -1826,7 +1832,7 @@ export function DailyNotebookView({
                         {shift.ward ? ` (${shift.ward})` : ""}
                       </div>
                       <div className="text-muted-foreground">
-                        {shift.startTime}–{shift.endTime} · {eq(shift.requiredQualification)}
+                        {shift.startTime}–{shift.endTime} · {qualificationName(shift.requiredQualification)}
                       </div>
                     </div>
                     <Button
@@ -1935,9 +1941,9 @@ export function DailyNotebookView({
                 onChange={(e) => setNewShiftQual(e.target.value as Qualification)}
                 className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
               >
-                {qualifications.map((q) => (
+                {qualificationOptions.filter((item) => item.active).map(({ code: q }) => (
                   <option key={q} value={q}>
-                    {eq(q)}
+                    {qualificationName(q)}
                   </option>
                 ))}
               </select>

@@ -150,6 +150,7 @@
     "confirmations": "Service confirmations",
     "schedule": "Shifts & Availability",
     "scheduleSubtitle": "Accept and confirm your shifts, and keep your availability up to date.",
+    "downloadDienstplan": "Download shift schedule (PDF)",
     "clientSchedule": "Monthly overview",
     "masterSchedule": "Duty rosters",
     "dailyBook": "Daily Planner",
@@ -253,6 +254,8 @@
     "allTypes": "All types",
     "editTitle": "Edit care worker",
     "empty": "No care staff yet.",
+    "salutation": "Salutation",
+    "salutationPlaceholder": "Select salutation…",
     "fullName": "Full name",
     "email": "Email",
     "qualification": "Qualification",
@@ -325,6 +328,8 @@
     "hoursAction": "Hours",
     "scheduleHint": "Schedule and client-confirmed hours for this care worker.",
     "scheduleEmpty": "No assignments in this month.",
+    "downloadDienstplan": "Download shift schedule (PDF)",
+    "exportPayroll": "Export payroll",
     "carryoverHours": "Carryover (hours)",
     "carryoverHoursHint": "Hours balance from previous months: positive = credit (reduces this month's target), negative = deficit.",
     "deploymentRadius": "Deployment radius (km)",
@@ -435,9 +440,12 @@
     "legacyDefaultValue": "Previous default – not saved in the client profile",
     "pricingSave": "Save remuneration",
     "pricingSaving": "Saving...",
-    "pricingSaved": "Remuneration and surcharges saved. Review V2 approval.",
+    "pricingSaved": "Rates saved. Changed hourly rates apply to work from today; approve surcharges separately if needed.",
+    "ratesEffectiveToday": "Hourly rate changes apply to work from today. Issued invoices remain unchanged.",
     "pricingSaveBeforeApproval": "Save changes before approval.",
     "profileRates": "Hourly rates",
+    "inheritedDefaultRate": "Leave blank to use the default rate",
+    "clientOverrideRate": "Individual client rate",
     "profileSurcharges": "Surcharges",
     "qualification": "Qualification",
     "profileRate": "Profile Rate",
@@ -869,6 +877,10 @@
     "statusProposed": "Proposed"
   },
   "enums": {
+    "salutation": {
+      "herr": "Mr.",
+      "frau": "Ms."
+    },
     "qualification": {
       "pflegefachkraft": "Qualified care professional",
       "pflegehelfer": "Nursing assistant",
@@ -1909,6 +1921,27 @@
     "successMessage": "Invoice updated to V2 successfully!",
     "featureDisabled": "V2 invoice refresh is deactivated on the server.",
     "openPreview": "Update invoice"
+  },
+  "qualificationCatalog": {
+    "title": "Qualifications and default billing rates",
+    "description": "Manage qualifications for new shifts. The default rate applies only when a client has no individual rate. Issued invoices remain unchanged.",
+    "active": "Active",
+    "archived": "Archived",
+    "archive": "Archive",
+    "reactivate": "Reactivate",
+    "save": "Save",
+    "saved": "Qualification saved.",
+    "add": "Add qualification",
+    "addTitle": "New qualification",
+    "code": "Code",
+    "codeHint": "The code cannot be changed or reused later. Use lowercase letters, numbers, and underscores.",
+    "nameDe": "Name (German)",
+    "nameEn": "Name (English)",
+    "nameAr": "Name (Arabic)",
+    "defaultRate": "Default client rate (€ / hour)",
+    "effectiveFrom": "Rate effective from",
+    "sortOrder": "Order",
+    "invalidPrice": "Enter a valid hourly rate with no more than two decimal places."
   },
   "invoiceReview": {
     "loading": "Calculating draft...",

@@ -1,6 +1,7 @@
 import { format } from "@/lib/date-utils";
 import { resolveRates, resolveSurcharges, resolveNightWindow, rateFor, shiftSurchargeHours } from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
+import { billingHolidayAtMinute, billingHolidaysForYear, parseBillingHolidayCalendar } from "@/lib/client-billing-holidays";
 import {
   qualLabel,
   normalizeHistoricalItem,
@@ -52,7 +53,7 @@ export function buildInvoicePdfData(
   },
   client: Pick<Client, "id" | "shortCode" | "internalNumber" | "facilityName" | "address" | "billingEmail" | "billingInfo" | "hourlyRates" | "surchargeSat" | "surchargeSun" | "surchargeHoliday" | "surchargeNight" | "nightStart" | "nightEnd" | "paymentTermsDays">,
   assignments: (Pick<Assignment, "id"> & { order: Pick<Order, "requiredQualification" | "shiftDate" | "startTime" | "endTime" | "breakMinutes">, worker: Pick<Worker, "fullName"> })[],
-  options?: { forceRecalculate?: boolean }
+  options?: { forceRecalculate?: boolean; catalogDefaults?: Record<string, number>; qualificationNames?: Record<string, string> }
 ): InvoicePdfData {
   // If the invoice has a snapshot of the client data (prices, address, etc.), use it. 
   // Otherwise fallback to current live client data.
@@ -329,12 +330,21 @@ export function buildInvoicePdfData(
     };
   }
 
-  const rates = resolveRates(effectiveClient);
+  const rates = resolveRates(effectiveClient, options?.catalogDefaults);
   const surcharges = resolveSurcharges(effectiveClient);
   const nightWindow = resolveNightWindow(effectiveClient);
 
   const getHolidays = (year: number) => Array.from(germanHolidays(year).keys());
-  const isHoliday = (dateStr: string) => getHolidays(parseInt(dateStr.slice(0, 4), 10)).includes(dateStr);
+  const billingCalendar = Object.hasOwn(snapshot, "billingHolidayCalendar")
+    ? parseBillingHolidayCalendar(snapshot.billingHolidayCalendar) : null;
+  const billingYears = new Map<number, ReturnType<typeof billingHolidaysForYear>>();
+  const isHoliday = (dateStr: string, minuteOfDay: number) => {
+    if (!billingCalendar) return getHolidays(parseInt(dateStr.slice(0, 4), 10)).includes(dateStr);
+    const year = Number(dateStr.slice(0, 4));
+    let rows = billingYears.get(year);
+    if (!rows) { rows = billingHolidaysForYear(billingCalendar, year); billingYears.set(year, rows); }
+    return Boolean(billingHolidayAtMinute(rows, dateStr, minuteOfDay));
+  };
 
   // Determine if this invoice was historically finalized & sent under legacy break rules (breakMinutes || 30)
   // so the generated PDF matches the exact historical invoice sent to the client.
@@ -417,7 +427,7 @@ export function buildInvoicePdfData(
 
   for (const [, group] of grouped.entries()) {
     const baseRate = rateFor(group.qual, rates);
-    const qName = qualLabel[group.qual] || group.qual;
+    const qName = options?.qualificationNames?.[group.qual] || qualLabel[group.qual] || group.qual;
     const wName = group.workerName;
 
     if (group.baseHours > 0) {

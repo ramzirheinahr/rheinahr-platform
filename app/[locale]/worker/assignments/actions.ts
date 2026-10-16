@@ -11,6 +11,7 @@ import { pushToUsers } from "@/lib/push";
 import { formatDateDE } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
+import { formatWorkerSalutation, formatWorkerDisplayName, formatWorkerEmailIntro, formatWorkerBirthDate } from "@/lib/worker-utils";
 
 export async function getCertificatesForWorkers(workerIds: string[]) {
   if (workerIds.length === 0) return undefined;
@@ -63,7 +64,7 @@ export async function respondAssignmentsBulk(
     const assignment = await prisma.assignment.findUnique({
       where: { id },
       include: {
-        worker: { select: { id: true, userId: true, fullName: true, bio: true, qualification: true, skills: true, yearsExperience: true } },
+        worker: { select: { id: true, userId: true, fullName: true, salutation: true, birthDate: true, bio: true, qualification: true, skills: true, yearsExperience: true } },
         order: {
           select: {
             id: true,
@@ -200,6 +201,8 @@ export async function respondAssignmentsBulk(
         notes: assignment.order.notes || undefined,
         facilityName: assignment.order.client.facilityName,
         workerName: assignment.worker.fullName,
+        workerSalutation: assignment.worker.salutation,
+        workerBirthDate: assignment.worker.birthDate,
         workerId: assignment.worker.id,
       };
 
@@ -284,16 +287,45 @@ export async function respondAssignmentsBulk(
 
     // Push to clients (grouped)
     for (const clientGroup of clientNotifications.values()) {
-      const workerNames = [...new Set(clientGroup.shifts.map((s: any) => s.workerName).filter(Boolean))];
-      const workerNamesLabel = workerNames.length > 1
-        ? `unseren Mitarbeitern (<strong>${workerNames.join(", ")}</strong>)`
-        : `unserem Mitarbeiter <strong>${workerNames[0] || ""}</strong>`;
-      const workerNamesSummary = workerNames.join(", ");
+      const workersMap = new Map<string, { fullName: string; salutation?: string | null; birthDate?: Date | null; qualification?: string }>();
+      for (const s of clientGroup.shifts) {
+        if (s.workerId && !workersMap.has(s.workerId)) {
+          workersMap.set(s.workerId, {
+            fullName: s.workerName,
+            salutation: s.workerSalutation,
+            birthDate: s.workerBirthDate,
+            qualification: s.qualification,
+          });
+        }
+      }
+      const workersList = Array.from(workersMap.values());
+      const workerIntros = workersList.map((w) => formatWorkerEmailIntro(w));
+      const workerNamesLabel = workerIntros.length > 1
+        ? `unseren Mitarbeitern (${workerIntros.join(", ")})`
+        : (workerIntros[0] || `unserem Mitarbeiter <strong>${clientGroup.shifts[0]?.workerName || ""}</strong>`);
+      const workerNamesSummary = workersList.map((w) => formatWorkerDisplayName(w)).join(", ");
+
+      const workerProfilesHtml = workersList.map((w) => {
+        const salLabel = formatWorkerSalutation(w.salutation);
+        const bDate = formatWorkerBirthDate(w.birthDate);
+        return `
+          <div style="margin-top: 15px; padding: 12px 16px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px;">
+            <strong style="color: #0f172a; font-size: 14px;">Mitarbeiterangaben:</strong>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; color: #334155;">
+              ${salLabel ? `<tr><td style="padding: 3px 0; width: 130px; color: #64748b;"><strong>Anrede:</strong></td><td style="padding: 3px 0;">${salLabel}</td></tr>` : ""}
+              <tr><td style="padding: 3px 0; width: 130px; color: #64748b;"><strong>Name:</strong></td><td style="padding: 3px 0; font-weight: 600;">${w.fullName}</td></tr>
+              ${bDate ? `<tr><td style="padding: 3px 0; width: 130px; color: #64748b;"><strong>Geburtsdatum:</strong></td><td style="padding: 3px 0;">${bDate}</td></tr>` : ""}
+              ${w.qualification ? `<tr><td style="padding: 3px 0; width: 130px; color: #64748b;"><strong>Qualifikation:</strong></td><td style="padding: 3px 0;">${w.qualification}</td></tr>` : ""}
+            </table>
+          </div>
+        `;
+      }).join("");
 
       const clientHtml = `
         <p>Sehr geehrte Damen und Herren,</p>
         <p>wir freuen uns, Ihnen mitteilen zu können, dass die folgenden Einsätze von ${workerNamesLabel} bestätigt wurden:</p>
         ${buildShiftHtmlTable(clientGroup.shifts)}
+        ${workerProfilesHtml}
         <p>Unsere Mitarbeiter werden pünktlich zum Dienstbeginn bei Ihnen vor Ort sein.</p>
       `;
       const workerIds = clientGroup.shifts.map((s: any) => s.workerId).filter(Boolean);
@@ -364,7 +396,7 @@ export async function respondAssignment(
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
     include: {
-      worker: { select: { id: true, userId: true, fullName: true, bio: true, qualification: true, skills: true, yearsExperience: true } },
+      worker: { select: { id: true, userId: true, fullName: true, salutation: true, birthDate: true, bio: true, qualification: true, skills: true, yearsExperience: true } },
       order: {
         select: {
           id: true,
@@ -550,20 +582,28 @@ export async function respondAssignment(
       <p>Wir verlassen uns auf Sie. Bitte seien Sie pünktlich vor Ort.</p>
     `;
 
+    const salutationLabel = formatWorkerSalutation(assignment.worker.salutation);
+    const birthDateStr = formatWorkerBirthDate(assignment.worker.birthDate);
+    const workerIntro = formatWorkerEmailIntro(assignment.worker);
+
     const workerProfile = `
-      <div style="margin-top: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;">
-        <h3 style="margin-top: 0; margin-bottom: 15px; color: #111827;">Mitarbeiterprofil</h3>
-        <p style="margin: 5px 0;"><strong>Name:</strong> ${assignment.worker.fullName}</p>
-        <p style="margin: 5px 0;"><strong>Qualifikation:</strong> ${assignment.worker.qualification}</p>
-        ${assignment.worker.yearsExperience ? `<p style="margin: 5px 0;"><strong>Erfahrung:</strong> ${assignment.worker.yearsExperience} Jahre</p>` : ''}
-        ${assignment.worker.skills.length > 0 ? `<p style="margin: 5px 0;"><strong>Fähigkeiten:</strong> ${assignment.worker.skills.join(', ')}</p>` : ''}
-        ${assignment.worker.bio ? `<p style="margin: 5px 0;"><strong>Über mich:</strong> ${assignment.worker.bio}</p>` : ''}
+      <div style="margin-top: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e2e8f0; border-radius: 6px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; color: #0f172a; font-size: 15px;">Mitarbeiterprofil</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #334155;">
+          ${salutationLabel ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Anrede:</strong></td><td style="padding: 4px 0;">${salutationLabel}</td></tr>` : ""}
+          <tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Name:</strong></td><td style="padding: 4px 0; font-weight: 600;">${assignment.worker.fullName}</td></tr>
+          ${birthDateStr ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Geburtsdatum:</strong></td><td style="padding: 4px 0;">${birthDateStr}</td></tr>` : ""}
+          <tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Qualifikation:</strong></td><td style="padding: 4px 0;">${assignment.worker.qualification}</td></tr>
+          ${assignment.worker.yearsExperience ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Erfahrung:</strong></td><td style="padding: 4px 0;">${assignment.worker.yearsExperience} Jahre</td></tr>` : ""}
+          ${assignment.worker.skills.length > 0 ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Fähigkeiten:</strong></td><td style="padding: 4px 0;">${assignment.worker.skills.join(", ")}</td></tr>` : ""}
+          ${assignment.worker.bio ? `<tr><td style="padding: 4px 0; width: 130px; color: #64748b;"><strong>Über mich:</strong></td><td style="padding: 4px 0;">${assignment.worker.bio}</td></tr>` : ""}
+        </table>
       </div>
     `;
 
     const clientHtml = `
       <p>Sehr geehrte Damen und Herren,</p>
-      <p>wir freuen uns, Ihnen mitteilen zu können, dass der folgende Einsatz von unserem Mitarbeiter <strong>${assignment.worker.fullName}</strong> bestätigt wurde:</p>
+      <p>wir freuen uns, Ihnen mitteilen zu können, dass der folgende Einsatz von ${workerIntro} bestätigt wurde:</p>
       ${shiftHtml}
       ${workerProfile}
       <p>Unser Mitarbeiter wird pünktlich zum Dienstbeginn bei Ihnen vor Ort sein.</p>

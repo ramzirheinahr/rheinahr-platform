@@ -11,7 +11,8 @@ import { candidatesForShift, type Candidate, findMatchingMonthlyRequestGroupId }
 import { offerAssignment } from "@/lib/assignments";
 import { formatDateDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
-import { qualifications, type Qualification } from "@/lib/validations";
+import type { Qualification } from "@/lib/validations";
+import { getQualificationCatalog } from "@/lib/qualification-catalog";
 import { pushToUsers } from "@/lib/push";
 import {
   hasHistoricalInvoiceRecordForAssignment,
@@ -346,7 +347,7 @@ export async function createOpenOrderFromGrid(input: {
       clientId: z.string().uuid(),
       date: dateSchema,
       shift: shiftKeySchema,
-      qualification: z.enum(qualifications),
+      qualification: z.string().min(2).max(120),
       ward: z.string().max(120).optional(),
       quantity: z.coerce.number().int().min(1).max(50).optional(),
       startTime: timeSchema.optional(),
@@ -356,6 +357,9 @@ export async function createOpenOrderFromGrid(input: {
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "saveError" };
   const { clientId, date, shift, qualification, ward, quantity } = parsed.data;
+  if (!(await getQualificationCatalog()).some((item) => item.code === qualification && item.defaultClientRateCents !== null)) {
+    return { ok: false, error: "saveError" };
+  }
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },

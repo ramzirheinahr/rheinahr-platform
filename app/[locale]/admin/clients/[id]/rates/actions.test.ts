@@ -11,6 +11,7 @@ const mockPolicyCreate = vi.fn().mockResolvedValue({ id: "policy-1", policyVersi
 const mockRateCreate = vi.fn().mockResolvedValue({ id: "rate-1", rateVersion: 1, frozenHash: "hash-rate" });
 const mockClientUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockClientFindUniqueOrThrow = vi.fn().mockResolvedValue({ updatedAt: new Date("2026-10-13T12:00:00.000Z") });
+const mockPricingRateChangeCreateMany = vi.fn().mockResolvedValue({ count: 2 });
 
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: vi.fn().mockResolvedValue({
@@ -81,6 +82,19 @@ vi.mock("@/lib/prisma", () => ({
         clientHourlyRateVersion: {
           create: mockRateCreate,
         },
+        qualificationCatalog: {
+          findMany: vi.fn().mockResolvedValue([
+            { code: "pflegefachkraft", active: true },
+            { code: "pflegehelfer", active: true },
+            { code: "betreuungskraft", active: true },
+            { code: "pflegedienstleitung", active: true },
+            { code: "kuechenhilfe", active: true },
+            { code: "hausmeister", active: true },
+          ]),
+        },
+        clientPricingRateChange: {
+          createMany: mockPricingRateChangeCreateMany,
+        },
         auditLog: {
           create: mockAuditLogCreate,
         },
@@ -124,7 +138,7 @@ describe("Rates and Surcharges Approval Server Actions", () => {
     },
   };
 
-  it("saves editable remuneration and surcharges without touching frozen versions", async () => {
+  it("saves editable remuneration and dated client rate changes without touching older frozen versions", async () => {
     const result = await saveClientPricingDraftAction(pricingInput);
     expect(result.ok).toBe(true);
     expect(mockClientUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
@@ -137,6 +151,11 @@ describe("Rates and Surcharges Approval Server Actions", () => {
     }));
     expect(mockPolicyCreate).not.toHaveBeenCalled();
     expect(mockRateCreate).not.toHaveBeenCalled();
+    expect(mockPricingRateChangeCreateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.arrayContaining([expect.objectContaining({
+        qualificationCode: "pflegehelfer", hourlyRateInCents: 3400,
+      })]),
+    }));
     expect(mockAuditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ action: "client.pricing_draft.updated" }),
     }));
@@ -147,6 +166,7 @@ describe("Rates and Surcharges Approval Server Actions", () => {
     const result = await saveClientPricingDraftAction(pricingInput);
     expect(result.ok).toBe(false);
     expect(mockAuditLogCreate).not.toHaveBeenCalled();
+    expect(mockPricingRateChangeCreateMany).not.toHaveBeenCalled();
   });
 
   it("rejects invalid pricing before any database write", async () => {

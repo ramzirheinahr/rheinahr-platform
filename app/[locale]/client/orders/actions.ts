@@ -13,6 +13,7 @@ import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable, getFacility
 import { pushToUsers } from "@/lib/push";
 import { sendEmailToUsers } from "@/lib/email";
 import { hasHistoricalInvoiceRecordForAssignment } from "@/lib/invoicing";
+import { requestQualificationsAreSelectable } from "@/lib/qualification-catalog";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -90,6 +91,7 @@ export async function updateOrderRequest(
     return { ok: false, error: "saveError" };
   }
   const { notes, shifts } = parsed.data;
+  if (!await requestQualificationsAreSelectable(shifts, existing)) return { ok: false, error: "saveError" };
 
   const { updates, creates, deleteIds } = diffRequestShifts(
     existing,
@@ -566,6 +568,7 @@ export async function createOrderRequest(
     return { ok: false, error: "saveError" };
   }
   const { notes, shifts } = parsed.data;
+  if (!await requestQualificationsAreSelectable(shifts)) return { ok: false, error: "saveError" };
 
   // Group shifts by month and qualification to merge with existing open requestGroupIds if present
   const shiftGroupKeys = new Map<string, string>();

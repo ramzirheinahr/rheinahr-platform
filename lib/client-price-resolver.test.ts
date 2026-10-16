@@ -4,12 +4,132 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { hashClientPricingRateChange, CLIENT_RATE_CHANGE_SOURCE } from "./client-pricing-rate-change";
 import {
   resolveClientPriceVersion,
   computeRateVersionCanonicalHash,
 } from "./client-price-resolver";
 
 describe("ClientPriceResolver (Phase 5b-1)", () => {
+  function defaultRate(effectiveFrom = "2026-10-15", cents = 3990) {
+    const terms = {
+      qualificationCode: "new_specialty", version: 1, hourlyRateInCents: cents,
+      effectiveFrom, sourceReference: "System settings", verifiedByUserId: "admin-1",
+    };
+    return {
+      ...terms, id: "default-version-1", effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`),
+      frozenHash: createHash("sha256").update(JSON.stringify(terms)).digest("hex"),
+      verifiedAt: new Date("2026-10-15T09:00:00.000Z"),
+    };
+  }
+
+  function clientChange(cents: number | null, effectiveFrom = "2026-10-16") {
+    const terms = {
+      clientId: "client-test-1", qualificationCode: "new_specialty",
+      hourlyRateInCents: cents, effectiveFrom,
+      verifiedByUserId: "admin-1", sourceReference: CLIENT_RATE_CHANGE_SOURCE,
+    };
+    return {
+      ...terms, id: `client-change-${cents}`, frozenHash: hashClientPricingRateChange(terms),
+      effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`),
+      createdAt: new Date(`${effectiveFrom}T09:00:00.000Z`),
+    };
+  }
+
+  it("uses a dated client override, then restores the dated default after a blank override", async () => {
+    const rates = [defaultRate()];
+    const changes = [clientChange(4200), clientChange(null, "2026-10-18")];
+    const common = {
+      prisma: { clientHourlyRateVersion: { findMany: vi.fn().mockResolvedValue([]) } },
+      clientId: "client-test-1", qualification: "new_specialty",
+      preloadedDefaultRates: rates, preloadedRateChanges: changes,
+    };
+    const before = await resolveClientPriceVersion({ ...common, shiftDateIso: "2026-10-15" });
+    const override = await resolveClientPriceVersion({ ...common, shiftDateIso: "2026-10-17" });
+    const restored = await resolveClientPriceVersion({ ...common, shiftDateIso: "2026-10-18" });
+    expect(before.status === "resolved" && before.priceRecord.hourlyRateInCents).toBe(3990);
+    expect(override.status === "resolved" && override.priceRecord.hourlyRateInCents).toBe(4200);
+    expect(restored.status === "resolved" && restored.priceRecord.hourlyRateInCents).toBe(3990);
+  });
+
+  it("rejects a tampered client override and a midnight rate change", async () => {
+    const common = {
+      prisma: { clientHourlyRateVersion: { findMany: vi.fn().mockResolvedValue([]) } },
+      clientId: "client-test-1", qualification: "new_specialty",
+      preloadedDefaultRates: [defaultRate()],
+    };
+    const tampered = await resolveClientPriceVersion({ ...common, shiftDateIso: "2026-10-16",
+      preloadedRateChanges: [{ ...clientChange(4200), hourlyRateInCents: 1 }] });
+    const overnight = await resolveClientPriceVersion({ ...common, shiftDateIso: "2026-10-16",
+      spansIntoNextDay: true, endShiftDateIso: "2026-10-17",
+      preloadedRateChanges: [clientChange(4200), clientChange(4300, "2026-10-17")] });
+    expect(tampered.status).toBe("unresolved");
+    expect(overnight.status).toBe("unresolved");
+  });
+
+  it("keeps an existing contract-specific frozen rate ahead of a client-wide edit", async () => {
+    const contract = createValidDbRate({
+      clientContractId: "contract-1", qualification: "pflegefachkraft",
+    });
+    contract.frozenHash = computeRateVersionCanonicalHash({
+      clientId: contract.clientId, clientContractId: contract.clientContractId,
+      rateVersion: contract.rateVersion, qualification: contract.qualification,
+      hourlyRateInCents: contract.hourlyRateInCents, effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-12-31", sourceType: contract.sourceType,
+      sourceReference: contract.sourceReference,
+    });
+    const result = await resolveClientPriceVersion({
+      prisma: { clientHourlyRateVersion: { findMany: vi.fn().mockResolvedValue([contract]) } },
+      clientId: "client-test-1", qualification: "pflegefachkraft",
+      shiftDateIso: "2026-10-16", contractId: "contract-1",
+      preloadedRateChanges: [{ ...clientChange(4200), qualificationCode: "pflegefachkraft" }],
+    });
+    expect(result.status === "resolved" && result.priceRecord.hourlyRateInCents).toBe(4500);
+  });
+
+  it("lets a later client edit supersede an old general frozen rate only from the edit date", async () => {
+    const oldRate = createValidDbRate({ qualification: "new_specialty" });
+    oldRate.frozenHash = computeRateVersionCanonicalHash({
+      clientId: oldRate.clientId, clientContractId: null, rateVersion: oldRate.rateVersion,
+      qualification: oldRate.qualification, hourlyRateInCents: oldRate.hourlyRateInCents,
+      effectiveFrom: "2026-01-01", effectiveTo: "2026-12-31",
+      sourceType: oldRate.sourceType, sourceReference: oldRate.sourceReference,
+    });
+    const common = {
+      prisma: { clientHourlyRateVersion: { findMany: vi.fn().mockResolvedValue([oldRate]) } },
+      clientId: "client-test-1", qualification: "new_specialty",
+      preloadedRateChanges: [clientChange(4200)],
+    };
+    const before = await resolveClientPriceVersion({ ...common, shiftDateIso: "2026-10-15" });
+    const after = await resolveClientPriceVersion({ ...common, shiftDateIso: "2026-10-16" });
+    expect(before.status === "resolved" && before.priceRecord.hourlyRateInCents).toBe(4500);
+    expect(after.status === "resolved" && after.priceRecord.hourlyRateInCents).toBe(4200);
+  });
+
+  it("uses a dated verified catalog rate only when no client rate covers the shift", async () => {
+    const result = await resolveClientPriceVersion({
+      prisma: { clientHourlyRateVersion: { findMany: vi.fn().mockResolvedValue([]) } },
+      clientId: "client-test-1", qualification: "new_specialty", shiftDateIso: "2026-10-16",
+      preloadedDefaultRates: [defaultRate()],
+    });
+    expect(result.status).toBe("resolved");
+    if (result.status === "resolved") expect(result.priceRecord.hourlyRateInCents).toBe(3990);
+  });
+
+  it("does not apply a catalog price before its effective date or if its hash is wrong", async () => {
+    const params = {
+      prisma: { clientHourlyRateVersion: { findMany: vi.fn().mockResolvedValue([]) } },
+      clientId: "client-test-1", qualification: "new_specialty", preloadedDefaultRates: [defaultRate()],
+    };
+    const before = await resolveClientPriceVersion({ ...params, shiftDateIso: "2026-10-14" });
+    const tampered = await resolveClientPriceVersion({
+      ...params, shiftDateIso: "2026-10-16",
+      preloadedDefaultRates: [{ ...defaultRate(), hourlyRateInCents: 1 }],
+    });
+    expect(before.status).toBe("unresolved");
+    expect(tampered.status).toBe("unresolved");
+  });
   const mockUser = {
     id: "user-auditor-1",
     fullName: "Stefan Auditor",

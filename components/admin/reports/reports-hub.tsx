@@ -28,6 +28,7 @@ export type ReportsHubProps = {
     internalNumber: string | null;
   }>;
   qualifications: string[];
+  qualificationNames: Record<string, string>;
   kpiContent: React.ReactNode;
 };
 
@@ -35,6 +36,7 @@ export function ReportsHub({
   workers,
   clients,
   qualifications,
+  qualificationNames,
   kpiContent,
 }: ReportsHubProps) {
   const t = useTranslations("reports");
@@ -214,14 +216,14 @@ export function ReportsHub({
           <div className="w-full">{kpiContent}</div>
         )}
         {activeTab === "stundennachweis" && (
-          <StundennachweisView clients={clients} qualifications={qualifications} />
+          <StundennachweisView clients={clients} qualifications={qualifications} qualificationNames={qualificationNames} />
         )}
         {activeTab === "monatsliste" && (
           <MonatslisteView workers={workers} clients={clients} />
         )}
         {activeTab === "aueg" && <AuegView />}
         {activeTab === "mitarbeiterListe" && (
-          <MitarbeiterListeView clients={clients} qualifications={qualifications} />
+          <MitarbeiterListeView clients={clients} qualifications={qualifications} qualificationNames={qualificationNames} />
         )}
         {activeTab === "arbeitszeitkonto" && (
           <ArbeitszeitkontoView workers={workers} />
@@ -238,6 +240,7 @@ export function ReportsHub({
             workers={workers}
             clients={clients}
             qualifications={qualifications}
+            qualificationNames={qualificationNames}
           />
         )}
       </div>

@@ -4,6 +4,9 @@ import { getSystemSettings } from "./actions";
 import { SystemSettingsForm } from "@/components/admin/system-settings-form";
 import { CompanySettingsForm } from "@/components/admin/company-settings-form";
 import { EmailSettingsForm } from "@/components/admin/email-settings-form";
+import { QualificationCatalogEditor } from "@/components/admin/qualification-catalog-editor";
+import { getQualificationCatalog } from "@/lib/qualification-catalog";
+import { prisma } from "@/lib/prisma";
 
 export default async function SystemSettingsPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -11,6 +14,11 @@ export default async function SystemSettingsPage({ params }: { params: Promise<{
   await requireRole(locale as any, "super_admin", "admin");
 
   const settings = await getSystemSettings();
+  await getQualificationCatalog({ includeArchived: true });
+  const qualificationRows = await prisma.qualificationCatalog.findMany({
+    orderBy: [{ sortOrder: "asc" }, { nameDe: "asc" }],
+    select: { code: true, nameDe: true, nameEn: true, nameAr: true, defaultClientRateCents: true, active: true, sortOrder: true, updatedAt: true },
+  });
 
   const defaultEnvConfig = {
     host: process.env.SMTP_HOST,
@@ -30,6 +38,7 @@ export default async function SystemSettingsPage({ params }: { params: Promise<{
       </div>
       
       <div className="max-w-4xl mt-8 space-y-12">
+        <QualificationCatalogEditor key={qualificationRows.map((row) => `${row.code}:${row.updatedAt.toISOString()}`).join("|")} initialRows={qualificationRows.map((row) => ({ ...row, updatedAt: row.updatedAt.toISOString() }))} />
         <EmailSettingsForm settings={settings} defaultEnvConfig={defaultEnvConfig} />
         <CompanySettingsForm settings={settings} />
         <SystemSettingsForm settings={settings} />

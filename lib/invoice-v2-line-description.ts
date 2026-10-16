@@ -8,7 +8,7 @@ type V2LineDescriptionSource = {
 };
 
 /** Display only frozen line-item identity; never look up a worker's current name. */
-export function describeV2LineWithWorker(item: V2LineDescriptionSource): string {
+export function describeV2LineWithWorker(item: V2LineDescriptionSource, qualificationNames?: Record<string, string>): string {
   const description = item.description.trim();
   const workerName = typeof item.workerName === "string" ? item.workerName.trim() : "";
   if (!workerName || description.includes(workerName)) return description;
@@ -16,7 +16,7 @@ export function describeV2LineWithWorker(item: V2LineDescriptionSource): string 
   if (item.itemCategory === "base") {
     const qualification = typeof item.qualification === "string" ? item.qualification.trim() : "";
     return qualification
-      ? `${workerName} (${defaultQualificationLabel(qualification)})`
+      ? `${workerName} (${qualificationNames?.[qualification] || defaultQualificationLabel(qualification)})`
       : workerName;
   }
 

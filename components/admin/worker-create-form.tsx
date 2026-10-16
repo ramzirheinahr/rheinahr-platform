@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { qualifications, contractTypes, employmentTypes } from "@/lib/validations";
+import { contractTypes, employmentTypes } from "@/lib/validations";
 import { PasswordField } from "@/components/admin/password-field";
 import { LanguageSelect } from "@/components/admin/language-select";
 import { NationalitySelect } from "@/components/admin/nationality-select";
@@ -28,17 +28,18 @@ const textareaClass =
 
 export function WorkerCreateForm({
   initialQualification,
-  customQualifications = [],
+  qualificationOptions,
 }: {
   initialQualification?: string;
-  customQualifications?: string[];
+  qualificationOptions: Array<{ code: string; nameDe: string; nameEn: string; nameAr: string }>;
 }) {
   const t = useTranslations("workers");
   const ta = useTranslations("accounts");
   const c = useTranslations("common");
-  const eq = useTranslations("enums.qualification");
+  const locale = useLocale();
   const ec = useTranslations("enums.contractType");
   const ee = useTranslations("enums.employmentType");
+  const es = useTranslations("enums.salutation");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -65,11 +66,25 @@ export function WorkerCreateForm({
           <CardTitle>Profil & Login</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-6">
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-3">
             <div className="space-y-2">
+              <Label htmlFor="salutation">{t("salutation")}</Label>
+              <Select name="salutation">
+                <SelectTrigger id="salutation" className="w-full">
+                  <SelectValue placeholder={t("salutationPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="herr">{es("herr")}</SelectItem>
+                  <SelectItem value="frau">{es("frau")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="fullName">{t("fullName")}</Label>
               <Input id="fullName" name="fullName" required />
             </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="internalNumber">Interne Nummer</Label>
               <Input id="internalNumber" name="internalNumber" />
@@ -98,12 +113,8 @@ export function WorkerCreateForm({
               <Label>{t("qualification")}</Label>
               <Combobox
                 name="qualification"
-                defaultValue={[initialQualification ?? qualifications[0]]}
-                options={[
-                  ...qualifications.map((q) => ({ value: q, label: eq(q) })),
-                  ...customQualifications.map((q) => ({ value: q, label: q })),
-                ]}
-                allowCreate
+                defaultValue={[initialQualification ?? qualificationOptions[0]?.code ?? ""]}
+                options={qualificationOptions.map((item) => ({ value: item.code, label: locale === "ar" ? item.nameAr : locale === "en" ? item.nameEn : item.nameDe }))}
                 placeholder={t("qualification")}
               />
             </div>
@@ -329,6 +340,12 @@ export function WorkerCreateForm({
                 <Label htmlFor="rateHausmeister">Hausmeister (€)</Label>
                 <Input id="rateHausmeister" name="rateHausmeister" type="number" step="0.01" placeholder="17.00" />
               </div>
+              {qualificationOptions.filter((item) => !["pflegefachkraft", "pflegehelfer", "betreuungskraft", "pflegedienstleitung", "kuechenhilfe", "hausmeister"].includes(item.code)).map((item) => (
+                <div key={item.code} className="space-y-2">
+                  <Label htmlFor={`workerRate:${item.code}`}>{locale === "ar" ? item.nameAr : locale === "en" ? item.nameEn : item.nameDe} (€)</Label>
+                  <Input id={`workerRate:${item.code}`} name={`workerRate:${item.code}`} type="number" min="0.01" max="1000" step="0.01" />
+                </div>
+              ))}
             </div>
           </div>
         </CardContent>

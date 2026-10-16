@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 // No sensitive PII (birth date, nationality, SV-Nr, address, phone).
 export type WorkerProfileData = {
   id: string;
+  salutation: string | null;
   fullName: string;
   qualification: string;
   languages: string[];
@@ -26,6 +27,7 @@ export async function getWorkerProfileData(
       where: { id },
       select: {
         id: true,
+        salutation: true,
         fullName: true,
         qualification: true,
         languages: true,
@@ -47,6 +49,7 @@ export async function getWorkerProfileData(
 
   return {
     id: w.id,
+    salutation: w.salutation,
     fullName: w.fullName,
     qualification: w.qualification,
     languages: w.languages,

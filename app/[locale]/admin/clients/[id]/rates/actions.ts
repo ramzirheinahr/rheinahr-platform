@@ -15,16 +15,13 @@ import type { GermanFederalState } from "@/lib/facility-surcharge-policy-templat
 import type { SurchargeCombinationRule } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-
-const qualificationKeys = [
-  "pflegefachkraft", "pflegehelfer", "betreuungskraft",
-  "pflegedienstleitung", "kuechenhilfe", "hausmeister",
-] as const;
+import { parseBillingHolidayCalendar, validateBillingHolidays, type BillingHoliday } from "@/lib/client-billing-holidays";
+import { CLIENT_RATE_CHANGE_SOURCE, hashClientPricingRateChange, todayInBerlin } from "@/lib/client-pricing-rate-change";
 
 const optionalPercentage = z.number().finite().min(0).max(200)
   .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, "Percent precision required")
   .nullable();
-const optionalHourlyRate = z.number().finite().min(0).max(1000)
+const optionalHourlyRate = z.number().finite().gt(0).max(1000)
   .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, "Cent precision required")
   .nullable();
 const pricingDraftSchema = z.object({
@@ -36,12 +33,53 @@ const pricingDraftSchema = z.object({
   surchargeNightPct: optionalPercentage,
   nightStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
   nightEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
-  hourlyRates: z.object(Object.fromEntries(qualificationKeys.map((key) => [key, optionalHourlyRate])) as Record<typeof qualificationKeys[number], typeof optionalHourlyRate>),
+  hourlyRates: z.record(z.string().min(2).max(120), optionalHourlyRate),
 });
 
 export type PricingDraftInput = z.input<typeof pricingDraftSchema>;
 
-/** Saves the single editable pricing form; frozen invoice versions remain unchanged. */
+export async function saveClientBillingHolidaysAction(input: {
+  clientId: string;
+  expectedUpdatedAt: string;
+  year: number;
+  rows: BillingHoliday[];
+}): Promise<ActionResponse<{ updatedAt: string }>> {
+  let actor;
+  try { actor = await assertAdmin(); } catch { return { ok: false, error: "forbidden" }; }
+  if (!z.string().uuid().safeParse(input.clientId).success || !z.string().datetime().safeParse(input.expectedUpdatedAt).success) {
+    return { ok: false, error: "Ungültige Kundendaten." };
+  }
+  let rows: BillingHoliday[];
+  try { rows = validateBillingHolidays(input.year, input.rows); }
+  catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Ungültige Feiertage." }; }
+  try {
+    const updatedAt = await prisma.$transaction(async (tx) => {
+      const client = await tx.client.findUniqueOrThrow({ where: { id: input.clientId }, select: { billingHolidayCalendar: true } });
+      const calendar = parseBillingHolidayCalendar(client.billingHolidayCalendar);
+      calendar.years[String(input.year)] = rows;
+      const changed = await tx.client.updateMany({
+        where: { id: input.clientId, updatedAt: new Date(input.expectedUpdatedAt) },
+        data: { billingHolidayCalendar: calendar as unknown as Prisma.InputJsonValue },
+      });
+      if (changed.count !== 1) throw new Error("Die Kundendaten wurden zwischenzeitlich geändert. Bitte die Seite neu laden.");
+      await tx.auditLog.create({ data: {
+        userId: actor.id,
+        action: "client.billing_holidays.updated",
+        entity: "Client",
+        entityId: input.clientId,
+        metadata: { year: input.year, rows: rows.length, activeRows: rows.filter((row) => row.active).length },
+      } });
+      const saved = await tx.client.findUniqueOrThrow({ where: { id: input.clientId }, select: { updatedAt: true } });
+      return saved.updatedAt.toISOString();
+    });
+    revalidatePath(`/admin/clients/${input.clientId}/rates`);
+    return { ok: true, data: { updatedAt } };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Feiertage konnten nicht gespeichert werden." };
+  }
+}
+
+/** Saves the single editable pricing form and an append-only dated record for each changed client rate. */
 export async function saveClientPricingDraftAction(
   raw: PricingDraftInput,
 ): Promise<ActionResponse<{ updatedAt: string }>> {
@@ -59,12 +97,37 @@ export async function saveClientPricingDraftAction(
   if ((input.nightStart === null) !== (input.nightEnd === null)) {
     return { ok: false, error: "Nachtbeginn und Nachtende müssen beide ausgefüllt oder beide leer sein." };
   }
-  const rates = Object.fromEntries(qualificationKeys.flatMap((key) => {
-    const value = input.hourlyRates[key];
-    return value === null ? [] : [[key, value]];
-  }));
   try {
     const updatedAt = await prisma.$transaction(async (tx) => {
+      const previous = await tx.client.findUniqueOrThrow({ where: { id: input.clientId }, select: { hourlyRates: true } });
+      const existingRates = previous.hourlyRates && typeof previous.hourlyRates === "object" && !Array.isArray(previous.hourlyRates)
+        ? previous.hourlyRates as Record<string, unknown> : {};
+      const known = await tx.qualificationCatalog.findMany({
+        where: { code: { in: Object.keys(input.hourlyRates) } },
+        select: { code: true, active: true },
+      });
+      const allowed = new Set(known.filter((item) => item.active || Object.hasOwn(existingRates, item.code)).map((item) => item.code));
+      if (Object.keys(input.hourlyRates).some((code) => !allowed.has(code))) {
+        throw new Error("Unbekannte oder archivierte Qualifikation. Bitte die Seite neu laden.");
+      }
+      const rates: Record<string, number> = Object.fromEntries(Object.entries(existingRates)
+        .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])));
+      for (const [code, value] of Object.entries(input.hourlyRates)) {
+        if (value === null) delete rates[code];
+        else rates[code] = value;
+      }
+      const effectiveFrom = todayInBerlin();
+      const priceChanges = Object.entries(input.hourlyRates).flatMap(([code, value]) => {
+        const old = typeof existingRates[code] === "number" && Number.isFinite(existingRates[code])
+          ? Math.round((existingRates[code] as number) * 100) : null;
+        const next = value === null ? null : Math.round(value * 100);
+        if (old === next) return [];
+        const terms = {
+          clientId: input.clientId, qualificationCode: code, hourlyRateInCents: next,
+          effectiveFrom, verifiedByUserId: actor.id, sourceReference: CLIENT_RATE_CHANGE_SOURCE,
+        };
+        return [{ ...terms, frozenHash: hashClientPricingRateChange(terms) }];
+      });
       const changed = await tx.client.updateMany({
         where: { id: input.clientId, updatedAt: new Date(input.expectedUpdatedAt) },
         data: {
@@ -80,13 +143,20 @@ export async function saveClientPricingDraftAction(
       if (changed.count !== 1) {
         throw new Error("Die Vergütung wurde zwischenzeitlich geändert. Bitte die Seite neu laden.");
       }
+      if (priceChanges.length) {
+        await tx.clientPricingRateChange.createMany({
+          data: priceChanges.map((change) => ({
+            ...change, effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`),
+          })),
+        });
+      }
       await tx.auditLog.create({
         data: {
           userId: actor.id,
           action: "client.pricing_draft.updated",
           entity: "Client",
           entityId: input.clientId,
-          metadata: { source: "vergütung_v2_page", frozenVersionsChanged: false },
+          metadata: { source: "vergütung_v2_page", effectiveFrom, priceChanges: priceChanges.map((change) => ({ qualification: change.qualificationCode, cents: change.hourlyRateInCents })), frozenVersionsChanged: false },
         },
       });
       const client = await tx.client.findUniqueOrThrow({

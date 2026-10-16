@@ -22,6 +22,7 @@ import {
   verifyStoredHistoricalPdf,
 } from "@/lib/invoice-v2-refresh-service";
 import { OrderConfirmationsBanner } from "@/components/admin/order-confirmations-banner";
+import { getQualificationCatalog, catalogRateMap } from "@/lib/qualification-catalog";
 
 const d = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -35,6 +36,8 @@ export async function OrderDetailContent({
   isGroupOrder?: boolean;
 }) {
   const id = requestGroupId;
+  const qualificationOptions = await getQualificationCatalog({ includeArchived: true });
+  const defaults = catalogRateMap(qualificationOptions);
 
   let defaultYear: number | undefined;
   let defaultMonthNum: number | undefined;
@@ -66,6 +69,7 @@ export async function OrderDetailContent({
           nightStart: true,
           nightEnd: true,
           hourlyRates: true,
+          billingHolidayCalendar: true,
         },
       },
       assignments: {
@@ -309,12 +313,14 @@ export async function OrderDetailContent({
       <PendingResponsesProvider>
         <AssignSelectionProvider selectableOrderIds={selectableOrderIds}>
           <OrderRequestBuilder
+            qualificationOptions={qualificationOptions}
             initial={initial}
             defaultYear={defaultYear}
             defaultMonth={defaultMonthNum}
             surcharges={resolveSurcharges(orders[0].client)}
-            rates={resolveRates(orders[0].client)}
+            rates={resolveRates(orders[0].client, defaults)}
             nightWindow={resolveNightWindow(orders[0].client)}
+            billingHolidayCalendar={orders[0].client.billingHolidayCalendar}
             readOnly
             backHref={`/admin/orders/${id}`}
             shiftMeta={shiftMeta}

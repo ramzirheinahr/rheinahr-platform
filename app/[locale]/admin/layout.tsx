@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth";
-import { qualifications } from "@/lib/validations";
+import { getQualificationCatalog, qualificationName } from "@/lib/qualification-catalog";
 import { PortalShell } from "@/components/portal/portal-shell";
 import type { Locale } from "@/i18n/routing";
 
@@ -22,7 +22,7 @@ export default async function AdminLayout({
   const tr = await getTranslations("reports");
   const ti = await getTranslations("invoicing");
   const tw = await getTranslations("workers");
-  const eq = await getTranslations("enums.qualification");
+  const qualificationCatalog = await getQualificationCatalog();
   const te = await getTranslations("emails");
 
   // "Care staff" opens a dropdown: one page per qualification (so each admin can
@@ -40,9 +40,9 @@ export default async function AdminLayout({
       icon: "workers",
       children: [
         { href: "/admin/workers", label: tw("allTypes") },
-        ...qualifications.map((q) => ({
-          href: `/admin/workers?qualification=${q}`,
-          label: eq(q),
+        ...qualificationCatalog.map((q) => ({
+          href: `/admin/workers?qualification=${q.code}`,
+          label: qualificationName(q, locale),
         })),
       ],
     },

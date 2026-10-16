@@ -1,19 +1,23 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveClientPricingDraftAction } from "@/app/[locale]/admin/clients/[id]/rates/actions";
-import { DEFAULT_NIGHT_WINDOW, DEFAULT_RATES, DEFAULT_SURCHARGES } from "@/lib/pricing";
+import { DEFAULT_NIGHT_WINDOW, DEFAULT_SURCHARGES } from "@/lib/pricing";
 
-const qualifications = [
-  "pflegefachkraft", "pflegehelfer", "betreuungskraft",
-  "pflegedienstleitung", "kuechenhilfe", "hausmeister",
-] as const;
+export type QualificationDisplay = {
+  code: string; nameDe: string; nameEn: string; nameAr: string;
+  defaultClientRateCents: number | null; active: boolean;
+};
+
+export function displayQualification(item: QualificationDisplay, locale: string): string {
+  return locale === "ar" ? item.nameAr : locale === "en" ? item.nameEn : item.nameDe;
+}
 
 type Surcharges = {
   surchargeSat: number | null;
@@ -29,16 +33,18 @@ const percentage = (value: number | null) => value === null ? "" : String(Math.r
 
 export function ClientPricingEditor({
   clientId, expectedUpdatedAt, profileSurcharges, profileHourlyRates,
+  qualifications,
   onDirtyChange,
 }: {
   clientId: string;
   expectedUpdatedAt: string;
   profileSurcharges: Surcharges;
   profileHourlyRates: Record<string, number | null>;
+  qualifications: QualificationDisplay[];
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const t = useTranslations("ratesApproval");
-  const eq = useTranslations("enums.qualification");
+  const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [revision, setRevision] = useState(expectedUpdatedAt);
@@ -51,7 +57,7 @@ export function ClientPricingEditor({
   const [nightStart, setNightStart] = useState(profileSurcharges.nightStart ?? DEFAULT_NIGHT_WINDOW.start);
   const [nightEnd, setNightEnd] = useState(profileSurcharges.nightEnd ?? DEFAULT_NIGHT_WINDOW.end);
   const [rates, setRates] = useState<Record<string, string>>(() => Object.fromEntries(
-    qualifications.map((key) => [key, String(profileHourlyRates[key] ?? DEFAULT_RATES[key])]),
+    qualifications.map(({ code }) => [code, profileHourlyRates[code] === null || profileHourlyRates[code] === undefined ? "" : String(profileHourlyRates[code])]),
   ));
 
   const save = (event: React.FormEvent<HTMLFormElement>) => {
@@ -66,7 +72,7 @@ export function ClientPricingEditor({
         surchargeNightPct: asOptionalNumber(surcharges.surchargeNight),
         nightStart: nightStart || null,
         nightEnd: nightEnd || null,
-        hourlyRates: Object.fromEntries(qualifications.map((key) => [key, asOptionalNumber(rates[key] ?? "")])) as Record<typeof qualifications[number], number | null>,
+        hourlyRates: Object.fromEntries(qualifications.map(({ code }) => [code, asOptionalNumber(rates[code] ?? "")])),
       });
       if (!result.ok) {
         toast.error(result.error);
@@ -112,20 +118,23 @@ export function ClientPricingEditor({
       </div>
       <div className="space-y-3">
         <h3 className="text-sm font-semibold">{t("profileRates")}</h3>
+        <p className="text-xs text-muted-foreground">{t("ratesEffectiveToday")}</p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {qualifications.map((key) => (
-            <div key={key} className="min-w-0 space-y-2">
-              <Label htmlFor={`pricing-rate-${key}`}>{eq(key)} (€ / Std.)</Label>
+          {qualifications.map((item) => (
+            <div key={item.code} className="min-w-0 space-y-2">
+              <Label htmlFor={`pricing-rate-${item.code}`}>{displayQualification(item, locale)} (€ / Std.)</Label>
               <Input
-                id={`pricing-rate-${key}`}
+                id={`pricing-rate-${item.code}`}
                 type="number"
                 min="0"
                 max="1000"
                 step="0.01"
                 inputMode="decimal"
-                value={rates[key] ?? ""}
-                onChange={(event) => setRates((previous) => ({ ...previous, [key]: event.target.value }))}
+                placeholder={item.defaultClientRateCents === null ? "—" : (item.defaultClientRateCents / 100).toFixed(2)}
+                value={rates[item.code] ?? ""}
+                onChange={(event) => setRates((previous) => ({ ...previous, [item.code]: event.target.value }))}
               />
+              <p className="text-xs text-muted-foreground">{rates[item.code] === "" ? t("inheritedDefaultRate") : t("clientOverrideRate")}</p>
             </div>
           ))}
         </div>

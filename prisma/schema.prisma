@@ -271,6 +271,7 @@ model Worker {
   id                   String       @id @default(uuid())
   userId               String       @unique @map("user_id")
   internalNumber       String?      @map("internal_number")
+  salutation           String?      @map("salutation") // "herr" | "frau"
   fullName             String       @map("full_name")
   qualification        String
   certifications       String[]     @default([])
@@ -413,6 +414,8 @@ model Client {
   // { "pflegefachkraft": 54.9 }. Only overridden qualifications are stored;
   // missing keys fall back to HOURLY_RATES in lib/pricing.ts.
   hourlyRates                Json?     @map("hourly_rates")
+  // Contractual per-client, per-year invoice holiday windows (not statutory status).
+  billingHolidayCalendar     Json?     @map("billing_holiday_calendar")
   createdAt                  DateTime  @default(now()) @map("created_at")
   updatedAt                  DateTime  @updatedAt @map("updated_at")
 
@@ -424,6 +427,7 @@ model Client {
   appointments      Appointment[]
   surchargePolicies FacilitySurchargePolicy[]
   hourlyRateVersions ClientHourlyRateVersion[]
+  pricingRateChanges ClientPricingRateChange[]
 
   @@map("clients")
 }
@@ -689,6 +693,65 @@ model ClientHourlyRateVersion {
   @@index([clientId, qualification, effectiveFrom, effectiveTo])
   @@index([clientContractId])
   @@map("client_hourly_rate_versions")
+}
+
+// Append-only administrative changes made in the single Vergütung editor.
+// A null amount explicitly restores inheritance from the dated platform rate.
+model ClientPricingRateChange {
+  id                String   @id @default(uuid())
+  clientId          String   @map("client_id")
+  qualificationCode String   @map("qualification_code") @db.VarChar(120)
+  hourlyRateInCents Int?     @map("hourly_rate_in_cents")
+  effectiveFrom     DateTime @map("effective_from") @db.Date
+  verifiedByUserId  String   @map("verified_by_user_id")
+  sourceReference   String   @map("source_reference")
+  frozenHash        String   @map("frozen_hash")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([clientId, qualificationCode, effectiveFrom, createdAt])
+  @@map("client_pricing_rate_changes")
+}
+
+// A stable qualification code is used by workers, orders, and invoice snapshots.
+// Archiving removes it from new selection without erasing historical references.
+model QualificationCatalog {
+  code                   String   @id @db.VarChar(120)
+  nameDe                 String   @map("name_de") @db.VarChar(120)
+  nameEn                 String   @map("name_en") @db.VarChar(120)
+  nameAr                 String   @map("name_ar") @db.VarChar(120)
+  defaultClientRateCents Int?     @map("default_client_rate_cents")
+  active                 Boolean  @default(true)
+  sortOrder              Int      @default(0) @map("sort_order")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  defaultRateVersions QualificationDefaultRateVersion[]
+
+  @@index([active, sortOrder])
+  @@map("qualification_catalog")
+}
+
+// Platform defaults are dated and append-only so a later settings edit cannot
+// change the price selected for an earlier shift or issued invoice.
+model QualificationDefaultRateVersion {
+  id                    String   @id @default(uuid())
+  qualificationCode     String   @map("qualification_code") @db.VarChar(120)
+  version               Int
+  hourlyRateInCents     Int      @map("hourly_rate_in_cents")
+  effectiveFrom         DateTime @map("effective_from") @db.Date
+  sourceReference       String   @map("source_reference")
+  verifiedByUserId      String   @map("verified_by_user_id")
+  verifiedAt            DateTime @default(now()) @map("verified_at")
+  frozenHash            String   @map("frozen_hash")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  qualification QualificationCatalog @relation(fields: [qualificationCode], references: [code], onDelete: Restrict)
+
+  @@unique([qualificationCode, version])
+  @@index([qualificationCode, effectiveFrom])
+  @@map("qualification_default_rate_versions")
 }
 
 model ServiceConfirmation {

@@ -6,9 +6,7 @@ import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { qualifications } from "@/lib/validations";
 import {
-  rateFor,
   DEFAULT_SURCHARGES,
   DEFAULT_RATES,
   DEFAULT_NIGHT_WINDOW,
@@ -22,6 +20,7 @@ import {
   type SurchargeComponent,
 } from "@/lib/pricing";
 import { germanHolidays } from "@/lib/holidays";
+import { billingHolidayAtMinute, billingHolidaysForYear, parseBillingHolidayCalendar } from "@/lib/client-billing-holidays";
 import {
   createOrderRequest,
   updateOrderRequest,
@@ -60,7 +59,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, Plus, X, Copy, ClipboardPaste, Info, Undo2, Redo2, Download, Upload, Clipboard } from "lucide-react";
 import * as XLSX from "xlsx";
 
-type Qual = (typeof qualifications)[number];
+type Qual = string;
 type ShiftType = "none" | "early" | "late" | "night";
 type Cell = {
   id?: string;
@@ -126,6 +125,7 @@ export function OrderRequestBuilder({
   surcharges,
   rates,
   nightWindow,
+  billingHolidayCalendar,
   readOnly = false,
   adminEdit = false,
   backHref,
@@ -133,6 +133,7 @@ export function OrderRequestBuilder({
   assignable = false,
   defaultYear,
   defaultMonth,
+  qualificationOptions,
 }: {
   initial?: InitialRequest;
   // When provided, the builder runs in admin mode: the admin must pick the
@@ -144,6 +145,7 @@ export function OrderRequestBuilder({
     surcharges: Surcharges;
     rates: Rates;
     night: NightWindow;
+    billingHolidayCalendar?: unknown;
   }[];
   // Client mode: the logged-in client's resolved surcharges.
   surcharges?: Surcharges;
@@ -151,6 +153,7 @@ export function OrderRequestBuilder({
   rates?: Rates;
   // Client mode: the logged-in client's night-surcharge window.
   nightWindow?: NightWindow;
+  billingHolidayCalendar?: unknown;
   // Review mode: same table shape, all inputs locked, no submit.
   readOnly?: boolean;
   // Admin adjusting an existing request → route the save to the admin action.
@@ -164,11 +167,11 @@ export function OrderRequestBuilder({
   assignable?: boolean;
   defaultYear?: number;
   defaultMonth?: number;
+  qualificationOptions: Array<{ code: string; nameDe: string; nameEn: string; nameAr: string; active: boolean }>;
 }) {
   const t = useTranslations("orderRequest");
   const o = useTranslations("orders");
   const c = useTranslations("common");
-  const eq = useTranslations("enums.qualification");
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -195,7 +198,7 @@ export function OrderRequestBuilder({
   const [month, setMonth] = useState(
     defaultMonth ?? (firstDate ? Number(firstDate.slice(5, 7)) : now.getUTCMonth() + 1)
   );
-  const [qual, setQual] = useState<Qual>((initial?.qual as Qual) ?? qualifications[0]);
+  const [qual, setQual] = useState<Qual>(initial?.qual ?? qualificationOptions[0]?.code ?? "");
 
   const { state: undoState, set: setUndoState, undo: undoOriginal, redo: redoOriginal, canUndo, canRedo, clearHistory } = useUndoStack<{
     cells: Record<string, Cell>;
@@ -642,15 +645,23 @@ export function OrderRequestBuilder({
   const nightWin: NightWindow = isAdmin
     ? selectedClient?.night ?? DEFAULT_NIGHT_WINDOW
     : nightWindow ?? DEFAULT_NIGHT_WINDOW;
+  const selectedBillingCalendar = isAdmin ? selectedClient?.billingHolidayCalendar : billingHolidayCalendar;
 
   // Billing (netto): each shift is hours × headcount × base rate, uplifted by
   // the day's Zuschlag (Sat/Sun/holiday). Holidays are resolved per shift year.
   // Grouped by day category so we can show a transparent calculation breakdown.
-  const rate = useMemo(() => rateFor(qual, rt), [qual, rt]);
+  const rate = useMemo(() => rt[qual] ?? 0, [qual, rt]);
   const billing = useMemo(() => {
     const holidayCache = new Map<number, Map<string, string>>();
-    const isHoliday = (dateStr: string) => {
+    const contractualCalendar = selectedBillingCalendar === undefined ? null : parseBillingHolidayCalendar(selectedBillingCalendar);
+    const contractualYears = new Map<number, ReturnType<typeof billingHolidaysForYear>>();
+    const isHoliday = (dateStr: string, minute: number) => {
       const y = Number(dateStr.slice(0, 4));
+      if (contractualCalendar) {
+        let rows = contractualYears.get(y);
+        if (!rows) { rows = billingHolidaysForYear(contractualCalendar, y); contractualYears.set(y, rows); }
+        return Boolean(billingHolidayAtMinute(rows, dateStr, minute));
+      }
       let h = holidayCache.get(y);
       if (!h) {
         h = germanHolidays(y);
@@ -684,7 +695,7 @@ export function OrderRequestBuilder({
       .sort((a, b) => a.mult - b.mult);
     const total = rows.reduce((s, r) => s + r.amount, 0);
     return { rows, total };
-  }, [activeShifts, rate, sc, nightWin]);
+  }, [activeShifts, rate, sc, nightWin, selectedBillingCalendar]);
   const totalPrice = billing.total;
   const fmtEur = (n: number) =>
     n.toLocaleString(locale, { style: "currency", currency: "EUR" });
@@ -694,6 +705,10 @@ export function OrderRequestBuilder({
 
   function submit() {
     if (activeShifts.length === 0) return;
+    if (!Number.isFinite(rate) || rate <= 0) {
+      toast.error(o("saveError"));
+      return;
+    }
     if (isAdmin && !clientId) {
       toast.error(t("selectClientError"));
       return;
@@ -981,12 +996,12 @@ export function OrderRequestBuilder({
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {o("qualification")}
           <select disabled={ro} value={qual} onChange={(e) => setQual(e.target.value as Qual)} className={cn(field, "w-56")}>
-            {qualifications.map((q) => (
-              <option key={q} value={q}>{eq(q)}</option>
+            {qualificationOptions.filter((item) => item.active || item.code === qual).map((item) => (
+              <option key={item.code} value={item.code}>{locale === "ar" ? item.nameAr : locale === "en" ? item.nameEn : item.nameDe}</option>
             ))}
           </select>
           <span className="text-[11px] text-muted-foreground">
-            {fmtEur(rate)} / {t("perHour")}
+            {rate > 0 ? fmtEur(rate) : "—"} / {t("perHour")}
           </span>
         </label>
       </div>

@@ -4,6 +4,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { resolveRates, resolveSurcharges } from "@/lib/pricing";
 import { renderRahmenvertragPdf, RahmenvertragData } from "@/lib/pdf/rahmenvertrag";
+import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     facilityName: client.facilityName,
     facilityAddress: client.address || "Adresse unbekannt",
     createdAt: new Date(),
-    rates: resolveRates(client),
+    rates: resolveRates(client, catalogRateMap(await getQualificationCatalog({ includeArchived: true }))),
     surcharges: resolveSurcharges(client),
   };
 

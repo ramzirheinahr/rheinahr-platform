@@ -3,6 +3,7 @@ import { qualLabel } from "@/lib/invoicing";
 import { netShiftHours, resolveRates, rateFor } from "@/lib/pricing";
 import type { AssignmentStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
+import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
 
 // One month of everything worked (or planned) at a client's facility — the
 // client-side mirror of the worker schedule table. Two hour figures matter:
@@ -51,7 +52,8 @@ export async function getClientMonthSchedule(
     select: { hourlyRates: true },
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rates = client ? resolveRates(client as any) : resolveRates({ hourlyRates: null } as any);
+  const catalogDefaults = catalogRateMap(await getQualificationCatalog({ includeArchived: true }));
+  const rates = client ? resolveRates(client as any, catalogDefaults) : resolveRates({ hourlyRates: null } as any, catalogDefaults);
 
   const assignments = await prisma.assignment
     .findMany({
@@ -99,7 +101,7 @@ export async function getClientMonthSchedule(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       invoiceId: (a as any).invoiceId ?? null,
       serviceConfirmation: !!a.serviceConfirmation,
-      hourlyRate: rateFor(o.requiredQualification, rates),
+      hourlyRate: rates[o.requiredQualification] > 0 ? rateFor(o.requiredQualification, rates) : undefined,
     };
   });
 
@@ -175,7 +177,7 @@ export function clientScheduleCsv(
       [
         deDate(r.date),
         r.workerName,
-        qualLabel[r.qualification],
+        qualLabel[r.qualification] || r.qualification,
         r.notes ?? "",
         r.startTime,
         r.endTime,

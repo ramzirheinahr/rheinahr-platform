@@ -9,6 +9,8 @@ import { renderContractPdf } from "@/lib/pdf/contract";
 import { resolveRates, resolveSurcharges, resolveNightWindow, requestNetTotal, rateFor } from "@/lib/pricing";
 import { qualLabel } from "@/lib/invoicing";
 import { format } from "@/lib/date-utils";
+import { formatWorkerSalutation } from "@/lib/worker-utils";
+import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
 
 export async function signContractPublic({
   requestGroupId,
@@ -52,7 +54,7 @@ export async function signContractPublic({
   const signedAtFormatted = format(signedAtDate, "dd.MM.yyyy HH:mm");
 
   // Map data to PDF template props
-  const rates = resolveRates(contract.client);
+  const rates = resolveRates(contract.client, catalogRateMap(await getQualificationCatalog({ includeArchived: true })));
   const surcharges = resolveSurcharges(contract.client);
   const nightWindow = resolveNightWindow(contract.client);
 
@@ -106,7 +108,7 @@ export async function signContractPublic({
       }
 
       return {
-        workerName: a.worker.fullName,
+        workerName: a.worker.salutation ? `${formatWorkerSalutation(a.worker.salutation)} ${a.worker.fullName}` : a.worker.fullName,
         qualification: qualLabel[a.order.requiredQualification] || a.order.requiredQualification,
         shiftDate: format(a.order.shiftDate, "dd.MM.yyyy"),
         startTime: a.order.startTime,

@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getMasterSchedule } from "@/lib/master-schedule";
 import { masterScheduleCsv } from "@/lib/master-schedule-core";
-import { qualifications } from "@/lib/validations";
-import { qualLabel } from "@/lib/invoicing";
+import { getQualificationCatalog } from "@/lib/qualification-catalog";
 import { germanHolidays } from "@/lib/holidays";
 import { audit } from "@/lib/audit";
 import type { Qualification } from "@/lib/validations";
@@ -21,6 +20,8 @@ export async function GET(req: Request) {
   const month = Number(searchParams.get("month"));
   const format = searchParams.get("format") === "pdf" ? "pdf" : "csv";
   const qualification = searchParams.get("qualification") ?? "";
+  const qualificationCatalog = await getQualificationCatalog({ includeArchived: true });
+  const selectedQualification = qualificationCatalog.find((item) => item.code === qualification);
   if (
     !Number.isInteger(year) ||
     !Number.isInteger(month) ||
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
     month > 12 ||
     year < 2020 ||
     year > 2100 ||
-    !(qualifications as readonly string[]).includes(qualification)
+    !selectedQualification
   ) {
     return new NextResponse("Bad Request", { status: 400 });
   }
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
       timeZone: "Europe/Berlin",
     }).format(new Date(Date.UTC(year, month - 1, 1)));
     const pdf = await renderDienstplanPdf({
-      qualificationLabel: qualLabel[qualification as Qualification],
+      qualificationLabel: selectedQualification!.nameDe,
       monthLabel,
       daysInMonth,
       tinted,

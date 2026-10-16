@@ -9,6 +9,7 @@ import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
+import { getQualificationCatalog, catalogRateMap } from "@/lib/qualification-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export default async function AdminEditRequestPage({
   const monthParam = typeof search?.month === "string" && /^\d{4}-\d{2}$/.test(search.month) ? search.month : null;
   const t = await getTranslations("orders");
   const c = await getTranslations("common");
+  const qualificationOptions = await getQualificationCatalog({ includeArchived: true });
+  const defaults = catalogRateMap(qualificationOptions);
 
   const orders = await prisma.order.findMany({
     where: { requestGroupId: id },
@@ -43,6 +46,7 @@ export default async function AdminEditRequestPage({
           nightStart: true,
           nightEnd: true,
           hourlyRates: true,
+          billingHolidayCalendar: true,
         },
       },
       assignments: {
@@ -151,10 +155,12 @@ export default async function AdminEditRequestPage({
             <h1 className="text-2xl font-semibold">{t("detailTitle")}</h1>
           </div>
           <OrderRequestBuilder
+            qualificationOptions={qualificationOptions}
             initial={initial}
             surcharges={resolveSurcharges(orders[0].client)}
-            rates={resolveRates(orders[0].client)}
+            rates={resolveRates(orders[0].client, defaults)}
             nightWindow={resolveNightWindow(orders[0].client)}
+            billingHolidayCalendar={orders[0].client.billingHolidayCalendar}
             adminEdit
             backHref={backToDetailHref}
             shiftMeta={shiftMeta}

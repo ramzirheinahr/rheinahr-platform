@@ -115,7 +115,7 @@ export function toCsv(rows: InvoiceRow[]): string {
         r.shiftDate,
         r.facilityName,
         r.workerName,
-        qualLabel[r.qualification],
+        qualLabel[r.qualification] || r.qualification,
         r.startTime,
         r.endTime,
         r.hours.toString().replace(".", ","), // German decimal comma

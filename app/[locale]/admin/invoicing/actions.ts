@@ -97,7 +97,8 @@ export async function updateInvoiceAction(params: {
       quantity: 1,
       requiredQualification: a.order.requiredQualification,
     }));
-    baseNet = requestNetTotal(shiftsToPrice, resolvedSurcharges, resolvedRates, resolvedNightWindow);
+    baseNet = requestNetTotal(shiftsToPrice, resolvedSurcharges, resolvedRates, resolvedNightWindow,
+      snapshot && Object.hasOwn(snapshot, "billingHolidayCalendar") ? snapshot.billingHolidayCalendar : undefined);
   } else {
     // If no assignments are directly linked (e.g. legacy), fallback to existing net minus any previous adjustment
     const prevAdj = snapshotNumber("netAdjustment") || 0;

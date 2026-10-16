@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { OrderRequestBuilder } from "@/components/client/order-request-builder";
 import { resolveSurcharges, resolveRates, resolveNightWindow } from "@/lib/pricing";
 import { ArrowLeft } from "lucide-react";
+import { getQualificationCatalog, catalogRateMap } from "@/lib/qualification-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ async function getClients() {
         nightStart: true,
         nightEnd: true,
         hourlyRates: true,
+        billingHolidayCalendar: true,
       },
     });
   } catch {
@@ -33,6 +35,8 @@ export default async function AdminNewOrderPage() {
   const t = await getTranslations("orders");
   const c = await getTranslations("common");
   const clients = await getClients();
+  const qualificationOptions = await getQualificationCatalog();
+  const defaults = catalogRateMap(qualificationOptions);
 
   return (
     <div className="space-y-6">
@@ -49,12 +53,14 @@ export default async function AdminNewOrderPage() {
         <h1 className="text-2xl font-semibold">{t("newOrder")}</h1>
       </div>
       <OrderRequestBuilder
+        qualificationOptions={qualificationOptions}
         clients={clients.map((cl) => ({
           id: cl.id,
           name: cl.facilityName,
           surcharges: resolveSurcharges(cl),
-          rates: resolveRates(cl),
+          rates: resolveRates(cl, defaults),
           night: resolveNightWindow(cl),
+          billingHolidayCalendar: cl.billingHolidayCalendar,
         }))}
       />
     </div>

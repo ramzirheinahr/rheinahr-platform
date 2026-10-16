@@ -11,8 +11,8 @@ import { ArbeitsvertragSection } from "@/components/admin/arbeitsvertrag-section
 import { AccountSection } from "@/components/admin/account-section";
 import { ActiveSessionsSection } from "@/components/admin/active-sessions-section";
 import { DeleteWorkerButton } from "@/components/admin/delete-worker-button";
-import { ArrowLeft, Eye } from "lucide-react";
-import { qualifications } from "@/lib/validations";
+import { ArrowLeft, Calendar, Eye } from "lucide-react";
+import { getQualificationCatalog } from "@/lib/qualification-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +42,11 @@ export default async function EditWorkerPage({
 
   if (!worker) notFound();
 
-  const allQuals = await prisma.worker.findMany({ select: { qualification: true }, distinct: ["qualification"] });
-  const customQualifications = allQuals
-    .map((w) => w.qualification)
-    .filter((q) => !qualifications.includes(q as any));
+  const catalog = await getQualificationCatalog({ includeArchived: true });
+  const qualificationOptions = catalog.filter((item) => item.active || item.code === worker.qualification);
+  if (!qualificationOptions.some((item) => item.code === worker.qualification)) {
+    qualificationOptions.push({ code: worker.qualification, nameDe: worker.qualification, nameEn: worker.qualification, nameAr: worker.qualification, active: false, sortOrder: 100_000, defaultClientRateCents: null });
+  }
 
   const isAdmin = actor ? actor.role === "admin" || actor.role === "super_admin" : false;
 
@@ -69,6 +70,15 @@ export default async function EditWorkerPage({
             variant="outline"
             size="sm"
             className="gap-2"
+            render={<Link href={`/admin/workers/${worker.id}/schedule`} />}
+          >
+            <Calendar className="size-4" />
+            {t("hoursAction")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
             render={<Link href={`/admin/workers/${worker.id}/profile`} />}
           >
             <Eye className="size-4" />
@@ -85,6 +95,7 @@ export default async function EditWorkerPage({
       <WorkerForm
         worker={{
           id: worker.id,
+          salutation: worker.salutation,
           fullName: worker.fullName,
           internalNumber: worker.internalNumber,
           qualification: worker.qualification,
@@ -126,7 +137,7 @@ export default async function EditWorkerPage({
             receiveEmails: worker.user.receiveEmails,
           },
         }}
-        customQualifications={customQualifications}
+        qualificationOptions={qualificationOptions}
       />
 
       <section className="max-w-2xl space-y-3">

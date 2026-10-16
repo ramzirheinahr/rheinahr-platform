@@ -12,7 +12,16 @@ import type { WorkerProfileData } from "@/lib/worker-profile";
 export function WorkerProfile({ data }: { data: WorkerProfileData }) {
   const t = useTranslations("workers");
   const eq = useTranslations("enums.qualification");
+  const es = useTranslations("enums.salutation");
   const locale = useLocale();
+
+  const salutationLabel = data.salutation
+    ? data.salutation.toLowerCase() === "herr" || data.salutation.toLowerCase() === "frau"
+      ? es(data.salutation.toLowerCase() as "herr" | "frau")
+      : data.salutation
+    : null;
+
+  const displayName = salutationLabel ? `${salutationLabel} ${data.fullName}` : data.fullName;
 
   return (
     <Card>
@@ -31,7 +40,7 @@ export function WorkerProfile({ data }: { data: WorkerProfileData }) {
             )}
           </div>
           <div className="space-y-1">
-            <h2 className="text-xl font-semibold">{data.fullName}</h2>
+            <h2 className="text-xl font-semibold">{displayName}</h2>
             <Badge variant="secondary">{eq(data.qualification)}</Badge>
             {data.verifiedCertCount > 0 && (
               <div className="flex items-center gap-1 text-sm text-primary">
@@ -101,17 +110,27 @@ export function WorkerProfile({ data }: { data: WorkerProfileData }) {
             </div>
           )}
 
+          {salutationLabel && (
+            <div className="space-y-1">
+              <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <UserRound className="size-3.5" />
+                {t("salutation")}
+              </dt>
+              <dd className="text-sm font-medium">{salutationLabel}</dd>
+            </div>
+          )}
+
           {data.birthDate && (
             <div className="space-y-1">
               <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <CalendarDays className="size-3.5" />
                 {t("birthDate")}
               </dt>
-              <dd className="text-sm">
+              <dd className="text-sm font-medium">
                 {new Date(data.birthDate).toLocaleDateString(locale, {
                   year: "numeric",
-                  month: "long",
-                  day: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
                 })}
               </dd>
             </div>

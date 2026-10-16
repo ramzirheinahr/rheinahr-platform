@@ -6,7 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { ClientRatesApprovalContent } from "@/components/admin/client-rates-approval-content";
-import { qualifications } from "@/lib/validations";
+import { getQualificationCatalog } from "@/lib/qualification-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,7 @@ export default async function ClientRatesApprovalPage({
   if (!client) {
     notFound();
   }
+  const catalog = await getQualificationCatalog({ includeArchived: true });
 
   // Parse raw profile hourly rates
   const rawProfileRates =
@@ -66,7 +67,10 @@ export default async function ClientRatesApprovalPage({
       : {};
 
   const profileHourlyRates: Record<string, number | null> = {};
-  for (const q of qualifications) {
+  const availableQualifications = catalog.filter((item) =>
+    item.active || Object.hasOwn(rawProfileRates, item.code) ||
+    client.hourlyRateVersions.some((rate) => rate.qualification === item.code));
+  for (const { code: q } of availableQualifications) {
     const val = rawProfileRates[q];
     profileHourlyRates[q] = typeof val === "number" ? val : null;
   }
@@ -171,7 +175,9 @@ export default async function ClientRatesApprovalPage({
         frameworkAgreementUrl={client.frameworkAgreementUrl}
         contracts={contracts}
         profileHourlyRates={profileHourlyRates}
+        qualifications={availableQualifications}
         profileSurcharges={profileSurcharges}
+        billingHolidayCalendar={client.billingHolidayCalendar}
         activePolicies={activePolicies}
         activeRateVersions={activeRateVersions}
       />

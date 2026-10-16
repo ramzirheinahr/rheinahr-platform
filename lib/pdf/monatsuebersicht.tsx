@@ -153,7 +153,7 @@ function MonatsuebersichtDocument({ d, companyConfig }: { d: MonatsuebersichtDat
             <View key={r.id} style={styles.tr} wrap={false}>
               <Text style={styles.cDate}>{deDate(r.date)}</Text>
               <Text style={styles.cWorker}>{r.workerName}</Text>
-              <Text style={styles.cQual}>{qualLabel[r.qualification]}</Text>
+              <Text style={styles.cQual}>{qualLabel[r.qualification] || r.qualification}</Text>
               <Text style={styles.cWard}>{r.notes ?? ""}</Text>
               <Text style={styles.cTime}>{r.startTime}</Text>
               <Text style={styles.cTime}>{r.endTime}</Text>

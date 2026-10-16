@@ -26,11 +26,25 @@ function toYearMonth(d: Date | null | undefined): string | null {
   return `${String(y).padStart(4, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+export function getBerlinTodayDateStr(): string {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(new Date());
+}
+
 export async function getWorkerHoursAccount(
   workerId: string,
   startMonth: string, // YYYY-MM
   endMonth: string, // YYYY-MM
+  asOfDate?: string, // YYYY-MM-DD
 ): Promise<{ months: MonthlyHoursAccount[], initialCarryover: number }> {
+  const effectiveAsOfDate = asOfDate || getBerlinTodayDateStr();
+  const currentBerlinMonth = effectiveAsOfDate.slice(0, 7);
+
   const worker = await prisma.worker.findUnique({
     where: { id: workerId },
     include: {
@@ -126,12 +140,18 @@ export async function getWorkerHoursAccount(
     const isEmployedInMonth = monthStr >= startYearMonth && (!endYearMonth || monthStr <= endYearMonth);
     if (!isEmployedInMonth) continue;
 
-    // worked hours
+    // worked hours: for current ongoing month, count only up to asOfDate (today); for past months, count full month
     const monthAssignments = assignments.filter(a => {
       const d = a.order.shiftDate;
-      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
+      const dMonth = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      if (dMonth !== monthStr) return false;
+      if (monthStr >= currentBerlinMonth) {
+        const dStr = d.toISOString().slice(0, 10);
+        return dStr <= effectiveAsOfDate;
+      }
+      return true;
     });
-    const workedHours = monthAssignments.reduce((sum, a) => {
+    const workedHours = Math.round(monthAssignments.reduce((sum, a) => {
       let hours = 0;
       const latestApproved = a.hoursCorrections?.[0];
       if (latestApproved) {
@@ -147,14 +167,20 @@ export async function getWorkerHoursAccount(
         hours = netMins / 60;
       }
       return sum + hours;
-    }, 0);
+    }, 0) * 100) / 100;
 
     const bonusHoursTotal = monthAssignments.reduce((sum, a) => sum + (a.bonusHours || 0), 0);
 
-    // leave hours
+    // leave hours: for current ongoing month, count only up to asOfDate (today)
     const monthLeaves = leaveDays.filter(l => {
       const d = l.date;
-      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
+      const dMonth = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      if (dMonth !== monthStr) return false;
+      if (monthStr >= currentBerlinMonth) {
+        const dStr = d.toISOString().slice(0, 10);
+        return dStr <= effectiveAsOfDate;
+      }
+      return true;
     });
     const vacationHoursFromLeaves = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
     const sickHoursFromLeaves = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
@@ -222,8 +248,12 @@ export async function getMultipleWorkersHoursAccount(
   workerIds: string[],
   startMonth: string, // YYYY-MM
   endMonth: string, // YYYY-MM
+  asOfDate?: string, // YYYY-MM-DD
 ): Promise<Record<string, { months: MonthlyHoursAccount[], initialCarryover: number }>> {
   if (workerIds.length === 0) return {};
+
+  const effectiveAsOfDate = asOfDate || getBerlinTodayDateStr();
+  const currentBerlinMonth = effectiveAsOfDate.slice(0, 7);
 
   const workers = await prisma.worker.findMany({
     where: { id: { in: workerIds } },
@@ -317,11 +347,18 @@ export async function getMultipleWorkersHoursAccount(
       if (monthStr < wStartYearMonth) continue; // Skip months before worker joined
       if (wEndYearMonth && monthStr > wEndYearMonth) continue; // Skip months after worker left
 
+      // worked hours: for current ongoing month, count only up to asOfDate (today); for past months, count full month
       const monthAssignments = assignments.filter(a => {
         const d = a.order.shiftDate;
-        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
+        const dMonth = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+        if (dMonth !== monthStr) return false;
+        if (monthStr >= currentBerlinMonth) {
+          const dStr = d.toISOString().slice(0, 10);
+          return dStr <= effectiveAsOfDate;
+        }
+        return true;
       });
-      const workedHours = monthAssignments.reduce((sum, a) => {
+      const workedHours = Math.round(monthAssignments.reduce((sum, a) => {
         let hours = 0;
         const latestApproved = a.hoursCorrections?.[0];
         if (latestApproved) {
@@ -337,13 +374,20 @@ export async function getMultipleWorkersHoursAccount(
           hours = netMins / 60;
         }
         return sum + hours;
-      }, 0);
+      }, 0) * 100) / 100;
 
       const bonusHoursTotal = monthAssignments.reduce((sum, a) => sum + (a.bonusHours || 0), 0);
 
+      // leave hours: for current ongoing month, count only up to asOfDate (today)
       const monthLeaves = leaveDays.filter(l => {
         const d = l.date;
-        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}` === monthStr;
+        const dMonth = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+        if (dMonth !== monthStr) return false;
+        if (monthStr >= currentBerlinMonth) {
+          const dStr = d.toISOString().slice(0, 10);
+          return dStr <= effectiveAsOfDate;
+        }
+        return true;
       });
       const vacationHoursFromLeaves = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "vacation").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;
       const sickHoursFromLeaves = Math.round(monthLeaves.filter(l => l.leaveRequest.type === "sick").reduce((sum, l) => sum + l.hours, 0) * 100) / 100;

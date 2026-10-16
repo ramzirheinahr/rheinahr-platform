@@ -13,9 +13,11 @@ import type { StundennachweisRow } from "@/lib/reports-data";
 export function StundennachweisView({
   clients,
   qualifications,
+  qualificationNames,
 }: {
   clients: Array<{ id: string; facilityName: string; internalNumber: string | null }>;
   qualifications: string[];
+  qualificationNames: Record<string, string>;
 }) {
   const t = useTranslations("reports");
   const now = new Date();
@@ -95,8 +97,8 @@ export function StundennachweisView({
                   { value: "alle", label: t("common.all") },
                   ...qualifications.map((q) => ({
                     value: q,
-                    label: q,
-                    searchTerms: q,
+                    label: qualificationNames[q] ?? q,
+                    searchTerms: `${qualificationNames[q] ?? q} ${q}`,
                   })),
                 ]}
                 value={qualification}

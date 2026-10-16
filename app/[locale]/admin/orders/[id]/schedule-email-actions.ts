@@ -7,6 +7,7 @@ import { netShiftHours } from "@/lib/pricing";
 import { sendEmailToRecipients } from "@/lib/email";
 import { qualLabel } from "@/lib/invoicing";
 import { formatDateDE } from "@/lib/utils";
+import { formatWorkerSalutation } from "@/lib/worker-utils";
 import type { ClientScheduleRow, ClientScheduleTotals } from "@/lib/client-schedule";
 
 export async function sendOrderScheduleEmail({
@@ -28,7 +29,7 @@ export async function sendOrderScheduleEmail({
       client: { select: { id: true, facilityName: true, userId: true } },
       assignments: {
         include: {
-          worker: { select: { fullName: true, qualification: true } },
+          worker: { select: { fullName: true, salutation: true, qualification: true } },
           serviceConfirmation: { select: { hoursWorked: true } },
         },
       },
@@ -87,7 +88,7 @@ export async function sendOrderScheduleEmail({
         startTime: o.startTime,
         endTime: o.endTime,
         notes: o.notes,
-        workerName: a.worker.fullName,
+        workerName: a.worker.salutation ? `${formatWorkerSalutation(a.worker.salutation)} ${a.worker.fullName}` : a.worker.fullName,
         qualification: o.requiredQualification as any,
         confirmedHours: cNet,
         scheduledHours: rawNet,

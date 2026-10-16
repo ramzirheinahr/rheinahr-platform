@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import type { Qualification } from "@/lib/validations";
 import { getCurrentUser } from "@/lib/auth";
-import { qualifications } from "@/lib/validations";
+import { getQualificationCatalog, qualificationName } from "@/lib/qualification-catalog";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, Download, FileSpreadsheet } from "lucide-react";
@@ -13,8 +13,8 @@ import { TableSkeleton } from "@/components/admin/skeletons/table-skeleton";
 export const dynamic = "force-dynamic";
 
 // Narrow the query param to a real qualification, or undefined (= show all).
-function parseQualification(value?: string): Qualification | undefined {
-  return (qualifications as readonly string[]).includes(value ?? "")
+function parseQualification(value: string | undefined, allowed: string[]): Qualification | undefined {
+  return allowed.includes(value ?? "")
     ? (value as Qualification)
     : undefined;
 }
@@ -25,15 +25,15 @@ export default async function WorkersPage({
   searchParams: Promise<{ qualification?: string; month?: string }>;
 }) {
   const { qualification: qParam, month: mParam } = await searchParams;
-  const qualification = parseQualification(qParam);
+  const catalog = await getQualificationCatalog({ includeArchived: true });
+  const qualification = parseQualification(qParam, catalog.map((item) => item.code));
 
   const t = await getTranslations("workers");
-  const eq = await getTranslations("enums.qualification");
   const actor = await getCurrentUser();
   
   // When a type is selected the page shows only that type; drop the redundant
   // qualification column and title the page with the type name.
-  const heading = qualification ? eq(qualification) : t("title");
+  const heading = qualification ? qualificationName(catalog.find((item) => item.code === qualification)!, "de") : t("title");
   const newHref = qualification
     ? `/admin/workers/new?qualification=${qualification}`
     : "/admin/workers/new";

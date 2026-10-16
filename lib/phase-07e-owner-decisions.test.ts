@@ -48,6 +48,16 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    qualificationCatalog: {
+      count: vi.fn().mockResolvedValue(6),
+      findMany: vi.fn().mockResolvedValue([
+        "pflegefachkraft", "pflegehelfer", "betreuungskraft",
+        "pflegedienstleitung", "kuechenhilfe", "hausmeister",
+      ].map((code) => ({ code, active: true, defaultClientRateCents: 3690 }))),
+    },
+    qualificationDefaultRateVersion: {
+      count: vi.fn().mockResolvedValue(1),
+    },
     invoice: {
       findUnique: vi.fn(),
       findMany: vi.fn(),

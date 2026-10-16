@@ -14,9 +14,11 @@ import type { MitarbeiterListeRow } from "@/lib/reports-data";
 export function MitarbeiterListeView({
   clients,
   qualifications,
+  qualificationNames,
 }: {
   clients: Array<{ id: string; facilityName: string }>;
   qualifications: string[];
+  qualificationNames: Record<string, string>;
 }) {
   const t = useTranslations("reports");
   const now = new Date();
@@ -113,8 +115,8 @@ export function MitarbeiterListeView({
                   { value: "alle", label: t("common.all") },
                   ...qualifications.map((q) => ({
                     value: q,
-                    label: q,
-                    searchTerms: q,
+                    label: qualificationNames[q] ?? q,
+                    searchTerms: `${qualificationNames[q] ?? q} ${q}`,
                   })),
                 ]}
                 value={qualification}

@@ -114,6 +114,42 @@ function createMockPrisma(assignments: any[], dbRateVersions: any[] = []) {
 }
 
 describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () => {
+  it("invoices a catalog-added qualification at its resolved client rate", async () => {
+    const assignment = {
+      id: "asg-new-qualification", status: "confirmed", invoiceId: null, contractId: "contract-1",
+      worker: { id: "worker-new", fullName: "Test Worker", qualification: "new_specialty" },
+      order: {
+        id: "order-new", clientId: "client-facility-1", shiftDate: new Date("2026-10-19T00:00:00.000Z"),
+        startTime: "09:00", endTime: "11:30", breakMinutes: 0,
+        requiredQualification: "new_specialty",
+        client: { id: "client-facility-1", facilityName: "Test Facility", paymentTermsDays: 14 },
+      },
+    };
+    const mockPrisma = {
+      ...createMockPrisma([assignment]),
+      qualificationCatalog: { findMany: vi.fn().mockResolvedValue([
+        { code: "new_specialty", nameDe: "Neue Qualifikation" },
+      ]) },
+    };
+    const result = await prepareV2InvoiceDraft({ assignmentIds: [assignment.id] }, {
+      prisma: mockPrisma,
+      priceVersionResolver: vi.fn().mockResolvedValue({
+        ...STANDARD_PRICE_VERSION, priceVersionId: "new-price-1",
+        qualification: "new_specialty", hourlyRateInCents: 4200,
+      }),
+      facilityPolicyResolver: vi.fn().mockResolvedValue(FROZEN_NRW_POLICY),
+      effectiveHoursResolver: vi.fn().mockResolvedValue({
+        assignmentId: assignment.id, effectiveHours: 2.5,
+        effectiveStartTime: "09:00", effectiveEndTime: "11:30", effectiveBreakMinutes: 0,
+        source: "scheduled", effectiveVersion: "v1-scheduled", isCorrected: false,
+      }),
+    });
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.items.find((item) => item.itemCategory === "base")?.amountCents).toBe(10500);
+    expect(result.totals.subtotalCents).toBe(10500);
+    expect(result.items.some((item) => item.description.includes("Neue Qualifikation"))).toBe(true);
+  });
   // ─────────────────────────────────────────────────────────────
   // 1. Synthetic 60 min Saturday shift at 40€/h + 25% = 50.00€
   // ─────────────────────────────────────────────────────────────
@@ -635,9 +671,9 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
   });
 
   // ─────────────────────────────────────────────────────────────
-  // 8. Unresolved statutory holiday rejected
+  // 8. Client billing calendar is independent of facility location
   // ─────────────────────────────────────────────────────────────
-  it("rejects draft preparation when facility policy cannot resolve statutory holiday (e.g. Bavarian confessional ambiguity)", async () => {
+  it("uses the NRW client billing calendar even when facility location has a confessional holiday ambiguity", async () => {
     const mockAssignment = {
       id: "asg-bavaria-ambiguous",
       status: "confirmed",
@@ -679,11 +715,9 @@ describe("V2 Invoice Preparation Service (Phase 5a - Pure Read-Only Draft)", () 
     };
 
     const result = await prepareV2InvoiceDraft({ assignmentIds: ["asg-bavaria-ambiguous"] }, deps);
-    expect(result.status).toBe("unresolved");
-    if (result.status !== "unresolved") return;
-
-    expect(result.code).toBe("POLICY_UNRESOLVED");
-    expect(result.diagnostics.assignmentId).toBe("asg-bavaria-ambiguous");
+    expect(result.status).toBe("resolved");
+    if (result.status !== "resolved") return;
+    expect(result.snapshotData.pricingProvenance.billingHolidayRows?.["2026"]?.some((row) => row.date === "2026-08-15" && row.active)).toBe(false);
   });
 
   // ─────────────────────────────────────────────────────────────

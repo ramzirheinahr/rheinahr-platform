@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, FileText } from "lucide-react";
 import { ScheduleMonthPicker } from "@/app/[locale]/admin/components/schedule-month-picker";
 import { WorkerSearchDropdown } from "@/app/[locale]/admin/components/worker-search-dropdown";
 import { ScheduleSkeleton } from "@/components/admin/skeletons/schedule-skeleton";
@@ -83,15 +83,26 @@ export default async function AdminWorkerSchedulePage({
             }))}
           />
         </div>
-        <a
-          href={`${base}/export?year=${year}&month=${month}`}
-          className="text-xs font-medium text-primary hover:underline flex items-center gap-1 pr-4"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Download className="size-3" />
-          Abrechnung exportieren
-        </a>
+        <div className="flex items-center gap-3 pr-2">
+          <a
+            href={`/api/workers/${worker.id}/dienstplan?year=${year}&month=${month}`}
+            className="text-xs font-semibold text-sky-700 dark:text-sky-400 hover:underline flex items-center gap-1.5 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 rounded px-2.5 py-1 transition-colors"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <FileText className="size-3.5" />
+            {t("downloadDienstplan")}
+          </a>
+          <a
+            href={`${base}/export?year=${year}&month=${month}`}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-2 py-1 transition-colors"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Download className="size-3.5" />
+            {t("exportPayroll")}
+          </a>
+        </div>
       </div>
 
       <Suspense fallback={<ScheduleSkeleton />}>

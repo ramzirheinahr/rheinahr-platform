@@ -1,5 +1,6 @@
 import { qualifications } from "@/lib/validations";
 import { germanHolidays } from "@/lib/holidays";
+import { billingHolidayAtMinute, billingHolidaysForYear, parseBillingHolidayCalendar } from "@/lib/client-billing-holidays";
 
 type Qualification = (typeof qualifications)[number];
 
@@ -24,20 +25,19 @@ export const WORKER_HOURLY_RATES: Record<Qualification, number> = {
   hausmeister: 17.0,
 };
 
-export type Rates = Record<Qualification, number>;
+export type Rates = Record<string, number>;
 export const DEFAULT_RATES: Rates = HOURLY_RATES;
 
 // Effective hourly rates for one client — its per-qualification overrides
 // (stored as a JSON map), else the platform default for each qualification.
-export function resolveRates(o?: { hourlyRates?: unknown } | null): Rates {
+export function resolveRates(o?: { hourlyRates?: unknown } | null, catalogDefaults: Rates = HOURLY_RATES): Rates {
   const override =
     o && typeof o.hourlyRates === "object" && o.hourlyRates !== null
       ? (o.hourlyRates as Record<string, unknown>)
       : {};
-  const out = { ...HOURLY_RATES };
-  for (const q of qualifications) {
-    const v = override[q];
-    if (typeof v === "number" && v >= 0) out[q] = v;
+  const out = { ...catalogDefaults };
+  for (const [q, v] of Object.entries(override)) {
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[q] = v;
   }
   return out;
 }
@@ -47,9 +47,8 @@ export function resolveWorkerRates(o?: { hourlyRates?: unknown } | null): Rates 
     o && typeof o.hourlyRates === "object" && o.hourlyRates !== null
       ? (o.hourlyRates as Record<string, unknown>)
       : {};
-  const out = { ...WORKER_HOURLY_RATES };
-  for (const q of qualifications) {
-    const v = override[q];
+  const out: Record<string, number> = { ...WORKER_HOURLY_RATES };
+  for (const [q, v] of Object.entries(override)) {
     if (typeof v === "number" && v >= 0) out[q] = v;
   }
   return out;
@@ -69,7 +68,11 @@ export const SURCHARGES = {
 } as const;
 
 export function rateFor(qual: string, rates: Rates = HOURLY_RATES): number {
-  return rates[qual as Qualification] ?? 0;
+  const rate = rates[qual];
+  if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
+    throw new Error(`Missing valid hourly rate for qualification ${qual}`);
+  }
+  return rate;
 }
 
 // Effective surcharge fractions for one client — its overrides, else defaults.
@@ -178,7 +181,7 @@ export function shiftSurchargeHours(
   start: string,
   end: string,
   breakMin: number,
-  isHoliday: (dateStr: string) => boolean,
+  isHoliday: (dateStr: string, minuteOfDay: number) => boolean,
   night: NightWindow = DEFAULT_NIGHT_WINDOW,
 ): Map<string, SurchargeGroup> {
   const startMin = toMin(start);
@@ -189,13 +192,13 @@ export function shiftSurchargeHours(
   // Per calendar-day metadata (weekday + holiday) for each day the shift touches.
   const baseDate = new Date(`${shiftDate}T00:00:00.000Z`);
   const maxOffset = Math.floor((startMin + dur - 1) / 1440);
-  const dayMeta: { dow: number; holiday: boolean }[] = [];
+  const dayMeta: { dow: number; date: string }[] = [];
   for (let o = 0; o <= maxOffset; o++) {
     const d = new Date(baseDate);
     d.setUTCDate(d.getUTCDate() + o);
     dayMeta.push({
       dow: d.getUTCDay(),
-      holiday: isHoliday(d.toISOString().slice(0, 10)),
+      date: d.toISOString().slice(0, 10),
     });
   }
 
@@ -220,7 +223,7 @@ export function shiftSurchargeHours(
     const meta = dayMeta[Math.floor(abs / 1440)];
     const mod = abs % 1440;
     const components: SurchargeComponent[] = [];
-    if (meta.holiday) components.push("holiday");
+    if (isHoliday(meta.date, mod)) components.push("holiday");
     if (meta.dow === 0) components.push("sun");
     else if (meta.dow === 6) components.push("sat");
     if (nightContains(mod, w)) components.push("night");
@@ -257,10 +260,18 @@ export function requestNetTotal(
   sc: Surcharges = DEFAULT_SURCHARGES,
   rates: Rates = DEFAULT_RATES,
   night: NightWindow = DEFAULT_NIGHT_WINDOW,
+  billingHolidayCalendar?: unknown,
 ): number {
   const holidayCache = new Map<number, Map<string, string>>();
-  const isHoliday = (dateStr: string) => {
+  const contractualCalendar = billingHolidayCalendar === undefined ? null : parseBillingHolidayCalendar(billingHolidayCalendar);
+  const contractualYears = new Map<number, ReturnType<typeof billingHolidaysForYear>>();
+  const isHoliday = (dateStr: string, minuteOfDay: number) => {
     const year = Number(dateStr.slice(0, 4));
+    if (contractualCalendar) {
+      let rows = contractualYears.get(year);
+      if (!rows) { rows = billingHolidaysForYear(contractualCalendar, year); contractualYears.set(year, rows); }
+      return Boolean(billingHolidayAtMinute(rows, dateStr, minuteOfDay));
+    }
     let hol = holidayCache.get(year);
     if (!hol) {
       hol = germanHolidays(year);

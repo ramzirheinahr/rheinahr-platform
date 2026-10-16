@@ -35,6 +35,8 @@ export function buildShiftHtmlTable(shifts: {
   qualification: string;
   notes?: string;
   workerName?: string;
+  workerSalutation?: string | null;
+  workerBirthDate?: Date | string | null;
   facilityName?: string;
   quantity?: number;
 }[]) {
@@ -57,10 +59,25 @@ export function buildShiftHtmlTable(shifts: {
       </thead>
       <tbody>
         ${shifts
-          .map(
-            (s) => `
+          .map((s) => {
+            let workerCell = s.workerName || "";
+            if (s.workerSalutation) {
+              const sal = s.workerSalutation.toLowerCase() === "frau" ? "Frau" : s.workerSalutation.toLowerCase() === "herr" ? "Herr" : s.workerSalutation;
+              if (!workerCell.startsWith(sal)) {
+                workerCell = `${sal} ${workerCell}`;
+              }
+            }
+            let birthDateText = "";
+            if (s.workerBirthDate) {
+              const bDate = typeof s.workerBirthDate === "string" ? new Date(s.workerBirthDate) : s.workerBirthDate;
+              if (!isNaN(bDate.getTime())) {
+                birthDateText = `<div style="font-size: 12px; color: #64748b; margin-top: 2px;">Geb.: ${formatDateDE(bDate)}</div>`;
+              }
+            }
+
+            return `
           <tr>
-            ${showWorker ? `<td style="padding: 10px; border: 1px solid #e5e7eb;">${s.workerName}</td>` : ""}
+            ${showWorker ? `<td style="padding: 10px; border: 1px solid #e5e7eb;"><div style="font-weight: 500;">${workerCell}</div>${birthDateText}</td>` : ""}
             ${showFacility ? `<td style="padding: 10px; border: 1px solid #e5e7eb;">${s.facilityName}</td>` : ""}
             <td style="padding: 10px; border: 1px solid #e5e7eb;">${formatDateDE(s.date)}</td>
             <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.startTime} - ${s.endTime}</td>
@@ -68,8 +85,8 @@ export function buildShiftHtmlTable(shifts: {
             <td style="padding: 10px; border: 1px solid #e5e7eb;">${s.notes || "-"}</td>
             ${showQuantity ? `<td style="padding: 10px; border: 1px solid #e5e7eb;">${s.quantity}</td>` : ""}
           </tr>
-        `,
-          )
+        `;
+          })
           .join("")}
       </tbody>
     </table>

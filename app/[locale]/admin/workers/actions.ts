@@ -8,6 +8,8 @@ import { audit } from "@/lib/audit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { workerSchema, accountBaseSchema } from "@/lib/validations";
 import { hasHistoricalInvoiceRecordForWorker } from "@/lib/invoicing";
+import { ensureQualificationCatalog } from "@/lib/qualification-catalog";
+import { WORKER_HOURLY_RATES } from "@/lib/pricing";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -44,6 +46,7 @@ function parseGermanNumber(value: FormDataEntryValue | null) {
 
 function parseProfile(formData: FormData) {
   return workerSchema.safeParse({
+    salutation: formData.get("salutation") || undefined,
     fullName: formData.get("fullName"),
     internalNumber: formData.get("internalNumber") || undefined,
     qualification: formData.get("qualification"),
@@ -91,7 +94,7 @@ function parseProfile(formData: FormData) {
 // Map validated profile input to Prisma columns. Empty optionals become null so
 // clearing a field in the form actually clears it on update.
 type ProfileInput = ReturnType<typeof workerSchema.parse>;
-function toWorkerColumns(d: ProfileInput) {
+function toWorkerColumns(d: ProfileInput, extraRates: Record<string, number> = {}) {
   // Extract non-null custom rates to a JSON map
   const rates: Record<string, number> = {};
   if (d.ratePflegefachkraft != null) rates.pflegefachkraft = d.ratePflegefachkraft;
@@ -100,9 +103,11 @@ function toWorkerColumns(d: ProfileInput) {
   if (d.ratePflegedienstleitung != null) rates.pflegedienstleitung = d.ratePflegedienstleitung;
   if (d.rateKuechenhilfe != null) rates.kuechenhilfe = d.rateKuechenhilfe;
   if (d.rateHausmeister != null) rates.hausmeister = d.rateHausmeister;
+  Object.assign(rates, extraRates);
   const hourlyRates = Object.keys(rates).length > 0 ? rates : null;
 
   return {
+    salutation: d.salutation ?? null,
     fullName: d.fullName,
     internalNumber: d.internalNumber ?? null,
     qualification: d.qualification,
@@ -143,6 +148,20 @@ function toWorkerColumns(d: ProfileInput) {
   };
 }
 
+async function workerCustomRates(formData: FormData): Promise<Record<string, number> | null> {
+  const catalog = await prisma.qualificationCatalog.findMany({ select: { code: true } });
+  const rates: Record<string, number> = {};
+  for (const item of catalog) {
+    const raw = formData.get(`workerRate:${item.code}`);
+    if (raw === null || raw === "") continue;
+    const parsed = parseGermanNumber(raw);
+    const num = typeof parsed === "string" ? parseFloat(parsed) : null;
+    if (num === null || !Number.isFinite(num) || num <= 0 || num > 1000) return null;
+    rates[item.code] = num;
+  }
+  return rates;
+}
+
 // Creating a worker provisions their login in the same step: Supabase Auth
 // user + our User row + the Worker profile.
 export async function createWorker(formData: FormData): Promise<ActionState> {
@@ -161,6 +180,12 @@ export async function createWorker(formData: FormData): Promise<ActionState> {
   });
   if (!profile.success || !base.success) return { ok: false, error: "saveError" };
   const data = profile.data;
+  await ensureQualificationCatalog();
+  const selectableQualification = await prisma.qualificationCatalog.findFirst({ where: { code: data.qualification, active: true }, select: { code: true } });
+  if (!selectableQualification) return { ok: false, error: "saveError" };
+  const extraRates = await workerCustomRates(formData);
+  if (!extraRates) return { ok: false, error: "saveError" };
+  if (!Object.hasOwn(WORKER_HOURLY_RATES, data.qualification) && !extraRates[data.qualification]) return { ok: false, error: "saveError" };
 
   const existing = await prisma.user.findUnique({
     where: { email: base.data.email },
@@ -202,7 +227,7 @@ export async function createWorker(formData: FormData): Promise<ActionState> {
         },
       });
       await tx.worker.create({
-        data: { userId: authId, ...toWorkerColumns(data) },
+        data: { userId: authId, ...toWorkerColumns(data, extraRates) },
       });
     });
   } catch {
@@ -237,6 +262,15 @@ export async function updateWorker(
   const parsed = parseProfile(formData);
   if (!parsed.success) return { ok: false, error: "saveError" };
   const data = parsed.data;
+  await ensureQualificationCatalog();
+  const [selectableQualification, originalWorker] = await Promise.all([
+    prisma.qualificationCatalog.findFirst({ where: { code: data.qualification, active: true }, select: { code: true } }),
+    prisma.worker.findUnique({ where: { id }, select: { qualification: true } }),
+  ]);
+  if (!selectableQualification && originalWorker?.qualification !== data.qualification) return { ok: false, error: "saveError" };
+  const extraRates = await workerCustomRates(formData);
+  if (!extraRates) return { ok: false, error: "saveError" };
+  if (!Object.hasOwn(WORKER_HOURLY_RATES, data.qualification) && !extraRates[data.qualification]) return { ok: false, error: "saveError" };
 
   if (data.internalNumber) {
     const duplicate = await prisma.worker.findFirst({
@@ -248,7 +282,7 @@ export async function updateWorker(
   await prisma.worker.update({
     where: { id },
     data: {
-      ...toWorkerColumns(data),
+      ...toWorkerColumns(data, extraRates),
       // Keep the account display name in sync with the profile.
       user: { 
         update: { 

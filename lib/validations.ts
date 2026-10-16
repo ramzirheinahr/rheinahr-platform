@@ -129,7 +129,16 @@ const optionalRate = z.preprocess(
   z.coerce.number().min(0).max(1000).optional(),
 );
 
+export const salutations = ["herr", "frau"] as const;
+export type Salutation = (typeof salutations)[number];
+
+const optionalSalutation = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() ? v.trim().toLowerCase() : undefined),
+  z.enum(salutations).optional(),
+);
+
 export const workerSchema = z.object({
+  salutation: optionalSalutation,
   fullName: z.string().min(2).max(120),
   internalNumber: z.string().max(40).optional(),
   qualification: z.string().min(2).max(120),

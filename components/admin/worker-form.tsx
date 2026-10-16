@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { qualifications, contractTypes, employmentTypes } from "@/lib/validations";
+import { contractTypes, employmentTypes } from "@/lib/validations";
 import { LanguageSelect } from "@/components/admin/language-select";
 import { NationalitySelect } from "@/components/admin/nationality-select";
 import { updateWorker } from "@/app/[locale]/admin/workers/actions";
@@ -25,6 +25,7 @@ import { SollHoursManager } from "@/components/admin/soll-hours-manager";
 
 export type WorkerData = {
   id: string;
+  salutation?: string | null;
   fullName: string;
   internalNumber?: string | null;
   qualification: string;
@@ -71,12 +72,13 @@ export type WorkerData = {
 const textareaClass =
   "flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-export function WorkerForm({ worker, customQualifications = [] }: { worker: WorkerData; customQualifications?: string[] }) {
+export function WorkerForm({ worker, qualificationOptions }: { worker: WorkerData; qualificationOptions: Array<{ code: string; nameDe: string; nameEn: string; nameAr: string }> }) {
   const t = useTranslations("workers");
   const c = useTranslations("common");
-  const eq = useTranslations("enums.qualification");
+  const locale = useLocale();
   const ec = useTranslations("enums.contractType");
   const ee = useTranslations("enums.employmentType");
+  const es = useTranslations("enums.salutation");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [initialWorker] = useState(worker);
@@ -112,11 +114,25 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
           <CardTitle>Profil</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-6">
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-3">
             <div className="space-y-2">
+              <Label htmlFor="salutation">{t("salutation")}</Label>
+              <Select name="salutation" defaultValue={initialWorker.salutation ?? undefined}>
+                <SelectTrigger id="salutation" className="w-full">
+                  <SelectValue placeholder={t("salutationPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="herr">{es("herr")}</SelectItem>
+                  <SelectItem value="frau">{es("frau")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="fullName">{t("fullName")}</Label>
               <Input id="fullName" name="fullName" required defaultValue={initialWorker.fullName} />
             </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="internalNumber">Interne Nummer</Label>
               <Input id="internalNumber" name="internalNumber" defaultValue={initialWorker.internalNumber || ""} />
@@ -136,11 +152,7 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
               <Combobox
                 name="qualification"
                 defaultValue={[initialWorker.qualification]}
-                options={[
-                  ...qualifications.map((q) => ({ value: q, label: eq(q) })),
-                  ...customQualifications.map((q) => ({ value: q, label: q })),
-                ]}
-                allowCreate
+                options={qualificationOptions.map((item) => ({ value: item.code, label: locale === "ar" ? item.nameAr : locale === "en" ? item.nameEn : item.nameDe }))}
                 placeholder={t("qualification")}
               />
             </div>
@@ -575,6 +587,12 @@ export function WorkerForm({ worker, customQualifications = [] }: { worker: Work
                   defaultValue={initialWorker.hourlyRates?.hausmeister}
                 />
               </div>
+              {qualificationOptions.filter((item) => !["pflegefachkraft", "pflegehelfer", "betreuungskraft", "pflegedienstleitung", "kuechenhilfe", "hausmeister"].includes(item.code)).map((item) => (
+                <div key={item.code} className="space-y-2">
+                  <Label htmlFor={`workerRate:${item.code}`}>{locale === "ar" ? item.nameAr : locale === "en" ? item.nameEn : item.nameDe} (€)</Label>
+                  <Input id={`workerRate:${item.code}`} name={`workerRate:${item.code}`} type="number" min="0.01" max="1000" step="0.01" defaultValue={initialWorker.hourlyRates?.[item.code]} />
+                </div>
+              ))}
             </div>
           </div>
         </CardContent>

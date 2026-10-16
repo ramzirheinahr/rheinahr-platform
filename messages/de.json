@@ -150,6 +150,7 @@
     "confirmations": "Leistungsnachweise",
     "schedule": "Einsätze & Verfügbarkeit",
     "scheduleSubtitle": "Einsätze annehmen und bestätigen, Verfügbarkeit pflegen.",
+    "downloadDienstplan": "Dienstplan herunterladen (PDF)",
     "clientSchedule": "Monatsübersicht",
     "masterSchedule": "Dienstpläne",
     "dailyBook": "Tagesbuch",
@@ -253,6 +254,8 @@
     "allTypes": "Alle Typen",
     "editTitle": "Pflegekraft bearbeiten",
     "empty": "Noch keine Pflegekräfte angelegt.",
+    "salutation": "Anrede",
+    "salutationPlaceholder": "Anrede auswählen…",
     "fullName": "Vollständiger Name",
     "email": "E-Mail",
     "qualification": "Qualifikation",
@@ -326,6 +329,8 @@
     "hoursAction": "Stunden",
     "scheduleHint": "Dienstplan und vom Kunden bestätigte Stunden dieser Pflegekraft.",
     "scheduleEmpty": "Keine Einsätze in diesem Monat.",
+    "downloadDienstplan": "Dienstplan herunterladen (PDF)",
+    "exportPayroll": "Abrechnung exportieren",
     "carryoverHours": "Stundenübertrag (aus Vormonat)",
     "carryoverHoursHint": "Positiver Wert = Minusstunden, negativer Wert = Plusstunden.",
     "deploymentRadius": "Einsatzradius (km)",
@@ -435,9 +440,12 @@
     "legacyDefaultValue": "Bisheriger Standardwert – nicht im Kundenprofil gespeichert",
     "pricingSave": "Vergütung speichern",
     "pricingSaving": "Wird gespeichert...",
-    "pricingSaved": "Vergütung und Zuschläge gespeichert. Bitte V2-Freigabe prüfen.",
+    "pricingSaved": "Vergütung gespeichert. Geänderte Stundensätze gelten für Leistungen ab heute; Zuschläge ggf. separat freigeben.",
+    "ratesEffectiveToday": "Änderungen der Stundensätze gelten für Leistungen ab heute. Bereits ausgestellte Rechnungen bleiben unverändert.",
     "pricingSaveBeforeApproval": "Bitte Änderungen zuerst speichern.",
     "profileRates": "Stundensätze",
+    "inheritedDefaultRate": "Leer lassen für den Standardpreis",
+    "clientOverrideRate": "Individueller Kundenpreis",
     "profileSurcharges": "Zuschläge",
     "qualification": "Qualifikation",
     "profileRate": "Profil-Stundensatz",
@@ -869,6 +877,10 @@
     "statusProposed": "Vorgeschlagen"
   },
   "enums": {
+    "salutation": {
+      "herr": "Herr",
+      "frau": "Frau"
+    },
     "qualification": {
       "pflegefachkraft": "Pflegefachkraft",
       "pflegehelfer": "Pflegehilfskraft",
@@ -1909,6 +1921,27 @@
     "successMessage": "Rechnung wurde erfolgreich auf V2 aktualisiert!",
     "featureDisabled": "V2-Rechnungsaktualisierung ist serverseitig deaktiviert.",
     "openPreview": "Rechnung aktualisieren"
+  },
+  "qualificationCatalog": {
+    "title": "Qualifikationen und Standardvergütung",
+    "description": "Qualifikationen für neue Einsätze verwalten. Der Standardsatz gilt nur, wenn beim Kunden kein eigener Satz hinterlegt ist. Ausgestellte Rechnungen bleiben unverändert.",
+    "active": "Aktiv",
+    "archived": "Archiviert",
+    "archive": "Archivieren",
+    "reactivate": "Reaktivieren",
+    "save": "Speichern",
+    "saved": "Qualifikation gespeichert.",
+    "add": "Qualifikation hinzufügen",
+    "addTitle": "Neue Qualifikation",
+    "code": "Kennung",
+    "codeHint": "Die Kennung kann später nicht geändert oder erneut verwendet werden. Nur Kleinbuchstaben, Zahlen und Unterstriche.",
+    "nameDe": "Name (Deutsch)",
+    "nameEn": "Name (Englisch)",
+    "nameAr": "Name (Arabisch)",
+    "defaultRate": "Standard-Kundenpreis (€ / Std.)",
+    "effectiveFrom": "Preis gültig ab",
+    "sortOrder": "Reihenfolge",
+    "invalidPrice": "Bitte einen gültigen Stundensatz mit höchstens zwei Nachkommastellen eingeben."
   },
   "invoiceReview": {
     "loading": "Entwurf wird berechnet...",

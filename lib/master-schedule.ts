@@ -37,10 +37,7 @@ export async function getMasterSchedule(
   const [workers, facilities, openOrders] = await Promise.all([
     prisma.worker.findMany({
       where: {
-        qualification:
-          qualification === "betreuungskraft"
-            ? { notIn: ["pflegefachkraft", "pflegehelfer", "pflegedienstleitung", "kuechenhilfe", "hausmeister"] }
-            : qualification,
+        qualification,
         user: { active: true },
       },
       orderBy: { fullName: "asc" },

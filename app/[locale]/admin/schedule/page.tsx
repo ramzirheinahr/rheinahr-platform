@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { getMasterSchedule } from "@/lib/master-schedule";
-import { qualifications } from "@/lib/validations";
+import { getQualificationCatalog, qualificationName } from "@/lib/qualification-catalog";
 import { MasterScheduleGrid } from "@/components/admin/master-schedule-grid";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export default async function AdminMasterSchedulePage({
   const av = await getTranslations("availability");
   const oq = await getTranslations("orderRequest");
   const cs = await getTranslations("clientSchedule");
-  const eq = await getTranslations("enums.qualification");
+  const qualificationCatalog = await getQualificationCatalog({ includeArchived: true });
   const tb = await getTranslations("dailyNotebook");
 
   const now = new Date();
@@ -34,11 +34,9 @@ export default async function AdminMasterSchedulePage({
   let month = Number(sp.month) || now.getUTCMonth() + 1;
   if (month < 1 || month > 12) month = now.getUTCMonth() + 1;
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
-  const qualification: Qualification = (qualifications as readonly string[]).includes(
-    sp.qualification ?? "",
-  )
+  const qualification: Qualification = qualificationCatalog.some((item) => item.code === (sp.qualification ?? ""))
     ? (sp.qualification as Qualification)
-    : "pflegefachkraft";
+    : qualificationCatalog.find((item) => item.active)?.code ?? "pflegefachkraft";
 
   const { getCurrentUser } = await import("@/lib/auth");
   const user = await getCurrentUser();
@@ -92,18 +90,18 @@ export default async function AdminMasterSchedulePage({
 
       {/* One sheet per qualification — like the separate Excel tabs. */}
       <div className="flex flex-wrap gap-1 rounded-lg border bg-muted/30 p-1">
-        {qualifications.map((q) => (
+        {qualificationCatalog.map((item) => (
           <Link
-            key={q}
-            href={qs(year, month, q)}
+            key={item.code}
+            href={qs(year, month, item.code)}
             className={cn(
               "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              q === qualification
+              item.code === qualification
                 ? "bg-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {eq(q)}
+            {qualificationName(item, locale)}
           </Link>
         ))}
       </div>

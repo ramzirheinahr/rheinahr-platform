@@ -32,10 +32,12 @@ export function ZeiterfassungTransferView({
   workers,
   clients,
   qualifications,
+  qualificationNames,
 }: {
   workers: Array<{ id: string; fullName: string; internalNumber: string | null; qualification: string }>;
   clients: Array<{ id: string; facilityName: string }>;
   qualifications: string[];
+  qualificationNames: Record<string, string>;
 }) {
   const t = useTranslations("reports");
   const now = new Date();
@@ -145,13 +147,13 @@ export function ZeiterfassungTransferView({
               <Select value={qualification} onValueChange={(v) => { if (v !== null) setQualification(v); }}>
                 <SelectTrigger className="h-9 w-full">
                   <SelectValue placeholder={t("common.qualification")}>
-                    {qualification}
+                    {qualificationNames[qualification] ?? qualification}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {qualifications.map((q) => (
                     <SelectItem key={q} value={q}>
-                      {q}
+                      {qualificationNames[q] ?? q}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -371,13 +373,13 @@ export function ZeiterfassungTransferView({
                 <Select value={qualification} onValueChange={(v) => { if (v !== null) setQualification(v); }}>
                   <SelectTrigger className="h-8 text-xs w-full">
                     <SelectValue placeholder={t("common.qualification")}>
-                      {qualification}
+                      {qualificationNames[qualification] ?? qualification}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {qualifications.map((q) => (
                       <SelectItem key={q} value={q}>
-                        {q}
+                        {qualificationNames[q] ?? q}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -456,13 +458,13 @@ export function ZeiterfassungTransferView({
                 <Select value={targetQualification} onValueChange={(v) => { if (v !== null) setTargetQualification(v); }}>
                   <SelectTrigger className="h-8 text-xs w-full">
                     <SelectValue placeholder={t("common.qualification")}>
-                      {targetQualification}
+                      {qualificationNames[targetQualification] ?? targetQualification}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {qualifications.map((q) => (
                       <SelectItem key={q} value={q}>
-                        {q}
+                        {qualificationNames[q] ?? q}
                       </SelectItem>
                     ))}
                   </SelectContent>

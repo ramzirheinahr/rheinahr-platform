@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import {
@@ -38,7 +38,8 @@ import {
   type ApprovalPreviewResult,
 } from "@/app/[locale]/admin/clients/[id]/rates/actions";
 import { GERMAN_FEDERAL_STATES, GERMAN_STATE_NAMES_DE } from "@/lib/german-holidays";
-import { ClientPricingEditor } from "@/components/admin/client-pricing-editor";
+import { ClientPricingEditor, displayQualification, type QualificationDisplay } from "@/components/admin/client-pricing-editor";
+import { ClientBillingHolidayEditor } from "@/components/admin/client-billing-holiday-editor";
 
 type ContractOption = {
   id: string;
@@ -95,6 +96,7 @@ export type ClientRatesApprovalProps = {
   frameworkAgreementUrl: string | null;
   contracts: ContractOption[];
   profileHourlyRates: Record<string, number | null>;
+  qualifications: QualificationDisplay[];
   profileSurcharges: {
     surchargeSat: number | null;
     surchargeSun: number | null;
@@ -103,18 +105,10 @@ export type ClientRatesApprovalProps = {
     nightStart: string | null;
     nightEnd: string | null;
   };
+  billingHolidayCalendar: unknown;
   activePolicies: SurchargePolicyItem[];
   activeRateVersions: HourlyRateVersionItem[];
 };
-
-const QUALIFICATIONS_LIST = [
-  "pflegefachkraft",
-  "pflegehelfer",
-  "betreuungskraft",
-  "pflegedienstleitung",
-  "kuechenhilfe",
-  "hausmeister",
-] as const;
 
 export function ClientRatesApprovalContent({
   clientId,
@@ -123,13 +117,17 @@ export function ClientRatesApprovalContent({
   initialEffectiveTo,
   facilityName,
   profileHourlyRates,
+  qualifications,
   profileSurcharges,
+  billingHolidayCalendar,
   activePolicies,
   activeRateVersions,
 }: ClientRatesApprovalProps) {
   const t = useTranslations("ratesApproval");
   const c = useTranslations("common");
-  const eq = useTranslations("enums.qualification");
+  const locale = useLocale();
+  const qualificationByCode = Object.fromEntries(qualifications.map((item) => [item.code, item]));
+  const labelFor = (code: string) => qualificationByCode[code] ? displayQualification(qualificationByCode[code], locale) : code;
   const router = useRouter();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -189,7 +187,7 @@ export function ClientRatesApprovalContent({
     Record<string, boolean>
   >(() => {
     const map: Record<string, boolean> = {};
-    for (const q of QUALIFICATIONS_LIST) {
+    for (const { code: q } of qualifications) {
       const rate = profileHourlyRates[q];
       map[q] = typeof rate === "number" && Number.isFinite(rate) && rate > 0;
     }
@@ -198,7 +196,7 @@ export function ClientRatesApprovalContent({
 
   const [ratesEur] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
-    for (const q of QUALIFICATIONS_LIST) {
+    for (const { code: q } of qualifications) {
       const v = profileHourlyRates[q];
       map[q] = v !== null && v !== undefined ? String(v) : "";
     }
@@ -240,11 +238,11 @@ export function ClientRatesApprovalContent({
     // Selected rates list
     const selectedRatesList: Array<{ qualification: string; hourlyRateEur: number }> = [];
     if (approveRates) {
-      for (const q of QUALIFICATIONS_LIST) {
+      for (const { code: q } of qualifications) {
         if (selectedQualifications[q]) {
           const val = Number(ratesEur[q]);
           if (!val || val <= 0) {
-            toast.error(`${eq(q)}: ${t("hourlyRateRequired")}`);
+            toast.error(`${labelFor(q)}: ${t("hourlyRateRequired")}`);
             return;
           }
           selectedRatesList.push({ qualification: q, hourlyRateEur: val });
@@ -378,8 +376,12 @@ export function ClientRatesApprovalContent({
             expectedUpdatedAt={pricingUpdatedAt}
             profileSurcharges={profileSurcharges}
             profileHourlyRates={profileHourlyRates}
+            qualifications={qualifications}
             onDirtyChange={setPricingDirty}
           />
+          <div className="mt-6">
+            <ClientBillingHolidayEditor clientId={clientId} expectedUpdatedAt={pricingUpdatedAt} calendarValue={billingHolidayCalendar} />
+          </div>
         </CardContent>
       </Card>
 
@@ -476,7 +478,7 @@ export function ClientRatesApprovalContent({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground">
-                        {eq(rate.qualification)}
+                        {labelFor(rate.qualification)}
                       </span>
                       <Badge variant="outline" className="text-xs">
                         v{rate.rateVersion}
@@ -666,7 +668,7 @@ export function ClientRatesApprovalContent({
                     {t("selectQualificationToApprove")}
                   </p>
                   <div className="divide-y rounded-lg border bg-card">
-                    {QUALIFICATIONS_LIST.map((q) => {
+                    {qualifications.map(({ code: q }) => {
                       const isChecked = Boolean(selectedQualifications[q]);
                       return (
                         <div
@@ -685,7 +687,7 @@ export function ClientRatesApprovalContent({
                               }}
                               className="rounded"
                             />
-                            <span className="font-medium text-sm">{eq(q)}</span>
+                            <span className="font-medium text-sm">{labelFor(q)}</span>
                           </label>
 
                           {isChecked && (
@@ -756,7 +758,7 @@ export function ClientRatesApprovalContent({
                     {previewResult.ratePreviews.map((rp) => (
                       <div key={rp.rateTerms.qualification} className="border-t pt-2 space-y-1">
                         <div className="flex justify-between font-medium">
-                          <span>{eq(rp.rateTerms.qualification)} (v{rp.rateTerms.rateVersion})</span>
+                          <span>{labelFor(rp.rateTerms.qualification)} (v{rp.rateTerms.rateVersion})</span>
                           <span>{rp.rateTerms.hourlyRateFormattedEur}</span>
                         </div>
                         <div className="rounded bg-background p-1.5 font-mono text-[10px] break-all border text-muted-foreground">

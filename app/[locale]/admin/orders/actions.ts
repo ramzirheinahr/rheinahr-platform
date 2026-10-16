@@ -21,9 +21,11 @@ import { offerAssignmentsBulk, offerAssignment } from "@/lib/assignments";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
+import { formatWorkerSalutation, formatWorkerDisplayName, formatWorkerBirthDate } from "@/lib/worker-utils";
 import { Prisma, type OrderStatus } from "@prisma/client";
 import type { Qualification } from "@/lib/validations";
 import { sendEmailToUsers } from "@/lib/email";
+import { requestQualificationsAreSelectable } from "@/lib/qualification-catalog";
 import {
   hasHistoricalInvoiceRecordForAssignment,
   hasHistoricalInvoiceRecordForOrder,
@@ -98,6 +100,7 @@ export async function createOrderRequestForClient(
     return { ok: false, error: "saveError" };
   }
   const { notes, shifts } = parsed.data;
+  if (!await requestQualificationsAreSelectable(shifts)) return { ok: false, error: "saveError" };
 
   // Group shifts by month and qualification to merge with existing open requestGroupIds if present
   const shiftGroupKeys = new Map<string, string>();
@@ -257,6 +260,7 @@ export async function updateOrderRequestAsAdmin(
     return { ok: false, error: "saveError" };
   }
   const { notes, shifts } = parsed.data;
+  if (!await requestQualificationsAreSelectable(shifts, existing)) return { ok: false, error: "saveError" };
 
   const { updates, creates, deleteIds } = diffRequestShifts(
     existing,
@@ -1541,7 +1545,7 @@ export async function swapWorker(
   const oldAssignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
     include: {
-      worker: { select: { id: true, userId: true, fullName: true, qualification: true } },
+      worker: { select: { id: true, userId: true, fullName: true, salutation: true, qualification: true } },
       order: {
         select: {
           id: true,
@@ -1577,6 +1581,8 @@ export async function swapWorker(
       id: true,
       userId: true,
       fullName: true,
+      salutation: true,
+      birthDate: true,
       qualification: true,
       assignments: {
         where: { orderId: order.id, status: { not: "declined" } },
@@ -1742,7 +1748,13 @@ export async function swapWorker(
 
   // Email to client
   if (order.client.userId) {
-    const clientUserIds = [order.client.userId, ...order.client.subUsers.map(u => u.id)];
+    const clientUserIds = [order.client.userId, ...order.client.subUsers.map((u) => u.id)];
+    const oldWorkerLabel = formatWorkerDisplayName(oldWorker);
+    const newWorkerSal = formatWorkerSalutation(newWorker.salutation);
+    const newWorkerBirth = formatWorkerBirthDate(newWorker.birthDate);
+    const newWorkerLabel = `${newWorkerSal ? `${newWorkerSal} ` : ""}${newWorker.fullName}${newWorkerBirth ? ` (Geburtsdatum: ${newWorkerBirth})` : ""}`;
+    const newWorkerSubjectLabel = formatWorkerDisplayName(newWorker);
+
     const clientHtml = `
       <p>Sehr geehrte Damen und Herren,</p>
       <p>für die folgende Schicht wurde ein Mitarbeiterwechsel vorgenommen:</p>
@@ -1753,14 +1765,17 @@ export async function swapWorker(
         qualification: order.requiredQualification,
         notes: order.notes || undefined,
         facilityName: order.client.facilityName,
+        workerName: newWorker.fullName,
+        workerSalutation: newWorker.salutation,
+        workerBirthDate: newWorker.birthDate,
       }])}
-      <p><strong>Bisheriger Mitarbeiter:</strong> ${oldWorker.fullName}</p>
-      <p><strong>Neuer Mitarbeiter:</strong> ${newWorker.fullName}</p>
+      <p><strong>Bisheriger Mitarbeiter:</strong> ${oldWorkerLabel}</p>
+      <p><strong>Neuer Mitarbeiter:</strong> ${newWorkerLabel}</p>
       <p>Weitere Details entnehmen Sie bitte dem Portal.</p>
     `;
     await sendEmailToUsers(clientUserIds, {
       subject: `Mitarbeiterwechsel für Ihre Schicht am ${dateStr}`,
-      body: `Mitarbeiterwechsel: ${newWorker.fullName} übernimmt die Schicht von ${oldWorker.fullName}.`,
+      body: `Mitarbeiterwechsel: ${newWorkerSubjectLabel} übernimmt die Schicht von ${oldWorkerLabel}.`,
       html: clientHtml,
       url: orderLink("client", order.requestGroupId || order.id),
       attachments // Attach certificate here
@@ -1768,7 +1783,7 @@ export async function swapWorker(
     
     await pushToUsers(clientUserIds, {
       title: "Mitarbeiterwechsel",
-      body: `${dateStr} ${timeStr} · ${newWorker.fullName} (neu)`,
+      body: `${dateStr} ${timeStr} · ${newWorkerSubjectLabel} (neu)`,
       url: orderLink("client", order.requestGroupId || order.id),
       htmlBody: clientHtml
     });
