@@ -49,8 +49,7 @@ function parseProfile(formData: FormData) {
 // Empty field → null (fall back to platform default); percent → fraction.
 const pctToFrac = (v: number | undefined) => (v === undefined ? null : v / 100);
 
-// Creating a facility provisions its login in the same step: Supabase Auth
-// user + our User row + the Client profile.
+// Creating a facility provisions its local login and Client profile together.
 export async function createClient(formData: FormData): Promise<ActionState> {
   let actor;
   try {
@@ -84,10 +83,10 @@ export async function createClient(formData: FormData): Promise<ActionState> {
     if (codeTaken) return { ok: false, error: "codeInUse" };
   }
 
-  // 1) Provision the Supabase Auth login (email confirmed so they can sign in now).
+  // 1) Allocate the local login identity.
   const authId = randomUUID();
 
-  // 2) Create our records. If this fails, roll back the auth user.
+  // 2) Create the account and profile in one transaction.
   try {
     const passwordHash = await bcrypt.hash(base.data.password, 12);
     await prisma.$transaction(async (tx) => {

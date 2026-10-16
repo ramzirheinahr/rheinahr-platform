@@ -58,12 +58,10 @@ export default async function DatenschutzPage({
 
       <h2>3. Hosting und Datenspeicherung</h2>
       <p>
-        Unsere Anwendung wird bei Anbietern mit Serverstandort innerhalb der
-        Europäischen Union betrieben. Datenbank, Authentifizierung und
-        Dateispeicher werden über Supabase (EU-Region) bereitgestellt; das
-        Hosting der Anwendung erfolgt über Vercel (EU). Mit diesen Anbietern
-        bestehen Verträge zur Auftragsverarbeitung gemäß Art. 28 DSGVO. Eine
-        Übermittlung in Drittländer findet ohne geeignete Garantien nicht statt.
+        Die Anwendung einschließlich Datenbank, Benutzerkonten und
+        Dateispeicher wird auf einem von uns verwalteten Server betrieben.
+        Für die Erreichbarkeit über das Internet nutzen wir Cloudflare als
+        vorgeschalteten Netzwerk- und Tunneldienst.
       </p>
 
       <h2>4. Welche Daten wir verarbeiten</h2>

@@ -162,7 +162,7 @@ async function workerCustomRates(formData: FormData): Promise<Record<string, num
   return rates;
 }
 
-// Creating a worker provisions their login in the same step: Supabase Auth
+// Creating a worker provisions their local login in the same step.
 // user + our User row + the Worker profile.
 export async function createWorker(formData: FormData): Promise<ActionState> {
   let actor;
@@ -200,10 +200,10 @@ export async function createWorker(formData: FormData): Promise<ActionState> {
     if (duplicate) return { ok: false, error: "numberInUse" };
   }
 
-  // 1) Provision the Supabase Auth login (email confirmed so they can sign in now).
+  // 1) Allocate the local login identity.
   const authId = randomUUID();
 
-  // 2) Create our records. If this fails, roll back the auth user.
+  // 2) Create the account and worker profile in one transaction.
   try {
     const passwordHash = await bcrypt.hash(base.data.password, 12);
     await prisma.$transaction(async (tx) => {

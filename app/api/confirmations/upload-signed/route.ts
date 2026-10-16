@@ -160,7 +160,7 @@ export async function POST(req: Request) {
       });
 
     if (uploadError) {
-      console.error("Supabase confirmation upload error:", uploadError);
+      console.error("Confirmation storage upload error:", uploadError);
       return NextResponse.json({ ok: false, error: `Upload-Fehler: ${uploadError.message}` }, { status: 500 });
     }
 

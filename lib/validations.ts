@@ -252,8 +252,7 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(12, { message: "min12" }),
 });
 
-// Changing an account's login email (super_admin) — it is the Supabase Auth
-// identity, so the change must propagate to both Auth and our User row.
+// Changing an account's login email (super_admin) in the local User row.
 export const updateEmailSchema = z.object({
   email: z.string().email(),
 });

@@ -35,7 +35,7 @@ export type FinalizeConfirmationParams = {
 };
 
 /**
- * Step 1: Generate a signed upload URL and unforgeable ticket for Supabase Storage.
+ * Step 1: Generate a signed upload URL and unforgeable ticket for local storage.
  * Ticket is strictly bound to user, group, path, file properties, and expiration.
  */
 export async function createConfirmationUploadTicket({
@@ -349,7 +349,7 @@ async function executeConfirmationPersistence({
 }
 
 /**
- * Step 2: Finalize the confirmation records once the file is verified in Supabase storage.
+ * Step 2: Finalize the confirmation records once the file is verified in local storage.
  * Public Server Action strictly accessible by authenticated admin.
  * Requires signed upload ticket and verifies stored object bytes before DB write.
  */
@@ -510,7 +510,7 @@ export async function finalizeDirectSignedConfirmation(
     return { ok: false, error: "Schichten gehören nicht zur angegebenen Auftragsgruppe." };
   }
 
-  // Mandatory object download and byte verification from Supabase storage
+  // Mandatory object download and byte verification from local storage.
   const { createLocalStorageClient } = await import("@/lib/local-storage");
   const supabase = createLocalStorageClient();
   const storageFrom = supabase.storage.from("confirmations");
@@ -766,7 +766,7 @@ export async function uploadDirectSignedConfirmation(formData: FormData) {
       });
 
     if (uploadError) {
-      console.error("Supabase confirmation upload error:", uploadError);
+      console.error("Confirmation storage upload error:", uploadError);
       return { ok: false, error: `Upload-Fehler: ${uploadError.message}` };
     }
     uploadedPath = path;

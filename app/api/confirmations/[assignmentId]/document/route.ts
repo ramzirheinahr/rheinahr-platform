@@ -70,7 +70,7 @@ function readLocalFileIfAllowed(filePath: string): Buffer | null {
   }
 }
 
-async function downloadFromSupabase(storagePath: string): Promise<Buffer | null> {
+async function downloadFromStorage(storagePath: string): Promise<Buffer | null> {
   const cleanPath = storagePath
     .replace(/^\/?confirmations\//, "")
     .replace(/^\//, "")
@@ -311,10 +311,10 @@ export async function GET(_req: Request, props: { params: Promise<{ assignmentId
     return new NextResponse("Nicht unterstützter Dateityp", { status: 415 });
   }
 
-  // Stream bytes directly: restricted local filesystem or Supabase storage
+  // Stream bytes directly from restricted local storage.
   let fileBuffer = readLocalFileIfAllowed(storagePath);
   if (!fileBuffer) {
-    fileBuffer = await downloadFromSupabase(storagePath);
+    fileBuffer = await downloadFromStorage(storagePath);
   }
 
   if (!fileBuffer) {

@@ -121,7 +121,7 @@ export function DirectConfirmationUploadDialog({
         throw new Error(ticket.error || t("saveError"));
       }
 
-      // Step 2: Upload directly to Supabase storage from the browser (no serverless payload limit)
+      // Step 2: Upload directly to local storage using the short-lived capability.
       const supabase = createLocalStorageBrowserClient();
       let contentType = selectedFile.type?.toLowerCase().split(";")[0]?.trim();
       if (!contentType || contentType === "application/octet-stream") {

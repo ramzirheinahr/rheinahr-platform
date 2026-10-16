@@ -189,7 +189,7 @@ export async function uploadSignedContract(formData: FormData) {
     });
 
   if (error) {
-    console.error("Supabase upload error:", error);
+    console.error("Document storage upload error:", error);
     return { ok: false, error: "saveError" };
   }
 
@@ -431,7 +431,7 @@ export async function uploadDirectSignedContract(formData: FormData) {
     });
 
   if (uploadError) {
-    console.error("Supabase upload error:", uploadError);
+    console.error("Document storage upload error:", uploadError);
     // Cleanup contract if upload failed
     await prisma.clientContract.delete({ where: { id: contract.id } });
     return { ok: false, error: `Upload-Fehler: ${uploadError.message}` };

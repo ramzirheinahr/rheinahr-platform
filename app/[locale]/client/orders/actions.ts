@@ -875,8 +875,8 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
         upsert: false,
       });
     if (error) {
-      console.error("Supabase upload error:", error);
-      return { ok: false, error: `Supabase Error: ${error.message}` };
+      console.error("Document storage upload error:", error);
+      return { ok: false, error: "saveError" };
     }
     documentUrl = path;
   } else {
