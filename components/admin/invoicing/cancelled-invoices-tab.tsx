@@ -29,7 +29,7 @@ export interface CancelledInvoiceRow {
   [key: string]: unknown;
 }
 
-import { getInvoiceFacilityName, hasReliableInvoiceDocument } from "@/lib/invoicing";
+import { getInvoiceFacilityName, hasFrozenHistoricalReferenceCopy, hasReliableInvoiceDocument } from "@/lib/invoicing";
 export { getInvoiceFacilityName, hasReliableInvoiceDocument };
 
 interface CancelledInvoicesTabProps {
@@ -208,6 +208,7 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
       action: true,
       cell: (r) => {
         const isReliable = hasReliableInvoiceDocument(r);
+        const hasReferenceCopy = !isReliable && hasFrozenHistoricalReferenceCopy(r);
         return (
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             <Button
@@ -231,6 +232,10 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
               onClick={() => window.open(`/api/invoices/${r.id}/pdf`, "_blank")}
               title={t("viewOriginalPdf")}>
               {t("viewOriginalPdf")}
+            </Button> : hasReferenceCopy ? <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs"
+              onClick={() => window.open(`/api/invoices/${r.id}/pdf?referenceCopy=true`, "_blank")}
+              title={t("historicalReferenceTooltip")}>
+              {t("viewHistoricalReference")}
             </Button> : <span className="text-xs text-amber-800" title={t("historicalPdfUnavailableTooltip")}>{t("historicalArchiveNotice")}</span>}
           </div>
         );

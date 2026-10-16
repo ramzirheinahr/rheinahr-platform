@@ -1456,6 +1456,11 @@
     "viewStornoPdf": "Stornorechnung erstellen / ansehen",
     "downloadStornoPdf": "Stornorechnung herunterladen",
     "viewOriginalPdf": "Originalrechnung ansehen",
+    "viewHistoricalReference": "Gespeicherte Datenkopie ansehen",
+    "historicalReferenceTooltip": "Rekonstruktion aus den bei Rechnungsstellung gespeicherten Positionen. Dies ist nicht das ursprünglich versendete PDF; bitte das E-Mail-Archiv für das Original prüfen.",
+    "historicalReferenceTitle": "Rekonstruktion – kein Originalbeleg",
+    "historicalReferenceIntroduction": "Bei Rechnungsstellung gespeicherte Positionen der Rechnung",
+    "historicalReferenceNotice": "Datenkopie zum internen Abgleich. Dieses PDF wurde nachträglich aus gespeicherten Rechnungsdaten erstellt und ist nicht die ursprünglich versendete Datei. Das Original bitte im E-Mail- oder Buchhaltungsarchiv prüfen. Nicht erneut an den Kunden senden.",
     "stornoListDescription": "Die Beträge zeigen die vollständige Gegenbuchung. Die ursprünglichen Rechnungsnummern bleiben erhalten; die Stornorechnung verweist ausdrücklich darauf.",
     "stornoCreationError": "Stornorechnung konnte nicht erstellt werden."
   },

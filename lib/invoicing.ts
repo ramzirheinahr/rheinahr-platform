@@ -935,6 +935,43 @@ export function hasReliableInvoiceDocument(
   return true;
 }
 
+/**
+ * A reference copy can be rendered from frozen historical values when the only
+ * disagreement with the invoice row is the legacy one-cent net rounding error.
+ * It must never be presented as the original PDF sent to the customer.
+ */
+export function hasFrozenHistoricalReferenceCopy(invoice: {
+  status?: string;
+  netAmount?: number | Prisma.Decimal;
+  vatAmount?: number | Prisma.Decimal;
+  grossAmount?: number | Prisma.Decimal;
+  snapshotData?: unknown;
+}): boolean {
+  if (invoice.status !== "cancelled") return false;
+  const snap = invoice.snapshotData;
+  if (!snap || typeof snap !== "object" || Array.isArray(snap)) return false;
+  const s = snap as Record<string, unknown>;
+  if (s.isFrozen !== true || s.calculationVersion === "v2") return false;
+  if (!Array.isArray(s.items) || s.items.length === 0) return false;
+  if (typeof s.facilityName !== "string" || !s.facilityName.trim()) return false;
+  if (typeof s.address !== "string" || !s.address.trim()) return false;
+  if (typeof s.paymentTermsDays !== "number" || s.paymentTermsDays <= 0) return false;
+  const totals = validateSnapshotMonetaryTotals(s);
+  if (!totals || totals.subtotalCents + totals.taxAmountCents !== totals.totalCents) return false;
+  let itemCents = 0;
+  for (let i = 0; i < s.items.length; i++) {
+    const item = normalizeHistoricalItem(s.items[i], i + 1);
+    if (!item) return false;
+    itemCents += item.amountCents;
+  }
+  if (itemCents !== totals.subtotalCents) return false;
+  if (invoice.netAmount == null || invoice.vatAmount == null || invoice.grossAmount == null) return false;
+  const netDifference = Math.abs(Math.round(Number(invoice.netAmount) * 100) - totals.subtotalCents);
+  return netDifference === 1 &&
+    Math.round(Number(invoice.vatAmount) * 100) === totals.taxAmountCents &&
+    Math.round(Number(invoice.grossAmount) * 100) === totals.totalCents;
+}
+
 export type InvoicingQueryClient = Prisma.TransactionClient | typeof prisma;
 
 /**

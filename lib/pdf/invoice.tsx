@@ -14,6 +14,11 @@ import { getCompanyConfig, type CompanyConfig } from "@/lib/config/company";
 
 export type InvoicePdfData = {
   draft?: boolean;
+  historicalReferenceCopy?: {
+    title: string;
+    introduction: string;
+    notice: string;
+  };
   cancellation?: {
     originalInvoiceNumber: string;
     originalInvoiceDate: string;
@@ -149,7 +154,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
         </View>
 
         <View style={styles.titleBlock}>
-          <Text style={[styles.titleText, data.draft || data.cancellation ? styles.draftTitleText : {}]}>{data.draft ? "Rechnungsentwurf" : data.cancellation ? "Stornorechnung" : "Rechnung"}</Text>
+          <Text style={[styles.titleText, data.draft || data.cancellation || data.historicalReferenceCopy ? styles.draftTitleText : {}]}>{data.historicalReferenceCopy?.title || (data.draft ? "Rechnungsentwurf" : data.cancellation ? "Stornorechnung" : "Rechnung")}</Text>
           <View style={styles.metaTable}>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>vom:</Text>
@@ -175,7 +180,7 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
         </View>
       </View>
 
-      <Text style={styles.greeting}>{data.cancellation ? "Wir stornieren die oben genannte Rechnung vollständig" : "Wir berechnen Ihnen"}</Text>
+      <Text style={styles.greeting}>{data.historicalReferenceCopy?.introduction || (data.cancellation ? "Wir stornieren die oben genannte Rechnung vollständig" : "Wir berechnen Ihnen")}</Text>
 
       {/* Main Table */}
       <View style={styles.table}>
@@ -219,7 +224,9 @@ const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; compan
       </View>
 
       <Text style={styles.paymentText}>
-        {data.draft
+        {data.historicalReferenceCopy
+          ? data.historicalReferenceCopy.notice
+          : data.draft
           ? "ENTWURF ZUR INTERNEN PRÜFUNG – KEINE RECHNUNG. NICHT AN KUNDEN VERSENDEN."
           : data.cancellation
           ? "Diese Stornorechnung hebt die oben genannte Rechnung vollständig auf. Die ursprüngliche Rechnung bleibt als Beleg erhalten. Bitte prüfen Sie bereits geleistete Zahlungen gesondert."

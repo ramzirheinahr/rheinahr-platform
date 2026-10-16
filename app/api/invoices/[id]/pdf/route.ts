@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
-import { hasReliableInvoiceDocument, resolveStoredPdfCandidatePath } from "@/lib/invoicing";
+import { hasFrozenHistoricalReferenceCopy, hasReliableInvoiceDocument, resolveStoredPdfCandidatePath } from "@/lib/invoicing";
 
 import {
   defaultFileVerifier,
@@ -319,6 +320,39 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   // Standard Current Invoice PDF path
   const allowed = roleSatisfies(user.role, ["admin"]) || invoice.client.userId === user.id;
   if (!allowed) return new NextResponse("Forbidden", { status: 403 });
+
+  // This is a labelled reference copy, not the original PDF sent by email.
+  // It uses only saved invoice values and never current shifts or client rates.
+  if (url.searchParams.get("referenceCopy") === "true") {
+    if (!roleSatisfies(user.role, ["admin"]) || !hasFrozenHistoricalReferenceCopy(invoice)) {
+      return new NextResponse("Historical reference copy unavailable", { status: 422 });
+    }
+    const frozenClient = buildFrozenClientFromSnapshot(invoice.snapshotData);
+    if (!frozenClient) return new NextResponse("Frozen client unavailable", { status: 422 });
+    const t = await getTranslations({ locale: "de", namespace: "invoicing" });
+    const pdfData = buildInvoicePdfData(invoice, frozenClient, []);
+    pdfData.historicalReferenceCopy = {
+      title: t("historicalReferenceTitle"),
+      introduction: t("historicalReferenceIntroduction"),
+      notice: t("historicalReferenceNotice"),
+    };
+    const pdfBuffer = await generateInvoicePdf(pdfData);
+    await audit({
+      userId: user.id,
+      action: "invoice.pdf_reference_copy",
+      entity: "Invoice",
+      entityId: invoice.id,
+      metadata: { source: "frozen_snapshot_reference_copy", netDifferenceCents: 1 },
+    });
+    return new NextResponse(new Uint8Array(pdfBuffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="Rekonstruktion-${invoice.invoiceNumber}.pdf"`,
+        "X-Document-Source": "frozen_snapshot_reference_copy",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 
   if (invoice.status === "cancelled" && !hasReliableInvoiceDocument(invoice)) {
     return new NextResponse(

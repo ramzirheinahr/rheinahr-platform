@@ -1456,6 +1456,11 @@
     "viewStornoPdf": "Create / view cancellation invoice",
     "downloadStornoPdf": "Download cancellation invoice",
     "viewOriginalPdf": "View original invoice",
+    "viewHistoricalReference": "View saved-data copy",
+    "historicalReferenceTooltip": "Reconstruction from line items saved when the invoice was issued. This is not the PDF originally sent; check the email archive for the original.",
+    "historicalReferenceTitle": "Reconstruction – not the original",
+    "historicalReferenceIntroduction": "Invoice lines saved at the time of issue",
+    "historicalReferenceNotice": "Data copy for internal reconciliation. This PDF was reconstructed later from saved invoice data and is not the file originally sent. Check the email or accounting archive for the original. Do not resend to the customer.",
     "stornoListDescription": "Amounts show the full reversal. Original invoice numbers remain reserved and are referenced by the cancellation document.",
     "stornoCreationError": "Could not create cancellation invoice."
   },
