@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
 import { sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "../email-recipients-dialog";
-import { hasReliableInvoiceDocument, getInvoiceFacilityName } from "@/lib/invoicing";
+import { hasReliableInvoiceDocument, getInvoiceFacilityName, getInvoiceDisplayGrossAmount } from "@/lib/invoicing";
 import type { CancelledInvoiceRow } from "./cancelled-invoices-tab";
 
 export type OpenInvoiceRecord = CancelledInvoiceRow;
@@ -71,8 +71,8 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         }
         case "grossAmount": {
-          const aVal = Number(a.grossAmount) || 0;
-          const bVal = Number(b.grossAmount) || 0;
+          const aVal = getInvoiceDisplayGrossAmount(a);
+          const bVal = getInvoiceDisplayGrossAmount(b);
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         }
         case "status": {
@@ -159,7 +159,7 @@ export function OpenInvoicesTab({ invoices }: OpenInvoicesTabProps) {
       header: "Betrag (Brutto)",
       cell: (r) => (
         <span className="font-bold text-slate-900">
-          {r.grossAmount.toLocaleString("de-DE", {
+          {getInvoiceDisplayGrossAmount(r).toLocaleString("de-DE", {
             style: "currency",
             currency: "EUR",
           })}

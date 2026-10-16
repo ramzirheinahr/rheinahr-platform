@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle2, Clock, Receipt, Ban, Trash2, MoreHorizontal, RotateCcw, Mail, Edit3, Send, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { toggleInvoiceStatus } from "@/app/[locale]/admin/invoicing/actions";
+import { getInvoiceDisplayGrossAmount } from "@/lib/invoicing";
 import { cancelInvoice, sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
 import { EmailRecipientsDialog } from "./email-recipients-dialog";
 import { EditInvoiceDialog } from "./invoicing/edit-invoice-dialog";
@@ -74,8 +75,8 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
           bVal = new Date(b.date).getTime();
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         case "grossAmount":
-          aVal = Number(a.grossAmount) || 0;
-          bVal = Number(b.grossAmount) || 0;
+          aVal = getInvoiceDisplayGrossAmount(a);
+          bVal = getInvoiceDisplayGrossAmount(b);
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         case "status":
           aVal = a.status || "";
@@ -229,7 +230,7 @@ export function InvoicingList({ invoices }: { invoices: any[] }) {
       header: "Betrag (Brutto)",
       cell: (r) => (
         <span className="font-semibold">
-          {Number(r.grossAmount).toLocaleString("de-DE", { style: "currency", currency: "EUR" })}
+          {getInvoiceDisplayGrossAmount(r).toLocaleString("de-DE", { style: "currency", currency: "EUR" })}
         </span>
       ),
     },

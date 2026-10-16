@@ -10,6 +10,7 @@ import { FileText, Mail, Send, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { EmailRecipientsDialog } from "../email-recipients-dialog";
 import { sendInvoiceEmail } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
+import { getInvoiceDisplayGrossAmount } from "@/lib/invoicing";
 
 interface SentInvoicesTabProps {
   invoices: any[];
@@ -65,8 +66,8 @@ export function SentInvoicesTab({ invoices }: SentInvoicesTabProps) {
           bVal = new Date(b.snapshotData?.emailSent?.sentAt || 0).getTime();
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         case "grossAmount":
-          aVal = Number(a.grossAmount) || 0;
-          bVal = Number(b.grossAmount) || 0;
+          aVal = getInvoiceDisplayGrossAmount(a);
+          bVal = getInvoiceDisplayGrossAmount(b);
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         default:
           return 0;
@@ -146,7 +147,7 @@ export function SentInvoicesTab({ invoices }: SentInvoicesTabProps) {
       header: "Betrag (Brutto)",
       cell: (r) => (
         <span className="font-semibold text-slate-900">
-          {Number(r.grossAmount).toLocaleString("de-DE", { style: "currency", currency: "EUR" })}
+          {getInvoiceDisplayGrossAmount(r).toLocaleString("de-DE", { style: "currency", currency: "EUR" })}
         </span>
       ),
     },

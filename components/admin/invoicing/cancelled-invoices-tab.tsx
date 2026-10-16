@@ -29,7 +29,7 @@ export interface CancelledInvoiceRow {
   [key: string]: unknown;
 }
 
-import { getInvoiceFacilityName, hasFrozenHistoricalReferenceCopy, hasReliableInvoiceDocument } from "@/lib/invoicing";
+import { getInvoiceFacilityName, getInvoiceDisplayGrossAmount, hasFrozenHistoricalReferenceCopy, hasReliableInvoiceDocument } from "@/lib/invoicing";
 export { getInvoiceFacilityName, hasReliableInvoiceDocument };
 
 interface CancelledInvoicesTabProps {
@@ -105,8 +105,8 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         }
         case "grossAmount": {
-          const aVal = Number(a.grossAmount) || 0;
-          const bVal = Number(b.grossAmount) || 0;
+          const aVal = getInvoiceDisplayGrossAmount(a);
+          const bVal = getInvoiceDisplayGrossAmount(b);
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         }
         case "status": {
@@ -160,7 +160,7 @@ export function CancelledInvoicesTab({ invoices }: CancelledInvoicesTabProps) {
       header: t("grossAmountHeader"),
       cell: (r) => (
         <span className="font-bold text-slate-900">
-          {(-Math.abs(Number(r.grossAmount))).toLocaleString("de-DE", {
+          {(-Math.abs(getInvoiceDisplayGrossAmount(r))).toLocaleString("de-DE", {
             style: "currency",
             currency: "EUR",
           })}

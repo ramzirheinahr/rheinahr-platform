@@ -668,6 +668,38 @@ export function validateSnapshotMonetaryTotals(
   };
 }
 
+/** The issued document's frozen cents take precedence over an older, unrounded invoice row. */
+export function getFrozenInvoiceDocumentAmounts(snapshot: unknown): ValidatedMonetaryTotals | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const frozen = snapshot as Record<string, unknown>;
+  if (frozen.isFrozen !== true || !Array.isArray(frozen.items) || frozen.items.length === 0) return null;
+  const totals = validateSnapshotMonetaryTotals(frozen);
+  if (!totals || totals.subtotalCents < 0 || totals.taxAmountCents < 0 ||
+      totals.subtotalCents + totals.taxAmountCents !== totals.totalCents) return null;
+  let itemCents = 0;
+  for (let i = 0; i < frozen.items.length; i++) {
+    const item = frozen.items[i];
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const line = item as Record<string, unknown>;
+    if (typeof line.description !== "string" || !line.description.trim()) return null;
+    const cents = parseCurrencyAmountToCents(line.amount);
+    if (cents === null) return null;
+    for (const key of ["amountCents", "totalCents", "lineTotalCents"] as const) {
+      if (line[key] !== undefined && line[key] !== null && line[key] !== cents) return null;
+    }
+    itemCents += cents;
+  }
+  return itemCents === totals.subtotalCents ? totals : null;
+}
+
+export function getInvoiceDisplayGrossAmount(invoice: {
+  grossAmount: number | Prisma.Decimal;
+  snapshotData?: unknown;
+}): number {
+  return (getFrozenInvoiceDocumentAmounts(invoice.snapshotData)?.totalCents ??
+    Math.round(Number(invoice.grossAmount) * 100)) / 100;
+}
+
 /**
  * Resolves any candidate stored PDF file path/URL from invoice or snapshotData.
  * Covers:

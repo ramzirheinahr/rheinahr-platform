@@ -9,7 +9,7 @@ import { generateInvoicePdf } from "@/lib/pdf/invoice";
 import { buildInvoicePdfData } from "@/lib/invoice-pdf-builder";
 import { sendEmailToRecipients, EmailDispatchReport } from "@/lib/email";
 import { generateLeistungsnachweisePdf } from "@/lib/pdf/generate-timesheets-pdf";
-import { generateUniqueInvoiceNumber } from "@/lib/invoicing";
+import { generateUniqueInvoiceNumber, getFrozenInvoiceDocumentAmounts } from "@/lib/invoicing";
 import { CALCULATION_VERSIONS } from "@/lib/invoice-calculation-version";
 import { isV2InvoiceIssuanceEnabled, issueV2Invoice } from "@/lib/invoice-v2-issuance-service";
 import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
@@ -342,9 +342,20 @@ export async function generateMonthInvoices(
 
   // Permanently freeze invoice line items and totals in snapshotData
   const pdfData = buildInvoicePdfData(invoice, client, assignments, { catalogDefaults, qualificationNames });
+  const documentAmounts = getFrozenInvoiceDocumentAmounts({
+    isFrozen: true,
+    items: pdfData.items,
+    subtotal: pdfData.subtotal,
+    taxAmount: pdfData.taxAmount,
+    total: pdfData.total,
+  });
+  if (!documentAmounts) throw new Error("Die Rechnungsbeträge stimmen nicht mit den Positionen überein.");
   const frozenInvoice = await prisma.invoice.update({
     where: { id: invoice.id },
     data: {
+      netAmount: documentAmounts.subtotalCents / 100,
+      vatAmount: documentAmounts.taxAmountCents / 100,
+      grossAmount: documentAmounts.totalCents / 100,
       snapshotData: {
         shortCode: client.shortCode,
         internalNumber: client.internalNumber,
@@ -379,7 +390,7 @@ export async function generateMonthInvoices(
     action: "invoice.generate",
     entity: "Invoice",
     entityId: invoice.id,
-    metadata: { assignmentCount: assignments.length, grossAmount }
+    metadata: { assignmentCount: assignments.length, grossAmount: documentAmounts.totalCents / 100 }
   });
 
   // Notify client via in-app notification (for inbox)
