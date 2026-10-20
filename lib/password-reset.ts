@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, getEmailFooterHtml } from "@/lib/email";
 import { audit } from "@/lib/audit";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export type PasswordResetState = {
   ok: boolean;
@@ -48,15 +49,16 @@ export async function createPasswordResetToken(
     },
   });
 
-  const baseUrl = originUrl || process.env.NEXT_PUBLIC_APP_URL || "https://app.rheinahr-gmbh.de";
+  const companyConfig = await getCompanyConfig();
+  const baseUrl = originUrl || process.env.NEXT_PUBLIC_APP_URL || companyConfig.websiteUrl || "http://localhost:3000";
   const resetUrl = `${baseUrl}/${locale}/reset-password?token=${token}`;
 
   const greeting = user.fullName ? `Hallo ${user.fullName},` : "Hallo,";
   
-  let subject = "Passwort zurücksetzen – RheinAhr Dienstleistungen";
+  let subject = `Passwort zurücksetzen – ${companyConfig.name}`;
   let bodyContent = `
     <p>${greeting}</p>
-    <p>Sie haben das Zurücksetzen Ihres Passworts für die RheinAhr-Plattform angefordert.</p>
+    <p>Sie haben das Zurücksetzen Ihres Passworts für die ${companyConfig.name}-Plattform angefordert.</p>
     <p>Klicken Sie auf den folgenden Button, um ein neues Passwort festzulegen:</p>
     <p style="margin: 24px 0;">
       <a href="${resetUrl}" style="background-color: #1e40af; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
@@ -68,10 +70,10 @@ export async function createPasswordResetToken(
   `;
 
   if (locale === "en") {
-    subject = "Reset password – RheinAhr Dienstleistungen";
+    subject = `Reset password – ${companyConfig.name}`;
     bodyContent = `
       <p>Hello${user.fullName ? ` ${user.fullName}` : ""},</p>
-      <p>You requested to reset your password for the RheinAhr platform.</p>
+      <p>You requested to reset your password for the ${companyConfig.name} platform.</p>
       <p>Click the button below to set a new password:</p>
       <p style="margin: 24px 0;">
         <a href="${resetUrl}" style="background-color: #1e40af; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
@@ -82,10 +84,10 @@ export async function createPasswordResetToken(
       <p style="color: #666; font-size: 13px;">If you did not request this, you can safely ignore this email.</p>
     `;
   } else if (locale === "ar") {
-    subject = "إعادة تعيين كلمة المرور – RheinAhr Dienstleistungen";
+    subject = `إعادة تعيين كلمة المرور – ${companyConfig.name}`;
     bodyContent = `
       <p style="direction: rtl; text-align: right;">مرحباً${user.fullName ? ` ${user.fullName}` : ""}،</p>
-      <p style="direction: rtl; text-align: right;">لقد طلبت إعادة تعيين كلمة المرور الخاصة بحسابك في منصة RheinAhr.</p>
+      <p style="direction: rtl; text-align: right;">لقد طلبت إعادة تعيين كلمة المرور الخاصة بحسابك في منصة ${companyConfig.name}.</p>
       <p style="direction: rtl; text-align: right;">انقر على الزر أدناه لتعيين كلمة مرور جديدة:</p>
       <p style="margin: 24px 0; direction: rtl; text-align: right;">
         <a href="${resetUrl}" style="background-color: #1e40af; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">

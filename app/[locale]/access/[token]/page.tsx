@@ -7,6 +7,7 @@ import { TokenLoginButton } from "@/components/auth/token-login-button";
 import { PwaInstallHint } from "@/components/pwa-install-hint";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Logo } from "@/components/logo";
+import { getCompanyConfig } from "@/lib/config/company";
 import {
   Card,
   CardContent,
@@ -31,6 +32,7 @@ export default async function AccessPage({
   if (existing) redirect({ href: portalPath(existing.role), locale: locale as Locale });
 
   const t = await getTranslations("access");
+  const companyConfig = await getCompanyConfig();
 
   // The link is valid only if it maps to an active account with a PIN set.
   const account = await prisma.user
@@ -44,7 +46,7 @@ export default async function AccessPage({
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-muted/30 p-6">
       <div className="flex w-full max-w-sm items-center justify-between">
-        <Link href="/" aria-label="RheinAhr Dienstleistungen GmbH">
+        <Link href="/" aria-label={companyConfig.name}>
           <Logo className="h-10 w-auto" priority />
         </Link>
         <LocaleSwitcher />

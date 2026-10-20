@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { sendEmail, getEmailFooterHtml } from "@/lib/email";
+import { getCompanyConfig } from "@/lib/config/company";
 import { z } from "zod";
 
 async function assertAdmin() {
@@ -63,12 +64,15 @@ export async function sendTestEmail(targetEmail: string): Promise<ActionState> {
   }
 
   try {
-    const footer = await getEmailFooterHtml();
+    const [footer, companyConfig] = await Promise.all([
+      getEmailFooterHtml(),
+      getCompanyConfig(),
+    ]);
     const testHtml = `
 <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-  <h2>Test-E-Mail von der RheinAhr Plattform</h2>
+  <h2>Test-E-Mail von der ${companyConfig.name} Plattform</h2>
   <p>Guten Tag,</p>
-  <p>dies ist eine automatische Test-E-Mail zur Überprüfung der SMTP-Konfiguration und des E-Mail-Dienstes der RheinAhr Plattform.</p>
+  <p>dies ist eine automatische Test-E-Mail zur Überprüfung der SMTP-Konfiguration und des E-Mail-Dienstes der ${companyConfig.name} Plattform.</p>
   <p>Wenn Sie diese E-Mail erhalten haben, funktioniert der E-Mail-Versand einwandfrei.</p>
   <p style="color: #666; font-size: 13px;">Zeitstempel: ${new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}</p>
   ${footer}
@@ -77,9 +81,9 @@ export async function sendTestEmail(targetEmail: string): Promise<ActionState> {
 
     await sendEmail({
       to: targetEmail,
-      subject: "Test-E-Mail – RheinAhr Plattform",
+      subject: `Test-E-Mail – ${companyConfig.name} Plattform`,
       html: testHtml,
-      text: "Dies ist eine automatische Test-E-Mail zur Überprüfung des E-Mail-Dienstes der RheinAhr Plattform.",
+      text: `Dies ist eine automatische Test-E-Mail zur Überprüfung des E-Mail-Dienstes der ${companyConfig.name} Plattform.`,
     });
 
     revalidatePath("/admin/emails");

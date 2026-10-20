@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ShieldCheck, CheckCircle2, FileText } from "lucide-react";
 import { PublicContractDialog } from "@/components/public/public-contract-dialog";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export default async function PublicContractPage(props: {
   params: Promise<{ id: string }>;
@@ -10,6 +11,7 @@ export default async function PublicContractPage(props: {
   const { id } = await props.params;
   const searchParams = await props.searchParams;
   const contractId = typeof searchParams.contractId === "string" ? searchParams.contractId : undefined;
+  const companyConfig = await getCompanyConfig();
   
   // Find all pending contracts associated with this requestGroupId
   // A contract is associated with a requestGroupId if any of its assignments belong to an order with that requestGroupId
@@ -40,7 +42,7 @@ export default async function PublicContractPage(props: {
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-slate-800">AÜV Vertrag unterzeichnen</h1>
-            <p className="text-sm text-slate-500">RheinAhr Dienstleistungen GmbH</p>
+            <p className="text-sm text-slate-500">{companyConfig.name}</p>
           </div>
           <ShieldCheck className="size-8 text-blue-600 opacity-20" />
         </div>
@@ -99,7 +101,7 @@ export default async function PublicContractPage(props: {
       </main>
 
       <footer className="bg-slate-800 text-slate-300 py-6 text-center text-sm mt-auto">
-        <p>&copy; {new Date().getFullYear()} RheinAhr Dienstleistungen GmbH</p>
+        <p>&copy; {new Date().getFullYear()} {companyConfig.name}</p>
         <p className="mt-1 text-slate-400">Integrität · Würde · Kompetenz · Vertrauen</p>
       </footer>
     </div>

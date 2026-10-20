@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 // local dev without keys) it silently no-ops so notifications still work in-app.
 const PUBLIC = process.env.VAPID_PUBLIC_KEY;
 const PRIVATE = process.env.VAPID_PRIVATE_KEY;
-const SUBJECT = process.env.VAPID_SUBJECT || "mailto:info@rheinahr-gmbh.de";
+const SUBJECT = process.env.VAPID_SUBJECT || "mailto:info@system.local";
 
 let configured = false;
 function ensureConfigured(): boolean {

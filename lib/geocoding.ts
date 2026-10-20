@@ -38,7 +38,7 @@ async function geocode(address: string): Promise<{ lat: number; lon: number } | 
 
           const params = new URLSearchParams({ q: address, format: "json", limit: "1" });
           const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-            headers: { "User-Agent": "RheinAhr-App/1.0 (contact@rheinahr.de)" },
+            headers: { "User-Agent": "StaffingPlatform/1.0" },
           });
           
           if (res.status === 429 || res.status === 403) {

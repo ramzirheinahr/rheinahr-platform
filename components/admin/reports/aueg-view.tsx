@@ -9,7 +9,7 @@ import { Printer, Search, Loader2 } from "lucide-react";
 import { fetchAuegAction } from "@/app/[locale]/admin/reports/actions";
 import type { AuegRow } from "@/lib/reports-data";
 
-export function AuegView() {
+export function AuegView({ companyName }: { companyName?: string } = {}) {
   const t = useTranslations("reports");
   const now = new Date();
   const y = now.getFullYear();
@@ -95,7 +95,7 @@ export function AuegView() {
             <div className="flex items-center gap-3">
               <span className="font-bold text-sm text-foreground">{t("aueg.title")}</span>
               <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground">Firma: RheinAhr Dienstleistungen GmbH</span>
+              <span className="text-muted-foreground">Firma: {companyName || "Personalmanagement"}</span>
             </div>
             <div className="flex items-center gap-4">
               <span className="font-medium text-foreground">{t("aueg.auegNr")}</span>

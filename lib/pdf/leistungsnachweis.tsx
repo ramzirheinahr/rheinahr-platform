@@ -110,9 +110,9 @@ function LeistungsnachweisPage({ d, companyConfig }: { d: LeistungsnachweisData,
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.brand}>{companyConfig.name}</Text>
-          <Text style={styles.brandSub}>Theaterplatz 1, 53177 Bonn · info@rheinahr-gmbh.de</Text>
+          <Text style={styles.brandSub}>{companyConfig.street}, {companyConfig.city} · {companyConfig.email}</Text>
         </View>
-        <Text style={styles.brandSub}>HRB 23459 · USt-IdNr. DE316507908</Text>
+        <Text style={styles.brandSub}>{companyConfig.hrb} · USt-IdNr. {companyConfig.vatId}</Text>
       </View>
 
       <Text style={styles.title}>Leistungsnachweis</Text>

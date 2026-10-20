@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { sendEmailToRecipients } from "@/lib/email";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export async function generateMonthContracts(clientId: string, year: number, month: number) {
   const user = await getCurrentUser();
@@ -153,9 +154,10 @@ export async function sendClientMonthScheduleEmail({
   const targetRecipients =
     recipients && recipients.length > 0 ? recipients : [client.userId];
 
-  const subject = `Monatsübersicht Einsätze ${monthLabel} – ${client.facilityName} – RheinAhr Dienstleistungen GmbH`;
+  const companyConfig = await getCompanyConfig();
+  const subject = `Monatsübersicht Einsätze ${monthLabel} – ${client.facilityName} – ${companyConfig.name}`;
 
-  const textBody = `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Monatsübersicht aller Einsätze und geleisteten Stunden für den Monat ${monthLabel} für Ihre Einrichtung (${client.facilityName}) im PDF-Format.\n\nMonatsüberblick:\n- Monat: ${monthLabel}\n- Bestätigte Stunden: ${(totals.confirmedHours ?? 0).toFixed(2).replace(".", ",")} Std. (${totals.confirmedShifts} Schichten)\n- Gesamtstunden: ${(totals.totalHours ?? 0).toFixed(2).replace(".", ",")} Std.\n\nDie detaillierte Aufstellung aller Einsatztage, Schichtzeiten und der jeweils eingesetzten Fachkräfte entnehmen Sie bitte der beigefügten PDF-Datei.\n\nFür Rückfragen stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`;
+  const textBody = `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Monatsübersicht aller Einsätze und geleisteten Stunden für den Monat ${monthLabel} für Ihre Einrichtung (${client.facilityName}) im PDF-Format.\n\nMonatsüberblick:\n- Monat: ${monthLabel}\n- Bestätigte Stunden: ${(totals.confirmedHours ?? 0).toFixed(2).replace(".", ",")} Std. (${totals.confirmedShifts} Schichten)\n- Gesamtstunden: ${(totals.totalHours ?? 0).toFixed(2).replace(".", ",")} Std.\n\nDie detaillierte Aufstellung aller Einsatztage, Schichtzeiten und der jeweils eingesetzten Fachkräfte entnehmen Sie bitte der beigefügten PDF-Datei.\n\nFür Rückfragen stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen,\nIhr Team der ${companyConfig.name}`;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px;">
@@ -181,7 +183,7 @@ export async function sendClientMonthScheduleEmail({
       
       <p style="margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
         Mit freundlichen Grüßen,<br>
-        <strong>Ihr Team der RheinAhr Dienstleistungen GmbH</strong>
+        <strong>Ihr Team der ${companyConfig.name}</strong>
       </p>
     </div>
   `;

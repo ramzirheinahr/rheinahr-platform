@@ -54,7 +54,7 @@ export async function getEmailConfig(): Promise<EmailConfig | null> {
   const envPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465;
   const envUser = process.env.SMTP_USER?.trim();
   const envPass = process.env.SMTP_PASSWORD?.trim();
-  const envFrom = process.env.EMAIL_FROM?.trim() || "info@rheinahr-gmbh.de";
+  const envFrom = process.env.EMAIL_FROM?.trim() || envUser || "noreply@system.local";
 
   if (envHost && envUser && envPass) {
     return {
@@ -393,7 +393,8 @@ export async function sendEmailToRecipientsWithReport(
 
   let textBody = payload.body;
   if (payload.url) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://platform.rheinahr-gmbh.de";
+    const companyConfig = await getCompanyConfig();
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || companyConfig.websiteUrl || "http://localhost:3000").replace(/\/+$/, "");
     const fullUrl = payload.url.startsWith("http") ? payload.url : `${appUrl}${payload.url}`;
     textBody += `\n\nLink: ${fullUrl}`;
   }

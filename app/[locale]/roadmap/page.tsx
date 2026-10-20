@@ -4,12 +4,16 @@ import { Link } from "@/i18n/navigation";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CheckCircle2, Zap, Rocket } from "lucide-react";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Funktionen & Roadmap — RheinAhr",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const companyConfig = await getCompanyConfig();
+  return {
+    title: `Funktionen & Roadmap — ${companyConfig.name}`,
+  };
+}
 
 type Section = {
   icon: typeof CheckCircle2;
@@ -119,11 +123,12 @@ export default async function RoadmapPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const companyConfig = await getCompanyConfig();
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b px-6 py-4">
-        <Link href="/" aria-label="RheinAhr Dienstleistungen GmbH">
+        <Link href="/" aria-label={companyConfig.name}>
           <Logo className="h-9 w-auto" priority />
         </Link>
         <Button variant="ghost" size="sm" className="gap-2" render={<Link href="/" />}>
@@ -135,7 +140,7 @@ export default async function RoadmapPage({
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <h1 className="text-3xl font-bold tracking-tight">Funktionen & Roadmap</h1>
         <p className="mt-3 max-w-2xl text-pretty text-muted-foreground">
-          Die RheinAhr-Plattform digitalisiert die Personaldisposition in der
+          Die {companyConfig.name}-Plattform digitalisiert die Personaldisposition in der
           Altenpflege — von der Anfrage über das Matching bis zum rechtssicheren
           Leistungsnachweis. Diese Übersicht zeigt, was heute verfügbar ist und
           welche Ausbaustufen geplant sind.
@@ -183,7 +188,7 @@ export default async function RoadmapPage({
 
         <p className="mt-12 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
           Reihenfolge und Priorität der Ausbaustufen richten sich nach Ihren
-          Anforderungen. — RheinAhr Dienstleistungen GmbH
+          Anforderungen. — {companyConfig.name}
         </p>
       </main>
     </div>

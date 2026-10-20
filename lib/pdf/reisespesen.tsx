@@ -71,7 +71,7 @@ export const ReisespesenTemplate = ({
             <Image src={logoSrc} style={{ width: 140, maxHeight: 40, objectFit: "contain" }} />
           ) : (
             <Text style={{ fontSize: 13, fontFamily: "Helvetica-Bold", color: "#1e3a8a" }}>
-              {companyConfig?.name || "RheinAhr Dienstleistungen GmbH"}
+              {companyConfig?.name || "Personalmanagement"}
             </Text>
           )}
         </View>

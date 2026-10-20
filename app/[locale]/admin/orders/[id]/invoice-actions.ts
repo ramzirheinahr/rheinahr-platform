@@ -227,9 +227,10 @@ export async function sendInvoiceEmail({
     : [client.userId];
   const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
 
+  const companyConfig = await getCompanyConfig();
   await sendEmailToRecipients(targetRecipients, {
-    subject: `Rechnung ${invoice.invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-    body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoice.invoiceNumber})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+    subject: `Rechnung ${invoice.invoiceNumber} - ${companyConfig.name}`,
+    body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoice.invoiceNumber})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der ${companyConfig.name}`,
     attachments,
   });
 
@@ -598,9 +599,10 @@ export async function generateOrderInvoices(
       const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
 
       try {
+        const companyConfig = await getCompanyConfig();
         dispatchReport = await sendEmailToRecipients(targetRecipients, {
-          subject: `Rechnung ${invoice.invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-          body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoice.invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+          subject: `Rechnung ${invoice.invoiceNumber} - ${companyConfig.name}`,
+          body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoice.invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der ${companyConfig.name}`,
           url: requestGroupId ? `/client/orders/${requestGroupId}` : undefined,
           attachments,
         });
@@ -858,9 +860,10 @@ export async function generateOrderInvoices(
     const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
 
     try {
+      const companyConfig = await getCompanyConfig();
       dispatchReport = await sendEmailToRecipients(targetRecipients, {
-        subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-        body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+        subject: `Rechnung ${invoiceNumber} - ${companyConfig.name}`,
+        body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten (${periodLabel})${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der ${companyConfig.name}`,
         url: `/client/orders/${requestGroupId}`,
         attachments
       });

@@ -19,6 +19,7 @@ export async function Logo({
       width={364}
       height={100}
       priority={priority}
+      unoptimized
       className={cn("h-9 w-auto", className)}
     />
   );

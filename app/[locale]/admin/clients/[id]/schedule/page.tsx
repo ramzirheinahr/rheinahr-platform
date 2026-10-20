@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Download,
   FileDown,
+  FileText,
   Sheet,
 } from "lucide-react";
 import { ScheduleMonthPicker } from "@/app/[locale]/admin/components/schedule-month-picker";
@@ -86,6 +87,33 @@ export default async function AdminClientSchedulePage({
           >
             <Sheet className="size-4" />
             {cs("downloadExcel")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            render={<a href={`/api/exports/kkl?clientId=${client.id}&year=${year}&month=${month}&format=docx`} />}
+          >
+            <FileText className="size-4" />
+            {cs("downloadKklDocx")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            render={<a href={`/api/exports/kkl?clientId=${client.id}&year=${year}&month=${month}&format=pdf`} />}
+          >
+            <FileText className="size-4" />
+            {cs("downloadKklPdf")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            render={<a href={`/api/exports/kkl?clientId=${client.id}&year=${year}&month=${month}&format=csv`} />}
+          >
+            <Sheet className="size-4" />
+            {cs("downloadKklExcel")}
           </Button>
         </div>
       </div>

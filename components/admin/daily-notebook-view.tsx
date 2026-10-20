@@ -68,10 +68,11 @@ import {
 import { shiftLetterForStart, type ShiftKey } from "@/lib/master-schedule-core";
 import type { Candidate } from "@/lib/orders";
 
-function getShiftWhatsAppUrl(shift: DailyNotebookShift, dateStr: string) {
+function getShiftWhatsAppUrl(shift: DailyNotebookShift, dateStr: string, companyName?: string) {
   if (!shift.workerPhone) return "";
   const cleanPhone = shift.workerPhone.replace(/[^\d+]/g, "").replace(/^\+/, "");
   const [y, m, d] = dateStr.split("-");
+  const sender = companyName || "Personalmanagement";
   const text =
     `Hallo ${shift.workerName},\n\n` +
     `Hier sind deine Einsatzdetails für den Dienst am ${d}.${m}.${y}:\n\n` +
@@ -84,17 +85,18 @@ function getShiftWhatsAppUrl(shift: DailyNotebookShift, dateStr: string) {
     (shift.ward ? `Wohnbereich: ${shift.ward}\n` : "") +
     `Uhrzeit: ${shift.startTime} - ${shift.endTime}` +
     (shift.breakMinutes ? `\nPause: ${shift.breakMinutes} Min.` : "") +
-    `\n\nBitte bestätige kurz deinen Einsatz. Vielen Dank!\nRheinAhr Dienstleistungen GmbH`;
+    `\n\nBitte bestätige kurz deinen Einsatz. Vielen Dank!\n${sender}`;
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
 }
 
-function getWorkerWhatsAppUrl(w: { fullName: string; phone: string | null }, dateStr: string) {
+function getWorkerWhatsAppUrl(w: { fullName: string; phone: string | null }, dateStr: string, companyName?: string) {
   if (!w.phone) return "";
   const cleanPhone = w.phone.replace(/[^\d+]/g, "").replace(/^\+/, "");
   const [y, m, d] = dateStr.split("-");
+  const sender = companyName || "Personalmanagement";
   const text =
     `Hallo ${w.fullName},\n\n` +
-    `Bist du heute am ${d}.${m}.${y} verfügbar für einen Einsatz?\n\nRheinAhr Dienstleistungen GmbH`;
+    `Bist du heute am ${d}.${m}.${y} verfügbar für einen Einsatz?\n\n${sender}`;
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
 }
 
@@ -102,10 +104,12 @@ export function DailyNotebookView({
   data,
   qualificationFilter = "all",
   qualificationOptions,
+  companyName,
 }: {
   data: DailyNotebookData;
   qualificationFilter?: string;
   qualificationOptions: Array<{ code: string; nameDe: string; nameEn: string; nameAr: string; active: boolean }>;
+  companyName?: string;
 }) {
   const t = useTranslations("dailyNotebook");
   const tm = useTranslations("masterSchedule");
@@ -1035,7 +1039,7 @@ export function DailyNotebookView({
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 max-h-72 overflow-y-auto pe-1">
                     {filteredAvailableWorkers.map((w) => {
                       const isFree = w.status === "free";
-                      const waUrl = getWorkerWhatsAppUrl(w, data.dateStr);
+                      const waUrl = getWorkerWhatsAppUrl(w, data.dateStr, companyName);
 
                       return (
                         <div
@@ -1230,7 +1234,7 @@ export function DailyNotebookView({
                     <div className="max-h-72 space-y-1.5 overflow-y-auto pe-1">
                       {filteredAvailableWorkers.map((w) => {
                         const isFree = w.status === "free";
-                        const waUrl = getWorkerWhatsAppUrl(w, data.dateStr);
+                        const waUrl = getWorkerWhatsAppUrl(w, data.dateStr, companyName);
 
                         return (
                           <div
@@ -1625,7 +1629,7 @@ export function DailyNotebookView({
                       </a>
                       {/* WhatsApp Button next to phone number */}
                       <a
-                        href={getShiftWhatsAppUrl(selectedShift, data.dateStr)}
+                        href={getShiftWhatsAppUrl(selectedShift, data.dateStr, companyName)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 rounded bg-[#25D366] px-2 py-0.5 text-[11px] font-semibold text-white shadow-xs hover:bg-[#20b858]"
@@ -1744,7 +1748,7 @@ export function DailyNotebookView({
               {/* WhatsApp Button */}
               {selectedShift?.workerPhone && (
                 <a
-                  href={getShiftWhatsAppUrl(selectedShift, data.dateStr)}
+                  href={getShiftWhatsAppUrl(selectedShift, data.dateStr, companyName)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-md bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#20b858]"

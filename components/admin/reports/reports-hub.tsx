@@ -30,6 +30,7 @@ export type ReportsHubProps = {
   qualifications: string[];
   qualificationNames: Record<string, string>;
   kpiContent: React.ReactNode;
+  companyName?: string;
 };
 
 export function ReportsHub({
@@ -38,6 +39,7 @@ export function ReportsHub({
   qualifications,
   qualificationNames,
   kpiContent,
+  companyName,
 }: ReportsHubProps) {
   const t = useTranslations("reports");
   const [activeTab, setActiveTab] = useState<string>("overview");
@@ -221,7 +223,7 @@ export function ReportsHub({
         {activeTab === "monatsliste" && (
           <MonatslisteView workers={workers} clients={clients} />
         )}
-        {activeTab === "aueg" && <AuegView />}
+        {activeTab === "aueg" && <AuegView companyName={companyName} />}
         {activeTab === "mitarbeiterListe" && (
           <MitarbeiterListeView clients={clients} qualifications={qualifications} qualificationNames={qualificationNames} />
         )}

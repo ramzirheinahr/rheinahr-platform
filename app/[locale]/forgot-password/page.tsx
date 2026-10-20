@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { Logo } from "@/components/logo";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { getCompanyConfig } from "@/lib/config/company";
 import {
   Card,
   CardContent,
@@ -15,11 +16,12 @@ export const dynamic = "force-dynamic";
 
 export default async function ForgotPasswordPage() {
   const t = await getTranslations("auth");
+  const companyConfig = await getCompanyConfig();
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-muted/30 p-6">
       <div className="flex w-full max-w-sm items-center justify-between">
-        <Link href="/" aria-label="RheinAhr Dienstleistungen GmbH">
+        <Link href="/" aria-label={companyConfig.name}>
           <Logo className="h-10 w-auto" priority />
         </Link>
         <LocaleSwitcher />

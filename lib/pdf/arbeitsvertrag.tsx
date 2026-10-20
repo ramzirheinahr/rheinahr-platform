@@ -357,7 +357,7 @@ export const ArbeitsvertragTemplate = ({ data, companyConfig }: { data: Arbeitsv
         <View style={styles.list}>
           <View style={styles.checkboxRow}>
             <View style={[styles.checkbox, styles.checkboxChecked]} />
-            <Text style={{ flex: 1 }}>Innerhalb der Geschäftszeiten der betreuenden Niederlassung von <Text style={styles.highlight}>06:00</Text> Uhr bis <Text style={styles.highlight}>22:00</Text> Uhr telefonisch unter <Text style={styles.highlight}>022828683821</Text> oder per Mail über <Text style={styles.highlight}>info@rheinahr-gmbh.de</Text>.</Text>
+            <Text style={{ flex: 1 }}>Innerhalb der Geschäftszeiten der betreuenden Niederlassung von <Text style={styles.highlight}>06:00</Text> Uhr bis <Text style={styles.highlight}>22:00</Text> Uhr telefonisch unter <Text style={styles.highlight}>{companyConfig.phone}</Text> oder per Mail über <Text style={styles.highlight}>{companyConfig.email}</Text>.</Text>
           </View>
           <View style={styles.checkboxRow}>
             <View style={styles.checkbox} />

@@ -70,7 +70,7 @@ export const MitarbeiterListeTemplate = ({
               <Image src={logoSrc} style={{ width: 170, maxHeight: 50, objectFit: "contain" }} />
             ) : (
               <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: "#b91c1c" }}>
-                {companyConfig?.name || "RheinAhr Dienstleistungen GmbH"}
+                {companyConfig?.name || "Personalmanagement"}
               </Text>
             )}
           </View>

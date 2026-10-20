@@ -108,6 +108,16 @@ export function SystemSettingsForm({ settings }: { settings: Record<string, stri
   return (
     <div className="grid gap-6">
       <ImageUploadField
+        label="Firmenlogo (Logo)"
+        settingKey="company.logoUrl"
+        initialUrl={settings["company.logoUrl"] || null}
+      />
+      <ImageUploadField
+        label="App Icon (Favicon & PWA)"
+        settingKey="company.iconUrl"
+        initialUrl={settings["company.iconUrl"] || null}
+      />
+      <ImageUploadField
         label="Landing Page - Hero Image"
         settingKey="landing.hero_image"
         initialUrl={settings["landing.hero_image"] || null}
@@ -121,11 +131,6 @@ export function SystemSettingsForm({ settings }: { settings: Record<string, stri
         label="Landing Page - Workers Section"
         settingKey="landing.workers_image"
         initialUrl={settings["landing.workers_image"] || null}
-      />
-      <ImageUploadField
-        label="App Icon (Favicon & PWA)"
-        settingKey="company.iconUrl"
-        initialUrl={settings["company.iconUrl"] || null}
       />
     </div>
   );

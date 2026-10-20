@@ -9,6 +9,7 @@ import { qualLabel } from "@/lib/invoicing";
 import { formatDateDE } from "@/lib/utils";
 import { formatWorkerSalutation } from "@/lib/worker-utils";
 import type { ClientScheduleRow, ClientScheduleTotals } from "@/lib/client-schedule";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export async function sendOrderScheduleEmail({
   requestGroupId,
@@ -158,9 +159,10 @@ export async function sendOrderScheduleEmail({
     qualLabel[orders[0].requiredQualification as keyof typeof qualLabel] ||
     orders[0].requiredQualification;
 
+  const companyConfig = await getCompanyConfig();
   const subject = `Einsatzübersicht / Dienstplan – ${facilityName} (${dateRange})`;
 
-  const textBody = `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie den aktuellen Dienstplan und die Einsatzübersicht der zugewiesenen Fachkräfte für Ihre Einrichtung (${facilityName}) im Zeitraum ${dateRange}.\n\nÜbersicht:\n- Zeitraum: ${dateRange}\n- Anzahl Schichten: ${orders.length}\n- Qualifikation: ${qualName}\n- Geplante Gesamtstunden: ${totals.totalHours.toFixed(2).replace(".", ",")} Std.\n\nDie vollständigen Details zu den eingesetzten Mitarbeitern und Schichtzeiten finden Sie im beigefügten PDF-Dokument.\n\nBei Rückfragen stehen wir Ihnen jederzeit gern zur Verfügung.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`;
+  const textBody = `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie den aktuellen Dienstplan und die Einsatzübersicht der zugewiesenen Fachkräfte für Ihre Einrichtung (${facilityName}) im Zeitraum ${dateRange}.\n\nÜbersicht:\n- Zeitraum: ${dateRange}\n- Anzahl Schichten: ${orders.length}\n- Qualifikation: ${qualName}\n- Geplante Gesamtstunden: ${totals.totalHours.toFixed(2).replace(".", ",")} Std.\n\nDie vollständigen Details zu den eingesetzten Mitarbeitern und Schichtzeiten finden Sie im beigefügten PDF-Dokument.\n\nBei Rückfragen stehen wir Ihnen jederzeit gern zur Verfügung.\n\nMit freundlichen Grüßen,\nIhr Team der ${companyConfig.name}`;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px;">
@@ -187,7 +189,7 @@ export async function sendOrderScheduleEmail({
       
       <p style="margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
         Mit freundlichen Grüßen,<br>
-        <strong>Ihr Team der RheinAhr Dienstleistungen GmbH</strong>
+        <strong>Ihr Team der ${companyConfig.name}</strong>
       </p>
     </div>
   `;

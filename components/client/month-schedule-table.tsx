@@ -189,7 +189,14 @@ export async function MonthScheduleTable({
                   ) : null}
                 </td>
                 <td className="p-2">
-                  <div className="font-medium text-primary">{a.workerName}</div>
+                  <div className="font-medium text-primary">
+                    {a.workerName}
+                    {a.workerBirthDate ? (
+                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                        (* {a.workerBirthDate})
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {eq(a.qualification)}
                     {a.notes ? <> · {oq("ward")}: {a.notes}</> : null}
@@ -336,7 +343,14 @@ export async function MonthScheduleTable({
                 <li key={a.id} className="space-y-2 px-3 py-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-medium text-primary">{a.workerName}</div>
+                      <div className="font-medium text-primary">
+                        {a.workerName}
+                        {a.workerBirthDate ? (
+                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                            (* {a.workerBirthDate})
+                          </span>
+                        ) : null}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {eq(a.qualification)}
                         {a.notes ? (

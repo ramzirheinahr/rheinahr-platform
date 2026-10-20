@@ -10,30 +10,37 @@ import {
 import React from "react";
 import { getCompanyConfig } from "@/lib/config/company";
 import { qualLabel } from "@/lib/invoicing";
+import { germanHolidays } from "@/lib/holidays";
 import type { ClientScheduleRow, ClientScheduleTotals } from "@/lib/client-schedule";
 
 export type MonatsuebersichtData = {
   facilityName: string;
-  monthLabel: string; // e.g. "Juli 2026"
+  monthLabel: string; // e.g. "Oktober 2026"
   rows: ClientScheduleRow[];
   totals: ClientScheduleTotals;
   generatedAt: string; // formatted timestamp
 };
 
 const styles = StyleSheet.create({
-  page: { padding: 48, fontSize: 9, color: "#1f2937", fontFamily: "Helvetica" },
-  brand: { fontSize: 16, fontFamily: "Helvetica-Bold", color: "#1e3a8a" },
-  brandSub: { fontSize: 9, color: "#6b7280", marginTop: 2 },
+  page: {
+    paddingVertical: 32,
+    paddingHorizontal: 36,
+    fontSize: 8.5,
+    color: "#1f2937",
+    fontFamily: "Helvetica",
+  },
+  brand: { fontSize: 15, fontFamily: "Helvetica-Bold", color: "#1e3a8a" },
+  brandSub: { fontSize: 8.5, color: "#6b7280", marginTop: 2 },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     borderBottomWidth: 2,
     borderBottomColor: "#1e3a8a",
-    paddingBottom: 10,
-    marginBottom: 20,
+    paddingBottom: 8,
+    marginBottom: 16,
   },
-  title: { fontSize: 16, fontFamily: "Helvetica-Bold" },
-  subtitle: { fontSize: 10, color: "#6b7280", marginTop: 4, marginBottom: 16 },
+  title: { fontSize: 15, fontFamily: "Helvetica-Bold" },
+  subtitle: { fontSize: 9.5, color: "#6b7280", marginTop: 3, marginBottom: 12 },
   th: {
     flexDirection: "row",
     backgroundColor: "#eef2ff",
@@ -42,57 +49,98 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 4,
     fontFamily: "Helvetica-Bold",
+    fontSize: 8,
+    alignItems: "center",
   },
   tr: {
     flexDirection: "row",
     borderBottomWidth: 0.5,
     borderBottomColor: "#e5e7eb",
-    paddingVertical: 4,
+    paddingVertical: 3.5,
     paddingHorizontal: 4,
+    fontSize: 8,
+    alignItems: "center",
+  },
+  // Distinctive background colors for Saturday and Sunday/Holidays
+  trSaturday: {
+    backgroundColor: "#fef3c7", // Distinctive warm amber/yellow for Samstag
+  },
+  trSundayHoliday: {
+    backgroundColor: "#fee2e2", // Distinctive soft rose/red for Sonntag & gesetzliche Feiertage
   },
   total: {
     flexDirection: "row",
     backgroundColor: "#ecfdf5",
     borderTopWidth: 1.5,
     borderTopColor: "#059669",
-    paddingVertical: 6,
+    paddingVertical: 5,
     paddingHorizontal: 4,
     fontFamily: "Helvetica-Bold",
+    marginTop: 8,
   },
   cDate: { width: 54 },
-  cWorker: { flex: 1.3 },
+  cWorker: { flex: 1.2 },
+  cDob: { width: 56, textAlign: "center" },
   cQual: { flex: 0.9 },
-  cWard: { flex: 0.8 },
-  cTime: { width: 36 },
+  cWard: { flex: 0.7 },
+  cTime: { width: 30, textAlign: "center" },
   cStatus: { flex: 1 },
-  cHours: { width: 64, textAlign: "right" },
+  cHours: { width: 48, textAlign: "right" },
   confirmed: { color: "#059669" },
   accepted: { color: "#b45309" },
   muted: { color: "#9ca3af" },
+  legendRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+    alignItems: "center",
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  legendBox: {
+    width: 10,
+    height: 10,
+    borderWidth: 0.5,
+    borderColor: "#d1d5db",
+  },
+  legendText: {
+    fontSize: 7.5,
+    color: "#4b5563",
+  },
   totalLine: {
     flexDirection: "row",
     justifyContent: "flex-end",
     paddingHorizontal: 4,
     paddingVertical: 2,
   },
-  totalLabel: { color: "#374151" },
-  totalValue: { width: 150, textAlign: "right", fontFamily: "Helvetica-Bold" },
-  grandValue: { width: 150, textAlign: "right", fontFamily: "Helvetica-Bold", fontSize: 11 },
+  totalLabel: { color: "#374151", fontSize: 8.5 },
+  totalValue: { width: 150, textAlign: "right", fontFamily: "Helvetica-Bold", fontSize: 8.5 },
+  grandValue: { width: 150, textAlign: "right", fontFamily: "Helvetica-Bold", fontSize: 10 },
   footer: {
     position: "absolute",
-    bottom: 32,
-    left: 48,
-    right: 48,
-    fontSize: 8,
+    bottom: 24,
+    left: 36,
+    right: 36,
+    fontSize: 7.5,
     color: "#9ca3af",
     borderTopWidth: 1,
     borderTopColor: "#e5e7eb",
-    paddingTop: 8,
+    paddingTop: 6,
   },
 });
 
 const deDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
-const deNum = (n: number) => n.toString().replace(".", ",");
+
+// Clean rounding to max 2 decimal places to prevent floating-point decimals like 7.333333333333333
+const deNum = (n: number) => {
+  const rounded = Math.round((n + Number.EPSILON) * 100) / 100;
+  return rounded.toFixed(2).replace(/\.00$/, "").replace(".", ",");
+};
 
 const statusText = (r: ClientScheduleRow): string =>
   r.billing === "confirmed"
@@ -105,7 +153,22 @@ const statusText = (r: ClientScheduleRow): string =>
           ? "Abgelehnt"
           : "Bestätigt";
 
-function MonatsuebersichtDocument({ d, companyConfig }: { d: MonatsuebersichtData, companyConfig: any }) {
+function MonatsuebersichtDocument({
+  d,
+  companyConfig,
+}: {
+  d: MonatsuebersichtData;
+  companyConfig: any;
+}) {
+  // Map of holidays for all relevant years in rows
+  const holidayCache = new Map<number, Map<string, string>>();
+  const getHolidays = (year: number) => {
+    if (!holidayCache.has(year)) {
+      holidayCache.set(year, germanHolidays(year));
+    }
+    return holidayCache.get(year)!;
+  };
+
   return (
     <Document
       title={`Monatsübersicht ${d.monthLabel} – ${d.facilityName}`}
@@ -115,9 +178,11 @@ function MonatsuebersichtDocument({ d, companyConfig }: { d: MonatsuebersichtDat
         <View style={styles.headerRow} fixed>
           <View>
             <Text style={styles.brand}>{companyConfig.name}</Text>
-            <Text style={styles.brandSub}>Theaterplatz 1, 53177 Bonn · info@rheinahr-gmbh.de</Text>
+            <Text style={styles.brandSub}>
+              {companyConfig.street}, {companyConfig.city} · {companyConfig.email}
+            </Text>
           </View>
-          <Text style={styles.brandSub}>HRB 23459 · USt-IdNr. DE316507908</Text>
+          <Text style={styles.brandSub}>{companyConfig.hrb} · USt-IdNr. {companyConfig.vatId}</Text>
         </View>
 
         <Text style={styles.title}>Monatsübersicht {d.monthLabel}</Text>
@@ -125,9 +190,11 @@ function MonatsuebersichtDocument({ d, companyConfig }: { d: MonatsuebersichtDat
           {d.facilityName} — Einsätze und Stunden (ohne Pausen)
         </Text>
 
+        {/* 9 Columns including Geburtsdatum */}
         <View style={styles.th} fixed>
           <Text style={styles.cDate}>Datum</Text>
           <Text style={styles.cWorker}>Pflegekraft</Text>
+          <Text style={styles.cDob}>Geburtsdatum</Text>
           <Text style={styles.cQual}>Qualifikation</Text>
           <Text style={styles.cWard}>Wohnbereich</Text>
           <Text style={styles.cTime}>Beginn</Text>
@@ -149,10 +216,29 @@ function MonatsuebersichtDocument({ d, companyConfig }: { d: MonatsuebersichtDat
               : r.billing === "accepted"
                 ? styles.accepted
                 : styles.muted;
+
+          // Determine day type for distinctive background coloring
+          const rowDate = new Date(`${r.date}T00:00:00Z`);
+          const dow = rowDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+          const year = rowDate.getUTCFullYear();
+          const holidays = getHolidays(year);
+          const holidayName = holidays.get(r.date);
+          const isSunday = dow === 0;
+          const isSaturday = dow === 6;
+          const isHoliday = !!holidayName;
+
+          const rowBgStyle =
+            isSunday || isHoliday
+              ? styles.trSundayHoliday
+              : isSaturday
+                ? styles.trSaturday
+                : {};
+
           return (
-            <View key={r.id} style={styles.tr} wrap={false}>
+            <View key={r.id} style={[styles.tr, rowBgStyle]} wrap={false}>
               <Text style={styles.cDate}>{deDate(r.date)}</Text>
               <Text style={styles.cWorker}>{r.workerName}</Text>
+              <Text style={styles.cDob}>{r.workerBirthDate || "—"}</Text>
               <Text style={styles.cQual}>{qualLabel[r.qualification] || r.qualification}</Text>
               <Text style={styles.cWard}>{r.notes ?? ""}</Text>
               <Text style={styles.cTime}>{r.startTime}</Text>
@@ -166,6 +252,18 @@ function MonatsuebersichtDocument({ d, companyConfig }: { d: MonatsuebersichtDat
             </View>
           );
         })}
+
+        {/* Legend for highlighted weekend / holiday colors */}
+        <View style={styles.legendRow} wrap={false}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendBox, { backgroundColor: "#fef3c7" }]} />
+            <Text style={styles.legendText}>Samstag</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendBox, { backgroundColor: "#fee2e2" }]} />
+            <Text style={styles.legendText}>Sonn- & gesetzliche Feiertage</Text>
+          </View>
+        </View>
 
         <View style={styles.total} wrap={false}>
           <Text style={{ flex: 1 }}>Monatssumme (ohne Pausen)</Text>
@@ -194,7 +292,8 @@ function MonatsuebersichtDocument({ d, companyConfig }: { d: MonatsuebersichtDat
         <Text style={styles.footer} fixed>
           Digital erstellt am {d.generatedAt}. „Vom Kunden bestätigt“ entspricht den digital
           signierten Leistungsnachweisen; „vorläufig“ sind angenommene, noch nicht
-          unterschriebene Einsätze. (DSGVO-konform protokolliert).
+          unterschriebene Einsätze. Samstage sowie Sonn- und Feiertage sind farblich hervorgehoben.
+          (DSGVO-konform protokolliert).
         </Text>
       </Page>
     </Document>

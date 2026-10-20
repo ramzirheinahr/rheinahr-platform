@@ -117,10 +117,10 @@ export async function generatePayrollPdf(data: PayrollPdfData): Promise<Buffer> 
           </View>
           <View style={styles.companyContactBlock}>
             <Text style={styles.companyNameBold}>{companyConfig.name}</Text>
-            <Text>Musterstraße 1</Text>
-            <Text>53474 Bad Neuenahr-Ahrweiler</Text>
-            <Text style={{ marginTop: 10 }}>Telefon: 02641 / 123456</Text>
-            <Text>E-Mail: info@rheinahr.de</Text>
+            <Text>{companyConfig.street}</Text>
+            <Text>{companyConfig.city}</Text>
+            <Text style={{ marginTop: 10 }}>Telefon: {companyConfig.phone}</Text>
+            <Text>E-Mail: {companyConfig.email}</Text>
           </View>
         </View>
 
@@ -181,20 +181,20 @@ export async function generatePayrollPdf(data: PayrollPdfData): Promise<Buffer> 
         <View style={styles.footer} fixed>
           <View style={styles.footerCol}>
             <Text style={styles.footerTitle}>{companyConfig.name}</Text>
-            <Text>Musterstraße 1</Text>
-            <Text>53474 Bad Neuenahr-Ahrweiler</Text>
+            <Text>{companyConfig.street}</Text>
+            <Text>{companyConfig.city}</Text>
           </View>
           <View style={styles.footerCol}>
             <Text style={styles.footerTitle}>Kontakt</Text>
-            <Text>Telefon: 02641 / 123456</Text>
-            <Text>E-Mail: info@rheinahr.de</Text>
-            <Text>Web: www.rheinahr.de</Text>
+            <Text>Telefon: {companyConfig.phone}</Text>
+            <Text>E-Mail: {companyConfig.email}</Text>
+            <Text>Web: {companyConfig.website}</Text>
           </View>
           <View style={styles.footerCol}>
             <Text style={styles.footerTitle}>Bankverbindung</Text>
-            <Text>Bank: Musterbank eG</Text>
-            <Text>IBAN: DE12 3456 7890 1234 5678 90</Text>
-            <Text>BIC: MUSBDEF1XXX</Text>
+            <Text>Bank: {companyConfig.bankName}</Text>
+            <Text>IBAN: {companyConfig.iban}</Text>
+            <Text>BIC: {companyConfig.bic}</Text>
           </View>
         </View>
       </Page>

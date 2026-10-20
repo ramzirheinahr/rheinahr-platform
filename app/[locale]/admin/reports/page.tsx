@@ -5,6 +5,7 @@ import { orderStatuses } from "@/lib/validations";
 import { getQualificationCatalog } from "@/lib/qualification-catalog";
 import type { OrderStatus } from "@prisma/client";
 import { ReportsHub } from "@/components/admin/reports/reports-hub";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export const dynamic = "force-dynamic";
 
@@ -210,7 +211,10 @@ export default async function ReportsPage() {
     </div>
   );
 
-  const catalog = await getQualificationCatalog({ includeArchived: true });
+  const [catalog, companyConfig] = await Promise.all([
+    getQualificationCatalog({ includeArchived: true }),
+    getCompanyConfig(),
+  ]);
   return (
     <ReportsHub
       workers={workers}
@@ -218,6 +222,7 @@ export default async function ReportsPage() {
       qualifications={catalog.map((item) => item.code)}
       qualificationNames={Object.fromEntries(catalog.map((item) => [item.code, item.nameDe]))}
       kpiContent={kpiContent}
+      companyName={companyConfig.name}
     />
   );
 }

@@ -4,6 +4,7 @@ import { Logo } from "@/components/logo";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { getCompanyConfig } from "@/lib/config/company";
 
 // Public chrome for the legal pages. The legal body itself is German (legally
 // required); only the surrounding navigation is localized.
@@ -16,11 +17,12 @@ export async function LegalShell({
 }) {
   const c = await getTranslations("common");
   const f = await getTranslations("footer");
+  const companyConfig = await getCompanyConfig();
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b px-6 py-4">
-        <Link href="/" aria-label="RheinAhr Dienstleistungen GmbH">
+        <Link href="/" aria-label={companyConfig.name}>
           <Logo className="h-9 w-auto" priority />
         </Link>
         <div className="flex items-center gap-2">
@@ -41,7 +43,7 @@ export async function LegalShell({
 
       <footer className="border-t px-6 py-6 text-sm text-muted-foreground">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-4">
-          <span>© RheinAhr Dienstleistungen GmbH — {f("rights")}</span>
+          <span>© {companyConfig.name} — {f("rights")}</span>
           <nav className="flex gap-4">
             <Link href="/impressum" className="hover:text-foreground">
               {f("imprint")}

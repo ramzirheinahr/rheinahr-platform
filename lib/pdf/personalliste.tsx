@@ -70,7 +70,7 @@ export const PersonallisteTemplate = ({ data, companyConfig }: { data: Personall
               <Image src={logoSrc} style={{ width: 140, maxHeight: 45, objectFit: "contain" }} />
             ) : (
               <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: "#1e3a8a" }}>
-                {companyConfig?.name || "RheinAhr"}
+                {companyConfig?.name || "Personalmanagement"}
               </Text>
             )}
           </View>

@@ -5,6 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { LoginForm } from "@/components/auth/login-form";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Logo } from "@/components/logo";
+import { getCompanyConfig } from "@/lib/config/company";
 import {
   Card,
   CardContent,
@@ -26,11 +27,12 @@ export default async function LoginPage({
   const existing = await getCurrentUser();
   if (existing) redirect({ href: portalPath(existing.role), locale: locale as Locale });
   const t = await getTranslations("auth");
+  const companyConfig = await getCompanyConfig();
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-muted/30 p-6">
       <div className="flex w-full max-w-sm items-center justify-between">
-        <Link href="/" aria-label="RheinAhr Dienstleistungen GmbH">
+        <Link href="/" aria-label={companyConfig.name}>
           <Logo className="h-10 w-auto" priority />
         </Link>
         <LocaleSwitcher />

@@ -4,6 +4,7 @@ import { formatDateDE } from "@/lib/utils";
 import { PublicConfirmDialog } from "@/components/public/public-confirm-dialog";
 import { ShieldCheck, Calendar, Clock, MapPin, CheckCircle2 } from "lucide-react";
 import { qualLabel } from "@/lib/invoicing";
+import { getCompanyConfig } from "@/lib/config/company";
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -16,6 +17,7 @@ export default async function PublicConfirmPage(props: {
 }) {
   const { id } = await props.params;
   const searchParams = await props.searchParams;
+  const companyConfig = await getCompanyConfig();
   const fromStr = typeof searchParams.from === "string" ? searchParams.from : undefined;
   const toStr = typeof searchParams.to === "string" ? searchParams.to : undefined;
   const signerName = typeof searchParams.signerName === "string" ? searchParams.signerName : undefined;
@@ -76,7 +78,7 @@ export default async function PublicConfirmPage(props: {
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-slate-800">Leistungsnachweise bestätigen</h1>
-            <p className="text-sm text-slate-500">RheinAhr Dienstleistungen GmbH</p>
+            <p className="text-sm text-slate-500">{companyConfig.name}</p>
           </div>
           <ShieldCheck className="size-8 text-blue-600 opacity-20" />
         </div>
@@ -172,7 +174,7 @@ export default async function PublicConfirmPage(props: {
       </main>
 
       <footer className="bg-slate-800 text-slate-300 py-6 text-center text-sm mt-auto">
-        <p>&copy; {new Date().getFullYear()} RheinAhr Dienstleistungen GmbH</p>
+        <p>&copy; {new Date().getFullYear()} {companyConfig.name}</p>
         <p className="mt-1 text-slate-400">Integrität · Würde · Kompetenz · Vertrauen</p>
       </footer>
     </div>

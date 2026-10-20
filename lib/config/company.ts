@@ -21,6 +21,7 @@ export type CompanyConfig = {
   bic: string;
   logoUrl: string;
   iconUrl: string;
+  auegNumber: string;
 };
 
 // Fallbacks are read from env during build or if DB is empty.
@@ -45,6 +46,7 @@ const FALLBACK: CompanyConfig = {
   bic: process.env.NEXT_PUBLIC_COMPANY_BIC || "COKSDE33XXX",
   logoUrl: process.env.NEXT_PUBLIC_COMPANY_LOGO_URL || "/logo.png",
   iconUrl: process.env.NEXT_PUBLIC_COMPANY_ICON_URL || "/rheinahr-icon-192.png",
+  auegNumber: process.env.NEXT_PUBLIC_COMPANY_AUEG_NUMBER || "30101/020218/40517",
 };
 
 export async function getCompanyConfig(): Promise<CompanyConfig> {
@@ -81,6 +83,7 @@ export async function getCompanyConfig(): Promise<CompanyConfig> {
       bic: dbConf["company.bic"] || FALLBACK.bic,
       logoUrl: dbConf["company.logoUrl"] || FALLBACK.logoUrl,
       iconUrl: dbConf["company.iconUrl"] || FALLBACK.iconUrl,
+      auegNumber: dbConf["company.auegNumber"] || FALLBACK.auegNumber,
     };
   } catch (e) {
     return FALLBACK;

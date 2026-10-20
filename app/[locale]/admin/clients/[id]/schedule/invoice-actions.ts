@@ -13,6 +13,7 @@ import { generateUniqueInvoiceNumber, getFrozenInvoiceDocumentAmounts } from "@/
 import { CALCULATION_VERSIONS } from "@/lib/invoice-calculation-version";
 import { isV2InvoiceIssuanceEnabled, issueV2Invoice } from "@/lib/invoice-v2-issuance-service";
 import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
+import { getCompanyConfig } from "@/lib/config/company";
 
 const VAT_RATE = 0.19;
 
@@ -204,9 +205,10 @@ export async function generateMonthInvoices(
       const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
 
       try {
+        const companyConfig = await getCompanyConfig();
         dispatchReport = await sendEmailToRecipients(targetRecipients, {
-          subject: `Rechnung ${invoice.invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-          body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Monatsrechnung (${invoice.invoiceNumber}) für den Zeitraum ${monthStr}/${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+          subject: `Rechnung ${invoice.invoiceNumber} - ${companyConfig.name}`,
+          body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Monatsrechnung (${invoice.invoiceNumber}) für den Zeitraum ${monthStr}/${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der ${companyConfig.name}`,
           attachments
         });
       } catch (emailErr) {
@@ -438,9 +440,10 @@ export async function generateMonthInvoices(
     const targetRecipients = recipients && recipients.length > 0 ? recipients : (defaultRecipients.length > 0 ? defaultRecipients : [client.userId]);
 
     try {
+      const companyConfig = await getCompanyConfig();
       dispatchReport = await sendEmailToRecipients(targetRecipients, {
-        subject: `Rechnung ${invoiceNumber} - RheinAhr Dienstleistungen GmbH`,
-        body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der RheinAhr Dienstleistungen GmbH`,
+        subject: `Rechnung ${invoiceNumber} - ${companyConfig.name}`,
+        body: `Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die offizielle Rechnung (${invoiceNumber}) für Ihre bestätigten Schichten im ${monthStr}.${year}${attachTimesheets ? " inklusive der zugehörigen Leistungsnachweise" : ""}.\n\nMit freundlichen Grüßen,\nIhr Team der ${companyConfig.name}`,
         url: `/client/schedule?year=${year}&month=${month}`,
         attachments
       });

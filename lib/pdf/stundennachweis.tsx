@@ -83,7 +83,7 @@ export const StundennachweisTemplate = ({
               <Image src={logoSrc} style={{ width: 170, maxHeight: 50, objectFit: "contain" }} />
             ) : (
               <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: "#b91c1c" }}>
-                {companyConfig?.name || "RheinAhr Dienstleistungen GmbH"}
+                {companyConfig?.name || "Personalmanagement"}
               </Text>
             )}
             <Text style={{ fontSize: 7, color: "#1e3a8a", marginTop: 4, fontFamily: "Helvetica-Bold" }}>
@@ -91,13 +91,13 @@ export const StundennachweisTemplate = ({
             </Text>
           </View>
           <View style={styles.companyDetails}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>{companyConfig?.name || "RheinAhr Dienstleistungen GmbH"}</Text>
-            <Text>{companyConfig?.street || "Theaterplatz 1"}</Text>
-            <Text>{companyConfig?.city || "53177 Bonn"}</Text>
-            <Text>Telefon: {companyConfig?.phone || "+49 (0) 228 / 28683821"}</Text>
-            <Text>Telefax: {companyConfig?.fax || "+49 (0) 228 / 36039105"}</Text>
-            <Text>E-Mail: {companyConfig?.email || "info@rheinahr-gmbh.de"}</Text>
-            <Text>Internet: {companyConfig?.website || "www.rheinahr-gmbh.de"}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>{companyConfig?.name || "Personalmanagement"}</Text>
+            <Text>{companyConfig?.street || ""}</Text>
+            <Text>{companyConfig?.city || ""}</Text>
+            <Text>Telefon: {companyConfig?.phone || ""}</Text>
+            <Text>Telefax: {companyConfig?.fax || ""}</Text>
+            <Text>E-Mail: {companyConfig?.email || ""}</Text>
+            <Text>Internet: {companyConfig?.website || ""}</Text>
           </View>
         </View>
 
@@ -108,7 +108,7 @@ export const StundennachweisTemplate = ({
         <View style={styles.metaContainer}>
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Name des Mitarbeiters / Auftragnehmers :</Text>
-            <Text style={styles.metaValue}>{companyConfig?.name || "RheinAhr Dienstleistungen GmbH"}</Text>
+            <Text style={styles.metaValue}>{companyConfig?.name || "Personalmanagement"}</Text>
           </View>
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Qualifikation :</Text>

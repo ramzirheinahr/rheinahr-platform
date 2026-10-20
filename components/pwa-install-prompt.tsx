@@ -26,7 +26,7 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-const DISMISS_KEY = "rheinahr_pwa_prompt_dismissed_until";
+const DISMISS_KEY = "pwa_prompt_dismissed_until";
 // Hide for 14 days when dismissed by the user
 const DISMISS_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
 

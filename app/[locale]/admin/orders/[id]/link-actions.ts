@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { sendEmailToRecipients } from "@/lib/email";
 import { buildShiftHtmlTable } from "@/lib/notify";
 import { qualLabel } from "@/lib/invoicing";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export type FacilityRecipient = {
   id: string;
@@ -154,8 +155,9 @@ export async function sendPublicLinkEmail({
   let clientName: string | undefined;
   let subject = "";
   let body = "";
-  // Use NEXT_PUBLIC_APP_URL if available, fallback to production url
-  let linkUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://platform.rheinahr-gmbh.de"}/de/public/${type}/${requestGroupId}`;
+  const companyConfig = await getCompanyConfig();
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || companyConfig.websiteUrl || "http://localhost:3000";
+  let linkUrl = `${baseUrl.replace(/\/+$/, "")}/de/public/${type}/${requestGroupId}`;
   
   const shiftsData: any[] = [];
 

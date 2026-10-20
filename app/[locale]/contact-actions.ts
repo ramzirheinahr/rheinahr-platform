@@ -77,13 +77,13 @@ export async function submitContactRequest(formData: FormData) {
 
     // 3. Inject into Inbox
     let systemUser = await prisma.user.findFirst({
-      where: { email: "system-contact-form@rheinahr-gmbh.de" },
+      where: { email: "system-contact-form@system.local" },
     });
 
     if (!systemUser) {
       systemUser = await prisma.user.create({
         data: {
-          email: "system-contact-form@rheinahr-gmbh.de",
+          email: "system-contact-form@system.local",
           fullName: "Website Form",
           role: "client",
           active: false,

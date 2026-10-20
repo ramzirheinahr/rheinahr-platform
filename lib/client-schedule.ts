@@ -30,6 +30,7 @@ export type ClientScheduleRow = {
   invoiceId: string | null;
   serviceConfirmation: boolean;
   hourlyRate?: number;
+  workerBirthDate?: string | null;
 };
 
 export type ClientScheduleTotals = {
@@ -71,7 +72,7 @@ export async function getClientMonthSchedule(
         order: {
           select: { shiftDate: true, startTime: true, endTime: true, breakMinutes: true, notes: true, requiredQualification: true },
         },
-        worker: { select: { fullName: true, qualification: true } },
+        worker: { select: { fullName: true, qualification: true, birthDate: true } },
         serviceConfirmation: { select: { hoursWorked: true } },
         clientContract: { select: { id: true, status: true } },
       },
@@ -83,6 +84,10 @@ export async function getClientMonthSchedule(
     const isoDate = o.shiftDate.toISOString().slice(0, 10);
     const rawNet = netShiftHours(o.startTime, o.endTime, o.breakMinutes);
     const cNet = a.serviceConfirmation?.hoursWorked != null ? Number(a.serviceConfirmation.hoursWorked) : null;
+    const bDate = a.worker.birthDate;
+    const workerBirthDate = bDate
+      ? `${String(bDate.getUTCDate()).padStart(2, "0")}.${String(bDate.getUTCMonth() + 1).padStart(2, "0")}.${bDate.getUTCFullYear()}`
+      : null;
 
     return {
       id: a.id,
@@ -92,6 +97,7 @@ export async function getClientMonthSchedule(
       endTime: o.endTime,
       notes: o.notes,
       workerName: a.worker.fullName,
+      workerBirthDate,
       qualification: o.requiredQualification,
       confirmedHours: cNet,
       scheduledHours: rawNet,
@@ -163,6 +169,7 @@ export function clientScheduleCsv(
   const headers = [
     "Datum",
     "Pflegekraft",
+    "Geburtsdatum",
     "Qualifikation",
     "Wohnbereich",
     "Beginn",
@@ -177,6 +184,7 @@ export function clientScheduleCsv(
       [
         deDate(r.date),
         r.workerName,
+        r.workerBirthDate ?? "",
         qualLabel[r.qualification] || r.qualification,
         r.notes ?? "",
         r.startTime,
@@ -189,7 +197,7 @@ export function clientScheduleCsv(
     );
   }
   lines.push(
-    ["Gesamt (inkl. vorläufig)", "", "", "", "", "", "", deNum(totals.totalHours)].join(";"),
+    ["Gesamt (inkl. vorläufig)", "", "", "", "", "", "", "", deNum(totals.totalHours)].join(";"),
   );
   return "﻿" + lines.join("\r\n");
 }

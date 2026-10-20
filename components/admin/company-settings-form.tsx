@@ -27,6 +27,7 @@ const COMPANY_FIELDS = [
   { key: "company.bankName", label: "Bank Name", type: "text" },
   { key: "company.iban", label: "IBAN", type: "text" },
   { key: "company.bic", label: "BIC", type: "text" },
+  { key: "company.auegNumber", label: "AÜG Erlaubnis-Nr.", type: "text" },
 ];
 
 export function CompanySettingsForm({ settings }: { settings: Record<string, string> }) {

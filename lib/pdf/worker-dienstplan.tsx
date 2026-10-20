@@ -658,7 +658,7 @@ export function WorkerDienstplanDocument({
             • Lassen Sie Ihren Stundennachweis nach Schichtende unverzüglich von der verantwortlichen Stationsleitung abzeichnen.
           </Text>
           <Text style={styles.disclaimerText}>
-            • Im Falle von unvorhergesehener Krankheit oder Verspätung ist die Disposition der RheinAhr Dienstleistungen GmbH sofort telefonisch zu verständigen.
+            • Im Falle von unvorhergesehener Krankheit oder Verspätung ist die Disposition der {company.name} sofort telefonisch zu verständigen.
           </Text>
         </View>
 

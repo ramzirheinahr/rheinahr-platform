@@ -3,6 +3,7 @@ import type { Locale } from "@/i18n/routing";
 import { getDailyNotebook } from "@/lib/daily-notebook";
 import { DailyNotebookView } from "@/components/admin/daily-notebook-view";
 import { getQualificationCatalog } from "@/lib/qualification-catalog";
+import { getCompanyConfig } from "@/lib/config/company";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +32,20 @@ export default async function DailyScheduleBookPage({
 
   const qualificationFilter = sp.qualification || "all";
 
-  const data = await getDailyNotebook(targetDateStr, qualificationFilter, locale);
-  const qualificationOptions = await getQualificationCatalog({ includeArchived: true });
+  const [data, qualificationOptions, companyConfig] = await Promise.all([
+    getDailyNotebook(targetDateStr, qualificationFilter, locale),
+    getQualificationCatalog({ includeArchived: true }),
+    getCompanyConfig(),
+  ]);
 
   return (
     <div className="py-2">
-      <DailyNotebookView data={data} qualificationFilter={qualificationFilter} qualificationOptions={qualificationOptions} />
+      <DailyNotebookView
+        data={data}
+        qualificationFilter={qualificationFilter}
+        qualificationOptions={qualificationOptions}
+        companyName={companyConfig.name}
+      />
     </div>
   );
 }

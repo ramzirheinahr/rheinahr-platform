@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { getCompanyConfig } from "@/lib/config/company";
 
 // DSGVO Art. 20 — self-service export of the signed-in user's personal data
 // as a JSON download. Returns only data relating to the requesting user.
@@ -45,9 +46,10 @@ export async function GET() {
     entityId: user.id,
   });
 
+  const companyConfig = await getCompanyConfig();
   const payload = {
     exportedAt: new Date().toISOString(),
-    note: "Datenexport gemäß Art. 20 DSGVO — RheinAhr Dienstleistungen GmbH",
+    note: `Datenexport gemäß Art. 20 DSGVO — ${companyConfig.name}`,
     data: account,
   };
 

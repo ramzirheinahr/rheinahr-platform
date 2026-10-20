@@ -39,10 +39,10 @@ export const AuegTemplate = ({ companyConfig, rows }: AuegPdfProps) => {
         {/* Subheader */}
         <View style={styles.headerRow}>
           <Text style={{ fontFamily: "Helvetica-Bold" }}>
-            Firma: {companyConfig?.name || "RheinAhr Dienstleistungen GmbH"}
+            Firma: {companyConfig?.name || "Personalmanagement"}
           </Text>
           <Text style={{ fontFamily: "Helvetica-Bold" }}>
-            AÜG-Nr. 30101/020218/40517
+            AÜG-Nr. {companyConfig?.auegNumber || "30101/020218/40517"}
           </Text>
         </View>
 
