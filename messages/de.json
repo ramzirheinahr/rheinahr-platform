@@ -1288,7 +1288,10 @@
       "code1": "Code 1",
       "code2": "Code 2",
       "advance": "Vorschuss",
-      "transferSuccess": "Schichten wurden erfolgreich übertragen/kopiert"
+      "transferSuccess": "Schichten wurden erfolgreich übertragen/kopiert",
+      "copiedSuccess": "{count} Schichten kopiert.",
+      "transferredSuccess": "{count} Schichten übertragen.",
+      "noShiftsFound": "Keine Schichten gefunden."
     },
     "shiftOverlap": {
       "title": "Schichtüberschneidungen",

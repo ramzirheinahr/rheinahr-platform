@@ -45,7 +45,7 @@ export function ZeiterfassungTransferView({
   const [month, setMonth] = useState<number>(now.getMonth() + 1);
   const [workerId, setWorkerId] = useState<string>(workers[0]?.id || "");
   const [clientId, setClientId] = useState<string>(clients[0]?.id || "");
-  const [qualification, setQualification] = useState<string>(qualifications[0] || "Pflegehilfskraft");
+  const [qualification, setQualification] = useState<string>("alle");
 
   const [rows, setRows] = useState<MonatslisteRow[] | null>(null);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState<boolean>(false);
@@ -53,12 +53,21 @@ export function ZeiterfassungTransferView({
   // Transfer Target states
   const [targetYear, setTargetYear] = useState<number>(now.getFullYear());
   const [targetMonth, setTargetMonth] = useState<number>(now.getMonth() + 1);
-  const [targetWorkerId, setTargetWorkerId] = useState<string>(workers[1]?.id || workers[0]?.id || "");
+  const [targetWorkerId, setTargetWorkerId] = useState<string>(workers[0]?.id || "");
   const [targetClientId, setTargetClientId] = useState<string>(clients[0]?.id || "");
-  const [targetQualification, setTargetQualification] = useState<string>(qualifications[0] || "Pflegehilfskraft");
+  const [targetQualification, setTargetQualification] = useState<string>(qualifications[0] || "pflegehelfer");
 
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const handleOpenTransferModal = () => {
+    setTargetYear(year);
+    setTargetMonth(month);
+    setTargetWorkerId(workerId);
+    setTargetClientId(clientId);
+    setTargetQualification(qualification !== "alle" ? qualification : (qualifications[0] || "pflegehelfer"));
+    setIsTransferModalOpen(true);
+  };
 
   const handleSearch = () => {
     if (!workerId) return;
@@ -68,6 +77,7 @@ export function ZeiterfassungTransferView({
         month,
         workerId,
         clientId: clientId || undefined,
+        qualification: qualification !== "alle" ? qualification : undefined,
       });
       setRows(res.rows);
     });
@@ -83,21 +93,38 @@ export function ZeiterfassungTransferView({
           month,
           workerId,
           clientId: clientId || undefined,
+          qualification: qualification !== "alle" ? qualification : undefined,
         },
         target: {
           year: targetYear,
           month: targetMonth,
           workerId: targetWorkerId,
           clientId: targetClientId || undefined,
+          qualification: targetQualification !== "alle" ? targetQualification : undefined,
         },
       });
 
       setIsTransferModalOpen(false);
-      setActionMessage(`${mode === "copy" ? "Kopiert" : "Übertragen"}: ${res.count} Schichten.`);
-      setTimeout(() => setActionMessage(null), 4000);
+      const msg =
+        res.count === 0
+          ? t("zeiterfassungTransfer.noShiftsFound")
+          : mode === "copy"
+            ? t("zeiterfassungTransfer.copiedSuccess", { count: res.count })
+            : t("zeiterfassungTransfer.transferredSuccess", { count: res.count });
+      setActionMessage(msg);
+      setTimeout(() => setActionMessage(null), 5000);
       handleSearch();
     });
   };
+
+  const isSameSelection =
+    workerId === targetWorkerId &&
+    (clientId || "") === (targetClientId || "") &&
+    year === targetYear &&
+    month === targetMonth &&
+    qualification === targetQualification;
+
+  const canExecute = !isPending && !!workerId && !!targetWorkerId && !isSameSelection;
 
   const selectedMonth = MONTHS.find((m) => m.value === month);
   const selectedClient = clients.find((c) => c.id === clientId);
@@ -147,10 +174,15 @@ export function ZeiterfassungTransferView({
               <Select value={qualification} onValueChange={(v) => { if (v !== null) setQualification(v); }}>
                 <SelectTrigger className="h-9 w-full">
                   <SelectValue placeholder={t("common.qualification")}>
-                    {qualificationNames[qualification] ?? qualification}
+                    {qualification === "alle"
+                      ? (t("common.all") ? t("common.all").charAt(0).toUpperCase() + t("common.all").slice(1) : "Alle")
+                      : (qualificationNames[qualification] ?? qualification)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="alle">
+                    {t("common.all") ? t("common.all").charAt(0).toUpperCase() + t("common.all").slice(1) : "Alle"}
+                  </SelectItem>
                   {qualifications.map((q) => (
                     <SelectItem key={q} value={q}>
                       {qualificationNames[q] ?? q}
@@ -213,7 +245,7 @@ export function ZeiterfassungTransferView({
               </Button>
               <Button
                 size="sm"
-                onClick={() => setIsTransferModalOpen(true)}
+                onClick={handleOpenTransferModal}
                 disabled={!workerId}
                 className="gap-1.5 h-9 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-xs"
               >
@@ -373,10 +405,15 @@ export function ZeiterfassungTransferView({
                 <Select value={qualification} onValueChange={(v) => { if (v !== null) setQualification(v); }}>
                   <SelectTrigger className="h-8 text-xs w-full">
                     <SelectValue placeholder={t("common.qualification")}>
-                      {qualificationNames[qualification] ?? qualification}
+                      {qualification === "alle"
+                        ? (t("common.all") ? t("common.all").charAt(0).toUpperCase() + t("common.all").slice(1) : "Alle")
+                        : (qualificationNames[qualification] ?? qualification)}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="alle">
+                      {t("common.all") ? t("common.all").charAt(0).toUpperCase() + t("common.all").slice(1) : "Alle"}
+                    </SelectItem>
                     {qualifications.map((q) => (
                       <SelectItem key={q} value={q}>
                         {qualificationNames[q] ?? q}
@@ -478,20 +515,28 @@ export function ZeiterfassungTransferView({
             <Button
               variant="outline"
               onClick={() => handleExecute("copy")}
-              disabled={isPending || workerId === targetWorkerId}
+              disabled={!canExecute}
               className="gap-2 h-9 w-full text-xs font-semibold"
             >
-              <Copy className="w-4 h-4 text-blue-600" />
+              {isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+              ) : (
+                <Copy className="w-4 h-4 text-blue-600" />
+              )}
               {t("zeiterfassungTransfer.copyAndSave")}
             </Button>
 
             <Button
               variant="outline"
               onClick={() => handleExecute("transfer")}
-              disabled={isPending || workerId === targetWorkerId}
+              disabled={!canExecute}
               className="gap-2 h-9 w-full text-xs font-semibold"
             >
-              <ArrowRightLeft className="w-4 h-4 text-amber-600" />
+              {isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+              ) : (
+                <ArrowRightLeft className="w-4 h-4 text-amber-600" />
+              )}
               {t("zeiterfassungTransfer.transferAndSave")}
             </Button>
 

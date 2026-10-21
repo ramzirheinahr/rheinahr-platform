@@ -37,6 +37,7 @@ export async function fetchMonatslisteAction(params: {
   month: number;
   workerId: string;
   clientId?: string;
+  qualification?: string;
 }) {
   await requireRole("de", "admin");
   return await getMonatslisteData(params);
@@ -276,17 +277,26 @@ export async function transferOrCopyShiftsAction(params: {
     month: number;
     workerId: string;
     clientId?: string;
+    qualification?: string;
   };
   target: {
     year: number;
     month: number;
     workerId: string;
     clientId?: string;
+    qualification?: string;
   };
 }) {
   await requireRole("de", "admin");
   // Strictly internal: zero notifications dispatched
-  return await transferOrCopyShifts(params);
+  const result = await transferOrCopyShifts(params);
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/admin/reports");
+  revalidatePath(`/admin/workers/${params.source.workerId}/schedule`);
+  if (params.target.workerId !== params.source.workerId) {
+    revalidatePath(`/admin/workers/${params.target.workerId}/schedule`);
+  }
+  return result;
 }
 
 export async function checkShiftOverlapsAction(params: {

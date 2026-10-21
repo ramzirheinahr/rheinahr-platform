@@ -1290,7 +1290,10 @@
       "code1": "رمز 1",
       "code2": "رمز 2",
       "advance": "سلفة",
-      "transferSuccess": "تم نقل/نسخ الورديات بنجاح"
+      "transferSuccess": "تم نقل/نسخ الورديات بنجاح",
+      "copiedSuccess": "تم نسخ {count} ورديات.",
+      "transferredSuccess": "تم نقل {count} ورديات.",
+      "noShiftsFound": "لم يتم العثور على أي ورديات."
     },
     "shiftOverlap": {
       "title": "فحص تداخل الورديات",

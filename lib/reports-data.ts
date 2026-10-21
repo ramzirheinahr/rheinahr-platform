@@ -328,6 +328,7 @@ export async function getMonatslisteData(params: {
   month: number;
   workerId: string;
   clientId?: string;
+  qualification?: string;
 }) {
   const worker = await prisma.worker.findUnique({
     where: { id: params.workerId },
@@ -345,6 +346,9 @@ export async function getMonatslisteData(params: {
     order: {
       shiftDate: { gte: startD, lte: endD },
       ...(params.clientId && params.clientId !== "all" ? { clientId: params.clientId } : {}),
+      ...(params.qualification && params.qualification !== "alle" && params.qualification !== "all"
+        ? { requiredQualification: params.qualification }
+        : {}),
     },
   };
 
@@ -1072,24 +1076,32 @@ export async function transferOrCopyShifts(params: {
     month: number;
     workerId: string;
     clientId?: string;
+    qualification?: string;
   };
   target: {
     year: number;
     month: number;
     workerId: string;
     clientId?: string;
+    qualification?: string;
   };
 }) {
   const startD = new Date(Date.UTC(params.source.year, params.source.month - 1, 1));
   const endD = new Date(Date.UTC(params.source.year, params.source.month, 0, 23, 59, 59));
 
+  const whereOrder: Prisma.OrderWhereInput = {
+    shiftDate: { gte: startD, lte: endD },
+    ...(params.source.clientId && params.source.clientId !== "all" ? { clientId: params.source.clientId } : {}),
+  };
+
+  if (params.source.qualification && params.source.qualification !== "alle" && params.source.qualification !== "all") {
+    whereOrder.requiredQualification = params.source.qualification;
+  }
+
   const sourceAssignments = await prisma.assignment.findMany({
     where: {
       workerId: params.source.workerId,
-      order: {
-        shiftDate: { gte: startD, lte: endD },
-        ...(params.source.clientId ? { clientId: params.source.clientId } : {}),
-      },
+      order: whereOrder,
     },
     include: {
       order: true,
@@ -1103,23 +1115,32 @@ export async function transferOrCopyShifts(params: {
   let count = 0;
 
   for (const assign of sourceAssignments) {
-    if (params.mode === "copy") {
-      // Create duplicate shift in target month / for target worker
-      const sourceDate = new Date(assign.order.shiftDate);
-      const targetDay = Math.min(
-        sourceDate.getUTCDate(),
-        new Date(Date.UTC(params.target.year, params.target.month, 0)).getUTCDate()
-      );
-      const targetDate = new Date(Date.UTC(params.target.year, params.target.month - 1, targetDay));
+    const sourceDate = new Date(assign.order.shiftDate);
+    const targetDay = Math.min(
+      sourceDate.getUTCDate(),
+      new Date(Date.UTC(params.target.year, params.target.month, 0)).getUTCDate()
+    );
+    const targetDate = new Date(Date.UTC(params.target.year, params.target.month - 1, targetDay));
 
+    const targetClientId =
+      params.target.clientId && params.target.clientId !== "all"
+        ? params.target.clientId
+        : assign.order.clientId;
+    const targetQualification =
+      params.target.qualification && params.target.qualification !== "alle" && params.target.qualification !== "all"
+        ? params.target.qualification
+        : assign.order.requiredQualification;
+
+    if (params.mode === "copy") {
+      // Create duplicate shift in target month / for target worker / client / qualification
       const newOrder = await prisma.order.create({
         data: {
-          clientId: params.target.clientId || assign.order.clientId,
+          clientId: targetClientId,
           shiftDate: targetDate,
           startTime: assign.order.startTime,
           endTime: assign.order.endTime,
           breakMinutes: assign.order.breakMinutes,
-          requiredQualification: assign.order.requiredQualification,
+          requiredQualification: targetQualification,
           status: "confirmed",
           notes: assign.order.notes,
         },
@@ -1134,18 +1155,58 @@ export async function transferOrCopyShifts(params: {
       });
       count++;
     } else if (params.mode === "transfer") {
-      // Reassign assignment to target worker / client
-      await prisma.assignment.update({
-        where: { id: assign.id },
-        data: {
-          workerId: params.target.workerId,
-        },
-      });
-      if (params.target.clientId && params.target.clientId !== assign.order.clientId) {
-        await prisma.order.update({
-          where: { id: assign.orderId },
-          data: { clientId: params.target.clientId },
+      // Reassign assignment to target worker if changed
+      if (params.target.workerId !== assign.workerId) {
+        await prisma.assignment.update({
+          where: { id: assign.id },
+          data: {
+            workerId: params.target.workerId,
+          },
         });
+      }
+
+      const needsClientUpdate = targetClientId !== assign.order.clientId;
+      const needsQualUpdate = targetQualification !== assign.order.requiredQualification;
+      const needsDateUpdate =
+        params.target.year !== params.source.year || params.target.month !== params.source.month;
+
+      if (needsClientUpdate || needsQualUpdate || needsDateUpdate) {
+        const otherAssignmentsCount = await prisma.assignment.count({
+          where: {
+            orderId: assign.orderId,
+            id: { not: assign.id },
+          },
+        });
+
+        if (otherAssignmentsCount > 0) {
+          const newOrder = await prisma.order.create({
+            data: {
+              clientId: targetClientId,
+              shiftDate: needsDateUpdate ? targetDate : assign.order.shiftDate,
+              startTime: assign.order.startTime,
+              endTime: assign.order.endTime,
+              breakMinutes: assign.order.breakMinutes,
+              requiredQualification: targetQualification,
+              status: assign.order.status,
+              notes: assign.order.notes,
+            },
+          });
+
+          await prisma.assignment.update({
+            where: { id: assign.id },
+            data: { orderId: newOrder.id },
+          });
+        } else {
+          const orderUpdates: Prisma.OrderUpdateInput = {};
+          if (needsClientUpdate) orderUpdates.client = { connect: { id: targetClientId } };
+          if (needsQualUpdate) orderUpdates.requiredQualification = targetQualification;
+          if (needsDateUpdate) orderUpdates.shiftDate = targetDate;
+
+          await prisma.order.update({
+            where: { id: assign.orderId },
+            data: orderUpdates,
+          });
+        }
       }
       count++;
     }

@@ -1288,7 +1288,10 @@
       "code1": "Code 1",
       "code2": "Code 2",
       "advance": "Advance",
-      "transferSuccess": "Shifts were successfully transferred/copied"
+      "transferSuccess": "Shifts were successfully transferred/copied",
+      "copiedSuccess": "{count} shifts copied.",
+      "transferredSuccess": "{count} shifts transferred.",
+      "noShiftsFound": "No shifts found."
     },
     "shiftOverlap": {
       "title": "Shift Overlaps",
