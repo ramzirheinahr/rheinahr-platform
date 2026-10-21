@@ -6,6 +6,8 @@ type CancelledInvoice = {
   invoiceNumber: string;
   status: string;
   date: Date;
+  netAmount?: number;
+  vatAmount?: number;
   grossAmount: number;
   snapshotData: unknown;
 };
@@ -36,7 +38,23 @@ export function buildStornoInvoiceData(invoice: CancelledInvoice, issuedAt: Date
     throw new Error("Stornorechnung nicht verfügbar: protokolliertes Stornodatum fehlt.");
   }
 
-  const totals = validateSnapshotMonetaryTotals(s);
+  let totals = validateSnapshotMonetaryTotals(s);
+  if (!totals && typeof invoice.grossAmount === "number" && invoice.grossAmount > 0) {
+    const grossCents = Math.round(invoice.grossAmount * 100);
+    const netCents = typeof invoice.netAmount === "number" ? Math.round(invoice.netAmount * 100) : 0;
+    const vatCents = typeof invoice.vatAmount === "number" ? Math.round(invoice.vatAmount * 100) : 0;
+    if (netCents > 0 && vatCents >= 0 && netCents + vatCents === grossCents) {
+      totals = {
+        subtotalCents: netCents,
+        taxAmountCents: vatCents,
+        totalCents: grossCents,
+        subtotalDisplay: (netCents / 100).toFixed(2),
+        taxAmountDisplay: (vatCents / 100).toFixed(2),
+        totalDisplay: (grossCents / 100).toFixed(2),
+      };
+    }
+  }
+
   if (!totals || totals.subtotalCents <= 0 || totals.taxAmountCents < 0 ||
       totals.subtotalCents + totals.taxAmountCents !== totals.totalCents ||
       totals.totalCents !== Math.round(invoice.grossAmount * 100)) {

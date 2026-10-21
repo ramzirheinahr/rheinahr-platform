@@ -631,6 +631,7 @@
     "singleOrderNotice": "إجراءات المجموعات متاحة فقط لمجموعات الطلبات."
   },
   "orderRequest": {
+    "qualification": "المؤهل",
     "importedToast": "تم الاستيراد بنجاح.",
     "importError": "حدث خطأ أثناء الاستيراد.",
     "pasteTable": "لصق الجدول",
@@ -889,7 +890,8 @@
       "betreuungskraft": "مساعد/ة رعاية تمريضية (Pflegefachassistent*in)",
       "pflegedienstleitung": "إدارة خدمة التمريض",
       "kuechenhilfe": "مساعد مطبخ",
-      "hausmeister": "مشرف صيانة / خدمات عامة"
+      "hausmeister": "مشرف صيانة / خدمات عامة",
+      "hilfskraft": "عامل مساعد"
     },
     "contractType": {
       "unbefristet": "مفتوح (دائم)",

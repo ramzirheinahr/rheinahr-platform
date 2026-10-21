@@ -74,7 +74,12 @@ export function OrderInvoicesBanner({
       toast.success("Rechnung storniert. Die Schichten können mit neuer Rechnungsnummer erneut fakturiert werden.");
       router.refresh();
     } catch (e: unknown) {
-      toast.error((e as Error).message || "Fehler beim Stornieren der Rechnung");
+      const raw = (e as Error)?.message || "";
+      const isMaskedNextError = raw.includes("Server Components render") || raw.includes("digest");
+      const userMessage = isMaskedNextError
+        ? "Fehler beim Stornieren der Rechnung. Bitte Rechnungsdaten prüfen."
+        : raw || "Fehler beim Stornieren der Rechnung";
+      toast.error(userMessage);
     }
   };
 
@@ -154,7 +159,16 @@ export function OrderInvoicesBanner({
                   </DropdownMenuItem>
                 )}
                 {inv.status !== "cancelled" && (
-                  <DropdownMenuItem onClick={() => handleRefresh(inv.id)}>
+                  <DropdownMenuItem
+                    disabled={inv.status === "paid"}
+                    onClick={() => {
+                      if (inv.status === "paid") {
+                        toast.error("Bezahlte Rechnungen können nicht aktualisiert werden.");
+                        return;
+                      }
+                      handleRefresh(inv.id);
+                    }}
+                  >
                     <RotateCw className="size-4 mr-2" />
                     {t("refreshInvoice")}
                   </DropdownMenuItem>

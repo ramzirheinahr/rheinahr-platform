@@ -358,7 +358,14 @@ export async function cancelInvoice(invoiceId: string) {
       historicalOrderIds,
     };
     const stornoData = buildStornoInvoiceData(
-      { ...invoice, status: "cancelled", snapshotData: updatedSnapshotData },
+      {
+        ...invoice,
+        netAmount: invoice.netAmount,
+        vatAmount: invoice.vatAmount,
+        grossAmount: invoice.grossAmount,
+        status: "cancelled",
+        snapshotData: updatedSnapshotData,
+      },
       cancelledAt
     );
     const completedSnapshotData = {

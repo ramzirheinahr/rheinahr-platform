@@ -66,7 +66,12 @@ export function InvoiceRefreshDialog({
       })
       .catch((err: unknown) => {
         if (isMounted) {
-          setError((err as Error).message || "Fehler beim Laden der Vorschau.");
+          const raw = (err as Error)?.message || "";
+          const isMasked = raw.includes("Server Components render") || raw.includes("digest");
+          const friendly = isMasked
+            ? "Die Rechnung kann nicht aktualisiert werden (z. B. bereits als bezahlt markiert oder altes Rechnungsformat ohne Snapshot-Posten)."
+            : raw || "Fehler beim Laden der Vorschau.";
+          setError(friendly);
         }
       })
       .finally(() => {

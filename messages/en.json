@@ -629,6 +629,7 @@
     "singleOrderNotice": "Group batch actions are only available for order groups."
   },
   "orderRequest": {
+    "qualification": "Qualification",
     "importedToast": "Imported successfully.",
     "importError": "Error importing file.",
     "pasteTable": "Paste Table",
@@ -887,7 +888,8 @@
       "betreuungskraft": "Nursing care assistant (Pflegefachassistent*in)",
       "pflegedienstleitung": "Nursing service manager",
       "kuechenhilfe": "Kitchen Help",
-      "hausmeister": "Caretaker / Janitor"
+      "hausmeister": "Caretaker / Janitor",
+      "hilfskraft": "Helper / Assistant"
     },
     "contractType": {
       "unbefristet": "Permanent",

@@ -629,6 +629,7 @@
     "singleOrderNotice": "Gruppenaktionen sind nur für Auftragsgruppen verfügbar."
   },
   "orderRequest": {
+    "qualification": "Qualifikation",
     "importedToast": "Erfolgreich importiert.",
     "importError": "Fehler beim Importieren.",
     "pasteTable": "Tabelle einfügen",
@@ -887,7 +888,8 @@
       "betreuungskraft": "Pflegefachassistent*in",
       "pflegedienstleitung": "Pflegedienstleitung (PDL)",
       "kuechenhilfe": "Küchenhilfe",
-      "hausmeister": "Hausmeister"
+      "hausmeister": "Hausmeister",
+      "hilfskraft": "Hilfskraft"
     },
     "contractType": {
       "unbefristet": "Unbefristet",
