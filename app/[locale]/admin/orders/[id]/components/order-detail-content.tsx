@@ -258,6 +258,7 @@ export async function OrderDetailContent({
         id: a.id,
         workerName: a.worker.fullName,
         status: a.status,
+        hasInvoice: Boolean(a.invoiceId),
         hours: a.serviceConfirmation
           ? Number(a.serviceConfirmation.hoursWorked)
           : null,

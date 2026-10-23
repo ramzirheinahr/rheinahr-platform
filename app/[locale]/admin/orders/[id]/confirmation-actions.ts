@@ -817,3 +817,137 @@ export async function uploadDirectSignedConfirmation(formData: FormData) {
     return { ok: false, error: message };
   }
 }
+
+/**
+ * Delete a service confirmation and related confirmation documents / correction requests
+ * for an assignment so that the admin can re-upload the correct document/hours.
+ * Billed/invoiced assignments cannot be deleted to preserve financial audit trail.
+ */
+export async function deleteServiceConfirmation(
+  assignmentId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user || !roleSatisfies(user.role, ["admin"])) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  if (!assignmentId || typeof assignmentId !== "string") {
+    return { ok: false, error: "Ungültige Schicht-ID." };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      order: {
+        select: {
+          id: true,
+          status: true,
+          requestGroupId: true,
+          shiftDate: true,
+        },
+      },
+      serviceConfirmation: true,
+      confirmationDocuments: true,
+    },
+  });
+
+  if (!assignment) {
+    return { ok: false, error: "Schicht nicht gefunden." };
+  }
+
+  if (assignment.invoiceId) {
+    return { ok: false, error: "cannotDeleteInvoiced" };
+  }
+
+  if (!assignment.serviceConfirmation) {
+    return { ok: false, error: "Kein Leistungsnachweis für diese Schicht vorhanden." };
+  }
+
+  const { createLocalStorageClient } = await import("@/lib/local-storage");
+  const supabase = createLocalStorageClient();
+
+  const docStoragePaths = assignment.confirmationDocuments
+    .map((d) => d.storagePath)
+    .filter((p): p is string => Boolean(p));
+
+  if (
+    assignment.serviceConfirmation.documentUrl &&
+    !docStoragePaths.includes(assignment.serviceConfirmation.documentUrl)
+  ) {
+    docStoragePaths.push(assignment.serviceConfirmation.documentUrl);
+  }
+
+  const docIds = assignment.confirmationDocuments.map((d) => d.id);
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Delete WorkHoursCorrectionRequest records tied to this assignment or these documents
+    await tx.workHoursCorrectionRequest.deleteMany({
+      where: {
+        OR: [
+          { assignmentId },
+          ...(docIds.length > 0 ? [{ documentId: { in: docIds } }] : []),
+        ],
+      },
+    });
+
+    // 2. Delete ConfirmationDocument records tied to this assignment
+    await tx.confirmationDocument.deleteMany({
+      where: { assignmentId },
+    });
+
+    // 3. Delete ServiceConfirmation
+    await tx.serviceConfirmation.delete({
+      where: { assignmentId },
+    });
+
+    // 4. If the order was confirmed, check if any assignments are unconfirmed
+    if (assignment.order.status === "confirmed") {
+      await tx.order.update({
+        where: { id: assignment.order.id },
+        data: { status: "accepted" },
+      });
+    }
+  });
+
+  // Storage cleanup: delete physical files if no OTHER ConfirmationDocument or ServiceConfirmation is referencing them
+  for (const storagePath of docStoragePaths) {
+    try {
+      const remainingDocCount = await prisma.confirmationDocument.count({
+        where: { storagePath },
+      });
+      const remainingServiceConfCount = await prisma.serviceConfirmation.count({
+        where: { documentUrl: storagePath },
+      });
+
+      if (remainingDocCount === 0 && remainingServiceConfCount === 0) {
+        await supabase.storage.from("confirmations").remove([storagePath]);
+      }
+    } catch (cleanErr) {
+      console.warn("Storage removal warning for path:", storagePath, cleanErr);
+    }
+  }
+
+  // Audit log
+  try {
+    const h = await headers();
+    const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    await audit({
+      userId: user.id,
+      action: "service_confirmation.deleted",
+      entity: "Assignment",
+      entityId: assignmentId,
+      ipAddress: ip,
+      metadata: {
+        orderId: assignment.order.id,
+        requestGroupId: assignment.order.requestGroupId,
+        deletedDocumentsCount: docIds.length,
+      },
+    });
+  } catch (auditErr) {
+    console.warn("Audit log failed for confirmation deletion:", auditErr);
+  }
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+

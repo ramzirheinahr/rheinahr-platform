@@ -22,6 +22,7 @@ import { RemoveAssignmentButton } from "@/components/admin/remove-assignment-but
 import { SwapWorkerDialog } from "@/components/admin/swap-worker-dialog";
 import { WorkerProfileDialog } from "@/components/client/worker-profile-dialog";
 import { ShiftEvidenceDialog } from "@/components/admin/shift-evidence-dialog";
+import { DeleteConfirmationDialog } from "@/components/admin/delete-confirmation-dialog";
 import { useAssignSelection } from "@/components/orders/assign-selection";
 import { usePendingResponses } from "@/components/orders/pending-responses-provider";
 import { ToggleMealAllowanceButton } from "@/components/orders/allowance-toggles";
@@ -58,6 +59,7 @@ export type ShiftMeta = {
     hours?: number | null;
     hasConfirmation?: boolean;
     confirmationMethod?: string | null;
+    hasInvoice?: boolean;
     addMealAllowance?: boolean;
     excludeMealAllowance?: boolean;
     excludeTravelAllowance?: boolean;
@@ -363,6 +365,13 @@ export function ShiftMetaCell({
                               facilityName={meta.facilityName}
                               workerName={a.workerName}
                             />
+                            {assignable && (
+                              <DeleteConfirmationDialog
+                                assignmentId={a.id}
+                                workerName={a.workerName}
+                                hasInvoice={a.hasInvoice}
+                              />
+                            )}
                           </div>
                         ))}
                       <ToggleMealAllowanceButton 
