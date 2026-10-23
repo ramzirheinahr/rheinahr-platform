@@ -199,7 +199,7 @@ function BulkAssignDialog({
   const [shifts, setShifts] = useState<BulkShift[]>([]);
   const [candidates, setCandidates] = useState<BulkCandidate[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [force, setForce] = useState(false);
+  const [force, setForce] = useState(true);
   const [query, setQuery] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -222,7 +222,7 @@ function BulkAssignDialog({
     if (!open) return;
     setTimeout(() => {
       setPicked(new Set());
-      setForce(false);
+      setForce(true);
       setQuery("");
       setLoading(true);
     }, 0);
