@@ -204,6 +204,7 @@ export async function respondAssignmentsBulk(
         workerSalutation: assignment.worker.salutation,
         workerBirthDate: assignment.worker.birthDate,
         workerId: assignment.worker.id,
+        workerUserId: assignment.worker.userId,
       };
 
       if (accept) {
@@ -277,13 +278,47 @@ export async function respondAssignmentsBulk(
       )
     );
 
-    // Push to worker (in-app only, no email to self)
-    pushPromises.push(
-      pushToUsers(
-        [workerUserId],
-        { title: "Einsätze bestätigt", body: `Sie haben ${acceptedShifts.length} Einsätze bestätigt.`, url: workerShiftLink(), htmlBody: workerHtml, skipEmail: true },
-      )
-    );
+    if (isStaff) {
+      // Admin confirmed on behalf of workers: group by worker so each receives only their shifts
+      const workerGroups = new Map<string, { name: string; shifts: (typeof acceptedShifts)[number][] }>();
+      for (const s of acceptedShifts) {
+        if (s.workerUserId) {
+          if (!workerGroups.has(s.workerUserId)) {
+            workerGroups.set(s.workerUserId, { name: s.workerName, shifts: [] });
+          }
+          workerGroups.get(s.workerUserId)!.shifts.push(s);
+        }
+      }
+      for (const [wUid, group] of workerGroups.entries()) {
+        const wTableHtml = buildShiftHtmlTable(group.shifts);
+        const wHtml = `
+          <p>Hallo <strong>${group.name}</strong>,</p>
+          <p>Sie wurden für folgende Einsätze fest eingeplant:</p>
+          ${wTableHtml}
+          <p>Wir verlassen uns auf Sie. Bitte seien Sie pünktlich vor Ort.</p>
+        `;
+        pushPromises.push(
+          pushToUsers(
+            [wUid],
+            {
+              title: "Einsätze bestätigt",
+              body: `Sie sind für ${group.shifts.length} Einsatz/Einsätze fest eingeplant.`,
+              url: workerShiftLink(),
+              htmlBody: wHtml,
+              skipEmail: false,
+            }
+          )
+        );
+      }
+    } else {
+      // Worker self-confirmed
+      pushPromises.push(
+        pushToUsers(
+          [workerUserId],
+          { title: "Einsätze bestätigt", body: `Sie haben ${acceptedShifts.length} Einsätze bestätigt.`, url: workerShiftLink(), htmlBody: workerHtml, skipEmail: true },
+        )
+      );
+    }
 
     // Push to clients (grouped)
     for (const clientGroup of clientNotifications.values()) {

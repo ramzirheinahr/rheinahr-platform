@@ -22,10 +22,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { UserPlus, X, CheckSquare, Users, Search } from "lucide-react";
+import { UserPlus, X, CheckSquare, Users, Search, Check, Loader2 } from "lucide-react";
 import {
   getBulkCandidates,
   bulkAssignWorkers,
+  bulkAcceptShifts,
 } from "@/app/[locale]/admin/orders/actions";
 import type { BulkCandidate, BulkShift } from "@/lib/orders";
 
@@ -101,8 +102,32 @@ function BulkAssignBar({
   onSelectAll: () => void;
 }) {
   const t = useTranslations("orders");
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [accepting, setAccepting] = useState(false);
   if (orderIds.length === 0) return null;
+
+  async function handleAcceptSelected() {
+    setAccepting(true);
+    try {
+      const res = await bulkAcceptShifts(orderIds);
+      if (res.ok) {
+        if ((res.processed ?? 0) > 0) {
+          toast.success(t("bulkAcceptSuccess", { count: res.processed! }));
+          onClear();
+          router.refresh();
+        } else {
+          toast.info(t("noPendingToAccept"));
+        }
+      } else {
+        toast.error(t("saveError"));
+      }
+    } catch {
+      toast.error(t("saveError"));
+    } finally {
+      setAccepting(false);
+    }
+  }
 
   return (
     <>
@@ -120,6 +145,19 @@ function BulkAssignBar({
           <Button size="sm" className="gap-2" onClick={() => setOpen(true)}>
             <UserPlus className="size-4" />
             {t("assignSelected")}
+          </Button>
+          <Button
+            size="sm"
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={accepting}
+            onClick={handleAcceptSelected}
+          >
+            {accepting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Check className="size-4" />
+            )}
+            {accepting ? t("accepting") : t("acceptSelected")}
           </Button>
           <Button
             variant="ghost"

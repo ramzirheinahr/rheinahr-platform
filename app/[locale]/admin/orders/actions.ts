@@ -31,6 +31,7 @@ import {
   hasHistoricalInvoiceRecordForOrder,
 } from "@/lib/invoicing";
 import { netShiftHours } from "@/lib/pricing";
+import { respondAssignmentsBulk } from "@/app/[locale]/worker/assignments/actions";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -1805,4 +1806,84 @@ export async function swapWorker(
   revalidatePath(`/admin/orders/${order.id}`);
   revalidatePath("/admin/schedule");
   return { ok: true };
+}
+
+// Bulk accept all pending assignments for the selected shift orders
+export async function bulkAcceptShifts(
+  orderIds: string[],
+): Promise<ActionState & { processed?: number; skipped?: number }> {
+  let admin;
+  try {
+    admin = await assertAdmin();
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+
+  if (!Array.isArray(orderIds) || orderIds.length === 0) {
+    return { ok: false, error: "saveError" };
+  }
+
+  const orders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    select: {
+      id: true,
+      requestGroupId: true,
+      quantity: true,
+      assignments: {
+        where: { status: { in: ["pending", "confirmed"] } },
+        select: { id: true, status: true },
+        orderBy: { assignedAt: "asc" },
+      },
+    },
+  });
+
+  const assignmentIdsToAccept: string[] = [];
+  const affectedRequestGroupIds = new Set<string>();
+
+  for (const order of orders) {
+    if (order.requestGroupId) affectedRequestGroupIds.add(order.requestGroupId);
+    affectedRequestGroupIds.add(order.id);
+
+    const confirmedCount = order.assignments.filter((a) => a.status === "confirmed").length;
+    let availableSlots = order.quantity - confirmedCount;
+    if (availableSlots <= 0) continue;
+
+    const pendingAssignments = order.assignments.filter((a) => a.status === "pending");
+    for (const pa of pendingAssignments) {
+      if (availableSlots <= 0) break;
+      assignmentIdsToAccept.push(pa.id);
+      availableSlots--;
+    }
+  }
+
+  if (assignmentIdsToAccept.length === 0) {
+    return { ok: true, processed: 0, skipped: orderIds.length };
+  }
+
+  const result = await respondAssignmentsBulk(
+    assignmentIdsToAccept.map((id) => ({ id, accept: true })),
+  );
+
+  await audit({
+    userId: admin.id,
+    action: "order.bulk_accept",
+    entity: "Order",
+    metadata: {
+      orderIds: orderIds.join(","),
+      acceptedAssignments: assignmentIdsToAccept.length,
+      processed: result.processed,
+    },
+  });
+
+  revalidatePath("/admin/orders");
+  for (const rId of affectedRequestGroupIds) {
+    revalidatePath(`/admin/orders/${rId}`);
+  }
+
+  return {
+    ok: result.ok,
+    processed: result.processed,
+    skipped: orderIds.length - (result.processed ?? 0),
+    error: result.error,
+  };
 }
