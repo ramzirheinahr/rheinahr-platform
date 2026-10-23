@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { createLocalStorageClient } from "@/lib/local-storage";
+import { getSafeRedirectUrl } from "@/lib/redirect-utils";
 
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -32,5 +33,5 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     return new NextResponse("Error generating signed URL", { status: 500 });
   }
 
-  return NextResponse.redirect(new URL(data.signedUrl, _req.url));
+  return NextResponse.redirect(getSafeRedirectUrl(data.signedUrl, _req));
 }

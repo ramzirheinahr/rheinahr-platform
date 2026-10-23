@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { createLocalStorageClient } from "@/lib/local-storage";
+import { getSafeRedirectUrl } from "@/lib/redirect-utils";
 import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
 
 // Short-lived signed URL (redirect) for a worker's profile photo. Access: admin,
@@ -34,5 +35,5 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     .createSignedUrl(worker.photoPath, 300);
   if (error || !data) return new NextResponse("Error", { status: 500 });
 
-  return NextResponse.redirect(new URL(data.signedUrl, _req.url));
+  return NextResponse.redirect(getSafeRedirectUrl(data.signedUrl, _req));
 }
