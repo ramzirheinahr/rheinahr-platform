@@ -583,7 +583,8 @@ export async function prepareV2InvoiceDraft(
         const scheduledHours = netShiftHours(
           assignment.order.startTime,
           assignment.order.endTime,
-          assignment.order.breakMinutes
+          assignment.order.breakMinutes,
+          assignment.order.shiftDate
         );
 
         const baselineHours =

@@ -670,6 +670,8 @@
     "bis": "Bis",
     "pause": "Pause (Min)",
     "netHours": "Netto-Std",
+    "dstWinterTimeAdded": "Zeitumstellung: +1 Std. (Winterzeit)",
+    "dstSummerTimeSubtracted": "Zeitumstellung: -1 Std. (Sommerzeit)",
     "totalHours": "Gesamtstunden",
     "count": "Anz.",
     "quickFill": "Schnellausfüllen",

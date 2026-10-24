@@ -177,6 +177,7 @@ export async function getWorkerMonthSchedule(
           a.order.startTime,
           a.order.endTime,
           a.order.breakMinutes ?? 30,
+          a.order.shiftDate,
         ),
         confirmedHours:
           a.serviceConfirmation?.hoursWorked != null

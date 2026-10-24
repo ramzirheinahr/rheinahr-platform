@@ -82,7 +82,7 @@ export async function getClientMonthSchedule(
   const rows: ClientScheduleRow[] = assignments.map((a) => {
     const o = a.order;
     const isoDate = o.shiftDate.toISOString().slice(0, 10);
-    const rawNet = netShiftHours(o.startTime, o.endTime, o.breakMinutes);
+    const rawNet = netShiftHours(o.startTime, o.endTime, o.breakMinutes, o.shiftDate);
     const cNet = a.serviceConfirmation?.hoursWorked != null ? Number(a.serviceConfirmation.hoursWorked) : null;
     const bDate = a.worker.birthDate;
     const workerBirthDate = bDate

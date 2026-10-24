@@ -12,6 +12,8 @@ import {
   DEFAULT_NIGHT_WINDOW,
   VAT_RATE,
   shiftSurchargeHours,
+  netShiftHours,
+  getShiftDstDeltaMinutes,
   comboMultiplier,
   comboKey,
   type Surcharges,
@@ -75,13 +77,10 @@ const toMin = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 };
-// Net work hours = shift duration (overnight-aware) minus the break.
-function netHours(start: string, end: string, pause: number): number | null {
+// Net work hours = shift duration (overnight-aware and DST-aware) minus the break.
+function netHours(start: string, end: string, pause: number, date?: string): number | null {
   if (!start || !end) return null;
-  let dur = (toMin(end) - toMin(start) + 1440) % 1440;
-  if (dur === 0) dur = 1440;
-  const net = (dur - pause) / 60;
-  return net > 0 ? net : 0;
+  return netShiftHours(start, end, pause, date);
 }
 
 const PRESETS = [
@@ -625,7 +624,7 @@ export function OrderRequestBuilder({
   const totalHours = useMemo(
     () =>
       activeShifts.reduce(
-        (sum, s) => sum + (netHours(s.start, s.end, s.pause) ?? 0) * s.quantity,
+        (sum, s) => sum + (netHours(s.start, s.end, s.pause, s.date) ?? 0) * s.quantity,
         0,
       ),
     [activeShifts],
@@ -805,8 +804,24 @@ export function OrderRequestBuilder({
         </td>
         <td className="whitespace-nowrap p-1 text-end font-bold text-sm tabular-nums text-slate-950 dark:text-slate-50">
           {(() => {
-            const net = netHours(cell.start, cell.end, cell.pause);
-            return net === null ? <span className="text-slate-400 font-normal">—</span> : `${fmtH(net)} h`;
+            const net = netHours(cell.start, cell.end, cell.pause, date);
+            const dstDelta = getShiftDstDeltaMinutes(date, cell.start, cell.end);
+            return net === null ? (
+              <span className="text-slate-400 font-normal">—</span>
+            ) : (
+              <span
+                title={
+                  dstDelta > 0
+                    ? t("dstWinterTimeAdded")
+                    : dstDelta < 0
+                    ? t("dstSummerTimeSubtracted")
+                    : undefined
+                }
+                className={dstDelta !== 0 ? "underline decoration-dotted decoration-primary/60 cursor-help" : undefined}
+              >
+                {fmtH(net)} h
+              </span>
+            );
           })()}
         </td>
         <td className="p-1">

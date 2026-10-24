@@ -561,7 +561,8 @@ export async function addConfirmationEvidence(params: AddEvidenceParams) {
             : netShiftHours(
                 assignment.order.startTime,
                 assignment.order.endTime,
-                assignment.order.breakMinutes
+                assignment.order.breakMinutes,
+                assignment.order.shiftDate
               );
 
         await tx.serviceConfirmation.create({
@@ -832,7 +833,8 @@ export async function getAssignmentEffectiveWorkHours(
   const scheduledHours = netShiftHours(
     assignment.order.startTime,
     assignment.order.endTime,
-    assignment.order.breakMinutes
+    assignment.order.breakMinutes,
+    assignment.order.shiftDate
   );
 
   const baselineHours =
@@ -1458,7 +1460,8 @@ export async function getAssignmentEvidenceHistory(
   const scheduledHours = netShiftHours(
     assignment.order.startTime,
     assignment.order.endTime,
-    assignment.order.breakMinutes
+    assignment.order.breakMinutes,
+    assignment.order.shiftDate
   );
 
   const sc = assignment.serviceConfirmation;

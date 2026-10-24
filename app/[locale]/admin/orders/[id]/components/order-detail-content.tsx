@@ -253,7 +253,7 @@ export async function OrderDetailContent({
       endTime: o.endTime,
       breakMinutes: o.breakMinutes,
       selectable,
-      scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes),
+      scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes, o.shiftDate),
       assignments: o.assignments.map((a) => ({
         id: a.id,
         workerName: a.worker.fullName,

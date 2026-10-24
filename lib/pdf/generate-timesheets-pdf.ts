@@ -109,7 +109,7 @@ export async function generateLeistungsnachweisePdf(
     const entries: LeistungsnachweisData[] = generatedAssignments.map((a) => {
       const hours = a.serviceConfirmation
         ? Number(a.serviceConfirmation.hoursWorked)
-        : netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes);
+        : netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes, a.order.shiftDate);
 
       const isElectronic = a.serviceConfirmation ? a.serviceConfirmation.method === "electronic" : false;
       const confirmedByEmail = a.serviceConfirmation

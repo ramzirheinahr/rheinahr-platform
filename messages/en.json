@@ -670,6 +670,8 @@
     "bis": "End",
     "pause": "Break (min)",
     "netHours": "Net hrs",
+    "dstWinterTimeAdded": "Daylight saving time: +1 hr (winter time)",
+    "dstSummerTimeSubtracted": "Daylight saving time: -1 hr (summer time)",
     "totalHours": "Total hours",
     "count": "Qty",
     "quickFill": "Quick fill",

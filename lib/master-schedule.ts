@@ -204,7 +204,7 @@ export async function getMasterSchedule(
 
     const acceptedHours = w.assignments.reduce((sum, a) => {
       if (a.status === "confirmed" && !a.serviceConfirmation) {
-        return sum + netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes);
+        return sum + netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes, a.order.shiftDate);
       }
       return sum;
     }, 0);

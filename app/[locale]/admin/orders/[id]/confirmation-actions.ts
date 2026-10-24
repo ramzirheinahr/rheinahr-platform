@@ -176,6 +176,7 @@ async function executeConfirmationPersistence({
     id: string;
     order: {
       id: string;
+      shiftDate: Date;
       startTime: string;
       endTime: string;
       breakMinutes: number;
@@ -225,6 +226,7 @@ async function executeConfirmationPersistence({
         a.order.startTime,
         a.order.endTime,
         a.order.breakMinutes,
+        a.order.shiftDate,
       );
 
       const hasExisting = Boolean(a.serviceConfirmation);

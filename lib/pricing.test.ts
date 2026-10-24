@@ -6,6 +6,7 @@ import {
   shiftSurchargeHours,
   comboMultiplier,
   netShiftHours,
+  getShiftDstDeltaMinutes,
   resolveNightWindow,
   DEFAULT_SURCHARGES,
   DEFAULT_NIGHT_WINDOW,
@@ -168,3 +169,29 @@ describe("resolveNightWindow", () => {
     });
   });
 });
+
+describe("DST transition handling (Winterzeit & Sommerzeit)", () => {
+  it("adds +1 hour during Winterzeit transition in October", () => {
+    // 2026-10-24 night shift to 2026-10-25 (tonight)
+    const net = netShiftHours("20:45", "06:45", 45, "2026-10-24");
+    expect(net).toBe(10.25);
+    const delta = getShiftDstDeltaMinutes("2026-10-24", "20:45", "06:45");
+    expect(delta).toBe(60);
+  });
+
+  it("subtracts -1 hour during Sommerzeit transition in March", () => {
+    // 2026-03-28 night shift to 2026-03-29
+    const net = netShiftHours("20:45", "06:45", 45, "2026-03-28");
+    expect(net).toBe(8.25);
+    const delta = getShiftDstDeltaMinutes("2026-03-28", "20:45", "06:45");
+    expect(delta).toBe(-60);
+  });
+
+  it("calculates standard duration on normal days without DST change", () => {
+    const net = netShiftHours("20:45", "06:45", 45, "2026-10-23");
+    expect(net).toBe(9.25);
+    const delta = getShiftDstDeltaMinutes("2026-10-23", "20:45", "06:45");
+    expect(delta).toBe(0);
+  });
+});
+

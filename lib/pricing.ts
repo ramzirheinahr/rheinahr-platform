@@ -1,3 +1,4 @@
+import { fromZonedTime } from "date-fns-tz";
 import { qualifications } from "@/lib/validations";
 import { germanHolidays } from "@/lib/holidays";
 import { billingHolidayAtMinute, billingHolidaysForYear, parseBillingHolidayCalendar } from "@/lib/client-billing-holidays";
@@ -117,16 +118,86 @@ export function resolveNightWindow(
 // Fallback break (minutes) for callers without a persisted per-shift break
 // (orders store their own `breakMinutes` since 2026-07).
 export const DEFAULT_BREAK_MIN = 30;
+export const GERMANY_TIMEZONE = "Europe/Berlin";
 
 const toMin = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 };
 
-// Net billable hours of one shift: overnight-aware duration minus the break.
-export function netShiftHours(start: string, end: string, breakMin = DEFAULT_BREAK_MIN): number {
+/**
+ * Calculates physical elapsed minutes of a shift in the German timezone (Europe/Berlin),
+ * correctly accounting for Daylight Saving Time (DST) changes:
+ * - Winter time change (late October): clocks turn back 1 hour -> overnight shifts crossing 02:00-03:00 run for +60 physical minutes.
+ * - Summer time change (late March): clocks jump forward 1 hour -> overnight shifts crossing 02:00-03:00 run for -60 physical minutes.
+ * - Standard shifts: runs for regular wall-clock minutes.
+ */
+export function getShiftPhysicalMinutes(
+  shiftDate: string | Date | undefined,
+  start: string,
+  end: string,
+  fallbackMinutes: number
+): number {
+  if (!shiftDate || !start || !end) return fallbackMinutes;
+  try {
+    const dateStr =
+      shiftDate instanceof Date
+        ? shiftDate.toISOString().slice(0, 10)
+        : String(shiftDate).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return fallbackMinutes;
+
+    const startMin = toMin(start);
+    const endMin = toMin(end);
+    const isOvernight = endMin <= startMin;
+
+    let nextDateStr = dateStr;
+    if (isOvernight) {
+      const d = new Date(`${dateStr}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      nextDateStr = d.toISOString().slice(0, 10);
+    }
+
+    const startUtc = fromZonedTime(`${dateStr} ${start}:00`, GERMANY_TIMEZONE).getTime();
+    const endUtc = fromZonedTime(`${nextDateStr} ${end}:00`, GERMANY_TIMEZONE).getTime();
+    const diff = Math.round((endUtc - startUtc) / 60000);
+    if (diff > 0 && Number.isFinite(diff)) {
+      return diff;
+    }
+  } catch {
+    // Graceful fallback to wall clock difference
+  }
+  return fallbackMinutes;
+}
+
+/**
+ * Returns whether a shift gains (+60m) or loses (-60m) time due to German DST change, or 0 if unaffected.
+ */
+export function getShiftDstDeltaMinutes(
+  shiftDate: string | Date | undefined,
+  start: string,
+  end: string
+): number {
+  if (!shiftDate || !start || !end) return 0;
+  const startMin = toMin(start);
+  const endMin = toMin(end);
+  let wallClock = (endMin - startMin + 1440) % 1440;
+  if (wallClock === 0) wallClock = 1440;
+  const physical = getShiftPhysicalMinutes(shiftDate, start, end, wallClock);
+  return physical - wallClock;
+}
+
+// Net billable hours of one shift: overnight-aware and DST-aware duration minus the break.
+export function netShiftHours(
+  start: string,
+  end: string,
+  breakMin = DEFAULT_BREAK_MIN,
+  shiftDate?: string | Date
+): number {
   let dur = (toMin(end) - toMin(start) + 1440) % 1440;
   if (dur === 0) dur = 1440;
+  if (shiftDate) {
+    dur = getShiftPhysicalMinutes(shiftDate, start, end, dur);
+  }
   return Math.max(0, (dur - breakMin) / 60);
 }
 
@@ -187,6 +258,7 @@ export function shiftSurchargeHours(
   const startMin = toMin(start);
   let dur = (toMin(end) - startMin + 1440) % 1440;
   if (dur === 0) dur = 1440;
+  dur = getShiftPhysicalMinutes(shiftDate, start, end, dur);
 
   const w = { s: toMin(night.start), e: toMin(night.end) };
   // Per calendar-day metadata (weekday + holiday) for each day the shift touches.

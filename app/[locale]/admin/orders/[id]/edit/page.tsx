@@ -108,7 +108,7 @@ export default async function AdminEditRequestPage({
       startTime: o.startTime,
       endTime: o.endTime,
       selectable,
-      scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes),
+      scheduledHours: netShiftHours(o.startTime, o.endTime, o.breakMinutes, o.shiftDate),
       assignments: o.assignments.map((a) => ({
         id: a.id,
         workerName: a.worker.fullName,
