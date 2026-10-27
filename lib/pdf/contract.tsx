@@ -67,7 +67,42 @@ const styles = StyleSheet.create({
   audit: { fontSize: 7, color: "#9ca3af", marginTop: 2 },
 });
 
-const ContractPage = ({ data, companyConfig }: { data: ContractPdfData, companyConfig: any }) => (
+export function getSigningPlaceAndDate(data: ContractPdfData): string {
+  let firstDate = data.periodStart;
+  if (!firstDate && data.assignments && data.assignments.length > 0) {
+    firstDate = data.assignments[0]?.shiftDate;
+  }
+  if (!firstDate && data.contractDate) {
+    firstDate = data.contractDate;
+  }
+  if (!firstDate && data.period) {
+    const match = data.period.match(/\d{2}\.\d{2}\.\d{4}/);
+    if (match) {
+      firstDate = match[0];
+    }
+  }
+
+  if (firstDate) {
+    if (/^\d{2}\.\d{2}\.\d{4}$/.test(firstDate)) {
+      return `Bonn, ${firstDate}`;
+    }
+    const parsed = new Date(firstDate);
+    if (!isNaN(parsed.getTime())) {
+      const day = String(parsed.getDate()).padStart(2, "0");
+      const month = String(parsed.getMonth() + 1).padStart(2, "0");
+      const year = parsed.getFullYear();
+      return `Bonn, ${day}.${month}.${year}`;
+    }
+    return `Bonn, ${firstDate}`;
+  }
+
+  return "Bonn";
+}
+
+const ContractPage = ({ data, companyConfig }: { data: ContractPdfData, companyConfig: any }) => {
+  const signingPlaceAndDate = getSigningPlaceAndDate(data);
+
+  return (
   <Page size="A4" style={styles.page}>
     <Text style={styles.header}>Arbeitnehmerüberlassungsvertrag</Text>
     
@@ -146,7 +181,7 @@ const ContractPage = ({ data, companyConfig }: { data: ContractPdfData, companyC
               Signiert von {data.facilityName} (Entleiher),
             </Text>
             <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
-              am {data.signedAt}
+              {signingPlaceAndDate} (am {data.signedAt})
             </Text>
           </View>
           <View>
@@ -154,7 +189,7 @@ const ContractPage = ({ data, companyConfig }: { data: ContractPdfData, companyC
               Signiert von {companyConfig.name} (Verleiher),
             </Text>
             <Text style={{ fontFamily: "Helvetica", fontSize: 12 }}>
-              am {data.signedAt}
+              {signingPlaceAndDate} (am {data.signedAt})
             </Text>
           </View>
         </>
@@ -168,7 +203,7 @@ const ContractPage = ({ data, companyConfig }: { data: ContractPdfData, companyC
             )}
             <View style={styles.signatureLine}>
               <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 4 }}>Personaldienstleister</Text>
-              <Text>{companyConfig.name}</Text>
+              <Text>{signingPlaceAndDate}, {companyConfig.name}</Text>
             </View>
           </View>
           
@@ -176,14 +211,15 @@ const ContractPage = ({ data, companyConfig }: { data: ContractPdfData, companyC
             <View style={{ height: 44 }} />
             <View style={styles.signatureLine}>
               <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 4 }}>Auftraggeber</Text>
-              <Text>{data.facilityName}</Text>
+              <Text>{signingPlaceAndDate}, {data.facilityName}</Text>
             </View>
           </View>
         </View>
       )}
     </View>
   </Page>
-);
+  );
+};
 
 const OriginalAuegContractTemplate = ({ data, companyConfig }: { data: ContractPdfData, companyConfig: any }) => (
   <Document>
@@ -330,6 +366,7 @@ const rlStyles = StyleSheet.create({
 });
 
 const RheinlandContractDocument = ({ data, companyConfig }: { data: ContractPdfData; companyConfig: any }) => {
+  const signingPlaceAndDate = getSigningPlaceAndDate(data);
   const contractEffectiveDate = data.periodStart || (data.assignments[0]?.shiftDate) || data.contractDate || "dem vereinbarten Einsatzbeginn";
   const contractEndDate = data.periodEnd || (data.assignments[data.assignments.length - 1]?.shiftDate) || data.period || "[Datum]";
 
@@ -986,7 +1023,7 @@ const RheinlandContractDocument = ({ data, companyConfig }: { data: ContractPdfD
             )}
             <View style={rlStyles.sigLine}>
               <Text style={rlStyles.sigText}>
-                {data.signedAt ? `${data.signedAt}` : "[Datum und Ort]"}, {data.facilityName} (Auftraggeber)
+                {signingPlaceAndDate}, {data.facilityName} (Auftraggeber)
               </Text>
               {data.ipAddress && (
                 <Text style={{ fontSize: 7, color: "#6b7280", marginTop: 2 }}>
@@ -1004,7 +1041,7 @@ const RheinlandContractDocument = ({ data, companyConfig }: { data: ContractPdfD
             )}
             <View style={rlStyles.sigLine}>
               <Text style={rlStyles.sigText}>
-                {data.signedAt ? `${data.signedAt}` : "[Datum und Ort]"}, {companyConfig.name}
+                {signingPlaceAndDate}, {companyConfig.name}
               </Text>
             </View>
           </View>
@@ -1044,5 +1081,12 @@ export async function renderContractPdf(data: ContractPdfData): Promise<Buffer> 
     );
   }
 
-  return Buffer.from(await renderToBuffer(<OriginalAuegContractTemplate companyConfig={companyConfig} data={data} />));
+  const raStampPath = path.join(process.cwd(), "public", "stamp_signed.png");
+  let stampDataUrl = data.stampDataUrl;
+  if (!stampDataUrl && fs.existsSync(raStampPath)) {
+    const stampBuf = fs.readFileSync(raStampPath);
+    stampDataUrl = `data:image/png;base64,${stampBuf.toString("base64")}`;
+  }
+
+  return Buffer.from(await renderToBuffer(<OriginalAuegContractTemplate companyConfig={companyConfig} data={{ ...data, stampDataUrl }} />));
 }

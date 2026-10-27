@@ -93,6 +93,8 @@ describe("Arbeitnehmerüberlassungsvertrag PDF Rendering", () => {
     expect(text).toContain("Residenz Ambiente Bonn");
     expect(text).toContain("RheinLand Personalmanagement und Fahrdienst GmbH");
     expect(text).toContain("Katharina Schebesta");
+    // Verify place and first shift date in signing line
+    expect(text).toContain("Bonn, 22.10.2026");
   });
 
   it("preserves original RheinAhr contract template without modification", async () => {
@@ -116,5 +118,7 @@ describe("Arbeitnehmerüberlassungsvertrag PDF Rendering", () => {
     expect(text).toContain("RheinAhr Dienstleistungen GmbH");
     // Verify it used the original contract
     expect(text).toContain("Arbeitnehmer");
+    // Verify place and first shift date in signing line
+    expect(text).toContain("Bonn, 22.10.2026");
   });
 });
