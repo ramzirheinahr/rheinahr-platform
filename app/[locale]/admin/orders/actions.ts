@@ -1716,7 +1716,8 @@ export async function swapWorker(
     title: "Einsatz storniert",
     body: `${dateStr} ${timeStr} · ${order.client.facilityName}`,
     url: workerShiftLink(),
-    htmlBody: oldWorkerHtml
+    htmlBody: oldWorkerHtml,
+    skipEmail: true,
   });
 
   // Email to new worker
@@ -1744,7 +1745,8 @@ export async function swapWorker(
     title: "Neuer Einsatz",
     body: `${dateStr} ${timeStr} · ${order.client.facilityName}`,
     url: workerShiftLink(),
-    htmlBody: newWorkerHtml
+    htmlBody: newWorkerHtml,
+    skipEmail: true,
   });
 
   // Email to client
@@ -1786,7 +1788,8 @@ export async function swapWorker(
       title: "Mitarbeiterwechsel",
       body: `${dateStr} ${timeStr} · ${newWorkerSubjectLabel} (neu)`,
       url: orderLink("client", order.requestGroupId || order.id),
-      htmlBody: clientHtml
+      htmlBody: clientHtml,
+      skipEmail: true,
     });
   }
 
