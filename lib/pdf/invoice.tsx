@@ -9,8 +9,8 @@ import {
   Image,
 } from "@react-pdf/renderer";
 import React from "react";
-import path from "path";
 import { getCompanyConfig, type CompanyConfig } from "@/lib/config/company";
+import { resolvePdfLogo } from "@/lib/pdf/resolve-logo";
 
 export type InvoicePdfData = {
   draft?: boolean;
@@ -47,6 +47,24 @@ export type InvoicePdfData = {
 
 const styles = StyleSheet.create({
   page: { padding: 40, paddingBottom: 120, fontSize: 10, color: "#000000", fontFamily: "Helvetica", lineHeight: 1.3 },
+  pageRheinland: { padding: 40, paddingTop: 30, paddingBottom: 85, fontSize: 10, color: "#000000", fontFamily: "Helvetica", lineHeight: 1.3 },
+
+  // RheinLand specific styles
+  rlTopLogo: { height: 50, objectFit: "contain", alignSelf: "center", marginBottom: 12 },
+  rlTopDivider: { height: 2.5, backgroundColor: "#3c73b6", marginHorizontal: -40, marginBottom: 20 },
+  rlHeaderSection: { flexDirection: "row", justifyContent: "space-between", marginBottom: 25 },
+  rlRecipientCol: { width: "52%" },
+  rlMetaCol: { width: "42%" },
+  rlInvoiceTitle: { fontSize: 22, fontFamily: "Helvetica-Bold", marginBottom: 12 },
+  rlMetaRow: { flexDirection: "row", marginBottom: 4 },
+  rlMetaLabel: { width: 65, fontFamily: "Helvetica" },
+  rlMetaVal: { fontFamily: "Helvetica" },
+  rlFooterContainer: { position: "absolute", bottom: 25, left: 0, right: 0 },
+  rlFooterLine: { height: 2.5, backgroundColor: "#3c73b6", width: "100%", marginBottom: 10 },
+  rlFooterTextWrap: { paddingHorizontal: 30, textAlign: "center", fontSize: 8.5, color: "#1f2937", lineHeight: 1.45 },
+  rlFooterRow: { textAlign: "center", marginBottom: 2 },
+
+  // Standard / RheinAhr styles
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 30 },
   logoContainer: { flexDirection: "row", alignItems: "flex-end" },
   brandTextContainer: { marginLeft: 10 },
@@ -61,7 +79,6 @@ const styles = StyleSheet.create({
   companyNameBold: { fontFamily: "Helvetica-Bold", marginBottom: 4 },
   
   returnAddress: { fontSize: 8, textDecoration: "underline", marginBottom: 4 },
-  
   clientAddress: { marginTop: 0 },
   
   titleBlock: { marginTop: 0, textAlign: "left", width: "40%", paddingLeft: 20 },
@@ -75,6 +92,7 @@ const styles = StyleSheet.create({
 
   greeting: { fontFamily: "Helvetica-Bold", marginTop: 20, marginBottom: 5 },
   
+  // Table
   table: { width: "100%", borderWidth: 1, borderColor: "#000", marginTop: 5 },
   tableRow: { flexDirection: "row", borderBottomWidth: 1, borderColor: "#000", minHeight: 20, alignItems: "center" },
   tableHeader: { fontFamily: "Helvetica-Bold", backgroundColor: "#f3f4f6" },
@@ -106,163 +124,276 @@ const styles = StyleSheet.create({
   footerText: { marginBottom: 2 },
 });
 
-const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; companyConfig: CompanyConfig }) => (
-  <Document>
-    <Page size="A4" style={styles.page}>
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <View style={styles.logoContainer}>
-            {/* eslint-disable-next-line jsx-a11y/alt-text */}
-            <Image src={path.join(process.cwd(), "public", companyConfig.logoUrl.replace(/^\//, ""))} style={{ width: 140, objectFit: "contain" }} />
-          </View>
-          <View style={styles.sloganRow}>
-            <Text style={styles.sloganRed}>INTEGRITÄT</Text>
-            <Text style={styles.sloganBlue}>WÜRDE</Text>
-            <Text style={styles.sloganRed}>KOMPETENZ</Text>
-            <Text style={styles.sloganBlue}>VERTRAUEN</Text>
-          </View>
-        </View>
+const InvoiceTemplate = ({ data, companyConfig }: { data: InvoicePdfData; companyConfig: CompanyConfig }) => {
+  const isRheinland = (companyConfig.shortName || "").toLowerCase().includes("rheinland") ||
+                      (companyConfig.name || "").toLowerCase().includes("rheinland");
+  const logoSrc = resolvePdfLogo(companyConfig.logoUrl, companyConfig.shortName);
 
-        <View style={styles.companyContactBlock}>
-          <Text style={styles.companyNameBold}>{companyConfig.name}</Text>
-          <Text>{companyConfig.street}</Text>
-          <Text>{companyConfig.city}</Text>
-          <Text>Telefon: {companyConfig.phone}</Text>
-          <Text>Telefax: {companyConfig.fax}</Text>
-          <Text>Mobile: {companyConfig.mobile}</Text>
-          <Text>E-Mail: {companyConfig.email}</Text>
-          <Text>Internet: {companyConfig.website}</Text>
-        </View>
-      </View>
+  const documentTitle = data.historicalReferenceCopy?.title ||
+    (data.draft ? "Rechnungsentwurf" : data.cancellation ? "Stornorechnung" : "Rechnung");
 
-      <View style={{ flexDirection: "row" }}>
-        <View style={styles.senderBlock}>
-          <Text style={styles.returnAddress}>{companyConfig.name} , {companyConfig.street} , {companyConfig.city}</Text>
-          <View style={styles.clientAddress}>
-            {data.billingInfo ? (
-              data.billingInfo.split("\n").map((line, i) => (
-                <Text key={`bi-${i}`}>{line.trim()}</Text>
-              ))
-            ) : (
-              (data.clientAddress || "").split("\n").map((line, i) => (
-                <Text key={`addr-${i}`}>{line.trim()}</Text>
-              ))
+  return (
+    <Document>
+      <Page size="A4" style={isRheinland ? styles.pageRheinland : styles.page}>
+        {isRheinland ? (
+          <>
+            {/* RheinLand Header: Centered Logo + Blue Divider */}
+            {logoSrc && (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image src={logoSrc} style={styles.rlTopLogo} />
             )}
+            <View style={styles.rlTopDivider} />
+
+            {/* Recipient & Meta Section */}
+            <View style={styles.rlHeaderSection}>
+              <View style={styles.rlRecipientCol}>
+                {data.billingInfo ? (
+                  data.billingInfo.split("\n").map((line, i) => (
+                    <Text key={`bi-${i}`}>{line.trim()}</Text>
+                  ))
+                ) : (
+                  (data.clientAddress || "").split("\n").map((line, i) => (
+                    <Text key={`addr-${i}`}>{line.trim()}</Text>
+                  ))
+                )}
+              </View>
+
+              <View style={styles.rlMetaCol}>
+                <Text style={styles.rlInvoiceTitle}>{documentTitle}</Text>
+                <View style={styles.rlMetaRow}>
+                  <Text style={styles.rlMetaLabel}>vom:</Text>
+                  <Text style={styles.rlMetaVal}>{data.date}</Text>
+                </View>
+                <View style={styles.rlMetaRow}>
+                  <Text style={styles.rlMetaLabel}>Nummer:</Text>
+                  <Text style={styles.rlMetaVal}>{data.draft ? "NICHT VERGEBEN" : data.invoiceNumber}</Text>
+                </View>
+                {data.cancellation && (
+                  <View style={styles.rlMetaRow}>
+                    <Text style={styles.rlMetaLabel}>Zu Rechnung:</Text>
+                    <Text style={styles.rlMetaVal}>
+                      {data.cancellation.originalInvoiceNumber} vom {data.cancellation.originalInvoiceDate}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            {/* Standard / RheinAhr Header */}
+            <View style={styles.header}>
+              <View>
+                <View style={styles.logoContainer}>
+                  {logoSrc && (
+                    // eslint-disable-next-line jsx-a11y/alt-text
+                    <Image src={logoSrc} style={{ width: 140, objectFit: "contain" }} />
+                  )}
+                </View>
+                <View style={styles.sloganRow}>
+                  <Text style={styles.sloganRed}>INTEGRITÄT</Text>
+                  <Text style={styles.sloganBlue}>WÜRDE</Text>
+                  <Text style={styles.sloganRed}>KOMPETENZ</Text>
+                  <Text style={styles.sloganBlue}>VERTRAUEN</Text>
+                </View>
+              </View>
+
+              <View style={styles.companyContactBlock}>
+                <Text style={styles.companyNameBold}>{companyConfig.name}</Text>
+                <Text>{companyConfig.street}</Text>
+                <Text>{companyConfig.city}</Text>
+                <Text>Telefon: {companyConfig.phone}</Text>
+                <Text>Telefax: {companyConfig.fax}</Text>
+                <Text>Mobile: {companyConfig.mobile}</Text>
+                <Text>E-Mail: {companyConfig.email}</Text>
+                <Text>Internet: {companyConfig.website}</Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row" }}>
+              <View style={styles.senderBlock}>
+                <Text style={styles.returnAddress}>{companyConfig.name} , {companyConfig.street} , {companyConfig.city}</Text>
+                <View style={styles.clientAddress}>
+                  {data.billingInfo ? (
+                    data.billingInfo.split("\n").map((line, i) => (
+                      <Text key={`bi-${i}`}>{line.trim()}</Text>
+                    ))
+                  ) : (
+                    (data.clientAddress || "").split("\n").map((line, i) => (
+                      <Text key={`addr-${i}`}>{line.trim()}</Text>
+                    ))
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.titleBlock}>
+                <Text style={[styles.titleText, data.draft || data.cancellation || data.historicalReferenceCopy ? styles.draftTitleText : {}]}>
+                  {documentTitle}
+                </Text>
+                <View style={styles.metaTable}>
+                  <View style={styles.metaRow}>
+                    <Text style={styles.metaLabel}>vom:</Text>
+                    <Text style={styles.metaValue}>{data.date}</Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <Text style={styles.metaLabel}>Nummer:</Text>
+                    <Text style={styles.metaValue}>{data.draft ? "NICHT VERGEBEN" : data.invoiceNumber}</Text>
+                  </View>
+                  {data.cancellation && (
+                    <View style={styles.metaRow}>
+                      <Text style={styles.metaLabel}>Zu Rechnung:</Text>
+                      <Text style={styles.metaValue}>
+                        {data.cancellation.originalInvoiceNumber} vom {data.cancellation.originalInvoiceDate}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.metaRow}>
+                    <Text style={styles.metaLabel}>Kunde:</Text>
+                    <Text style={styles.metaValue}>{data.clientId}</Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <Text style={styles.metaLabel}>Seite:</Text>
+                    <Text style={styles.metaValue}>1/1</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.greeting}>
+              {data.historicalReferenceCopy?.introduction ||
+                (data.cancellation ? "Wir stornieren die oben genannte Rechnung vollständig" : "Wir berechnen Ihnen")}
+            </Text>
+          </>
+        )}
+
+        {/* Main Table */}
+        <View style={styles.table}>
+          <View style={[styles.tableRow, styles.tableHeader]}>
+            <Text style={styles.colPos}>Pos</Text>
+            <Text style={styles.colDesc}>Bezeichnung</Text>
+            <Text style={styles.colHours}>Stunden</Text>
+            <Text style={styles.colRate}>Preis/Std</Text>
+            <Text style={styles.colAmount}>Betrag €</Text>
+          </View>
+          {data.items.map((item, i) => (
+            <View style={styles.tableRow} key={i} wrap={false}>
+              <Text style={styles.colPos}>{item.pos}</Text>
+              <Text style={styles.colDesc}>{item.description}</Text>
+              <Text style={styles.colHours}>{item.hours}</Text>
+              <Text style={styles.colRate}>
+                {item.rate && item.rate.trim() ? (item.rate.trim().endsWith("€") ? item.rate.trim() : `${item.rate.trim()} €`) : ""}
+              </Text>
+              <Text style={styles.colAmount}>{item.amount}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.subtotalRow}>
+          <Text style={styles.subtotalLabel}>Zwischensumme :</Text>
+          <Text style={styles.subtotalValue}>
+            {data.subtotal.trim().endsWith("€") ? data.subtotal.trim() : `${data.subtotal.trim()} €`}
+          </Text>
+        </View>
+
+        {/* Tax Table */}
+        <View style={styles.taxTable} wrap={false}>
+          <View style={[styles.taxRow, styles.taxHeader]}>
+            <Text style={styles.tCol1}>Netto €</Text>
+            <Text style={styles.tCol2}>MWS-1   %</Text>
+            <Text style={styles.tCol3}>MwSt.</Text>
+            <Text style={styles.tCol4}>Endbetrag €</Text>
+          </View>
+          <View style={styles.taxRow}>
+            <Text style={[styles.tCol1, styles.tBold]}>
+              {data.subtotal.trim().endsWith("€") ? data.subtotal.trim() : `${data.subtotal.trim()} €`}
+            </Text>
+            <Text style={[styles.tCol2, styles.tBold]}>{data.taxRatePercent ?? 19} %</Text>
+            <Text style={[styles.tCol3, styles.tBold]}>
+              {data.taxAmount.trim().endsWith("€") ? data.taxAmount.trim() : `${data.taxAmount.trim()} €`}
+            </Text>
+            <Text style={[styles.tCol4, styles.tBold]}>
+              {data.total.trim().endsWith("€") ? data.total.trim() : `${data.total.trim()} €`}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.titleBlock}>
-          <Text style={[styles.titleText, data.draft || data.cancellation || data.historicalReferenceCopy ? styles.draftTitleText : {}]}>{data.historicalReferenceCopy?.title || (data.draft ? "Rechnungsentwurf" : data.cancellation ? "Stornorechnung" : "Rechnung")}</Text>
-          <View style={styles.metaTable}>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>vom:</Text>
-              <Text style={styles.metaValue}>{data.date}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Nummer:</Text>
-              <Text style={styles.metaValue}>{data.draft ? "NICHT VERGEBEN" : data.invoiceNumber}</Text>
-            </View>
-            {data.cancellation && <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Zu Rechnung:</Text>
-              <Text style={styles.metaValue}>{data.cancellation.originalInvoiceNumber} vom {data.cancellation.originalInvoiceDate}</Text>
-            </View>}
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Kunde:</Text>
-              <Text style={styles.metaValue}>{data.clientId}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Seite:</Text>
-              <Text style={styles.metaValue}>1/1</Text>
+        <Text style={styles.paymentText}>
+          {data.historicalReferenceCopy
+            ? data.historicalReferenceCopy.notice
+            : data.draft
+            ? "ENTWURF ZUR INTERNEN PRÜFUNG – KEINE RECHNUNG. NICHT AN KUNDEN VERSENDEN."
+            : data.cancellation
+            ? "Diese Stornorechnung hebt die oben genannte Rechnung vollständig auf. Die ursprüngliche Rechnung bleibt als Beleg erhalten. Bitte prüfen Sie bereits geleistete Zahlungen gesondert."
+            : isRheinland
+            ? `Bitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer innerhalb von ${data.paymentTermsDays || 10} Tagen auf das unten angegebene Konto.`
+            : `Bitte überweisen Sie den Endbetrag innerhalb ${data.paymentTermsDays} Tagen und geben dabei unbedingt die Rechnungsnummer als Verwendungszweck an.`}
+        </Text>
+
+        {/* Footer */}
+        {isRheinland ? (
+          <View style={styles.rlFooterContainer} fixed>
+            <View style={styles.rlFooterLine} />
+            <View style={styles.rlFooterTextWrap}>
+              <Text style={styles.rlFooterRow}>
+                {[
+                  companyConfig.name,
+                  `${companyConfig.street} · ${companyConfig.city}`,
+                  companyConfig.mobile ? `mobil ${companyConfig.mobile}` : companyConfig.phone ? `Telefon ${companyConfig.phone}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" | ")}
+              </Text>
+              <Text style={styles.rlFooterRow}>
+                {[
+                  companyConfig.vatId ? `Ust- IdNr. ${companyConfig.vatId}` : null,
+                  companyConfig.taxId ? `Steuernummer ${companyConfig.taxId}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" | ")}
+              </Text>
+              <Text style={styles.rlFooterRow}>
+                {[
+                  companyConfig.bankName,
+                  companyConfig.iban ? `IBAN: ${companyConfig.iban}` : null,
+                  companyConfig.bic ? `BIC: ${companyConfig.bic}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" | ")}
+              </Text>
             </View>
           </View>
-        </View>
-      </View>
-
-      <Text style={styles.greeting}>{data.historicalReferenceCopy?.introduction || (data.cancellation ? "Wir stornieren die oben genannte Rechnung vollständig" : "Wir berechnen Ihnen")}</Text>
-
-      {/* Main Table */}
-      <View style={styles.table}>
-        <View style={[styles.tableRow, styles.tableHeader]}>
-          <Text style={styles.colPos}>Pos</Text>
-          <Text style={styles.colDesc}>Bezeichnung</Text>
-          <Text style={styles.colHours}>Stunden</Text>
-          <Text style={styles.colRate}>Preis/Std</Text>
-          <Text style={styles.colAmount}>Betrag €</Text>
-        </View>
-        {data.items.map((item, i) => (
-          <View style={styles.tableRow} key={i} wrap={false}>
-            <Text style={styles.colPos}>{item.pos}</Text>
-            <Text style={styles.colDesc}>{item.description}</Text>
-            <Text style={styles.colHours}>{item.hours}</Text>
-            <Text style={styles.colRate}>{item.rate && item.rate.trim() ? (item.rate.trim().endsWith("€") ? item.rate.trim() : `${item.rate.trim()} €`) : ""}</Text>
-            <Text style={styles.colAmount}>{item.amount}</Text>
+        ) : (
+          <View style={styles.footer} fixed>
+            <View style={styles.footerCol}>
+              <Text style={styles.footerBoldPrimary}>{companyConfig.name}</Text>
+              <Text style={styles.footerText}>{companyConfig.street}</Text>
+              <Text style={styles.footerText}>{companyConfig.city}</Text>
+              <Text style={styles.footerText}>Telefon: {companyConfig.phone}</Text>
+              <Text style={styles.footerText}>Telefax: {companyConfig.fax}</Text>
+              <Text style={styles.footerText}>Mobile: {companyConfig.mobile}</Text>
+            </View>
+            <View style={styles.footerCol}>
+              <Text style={styles.footerBoldGray}>{companyConfig.bankName}</Text>
+              <Text style={styles.footerText}>IBAN: {companyConfig.iban}</Text>
+              <Text style={styles.footerText}>BIC: {companyConfig.bic}</Text>
+              <Text style={{ marginTop: 10, marginBottom: 2 }}>E-Mail: {companyConfig.email}</Text>
+              <Text style={styles.footerText}>Internet: {companyConfig.website}</Text>
+            </View>
+            <View style={styles.footerCol}>
+              <Text style={styles.footerBoldGray}>{companyConfig.registryCourt}</Text>
+              <Text style={styles.footerText}>{companyConfig.hrb}</Text>
+              <Text style={styles.footerText}>Steuernummer : {companyConfig.taxId}</Text>
+              <Text style={styles.footerText}>Ust-IdNr : {companyConfig.vatId}</Text>
+              <Text style={styles.footerText}>Geschäftsführer : {companyConfig.ceo}</Text>
+            </View>
           </View>
-        ))}
-      </View>
-
-      <View style={styles.subtotalRow}>
-        <Text style={styles.subtotalLabel}>Zwischensumme :</Text>
-        <Text style={styles.subtotalValue}>{data.subtotal.trim().endsWith("€") ? data.subtotal.trim() : `${data.subtotal.trim()} €`}</Text>
-      </View>
-
-      {/* Tax Table */}
-      <View style={styles.taxTable} wrap={false}>
-        <View style={[styles.taxRow, styles.taxHeader]}>
-          <Text style={styles.tCol1}>Netto €</Text>
-          <Text style={styles.tCol2}>MWS-1   %</Text>
-          <Text style={styles.tCol3}>MwSt.</Text>
-          <Text style={styles.tCol4}>Endbetrag €</Text>
-        </View>
-        <View style={styles.taxRow}>
-          <Text style={[styles.tCol1, styles.tBold]}>{data.subtotal.trim().endsWith("€") ? data.subtotal.trim() : `${data.subtotal.trim()} €`}</Text>
-          <Text style={[styles.tCol2, styles.tBold]}>{data.taxRatePercent ?? 19} %</Text>
-          <Text style={[styles.tCol3, styles.tBold]}>{data.taxAmount.trim().endsWith("€") ? data.taxAmount.trim() : `${data.taxAmount.trim()} €`}</Text>
-          <Text style={[styles.tCol4, styles.tBold]}>{data.total.trim().endsWith("€") ? data.total.trim() : `${data.total.trim()} €`}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.paymentText}>
-        {data.historicalReferenceCopy
-          ? data.historicalReferenceCopy.notice
-          : data.draft
-          ? "ENTWURF ZUR INTERNEN PRÜFUNG – KEINE RECHNUNG. NICHT AN KUNDEN VERSENDEN."
-          : data.cancellation
-          ? "Diese Stornorechnung hebt die oben genannte Rechnung vollständig auf. Die ursprüngliche Rechnung bleibt als Beleg erhalten. Bitte prüfen Sie bereits geleistete Zahlungen gesondert."
-          : `Bitte überweisen Sie den Endbetrag innerhalb ${data.paymentTermsDays} Tagen und geben dabei unbedingt die Rechnungsnummer als Verwendungszweck an.`}
-      </Text>
-
-      {/* Footer */}
-      <View style={styles.footer} fixed>
-        <View style={styles.footerCol}>
-          <Text style={styles.footerBoldPrimary}>{companyConfig.name}</Text>
-          <Text style={styles.footerText}>{companyConfig.street}</Text>
-          <Text style={styles.footerText}>{companyConfig.city}</Text>
-          <Text style={styles.footerText}>Telefon: {companyConfig.phone}</Text>
-          <Text style={styles.footerText}>Telefax: {companyConfig.fax}</Text>
-          <Text style={styles.footerText}>Mobile: {companyConfig.mobile}</Text>
-        </View>
-        <View style={styles.footerCol}>
-          <Text style={styles.footerBoldGray}>{companyConfig.bankName}</Text>
-          <Text style={styles.footerText}>IBAN: {companyConfig.iban}</Text>
-          <Text style={styles.footerText}>BIC: {companyConfig.bic}</Text>
-          <Text style={{ marginTop: 10, marginBottom: 2 }}>E-Mail: {companyConfig.email}</Text>
-          <Text style={styles.footerText}>Internet: {companyConfig.website}</Text>
-        </View>
-        <View style={styles.footerCol}>
-          <Text style={styles.footerBoldGray}>{companyConfig.registryCourt}</Text>
-          <Text style={styles.footerText}>{companyConfig.hrb}</Text>
-          <Text style={styles.footerText}>Steuernummer : {companyConfig.taxId}</Text>
-          <Text style={styles.footerText}>Ust-IdNr : {companyConfig.vatId}</Text>
-          <Text style={styles.footerText}>Geschäftsführer : {companyConfig.ceo}</Text>
-        </View>
-      </View>
-    </Page>
-  </Document>
-);
+        )}
+      </Page>
+    </Document>
+  );
+};
 
 export async function generateInvoicePdf(data: InvoicePdfData, frozenCompanyConfig?: CompanyConfig): Promise<Buffer> {
-  const companyConfig = frozenCompanyConfig ?? await getCompanyConfig();
+  const companyConfig = frozenCompanyConfig ?? (await getCompanyConfig());
   return await renderToBuffer(<InvoiceTemplate companyConfig={companyConfig} data={data} />);
 }

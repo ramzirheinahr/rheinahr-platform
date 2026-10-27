@@ -3,6 +3,7 @@ import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/render
 import React from "react";
 import path from "path";
 import fs from "fs";
+import { resolvePdfLogo } from "@/lib/pdf/resolve-logo";
 import type { CompanyConfig } from "@/lib/config/company";
 import type { MitarbeiterListeRow } from "@/lib/reports-data";
 
@@ -41,17 +42,7 @@ export const MitarbeiterListeTemplate = ({
   endDate,
   rows,
 }: MitarbeiterListePdfProps) => {
-  let logoSrc: string | null = null;
-  if (companyConfig?.logoUrl) {
-    if (companyConfig.logoUrl.startsWith("http") || companyConfig.logoUrl.startsWith("data:")) {
-      logoSrc = companyConfig.logoUrl;
-    } else {
-      const fullPath = path.join(process.cwd(), "public", companyConfig.logoUrl.replace(/^\//, ""));
-      if (fs.existsSync(fullPath)) {
-        logoSrc = fullPath;
-      }
-    }
-  }
+  const logoSrc = resolvePdfLogo(companyConfig?.logoUrl, companyConfig?.shortName);
 
   const formatD = (dStr: string) => {
     if (!dStr) return "";

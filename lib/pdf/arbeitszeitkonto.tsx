@@ -3,6 +3,7 @@ import { Document, Page, View, Text, StyleSheet, Image } from "@react-pdf/render
 import React from "react";
 import path from "path";
 import fs from "fs";
+import { resolvePdfLogo } from "@/lib/pdf/resolve-logo";
 import { getCompanyConfig } from "@/lib/config/company";
 import { MonthlyHoursAccount } from "@/lib/hours-account";
 
@@ -56,17 +57,7 @@ export const ArbeitszeitkontoPage = ({ data, companyConfig }: { data: Arbeitszei
     return h.toFixed(2).replace(".", ",");
   };
 
-  let logoSrc: string | null = null;
-  if (companyConfig?.logoUrl) {
-    if (companyConfig.logoUrl.startsWith("http") || companyConfig.logoUrl.startsWith("data:")) {
-      logoSrc = companyConfig.logoUrl;
-    } else {
-      const fullPath = path.join(process.cwd(), "public", companyConfig.logoUrl.replace(/^\//, ""));
-      if (fs.existsSync(fullPath)) {
-        logoSrc = fullPath;
-      }
-    }
-  }
+  const logoSrc = resolvePdfLogo(companyConfig?.logoUrl, companyConfig?.shortName);
 
   const finalBalance = data.months.length > 0 ? data.months[data.months.length - 1].cumulativeBalance : data.initialCarryover;
 
