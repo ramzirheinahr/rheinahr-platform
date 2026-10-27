@@ -544,7 +544,7 @@ const RheinlandContractDocument = ({ data, companyConfig }: { data: ContractPdfD
           </Text>
         </View>
 
-        {data.assignments.slice(0, 3).map((a, idx) => (
+        {data.assignments.slice(0, 1).map((a, idx) => (
           <View key={`page3-worker-${idx}`} style={rlStyles.workerItemBox}>
             <View style={rlStyles.workerRow}>
               <Text style={rlStyles.workerLabel}>Erforderliche Qualifikation:</Text>
@@ -578,6 +578,11 @@ const RheinlandContractDocument = ({ data, companyConfig }: { data: ContractPdfD
             </View>
           </View>
         ))}
+        {data.assignments.length > 1 && (
+          <Text style={[rlStyles.p, { fontStyle: "italic", color: "#4b5563" }]}>
+            2) Weitere {data.assignments.length - 1} überlassene(r) Mitarbeiter siehe Einsatzübersicht / Anhang dieses Vertrages.
+          </Text>
+        )}
 
         <Text style={rlStyles.pageNumber}>3</Text>
       </Page>
