@@ -2008,5 +2008,22 @@
     "deletedSuccess": "Einrichtungstyp gelöscht.",
     "deleteConfirm": "Möchten Sie diesen Einrichtungstyp wirklich dauerhaft löschen?",
     "cannotDeleteUsed": "Wird von Einrichtungen verwendet (Bitte stattdessen archivieren)"
+  },
+  "orderPdfExport": {
+    "buttonLabel": "PDF",
+    "dialogTitle": "Dienstplan als PDF exportieren",
+    "dialogDescription": "Wählen Sie aus, welche Schichten exportiert werden sollen, oder laden Sie den gesamten Dienstplan herunter.",
+    "searchPlaceholder": "Nach Datum, Zeit, Mitarbeiter oder Bereich filtern...",
+    "allWorkers": "Alle Mitarbeiter",
+    "unassigned": "Offen / Nicht zugewiesen",
+    "selectAll": "Alle auswählen",
+    "deselectAll": "Auswahl aufheben",
+    "selectedCount": "{selected} von {total} Schichten ausgewählt",
+    "exportAll": "Alle exportieren ({total})",
+    "exportSelected": "Auswahl exportieren ({count})",
+    "cancel": "Abbrechen",
+    "noShiftsMatch": "Keine Schichten gefunden, die dem Filter entsprechen.",
+    "ward": "Bereich",
+    "qualification": "Qualifikation"
   }
 }

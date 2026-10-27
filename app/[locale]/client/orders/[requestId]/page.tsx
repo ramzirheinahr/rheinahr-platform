@@ -19,8 +19,12 @@ import { ClientInvoicesBanner } from "@/components/client/client-invoices-banner
 import type { ShiftMeta } from "@/components/orders/shift-meta-cell";
 import { formatDateDE } from "@/lib/utils";
 import { fromZonedTime } from "date-fns-tz";
-import { ArrowLeft, Pencil, Download } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { getQualificationCatalog, catalogRateMap } from "@/lib/qualification-catalog";
+import {
+  OrderPdfExportDialog,
+  type SelectableOrderShift,
+} from "@/components/admin/order-pdf-export-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -197,6 +201,20 @@ export default async function ClientRequestDetail({
     };
   }
 
+  const exportShifts: SelectableOrderShift[] = orders.map((o) => ({
+    id: o.id,
+    shiftDate: o.shiftDate.toISOString().slice(0, 10),
+    startTime: o.startTime,
+    endTime: o.endTime,
+    requiredQualification: o.requiredQualification,
+    ward: o.notes,
+    status: o.status,
+    workerName:
+      o.assignments.length > 0
+        ? o.assignments.map((a) => a.worker.fullName).join(", ")
+        : null,
+  }));
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -218,14 +236,11 @@ export default async function ClientRequestDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            className="gap-2"
-            render={<a href={`/api/exports/order-request/${requestId}?format=pdf`} target="_blank" />}
-          >
-            <Download className="size-4" />
-            PDF
-          </Button>
+          <OrderPdfExportDialog
+            requestGroupId={requestId}
+            shifts={exportShifts}
+            facilityName={client.facilityName}
+          />
           {cancelable ? <CancelRequestButton requestGroupId={requestId} /> : null}
           {editable ? (
             <Button

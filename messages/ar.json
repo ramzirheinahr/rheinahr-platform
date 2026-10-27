@@ -2010,5 +2010,22 @@
     "deletedSuccess": "تم حذف نوع المنشأة بنجاح.",
     "deleteConfirm": "هل أنت متأكد من رغبتك في حذف هذا النوع نهائياً؟",
     "cannotDeleteUsed": "مستخدم حالياً بواسطة منشآت (يرجى الأرشفة بدلاً من الحذف)"
+  },
+  "orderPdfExport": {
+    "buttonLabel": "PDF",
+    "dialogTitle": "تصدير جدول الورديات كملف PDF",
+    "dialogDescription": "حدد الورديات المطلوب تصديرها إلى PDF، أو قم بتنزيل الجدول بالكامل.",
+    "searchPlaceholder": "تصفية حسب التاريخ، الوقت، الموظف أو القسم...",
+    "allWorkers": "جميع الموظفين",
+    "unassigned": "مفتوحة / غير معين",
+    "selectAll": "تحديد الكل",
+    "deselectAll": "إلغاء التحديد",
+    "selectedCount": "تم تحديد {selected} من {total} وردية",
+    "exportAll": "تصدير الكل ({total})",
+    "exportSelected": "تصدير المحدد ({count})",
+    "cancel": "إلغاء",
+    "noShiftsMatch": "لم يتم العثور على ورديات مطابقة للتصفية.",
+    "ward": "القسم",
+    "qualification": "المؤهل"
   }
 }

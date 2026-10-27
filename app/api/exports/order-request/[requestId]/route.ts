@@ -21,10 +21,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ requestI
     if (!clientId) return new NextResponse("Forbidden", { status: 403 });
   }
 
+  const url = new URL(req.url);
+  const idsParam = url.searchParams.get("orderIds") || url.searchParams.get("ids");
+  const selectedOrderIds = idsParam
+    ? idsParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+
   // Fetch the orders for this request group
   const orders = await prisma.order.findMany({
     where: {
-      requestGroupId: requestId,
+      OR: [
+        { requestGroupId: requestId },
+        { id: requestId },
+      ],
+      ...(selectedOrderIds.length > 0 ? { id: { in: selectedOrderIds } } : {}),
       ...(clientId ? { clientId } : {}),
     },
     orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
@@ -112,7 +122,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ requestI
     action: "order_request.export",
     entity: "OrderGroup",
     entityId: requestId,
-    metadata: { rows: rows.length },
+    metadata: { rows: rows.length, selectedCount: selectedOrderIds.length },
   });
 
   const { renderOrderRequestPdf } = await import("@/lib/pdf/order-request");

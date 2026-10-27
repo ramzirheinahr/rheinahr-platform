@@ -2008,5 +2008,22 @@
     "deletedSuccess": "Facility type deleted.",
     "deleteConfirm": "Are you sure you want to permanently delete this facility type?",
     "cannotDeleteUsed": "In use by facilities (Please archive instead)"
+  },
+  "orderPdfExport": {
+    "buttonLabel": "PDF",
+    "dialogTitle": "Export Schedule as PDF",
+    "dialogDescription": "Select which shifts to export to PDF, or download the entire schedule.",
+    "searchPlaceholder": "Filter by date, time, worker or ward...",
+    "allWorkers": "All Workers",
+    "unassigned": "Open / Unassigned",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "selectedCount": "{selected} of {total} shifts selected",
+    "exportAll": "Export all ({total})",
+    "exportSelected": "Export selected ({count})",
+    "cancel": "Cancel",
+    "noShiftsMatch": "No shifts match the filter criteria.",
+    "ward": "Ward",
+    "qualification": "Qualification"
   }
 }

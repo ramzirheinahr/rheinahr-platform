@@ -7,11 +7,15 @@ import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { CancelRequestButton } from "@/components/orders/cancel-request-button";
 import { formatDateDE } from "@/lib/utils";
-import { ArrowLeft, Pencil, Download } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
 import { SendOrderEmailButton } from "@/components/admin/send-order-email-button";
 import { ScheduleSkeleton } from "@/components/admin/skeletons/schedule-skeleton";
 import { OrderDetailContent } from "./components/order-detail-content";
+import {
+  OrderPdfExportDialog,
+  type SelectableOrderShift,
+} from "@/components/admin/order-pdf-export-dialog";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -68,6 +72,48 @@ export default async function AdminRequestDetail({
     : `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
   const returnMonth = queryMonth || orderMonth;
 
+  const shiftsForExport = await prisma.order.findMany({
+    where: {
+      OR: [
+        { requestGroupId: targetGroupId },
+        { id: targetGroupId },
+      ],
+    },
+    orderBy: [{ shiftDate: "asc" }, { startTime: "asc" }],
+    select: {
+      id: true,
+      shiftDate: true,
+      startTime: true,
+      endTime: true,
+      requiredQualification: true,
+      notes: true,
+      status: true,
+      assignments: {
+        select: {
+          worker: {
+            select: {
+              fullName: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const exportShifts: SelectableOrderShift[] = shiftsForExport.map((s) => ({
+    id: s.id,
+    shiftDate: s.shiftDate.toISOString().slice(0, 10),
+    startTime: s.startTime,
+    endTime: s.endTime,
+    requiredQualification: s.requiredQualification,
+    ward: s.notes,
+    status: s.status,
+    workerName:
+      s.assignments.length > 0
+        ? s.assignments.map((a) => a.worker.fullName).join(", ")
+        : null,
+  }));
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -91,14 +137,11 @@ export default async function AdminRequestDetail({
         <div className="flex flex-wrap items-center gap-2">
           {canExecuteGroupActions ? (
             <>
-              <Button
-                variant="outline"
-                className="gap-2"
-                render={<a href={`/api/exports/order-request/${targetGroupId}?format=pdf`} target="_blank" />}
-              >
-                <Download className="size-4" />
-                PDF
-              </Button>
+              <OrderPdfExportDialog
+                requestGroupId={targetGroupId}
+                shifts={exportShifts}
+                facilityName={facility}
+              />
               <SendOrderEmailButton
                 requestGroupId={targetGroupId}
                 facilityName={facility}
