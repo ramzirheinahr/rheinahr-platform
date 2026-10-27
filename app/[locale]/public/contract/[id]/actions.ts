@@ -71,16 +71,29 @@ export async function signContractPublic({
     console.warn("Could not load stamp_signed.png", e);
   }
 
+  const firstShift = contract.assignments[0]?.order?.shiftDate;
+  const lastShift = contract.assignments[contract.assignments.length - 1]?.order?.shiftDate;
+
   const pdfData = {
     facilityName: contract.client.facilityName,
     facilityAddress: contract.client.address || "Adresse unbekannt",
+    contactPerson: contract.client.contactPerson || undefined,
     period: contract.period || "angegeben",
+    periodStart: firstShift ? format(firstShift, "dd.MM.yyyy") : undefined,
+    periodEnd: lastShift ? format(lastShift, "dd.MM.yyyy") : undefined,
     status: "signed",
     signatureData,
     signedAt: signedAtFormatted,
     ipAddress: ip,
     splitByShift: contract.splitByShift,
     stampDataUrl,
+    surcharges: {
+      night: Math.round((surcharges.night ?? 0.5) * 100),
+      sat: Math.round((surcharges.sat ?? 0.25) * 100),
+      sun: Math.round((surcharges.sun ?? 1.0) * 100),
+      holiday: Math.round((surcharges.holiday ?? 1.25) * 100),
+      overtime: 25,
+    },
     assignments: contract.assignments.map(a => {
       const baseRate = rateFor(a.order.requiredQualification, rates);
       const amount = requestNetTotal(
