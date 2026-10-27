@@ -65,13 +65,18 @@ export async function GET(_req: Request, props: { params: Promise<{ contractId: 
   try {
     const fs = require("fs");
     const path = require("path");
-    const stampPath = path.join(process.cwd(), "public", "stamp_signed.png");
+    const { getCompanyConfig } = await import("@/lib/config/company");
+    const companyConfig = await getCompanyConfig();
+    const isRheinland = (companyConfig.shortName || "").toLowerCase().includes("rheinland") ||
+                        (companyConfig.name || "").toLowerCase().includes("rheinland");
+    const stampFile = isRheinland ? "rheinland_stamp_signed.png" : "stamp_signed.png";
+    const stampPath = path.join(process.cwd(), "public", stampFile);
     if (fs.existsSync(stampPath)) {
       const stampBuffer = fs.readFileSync(stampPath);
       stampDataUrl = `data:image/png;base64,${stampBuffer.toString("base64")}`;
     }
   } catch (e) {
-    console.warn("Could not load stamp_signed.png", e);
+    console.warn("Could not load stamp image", e);
   }
 
   const firstShift = contract.assignments[0]?.order?.shiftDate;

@@ -321,10 +321,11 @@ const rlStyles = StyleSheet.create({
     marginBottom: 2,
   },
   stampImage: {
-    height: 45,
+    width: 160,
+    height: 50,
     objectFit: "contain",
     alignSelf: "flex-start",
-    marginBottom: 2,
+    marginBottom: 4,
   },
 });
 
@@ -1016,13 +1017,26 @@ const RheinlandContractDocument = ({ data, companyConfig }: { data: ContractPdfD
   );
 };
 
+import path from "path";
+import fs from "fs";
+
 export async function renderContractPdf(data: ContractPdfData): Promise<Buffer> {
   const companyConfig = await getCompanyConfig();
   const isRheinland = (companyConfig.shortName || "").toLowerCase().includes("rheinland") ||
                       (companyConfig.name || "").toLowerCase().includes("rheinland");
 
   if (isRheinland) {
-    return Buffer.from(await renderToBuffer(<RheinlandContractDocument companyConfig={companyConfig} data={data} />));
+    const rlStampPath = path.join(process.cwd(), "public", "rheinland_stamp_signed.png");
+    let stampDataUrl = data.stampDataUrl;
+    if (fs.existsSync(rlStampPath)) {
+      const stampBuf = fs.readFileSync(rlStampPath);
+      stampDataUrl = `data:image/png;base64,${stampBuf.toString("base64")}`;
+    }
+    return Buffer.from(
+      await renderToBuffer(
+        <RheinlandContractDocument companyConfig={companyConfig} data={{ ...data, stampDataUrl }} />
+      )
+    );
   }
 
   return Buffer.from(await renderToBuffer(<OriginalAuegContractTemplate companyConfig={companyConfig} data={data} />));
