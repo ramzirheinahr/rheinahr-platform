@@ -295,3 +295,61 @@ export async function rejectHoursCorrectionAction(params: {
     return { ok: false, error: msg };
   }
 }
+
+export async function setWorkerDailyHoursAdjustment(
+  workerId: string,
+  dateStr: string,
+  hours: number
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user || !["super_admin", "admin"].includes(user.role)) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  if (typeof hours !== "number" || isNaN(hours)) {
+    return { ok: false, error: "Invalid hours" };
+  }
+
+  const month = dateStr.slice(0, 7);
+  const tag = `[date:${dateStr}]`;
+
+  const existing = await prisma.workerHoursAdjustment.findFirst({
+    where: {
+      workerId,
+      month,
+      notes: { startsWith: tag },
+    },
+  });
+
+  if (hours === 0) {
+    if (existing) {
+      await prisma.workerHoursAdjustment.delete({
+        where: { id: existing.id },
+      });
+    }
+  } else {
+    if (existing) {
+      await prisma.workerHoursAdjustment.update({
+        where: { id: existing.id },
+        data: {
+          hours,
+        },
+      });
+    } else {
+      await prisma.workerHoursAdjustment.create({
+        data: {
+          workerId,
+          month,
+          type: "sonstige",
+          hours,
+          notes: tag,
+        },
+      });
+    }
+  }
+
+  revalidatePath(`/admin/workers/${workerId}/schedule`);
+  revalidatePath("/admin/reports");
+  revalidatePath("/worker");
+  return { ok: true };
+}

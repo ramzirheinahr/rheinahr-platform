@@ -42,9 +42,9 @@ export default async function WorkerSchedulePage({
   if (year < 2020 || year > 2100) year = now.getUTCFullYear();
 
   const worker = await getWorker();
-  const { rows: assignments, leaveDays, totals } = worker
+  const { rows: assignments, leaveDays, dailyAdjustments, totals } = worker
     ? await getWorkerMonthSchedule(worker.id, year, month)
-    : { rows: [], leaveDays: [], totals: { requiredHours: 151.67, carryoverHours: 0, confirmedHours: 0, confirmedShifts: 0 } };
+    : { rows: [], leaveDays: [], dailyAdjustments: [], totals: { requiredHours: 151.67, carryoverHours: 0, confirmedHours: 0, confirmedShifts: 0 } };
   const initialBlocks = worker
     ? await getWorkerMonthAvailability(worker.id, year, month)
     : [];
@@ -134,6 +134,7 @@ export default async function WorkerSchedulePage({
           requiredHours={totals.requiredHours}
           carryoverHours={totals.carryoverHours}
           leaveDays={leaveDays}
+          dailyAdjustments={dailyAdjustments}
           mealAllowanceType={worker?.mealAllowanceType}
           travelAllowanceEnabled={worker?.travelAllowanceEnabled}
         />

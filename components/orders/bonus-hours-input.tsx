@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { updateAssignmentBonusHours } from "@/app/[locale]/admin/orders/actions";
 import { Loader2 } from "lucide-react";
 
@@ -11,6 +12,7 @@ export function BonusHoursInput({
   assignmentId: string;
   initialBonusHours?: number | null;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [value, setValue] = useState((initialBonusHours ?? 0).toString());
 
@@ -20,22 +22,22 @@ export function BonusHoursInput({
 
   const handleBlur = () => {
     const parsed = parseFloat(value);
-    const finalVal = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    const finalVal = isNaN(parsed) ? 0 : parsed;
     setValue(finalVal.toString());
 
-    if (finalVal !== initialBonusHours) {
+    if (finalVal !== (initialBonusHours ?? 0)) {
       startTransition(async () => {
         await updateAssignmentBonusHours(assignmentId, finalVal);
+        router.refresh();
       });
     }
   };
 
   return (
-    <div className="relative flex items-center">
+    <div className="relative flex items-center justify-center">
       <input
         type="number"
         step="0.25"
-        min="0"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onBlur={handleBlur}

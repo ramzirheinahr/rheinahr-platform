@@ -1071,6 +1071,8 @@
     "workedTotal": "Ist",
     "davonConfirmed": "davon Bestätigt",
     "nochOffen": "noch offen",
+    "bonusHoursLabel": "Bonus / Adjustment",
+    "editDailyHours": "Adjust daily hours",
     "kontostandLabel": "Kontostand",
     "requestCancel": "Request cancellation",
     "requestCancelTitle": "Request shift cancellation",

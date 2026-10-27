@@ -17,6 +17,7 @@ import { AssignmentActions } from "@/components/worker/assignment-actions";
 import { ShiftCancelControls } from "@/components/worker/shift-cancel-controls";
 import { ToggleMealAllowanceButton, ToggleTravelAllowanceButton } from "@/components/orders/allowance-toggles";
 import { BonusHoursInput } from "@/components/orders/bonus-hours-input";
+import { DailyHoursInput } from "@/components/orders/daily-hours-input";
 import {
   Dialog,
   DialogContent,
@@ -109,6 +110,7 @@ export function AvailabilityBuilder({
   workerId,
   isAdmin = false,
   leaveDays = [],
+  dailyAdjustments = [],
   requiredHours,
   carryoverHours = 0,
   mealAllowanceType,
@@ -123,6 +125,7 @@ export function AvailabilityBuilder({
   requiredHours?: number;
   carryoverHours?: number;
   leaveDays?: { id: string; leaveRequestId: string; date: string; status: "pending" | "approved" | "rejected"; type: "vacation" | "sick" | "other"; hours: number }[];
+  dailyAdjustments?: { id: string; date: string; hours: number; notes?: string | null }[];
   mealAllowanceType?: string;
   travelAllowanceEnabled?: boolean;
 }) {
@@ -180,6 +183,10 @@ export function AvailabilityBuilder({
     const accepted = (assignments || []).filter(
       (a) => a.status === "confirmed" && a.confirmedHours == null && a.scheduledHours != null,
     );
+    const bonusHoursSum = (assignments || []).reduce((sum, a) => sum + (a.bonusHours ?? 0), 0);
+    const dailyAdjSum = (dailyAdjustments || []).reduce((sum, d) => sum + (d.hours ?? 0), 0);
+    const totalBonusHours = Math.round((bonusHoursSum + dailyAdjSum) * 100) / 100;
+
     return {
       hours:
         confirmed.reduce((sum, a) => sum + (a.confirmedHours ?? 0), 0) +
@@ -187,8 +194,14 @@ export function AvailabilityBuilder({
       shifts: confirmed.length,
       acceptedHours: accepted.reduce((sum, a) => sum + (a.scheduledHours ?? 0), 0),
       acceptedShifts: accepted.length,
+      bonusHours: totalBonusHours,
     };
-  }, [assignments, leaveDays]);
+  }, [assignments, leaveDays, dailyAdjustments]);
+
+  const dailyAdjMap = useMemo(
+    () => new Map((dailyAdjustments || []).map((d) => [d.date, d])),
+    [dailyAdjustments]
+  );
 
   // Helper: allows signing if date is in the past, or if today and current time >= startTime - 30 mins
   const canSignShift = (date: string, startTime: string) => {
@@ -782,6 +795,7 @@ export function AvailabilityBuilder({
               const extra = Array.from({ length: count - 1 }, (_, k) => k + 1);
               const dayAssignments = (assignments || []).filter((a) => a.date === d.date);
               const dayLeaves = (leaveDays || []).filter((l) => l.date === d.date && l.status !== "rejected");
+              const dayAdj = dailyAdjMap.get(d.date);
               let isFirstRow = true;
 
               return (
@@ -985,7 +999,7 @@ export function AvailabilityBuilder({
                           {isAdmin ? (
                             <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
                           ) : (
-                            <span className="font-bold">{a.bonusHours ? `+${a.bonusHours} Std.` : "—"}</span>
+                            <span className="font-bold">{a.bonusHours ? `${a.bonusHours > 0 ? "+" : ""}${a.bonusHours} Std.` : "—"}</span>
                           )}
                         </td>
                         <td className="p-2.5 text-end">
@@ -1020,7 +1034,32 @@ export function AvailabilityBuilder({
                       {/* Availability slot description */}
                     </td>
                     {TypeCells(d.date, 0)}
-                    <td colSpan={4} className="p-1"></td>
+                    {dayAssignments.length === 0 ? (
+                      <>
+                        <td className="p-2.5 whitespace-nowrap text-muted-foreground font-semibold">—</td>
+                        <td className="p-2.5 whitespace-nowrap text-muted-foreground font-semibold">—</td>
+                        <td className="p-2.5 text-foreground font-semibold">
+                          {isAdmin && workerId ? (
+                            <DailyHoursInput workerId={workerId} date={d.date} initialHours={dayAdj?.hours ?? 0} />
+                          ) : (
+                            <span className="font-bold">
+                              {dayAdj?.hours ? `${dayAdj.hours > 0 ? "+" : ""}${dayAdj.hours} Std.` : "—"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-end">
+                          {dayAdj?.hours ? (
+                            <span className={cn("font-bold text-base", dayAdj.hours > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                              {dayAdj.hours > 0 ? "+" : ""}{hoursFmt.format(dayAdj.hours)} {t("hoursUnit")}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground font-semibold">—</span>
+                          )}
+                        </td>
+                      </>
+                    ) : (
+                      <td colSpan={4} className="p-1"></td>
+                    )}
                   </tr>
                   {extra.map((slot) => (
                     <tr key={slot} className={cn("border-b border-border/80 transition-colors", rowCls)}>
@@ -1073,8 +1112,8 @@ export function AvailabilityBuilder({
                   {(() => {
                     // Positive remaining = credit for next month (worker provided more than needed).
                     // Negative remaining = deficit (worker owes hours).
-                    const worked = totals.acceptedHours + totals.hours;
-                    const remaining = worked + carryoverHours - (requiredHours ?? 0);
+                    const worked = Math.round((totals.acceptedHours + totals.hours + totals.bonusHours) * 100) / 100;
+                    const remaining = Math.round((worked + carryoverHours - (requiredHours ?? 0)) * 100) / 100;
                     const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
                     return (
                       <div className="flex flex-col items-end gap-1">
@@ -1102,6 +1141,14 @@ export function AvailabilityBuilder({
                           <span className="text-muted-foreground">{t("nochOffen")}:</span>
                           <span className="font-bold text-amber-600">{hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}</span>
                         </div>
+                        {totals.bonusHours !== 0 && (
+                          <div className="flex justify-between w-52 text-xs ps-3">
+                            <span className="text-muted-foreground">{t("bonusHoursLabel")}:</span>
+                            <span className={cn("font-semibold", totals.bonusHours > 0 ? "text-emerald-600" : "text-destructive")}>
+                              {signed(totals.bonusHours)} {t("hoursUnit")}
+                            </span>
+                          </div>
+                        )}
                         {requiredHours !== undefined && (
                           <div className="flex justify-between w-52 text-sm border-t border-emerald-500/20 pt-1 mt-1 font-bold">
                             <span className="text-muted-foreground">{t("kontostandLabel")}:</span>
@@ -1130,6 +1177,7 @@ export function AvailabilityBuilder({
           const dayLeaves = (leaveDays || []).filter(
             (l) => l.date === d.date && l.status !== "rejected",
           );
+          const dayAdj = dailyAdjMap.get(d.date);
           const hasSetAvailability = slots.some((s) => get(d.date, s).type !== "none");
           const showEditor = !d.past || hasSetAvailability;
           return (
@@ -1227,7 +1275,7 @@ export function AvailabilityBuilder({
                                     <BonusHoursInput assignmentId={a.id} initialBonusHours={a.bonusHours} />
                                   </>
                                 ) : (
-                                  `+${a.bonusHours} Std. Bonus`
+                                  `${(a.bonusHours ?? 0) > 0 ? "+" : ""}${a.bonusHours} Std. Bonus`
                                 )}
                               </span>
                             ) : null}
@@ -1244,6 +1292,19 @@ export function AvailabilityBuilder({
                     </div>
                   </div>
                 ))}
+
+                {dayAssignments.length === 0 ? (
+                  <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2 text-xs">
+                    <span className="text-muted-foreground">{t("bonusHoursLabel")}:</span>
+                    {isAdmin && workerId ? (
+                      <DailyHoursInput workerId={workerId} date={d.date} initialHours={dayAdj?.hours ?? 0} />
+                    ) : (
+                      <span className="font-bold">
+                        {dayAdj?.hours ? `${dayAdj.hours > 0 ? "+" : ""}${dayAdj.hours} Std.` : "—"}
+                      </span>
+                    )}
+                  </div>
+                ) : null}
 
                 {showEditor ? (
                   <div className="space-y-2">
@@ -1310,8 +1371,8 @@ export function AvailabilityBuilder({
             {(() => {
               // Positive remaining = credit for next month (worker provided more than needed).
               // Negative remaining = deficit (worker owes hours).
-              const worked = totals.acceptedHours + totals.hours;
-              const remaining = worked + carryoverHours - (requiredHours ?? 0);
+              const worked = Math.round((totals.acceptedHours + totals.hours + totals.bonusHours) * 100) / 100;
+              const remaining = Math.round((worked + carryoverHours - (requiredHours ?? 0)) * 100) / 100;
               const signed = (n: number) => `${n > 0 ? "+" : ""}${hoursFmt.format(n)}`;
               return (
                 <div className="flex flex-col gap-1 text-sm">
@@ -1352,6 +1413,14 @@ export function AvailabilityBuilder({
                       {hoursFmt.format(totals.acceptedHours)} {t("hoursUnit")}
                     </span>
                   </div>
+                  {totals.bonusHours !== 0 && (
+                    <div className="flex justify-between text-xs ps-3">
+                      <span className="text-muted-foreground">{t("bonusHoursLabel")}:</span>
+                      <span className={cn("font-semibold", totals.bonusHours > 0 ? "text-emerald-600" : "text-destructive")}>
+                        {signed(totals.bonusHours)} {t("hoursUnit")}
+                      </span>
+                    </div>
+                  )}
                   {requiredHours !== undefined && (
                     <div className="flex justify-between border-t border-emerald-500/20 pt-1 font-bold">
                       <span className="text-muted-foreground">{t("kontostandLabel")}:</span>

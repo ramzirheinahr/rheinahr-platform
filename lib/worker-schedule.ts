@@ -40,6 +40,13 @@ export type WorkerLeaveDay = {
   hours: number;
 };
 
+export type WorkerDailyAdjustment = {
+  id: string;
+  date: string;
+  hours: number;
+  notes: string | null;
+};
+
 export type WorkerScheduleTotals = {
   requiredHours: number;
   // Signed hours-account balance brought forward from earlier months (positive =
@@ -57,7 +64,12 @@ export async function getWorkerMonthSchedule(
   workerId: string,
   year: number,
   month: number,
-): Promise<{ rows: WorkerScheduleRow[]; leaveDays: WorkerLeaveDay[]; totals: WorkerScheduleTotals }> {
+): Promise<{
+  rows: WorkerScheduleRow[];
+  leaveDays: WorkerLeaveDay[];
+  dailyAdjustments: WorkerDailyAdjustment[];
+  totals: WorkerScheduleTotals;
+}> {
   const worker = await prisma.worker.findUnique({
     where: { id: workerId },
     include: {
@@ -201,8 +213,30 @@ export async function getWorkerMonthSchedule(
   
   // Dynamic Carryover calculation
   const targetMonthStr = `${year}-${String(month).padStart(2, "0")}`;
-  const hoursAcc = await getWorkerHoursAccount(workerId, targetMonthStr, targetMonthStr);
+  const [hoursAcc, adjustments] = await Promise.all([
+    getWorkerHoursAccount(workerId, targetMonthStr, targetMonthStr),
+    prisma.workerHoursAdjustment.findMany({
+      where: {
+        workerId,
+        month: targetMonthStr,
+        notes: { startsWith: "[date:" },
+      },
+    }),
+  ]);
   const carryoverHours = hoursAcc.initialCarryover;
+
+  const dailyAdjustments: WorkerDailyAdjustment[] = adjustments
+    .map((a) => {
+      const match = a.notes?.match(/\[date:([^\]]+)\]/);
+      const date = match ? match[1] : "";
+      return {
+        id: a.id,
+        date,
+        hours: a.hours,
+        notes: a.notes,
+      };
+    })
+    .filter((a) => Boolean(a.date));
 
   const { getEffectiveSollHours } = await import("@/lib/worker-soll-hours");
   const effectiveRequiredHours = getEffectiveSollHours(
@@ -220,6 +254,7 @@ export async function getWorkerMonthSchedule(
   return {
     rows,
     leaveDays,
+    dailyAdjustments,
     totals: {
       requiredHours: effectiveRequiredHours,
       carryoverHours: carryoverHours,

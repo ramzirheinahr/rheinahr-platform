@@ -26,7 +26,7 @@ export async function ScheduleContent({
   const monthStr = `${year}-${String(month).padStart(2, "0")}`;
 
   const [
-    { rows: assignments, leaveDays, totals },
+    { rows: assignments, leaveDays, dailyAdjustments, totals },
     initialBlocks,
     adjustmentsData,
     noteSetting,
@@ -47,15 +47,20 @@ export async function ScheduleContent({
     }),
   ]);
 
-  const adjustments = adjustmentsData.map((a) => ({
-    id: a.id,
-    month: a.month,
-    type: a.type,
-    hours: a.hours,
-    notes: a.notes,
-  }));
+  const adjustments = adjustmentsData
+    .filter((a) => !a.notes?.startsWith("[date:"))
+    .map((a) => ({
+      id: a.id,
+      month: a.month,
+      type: a.type,
+      hours: a.hours,
+      notes: a.notes,
+    }));
 
-  const adjNotesList = adjustmentsData.map((a) => a.notes?.trim()).filter(Boolean);
+  const adjNotesList = adjustmentsData
+    .filter((a) => !a.notes?.startsWith("[date:"))
+    .map((a) => a.notes?.trim())
+    .filter(Boolean);
   const initialMonthlyNote = noteSetting?.value || (adjNotesList.length > 0 ? adjNotesList.join("; ") : "");
 
   return (
@@ -114,6 +119,7 @@ export async function ScheduleContent({
           requiredHours={totals.requiredHours}
           carryoverHours={totals.carryoverHours}
           leaveDays={leaveDays}
+          dailyAdjustments={dailyAdjustments}
           mealAllowanceType={mealAllowanceType ?? undefined}
           travelAllowanceEnabled={travelAllowanceEnabled ?? undefined}
         />

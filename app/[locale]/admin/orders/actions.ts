@@ -1419,7 +1419,7 @@ export async function updateAssignmentBonusHours(
     return { ok: false, error: "saveError" };
   }
 
-  if (typeof bonusHours !== "number" || isNaN(bonusHours) || bonusHours < 0) {
+  if (typeof bonusHours !== "number" || isNaN(bonusHours)) {
     return { ok: false, error: "saveError" };
   }
 
