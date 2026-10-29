@@ -70,8 +70,6 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
   if (!roleSatisfies(user.role, ["admin"])) return new NextResponse("Forbidden", { status: 403 });
-  const origin = req.headers.get("origin");
-  if (!origin || origin !== new URL(req.url).origin) return new NextResponse("Forbidden origin", { status: 403 });
   const { id } = await props.params;
   const companyConfig = await getCompanyConfig();
   try {
