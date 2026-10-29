@@ -10,6 +10,7 @@ type CancelledInvoice = {
   vatAmount?: number;
   grossAmount: number;
   snapshotData: unknown;
+  updatedAt?: Date;
 };
 
 function requiredText(value: unknown, field: string): string {
@@ -30,11 +31,18 @@ export function buildStornoInvoiceData(invoice: CancelledInvoice, issuedAt: Date
   }
   const s = snapshot as Record<string, unknown>;
   const history = s.cancellationHistory;
-  const cancelledAt = history && typeof history === "object"
+  const rawCancelledAt = history && typeof history === "object"
     ? (history as Record<string, unknown>).cancelledAt
     : null;
-  if (typeof cancelledAt !== "string" || !Number.isFinite(Date.parse(cancelledAt)) ||
-      !Number.isFinite(issuedAt.getTime())) {
+  const cancelledAt =
+    typeof rawCancelledAt === "string" && Number.isFinite(Date.parse(rawCancelledAt))
+      ? rawCancelledAt
+      : invoice.updatedAt instanceof Date && Number.isFinite(invoice.updatedAt.getTime())
+        ? invoice.updatedAt.toISOString()
+        : typeof s.cancelledAt === "string" && Number.isFinite(Date.parse(s.cancelledAt))
+          ? s.cancelledAt
+          : null;
+  if (!cancelledAt || !Number.isFinite(issuedAt.getTime())) {
     throw new Error("Stornorechnung nicht verfügbar: protokolliertes Stornodatum fehlt.");
   }
 

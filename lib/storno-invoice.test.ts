@@ -56,4 +56,18 @@ describe("Stornorechnung", () => {
       snapshotData: { ...base.snapshotData, total: "10202,67 €" },
     }, issuedAt)).toThrow(/widersprüchlich/);
   });
+
+  it("handles legacy cancelled invoices missing cancellationHistory using invoice.updatedAt fallback", () => {
+    const legacySnapshot = { ...base.snapshotData };
+    delete (legacySnapshot as any).cancellationHistory;
+
+    const data = buildStornoInvoiceData({
+      ...base,
+      snapshotData: legacySnapshot,
+      updatedAt: new Date("2026-10-08T09:57:42.325Z"),
+    }, issuedAt);
+
+    expect(data.invoiceNumber).toBe("ST-551-147-0926");
+    expect(data.total).toBe("-10202,66 €");
+  });
 });

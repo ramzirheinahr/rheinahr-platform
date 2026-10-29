@@ -86,6 +86,10 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
         where: { id },
         data: { snapshotData: {
           ...snapshot,
+          cancellationHistory: snapshot.cancellationHistory ?? {
+            cancelledAt: invoice.updatedAt.toISOString(),
+            legacyBackfill: true,
+          },
           stornoDocument: { version: 1, issuedAt: issuedAt.toISOString(), data, companyConfig },
         } as Prisma.InputJsonValue },
       });
