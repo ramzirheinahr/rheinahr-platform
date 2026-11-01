@@ -271,13 +271,24 @@ export async function acceptAssignmentOnBehalfOfWorker(
     const clientUserIds = await getFacilityClientUserIds(assignment.order.client.id);
     const attachments = await getCertificatesForWorkers([assignment.worker.id]);
 
+    let isSwap = assignment.isSwap;
+    if (!isSwap) {
+      const swapAudit = await prisma.auditLog.findFirst({
+        where: { action: "assignment.swap", entityId: assignment.order.id },
+        select: { id: true, metadata: true },
+      });
+      if (swapAudit && typeof swapAudit.metadata === "object" && (swapAudit.metadata as any)?.newWorkerId === assignment.worker.id) {
+        isSwap = true;
+      }
+    }
+
     const staffAdmins = await prisma.user.findMany({
       where: { role: { in: ["admin", "super_admin"] }, active: true },
       select: { id: true },
     });
 
     await Promise.all([
-      clientUserIds.length > 0
+      (!isSwap && clientUserIds.length > 0)
         ? pushToUsers(clientUserIds, {
             title: "Einsatz bestätigt",
             body,

@@ -50,6 +50,8 @@ export type WorkerData = {
   deploymentRadius: number;
   travelAllowanceEnabled?: boolean;
   travelAllowancePerKm?: number | null;
+  travelAllowanceValidFrom?: string | null;
+  travelAllowanceValidUntil?: string | null;
   mealAllowanceType?: string;
   mealAllowance?: number | null;
   surchargeSat?: number | null;
@@ -415,6 +417,30 @@ export function WorkerForm({ worker, qualificationOptions }: { worker: WorkerDat
                   step="0.01"
                   defaultValue={initialWorker.travelAllowancePerKm ?? 0.30}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <Label htmlFor="travelAllowanceValidFrom" className="text-xs">
+                    {t("travelAllowanceValidFrom")}
+                  </Label>
+                  <Input
+                    id="travelAllowanceValidFrom"
+                    name="travelAllowanceValidFrom"
+                    type="date"
+                    defaultValue={initialWorker.travelAllowanceValidFrom ?? ""}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="travelAllowanceValidUntil" className="text-xs">
+                    {t("travelAllowanceValidUntil")}
+                  </Label>
+                  <Input
+                    id="travelAllowanceValidUntil"
+                    name="travelAllowanceValidUntil"
+                    type="date"
+                    defaultValue={initialWorker.travelAllowanceValidUntil ?? ""}
+                  />
+                </div>
               </div>
             </div>
             <div className="space-y-2">

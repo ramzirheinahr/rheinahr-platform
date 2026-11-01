@@ -259,6 +259,20 @@ export function WorkerCreateForm({
                 <Label htmlFor="travelAllowancePerKm">Fahrtkosten pro km (€)</Label>
                 <Input id="travelAllowancePerKm" name="travelAllowancePerKm" type="number" step="0.01" defaultValue={0.30} />
               </div>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <Label htmlFor="travelAllowanceValidFrom" className="text-xs">
+                    {t("travelAllowanceValidFrom")}
+                  </Label>
+                  <Input id="travelAllowanceValidFrom" name="travelAllowanceValidFrom" type="date" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="travelAllowanceValidUntil" className="text-xs">
+                    {t("travelAllowanceValidUntil")}
+                  </Label>
+                  <Input id="travelAllowanceValidUntil" name="travelAllowanceValidUntil" type="date" />
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="space-y-2">

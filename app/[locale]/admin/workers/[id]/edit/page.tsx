@@ -119,6 +119,8 @@ export default async function EditWorkerPage({
           deploymentRadius: worker.deploymentRadius,
           travelAllowanceEnabled: worker.travelAllowanceEnabled,
           travelAllowancePerKm: worker.travelAllowancePerKm,
+          travelAllowanceValidFrom: toDateInput(worker.travelAllowanceValidFrom),
+          travelAllowanceValidUntil: toDateInput(worker.travelAllowanceValidUntil),
           mealAllowanceType: worker.mealAllowanceType,
           mealAllowance: worker.mealAllowance,
           surchargeSat: worker.surchargeSat,

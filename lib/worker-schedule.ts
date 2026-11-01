@@ -27,6 +27,7 @@ export type WorkerScheduleRow = {
   mealAllowance?: number | null; // meal allowance for this shift
   addMealAllowance?: boolean; // exceptionally added meal allowance
   excludeMealAllowance?: boolean; // exceptionally excluded meal allowance
+  addTravelAllowance?: boolean; // exceptionally added travel allowance
   excludeTravelAllowance?: boolean; // exceptionally excluded travel allowance
   bonusHours?: number; // bonus hours for this shift
 };
@@ -60,6 +61,7 @@ export type WorkerScheduleTotals = {
 import { getDrivingDistanceKm } from "@/lib/geocoding";
 import { buildAddressString } from "@/lib/utils";
 import { getWorkerHoursAccount } from "@/lib/hours-account";
+import { isTravelEligible } from "@/lib/travel-allowance-snapshot";
 export async function getWorkerMonthSchedule(
   workerId: string,
   year: number,
@@ -163,7 +165,7 @@ export async function getWorkerMonthSchedule(
         
         if (workerAddr && clientAddr) {
           distanceKm = await getDrivingDistanceKm(workerAddr, clientAddr);
-          if (distanceKm != null && worker.travelAllowanceEnabled && !a.excludeTravelAllowance) {
+          if (distanceKm != null && isTravelEligible(worker, a, a.order.shiftDate)) {
             // Client request: one-way distance * rate
             const rate = worker.travelAllowancePerKm ?? 0.30;
             travelCost = Number((distanceKm * rate).toFixed(2));
@@ -202,6 +204,7 @@ export async function getWorkerMonthSchedule(
         mealAllowance,
         addMealAllowance: a.addMealAllowance,
         excludeMealAllowance: a.excludeMealAllowance,
+        addTravelAllowance: a.addTravelAllowance,
         excludeTravelAllowance: a.excludeTravelAllowance,
         bonusHours: a.bonusHours,
       };

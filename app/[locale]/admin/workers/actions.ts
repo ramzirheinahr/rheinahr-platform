@@ -69,6 +69,8 @@ function parseProfile(formData: FormData) {
     deploymentRadius: formData.get("deploymentRadius") || undefined,
     travelAllowanceEnabled: formData.get("travelAllowanceEnabled") === "on",
     travelAllowancePerKm: parseGermanNumber(formData.get("travelAllowancePerKm")) || undefined,
+    travelAllowanceValidFrom: formData.get("travelAllowanceValidFrom") || undefined,
+    travelAllowanceValidUntil: formData.get("travelAllowanceValidUntil") || undefined,
     mealAllowanceType: formData.get("mealAllowanceType") || undefined,
     mealAllowance: parseGermanNumber(formData.get("mealAllowance")) || undefined,
     surchargeSat: formData.get("surchargeSat") || undefined,
@@ -130,6 +132,8 @@ function toWorkerColumns(d: ProfileInput, extraRates: Record<string, number> = {
     deploymentRadius: d.deploymentRadius ?? null,
     travelAllowanceEnabled: d.travelAllowanceEnabled,
     travelAllowancePerKm: d.travelAllowancePerKm ?? null,
+    travelAllowanceValidFrom: d.travelAllowanceValidFrom ?? null,
+    travelAllowanceValidUntil: d.travelAllowanceValidUntil ?? null,
     mealAllowanceType: d.mealAllowanceType,
     mealAllowance: d.mealAllowance ?? null,
     surchargeSat: d.surchargeSat != null ? d.surchargeSat / 100 : null,
@@ -258,6 +262,7 @@ export async function updateWorker(
     prisma.qualificationCatalog.findFirst({ where: { code: data.qualification, active: true }, select: { code: true } }),
     prisma.worker.findUnique({ where: { id }, select: {
       qualification: true, address: true, travelAllowanceEnabled: true, travelAllowancePerKm: true,
+      travelAllowanceValidFrom: true, travelAllowanceValidUntil: true,
     } }),
   ]);
   if (!selectableQualification && originalWorker?.qualification !== data.qualification) return { ok: false, error: "saveError" };

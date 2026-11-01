@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Utensils, Car } from "lucide-react";
 import { 
   toggleAssignmentMealAllowance, 
+  toggleAssignmentTravelAllowance,
   toggleExcludeTravelAllowance
 } from "@/app/[locale]/admin/orders/actions";
 import { cn } from "@/lib/utils";
@@ -57,15 +58,23 @@ export function ToggleMealAllowanceButton({
 
 export function ToggleTravelAllowanceButton({
   assignmentId,
+  active,
+  globalEnabled,
+  addTravelAllowance,
   excludeTravelAllowance,
 }: {
   assignmentId: string;
+  active?: boolean;
+  globalEnabled?: boolean;
+  addTravelAllowance?: boolean;
   excludeTravelAllowance?: boolean;
 }) {
   const t = useTranslations("allowances");
   const [isPending, startTransition] = useTransition();
 
-  const isTravelIncluded = !excludeTravelAllowance;
+  const isTravelIncluded = active !== undefined 
+    ? active 
+    : Boolean(addTravelAllowance || (globalEnabled && !excludeTravelAllowance));
 
   return (
     <Button
@@ -82,7 +91,7 @@ export function ToggleTravelAllowanceButton({
       onClick={(e) => {
         e.preventDefault();
         startTransition(() => {
-          toggleExcludeTravelAllowance(assignmentId, !excludeTravelAllowance);
+          toggleAssignmentTravelAllowance(assignmentId, !isTravelIncluded);
         });
       }}
       title={isTravelIncluded ? t("removeTravel") : t("addTravel")}

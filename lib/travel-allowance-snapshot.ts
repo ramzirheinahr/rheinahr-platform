@@ -5,6 +5,7 @@ import { audit } from "@/lib/audit";
 
 type TravelAssignment = {
   id: string;
+  addTravelAllowance?: boolean;
   excludeTravelAllowance: boolean;
   travelDistanceKm: number | null;
   travelRatePerKm: number | null;
@@ -25,7 +26,43 @@ type TravelWorker = {
   address: string | null;
   travelAllowanceEnabled: boolean;
   travelAllowancePerKm: number | null;
+  travelAllowanceValidFrom?: Date | null;
+  travelAllowanceValidUntil?: Date | null;
 };
+
+export function isTravelEligible(
+  worker: {
+    travelAllowanceEnabled: boolean;
+    travelAllowanceValidFrom?: Date | null;
+    travelAllowanceValidUntil?: Date | null;
+  },
+  assignment: {
+    excludeTravelAllowance: boolean;
+    addTravelAllowance?: boolean;
+  },
+  shiftDate?: Date,
+): boolean {
+  if (assignment.excludeTravelAllowance) return false;
+  if (assignment.addTravelAllowance) return true;
+  if (!worker.travelAllowanceEnabled) return false;
+
+  if (shiftDate) {
+    const shiftDay = new Date(shiftDate);
+    shiftDay.setHours(0, 0, 0, 0);
+    if (worker.travelAllowanceValidFrom) {
+      const from = new Date(worker.travelAllowanceValidFrom);
+      from.setHours(0, 0, 0, 0);
+      if (shiftDay < from) return false;
+    }
+    if (worker.travelAllowanceValidUntil) {
+      const until = new Date(worker.travelAllowanceValidUntil);
+      until.setHours(23, 59, 59, 999);
+      if (shiftDay > until) return false;
+    }
+  }
+
+  return true;
+}
 
 export type FrozenTravelLine = {
   distanceKm: number;
@@ -66,7 +103,7 @@ export async function getOrFreezeTravelLine(
       assignment.order.shiftDate.toISOString().slice(0, 10);
   const destination = assignment.order.client.address || assignment.order.client.facilityName;
   if (!destination?.trim()) throw new Error("Travel destination is missing");
-  const eligible = worker.travelAllowanceEnabled && !assignment.excludeTravelAllowance;
+  const eligible = isTravelEligible(worker, assignment, assignment.order.shiftDate);
   if (!eligible) {
     return { distanceKm: 0, ratePerKm: worker.travelAllowancePerKm ?? 0.3,
       costCents: 0, eligible: false, originAddress: worker.address,

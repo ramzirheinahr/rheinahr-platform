@@ -335,6 +335,8 @@
     "carryoverHoursHint": "Positiver Wert = Minusstunden, negativer Wert = Plusstunden.",
     "deploymentRadius": "Einsatzradius (km)",
     "travelAllowanceEnabled": "Fahrtkosten erstatten",
+    "travelAllowanceValidFrom": "Gültig ab (Startdatum)",
+    "travelAllowanceValidUntil": "Gültig bis (Enddatum)",
     "mealAllowanceType": "Verpflegungsmehraufwand",
     "mealAllowance_none": "Keine Erstattung (0€)",
     "mealAllowance_per_day": "Automatisch je Arbeitstag (1x 14€ pro Tag)",

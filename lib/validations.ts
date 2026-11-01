@@ -172,6 +172,8 @@ export const workerSchema = z.object({
   // Financial & Allowances
   travelAllowanceEnabled: z.boolean().optional().default(false),
   travelAllowancePerKm: optionalRate,
+  travelAllowanceValidFrom: optionalDate,
+  travelAllowanceValidUntil: optionalDate,
   mealAllowanceType: z.enum(mealAllowanceTypes).optional().default("multiple_shifts_only"),
   mealAllowance: z.coerce.number().min(0).max(14).optional().default(14.0),
 

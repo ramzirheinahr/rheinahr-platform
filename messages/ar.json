@@ -336,6 +336,8 @@
     "carryoverHoursHint": "رصيد الساعات من الأشهر السابقة: موجب = رصيد فائض يُخصم من مطلوب هذا الشهر، سالب = عجز يُضاف إليه.",
     "deploymentRadius": "نطاق العمل (كم)",
     "travelAllowanceEnabled": "تعويض تكاليف السفر",
+    "travelAllowanceValidFrom": "صالح من (تاريخ البدء)",
+    "travelAllowanceValidUntil": "صالح حتى (تاريخ الانتهاء)",
     "mealAllowanceType": "بدل الطعام (Spesen)",
     "mealAllowance_none": "بدون تعويض (0€)",
     "mealAllowance_per_day": "تلقائيًا في كل يوم عمل (14€ مرة واحدة يوميًا)",

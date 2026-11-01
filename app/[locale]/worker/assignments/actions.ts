@@ -193,6 +193,17 @@ export async function respondAssignmentsBulk(
     if (success) {
       processedIds.push(id);
       
+      let isSwap = assignment.isSwap;
+      if (!isSwap) {
+        const swapAudit = await prisma.auditLog.findFirst({
+          where: { action: "assignment.swap", entityId: assignment.order.id },
+          select: { id: true, metadata: true },
+        });
+        if (swapAudit && typeof swapAudit.metadata === "object" && (swapAudit.metadata as any)?.newWorkerId === assignment.worker.id) {
+          isSwap = true;
+        }
+      }
+
       const shiftData = {
         date: assignment.order.shiftDate,
         startTime: assignment.order.startTime,
@@ -205,6 +216,7 @@ export async function respondAssignmentsBulk(
         workerBirthDate: assignment.worker.birthDate,
         workerId: assignment.worker.id,
         workerUserId: assignment.worker.userId,
+        isSwap,
       };
 
       if (accept) {
@@ -322,8 +334,15 @@ export async function respondAssignmentsBulk(
 
     // Push to clients (grouped)
     for (const clientGroup of clientNotifications.values()) {
+      // Exclude shifts that were part of a worker swap, because the facility was
+      // already notified via the "Mitarbeiterwechsel" email with certificates.
+      const eligibleShifts = clientGroup.shifts.filter((s: any) => !s.isSwap);
+      if (eligibleShifts.length === 0) {
+        continue;
+      }
+
       const workersMap = new Map<string, { fullName: string; salutation?: string | null; birthDate?: Date | null; qualification?: string }>();
-      for (const s of clientGroup.shifts) {
+      for (const s of eligibleShifts) {
         if (s.workerId && !workersMap.has(s.workerId)) {
           workersMap.set(s.workerId, {
             fullName: s.workerName,
@@ -337,7 +356,7 @@ export async function respondAssignmentsBulk(
       const workerIntros = workersList.map((w) => formatWorkerEmailIntro(w));
       const workerNamesLabel = workerIntros.length > 1
         ? `unseren Mitarbeitern (${workerIntros.join(", ")})`
-        : (workerIntros[0] || `unserem Mitarbeiter <strong>${clientGroup.shifts[0]?.workerName || ""}</strong>`);
+        : (workerIntros[0] || `unserem Mitarbeiter <strong>${eligibleShifts[0]?.workerName || ""}</strong>`);
       const workerNamesSummary = workersList.map((w) => formatWorkerDisplayName(w)).join(", ");
 
       const workerProfilesHtml = workersList.map((w) => {
@@ -359,11 +378,11 @@ export async function respondAssignmentsBulk(
       const clientHtml = `
         <p>Sehr geehrte Damen und Herren,</p>
         <p>wir freuen uns, Ihnen mitteilen zu können, dass die folgenden Einsätze von ${workerNamesLabel} bestätigt wurden:</p>
-        ${buildShiftHtmlTable(clientGroup.shifts)}
+        ${buildShiftHtmlTable(eligibleShifts)}
         ${workerProfilesHtml}
         <p>Unsere Mitarbeiter werden pünktlich zum Dienstbeginn bei Ihnen vor Ort sein.</p>
       `;
-      const workerIds = clientGroup.shifts.map((s: any) => s.workerId).filter(Boolean);
+      const workerIds = eligibleShifts.map((s: any) => s.workerId).filter(Boolean);
       const attachments = await getCertificatesForWorkers(workerIds);
       const clientUserIds = await getFacilityClientUserIds(clientGroup.clientId);
       
@@ -371,7 +390,7 @@ export async function respondAssignmentsBulk(
         pushPromises.push(
           pushToUsers(clientUserIds, {
             title: "Einsätze bestätigt",
-            body: `${workerNamesSummary}: ${clientGroup.shifts.length} Einsatz/Einsätze bestätigt.`,
+            body: `${workerNamesSummary}: ${eligibleShifts.length} Einsatz/Einsätze bestätigt.`,
             url: "/client/orders",
             htmlBody: clientHtml,
             attachments,
@@ -646,8 +665,19 @@ export async function respondAssignment(
     const attachments = await getCertificatesForWorkers([assignment.worker.id]);
     const clientUserIds = await getFacilityClientUserIds(assignment.order.client.id);
 
+    let isSwap = assignment.isSwap;
+    if (!isSwap) {
+      const swapAudit = await prisma.auditLog.findFirst({
+        where: { action: "assignment.swap", entityId: assignment.order.id },
+        select: { id: true, metadata: true },
+      });
+      if (swapAudit && typeof swapAudit.metadata === "object" && (swapAudit.metadata as any)?.newWorkerId === assignment.worker.id) {
+        isSwap = true;
+      }
+    }
+
     await Promise.all([
-      clientUserIds.length > 0
+      (!isSwap && clientUserIds.length > 0)
         ? pushToUsers(clientUserIds, {
             title: "Einsatz bestätigt",
             body,

@@ -59,6 +59,7 @@ export type Assignment = {
   mealAllowance?: number | null;
   addMealAllowance?: boolean;
   excludeMealAllowance?: boolean;
+  addTravelAllowance?: boolean;
   excludeTravelAllowance?: boolean;
   bonusHours?: number;
 };
@@ -968,7 +969,13 @@ export function AvailabilityBuilder({
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1.5 justify-between">
                                 <span className="font-bold">{a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : "—"}</span>
-                                {travelAllowanceEnabled && <ToggleTravelAllowanceButton assignmentId={a.id} excludeTravelAllowance={a.excludeTravelAllowance} />}
+                                <ToggleTravelAllowanceButton 
+                                  assignmentId={a.id} 
+                                  active={a.travelCost != null && a.travelCost > 0}
+                                  globalEnabled={travelAllowanceEnabled}
+                                  addTravelAllowance={a.addTravelAllowance}
+                                  excludeTravelAllowance={a.excludeTravelAllowance} 
+                                />
                               </div>
                               <span className="text-xs font-bold text-muted-foreground">{a.travelCost != null ? `${a.travelCost.toFixed(2)} €` : "—"}</span>
                             </div>
@@ -1241,13 +1248,19 @@ export function AvailabilityBuilder({
                         ) : null}
                         {(a.distanceKm != null || a.travelCost != null || a.mealAllowance != null || a.bonusHours || isAdmin) ? (
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            {a.distanceKm != null || a.travelCost != null || (isAdmin && travelAllowanceEnabled) ? (
+                            {a.distanceKm != null || a.travelCost != null || isAdmin ? (
                               <span className="flex items-center gap-1">
                                 {a.distanceKm != null ? `${a.distanceKm.toFixed(1)} km` : ""}
                                 {a.distanceKm != null && a.travelCost != null ? " • " : ""}
                                 {a.travelCost != null ? `${a.travelCost.toFixed(2)} € Fahrtkosten` : ""}
-                                {isAdmin && travelAllowanceEnabled && (
-                                  <ToggleTravelAllowanceButton assignmentId={a.id} excludeTravelAllowance={a.excludeTravelAllowance} />
+                                {isAdmin && (
+                                  <ToggleTravelAllowanceButton 
+                                    assignmentId={a.id} 
+                                    active={a.travelCost != null && a.travelCost > 0}
+                                    globalEnabled={travelAllowanceEnabled}
+                                    addTravelAllowance={a.addTravelAllowance}
+                                    excludeTravelAllowance={a.excludeTravelAllowance} 
+                                  />
                                 )}
                               </span>
                             ) : null}

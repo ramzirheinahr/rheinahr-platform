@@ -303,8 +303,10 @@ model Worker {
   employedSince        DateTime?    @map("employed_since") @db.Date
 
   // Financial & Allowances
-  travelAllowanceEnabled Boolean @default(false) @map("travel_allowance_enabled")
-  travelAllowancePerKm   Float?  @map("travel_allowance_per_km")
+  travelAllowanceEnabled    Boolean   @default(false) @map("travel_allowance_enabled")
+  travelAllowancePerKm      Float?    @map("travel_allowance_per_km")
+  travelAllowanceValidFrom  DateTime? @map("travel_allowance_valid_from") @db.Date
+  travelAllowanceValidUntil DateTime? @map("travel_allowance_valid_until") @db.Date
   
   mealAllowanceType      String  @default("multiple_shifts_only") @map("meal_allowance_type")
   mealAllowance          Float?  @default(14.0) @map("meal_allowance")
@@ -481,7 +483,11 @@ model Assignment {
   // does not globally receive meal allowances.
   addMealAllowance       Boolean          @default(false) @map("add_meal_allowance")
   excludeMealAllowance   Boolean          @default(false) @map("exclude_meal_allowance")
+  addTravelAllowance     Boolean          @default(false) @map("add_travel_allowance")
   excludeTravelAllowance Boolean          @default(false) @map("exclude_travel_allowance")
+  // Worker swap tracking: when true, client was already notified via Mitarbeiterwechsel email,
+  // so confirming this assignment will NOT send a duplicate "Einsatz bestätigt" email to the client.
+  isSwap                 Boolean          @default(false) @map("is_swap")
   // Frozen first-use travel calculation; later address/route changes must not rewrite old reports.
   travelDistanceKm       Float?            @map("travel_distance_km")
   travelRatePerKm        Float?            @map("travel_rate_per_km")

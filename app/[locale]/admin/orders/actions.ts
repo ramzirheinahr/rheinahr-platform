@@ -1358,10 +1358,10 @@ export async function toggleExcludeMealAllowance(
   return { ok: true };
 }
 
-// Exceptionally exclude travel allowance for a specific assignment.
-export async function toggleExcludeTravelAllowance(
+// Exceptionally toggle travel allowance for a specific assignment.
+export async function toggleAssignmentTravelAllowance(
   assignmentId: string,
-  excludeTravelAllowance: boolean,
+  enabled: boolean,
 ): Promise<ActionState> {
   let admin;
   try {
@@ -1382,15 +1382,18 @@ export async function toggleExcludeTravelAllowance(
 
   await prisma.assignment.update({
     where: { id: assignmentId },
-    data: { excludeTravelAllowance },
+    data: {
+      addTravelAllowance: enabled,
+      excludeTravelAllowance: !enabled,
+    },
   });
 
   await audit({
     userId: admin.id,
-    action: "assignment.toggleExcludeTravelAllowance",
+    action: "assignment.toggleTravelAllowance",
     entity: "Assignment",
     entityId: assignmentId,
-    metadata: { excludeTravelAllowance },
+    metadata: { enabled, addTravelAllowance: enabled, excludeTravelAllowance: !enabled },
   });
 
   const reqGroup = assignment.order.requestGroupId ?? assignment.order.id;
@@ -1400,6 +1403,14 @@ export async function toggleExcludeTravelAllowance(
   revalidatePath(`/admin/workers/${assignment.workerId}/schedule`);
   revalidatePath("/worker");
   return { ok: true };
+}
+
+// Exceptionally exclude travel allowance for a specific assignment.
+export async function toggleExcludeTravelAllowance(
+  assignmentId: string,
+  excludeTravelAllowance: boolean,
+): Promise<ActionState> {
+  return toggleAssignmentTravelAllowance(assignmentId, !excludeTravelAllowance);
 }
 
 // Exceptionally update bonus hours for a specific assignment.
@@ -1604,6 +1615,10 @@ export async function swapWorker(
       
       // Assign new worker (using offerAssignment helper to handle declined resurrection)
       await offerAssignment(tx, order.id, newWorkerId);
+      await tx.assignment.update({
+        where: { orderId_workerId: { orderId: order.id, workerId: newWorkerId } },
+        data: { isSwap: true },
+      });
       
       // We don't change the order status (it remains "assigned" or "accepted" depending on others,
       // but it definitely has at least one pending worker now).
