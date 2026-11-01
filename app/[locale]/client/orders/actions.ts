@@ -698,8 +698,7 @@ export async function createOrderRequest(
       body: `Wir haben Ihre Anfrage über ${shiftCountLabel} erhalten. Diese befindet sich derzeit in Bearbeitung. Wir setzen alles daran, diese so schnell wie möglich zu bearbeiten und informieren Sie umgehend.`,
       html: clientHtml,
       url: orderLink("client", requestGroupId),
-    },
-    { force: true }
+    }
   ).catch(console.error);
 
   await audit({

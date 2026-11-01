@@ -95,7 +95,10 @@ export function buildShiftHtmlTable(shifts: {
 
 import { prisma } from "@/lib/prisma";
 
-export async function getFacilityClientUserIds(clientIdOrUserId: string): Promise<string[]> {
+export async function getFacilityClientUserIds(
+  clientIdOrUserId: string,
+  options?: { onlyWithEmailEnabled?: boolean }
+): Promise<string[]> {
   if (!clientIdOrUserId) return [];
   const client = await prisma.client.findFirst({
     where: {
@@ -106,15 +109,37 @@ export async function getFacilityClientUserIds(clientIdOrUserId: string): Promis
     },
     select: {
       userId: true,
+      user: {
+        select: { id: true, active: true, receiveEmails: true },
+      },
       subUsers: {
         where: { active: true },
-        select: { id: true },
+        select: { id: true, active: true, receiveEmails: true },
       },
     },
   });
 
   if (!client) return [clientIdOrUserId];
-  const ids = [client.userId, ...client.subUsers.map((u) => u.id)].filter(Boolean);
+  const ids: string[] = [];
+  
+  if (client.user) {
+    if (client.user.active !== false) {
+      if (!options?.onlyWithEmailEnabled || client.user.receiveEmails) {
+        ids.push(client.userId);
+      }
+    }
+  } else if (client.userId) {
+    ids.push(client.userId);
+  }
+
+  for (const u of client.subUsers) {
+    if (u.active !== false) {
+      if (!options?.onlyWithEmailEnabled || u.receiveEmails) {
+        ids.push(u.id);
+      }
+    }
+  }
+
   return [...new Set(ids)];
 }
 

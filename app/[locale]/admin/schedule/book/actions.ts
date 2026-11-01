@@ -284,7 +284,6 @@ export async function acceptAssignmentOnBehalfOfWorker(
             url: orderLink("client", reqGroup),
             htmlBody: clientHtml,
             attachments,
-            forceEmail: true,
           })
         : Promise.resolve(),
       pushToUsers(

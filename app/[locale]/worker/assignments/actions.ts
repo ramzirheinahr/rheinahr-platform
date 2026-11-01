@@ -375,7 +375,6 @@ export async function respondAssignmentsBulk(
             url: "/client/orders",
             htmlBody: clientHtml,
             attachments,
-            forceEmail: true,
           })
         );
       }
@@ -655,7 +654,6 @@ export async function respondAssignment(
             url: orderLink("client", reqGroup),
             htmlBody: clientHtml,
             attachments,
-            forceEmail: true,
           })
         : Promise.resolve(),
       pushToUsers(
