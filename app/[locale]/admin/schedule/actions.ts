@@ -649,7 +649,6 @@ async function releaseAssignmentCore(
     },
   });
   if (!assignment) return { ok: false, error: "saveError" };
-  if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
   if (assignment.invoiceId) return { ok: false, error: "invoiced" };
   const hasHistoricalInvoice = await hasHistoricalInvoiceRecordForAssignment(assignment.id);
   if (hasHistoricalInvoice) return { ok: false, error: "invoiced" };
@@ -783,7 +782,6 @@ export async function deleteShiftFromGrid(assignmentId: string): Promise<ActionS
     },
   });
   if (!assignment) return { ok: false, error: "saveError" };
-  if (assignment.serviceConfirmation) return { ok: false, error: "confirmed" };
   if (assignment.invoiceId) return { ok: false, error: "invoiced" };
   const hasHistoricalInvoice = await hasHistoricalInvoiceRecordForAssignment(assignment.id);
   if (hasHistoricalInvoice) return { ok: false, error: "invoiced" };

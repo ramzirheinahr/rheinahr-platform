@@ -587,14 +587,6 @@ export async function cancelOrderRequestAsAdmin(
     select: { id: true, clientId: true, status: true, shiftDate: true, startTime: true, endTime: true, requiredQualification: true, notes: true, quantity: true },
   });
   if (existing.length === 0) return { ok: false, error: "saveError" };
-  if (!isRequestCancelable(existing)) return { ok: false, error: "locked" };
-  // Extra guard before destroying rows: a signed Leistungsnachweis anywhere in
-  // the group is a legal record — never delete it.
-  const signed = await prisma.serviceConfirmation.count({
-    where: { assignment: { order: { requestGroupId } } },
-  });
-  if (signed > 0) return { ok: false, error: "locked" };
-
   const invoiced = await prisma.assignment.count({
     where: { order: { requestGroupId }, invoiceId: { not: null } },
   });
@@ -1578,7 +1570,6 @@ export async function swapWorker(
   });
 
   if (!oldAssignment) return { ok: false, error: "saveError" };
-  if (oldAssignment.serviceConfirmation) return { ok: false, error: "confirmed" }; // Cannot swap a signed shift
   if (oldAssignment.invoiceId) return { ok: false, error: "invoiced" }; // Cannot swap an invoiced shift
   const hasHistoricalInvoice = await hasHistoricalInvoiceRecordForAssignment(oldAssignment.id);
   if (hasHistoricalInvoice) return { ok: false, error: "invoiced" }; // Cannot swap historically invoiced shift
@@ -1620,9 +1611,8 @@ export async function swapWorker(
         data: { isSwap: true },
       });
       
-      // We don't change the order status (it remains "assigned" or "accepted" depending on others,
-      // but it definitely has at least one pending worker now).
-      if (["pending", "review", "availability_check"].includes(order.status)) {
+      // Reset order status to "assigned" if it was pending or previously confirmed/signed
+      if (["pending", "review", "availability_check", "confirmed"].includes(order.status)) {
         await tx.order.update({ where: { id: order.id }, data: { status: "assigned" } });
       }
 

@@ -232,27 +232,64 @@ async function executeConfirmationPersistence({
       const hasExisting = Boolean(a.serviceConfirmation);
       const sourceType = hasExisting ? "manual_correction" : "manual_upload";
 
-      // 1. Add immutable evidence document entry with real hash, size, and mime
-      const doc = await tx.confirmationDocument.create({
-        data: {
-          assignmentId: a.id,
-          sourceType,
-          storagePath: path,
-          fileName: path.split("/").pop() || null,
-          fileHash,
-          mimeType,
-          fileSizeBytes,
-          signerName: cleanSignerName,
-          signerIp: ip,
-          uploadedById: user.id,
-          uploaderRole: "admin",
-          metadata: { clientNotes: cleanNotes, requestGroupId: cleanGroupId, ...metadataExtra },
-          createdAt: now,
+      // 1. Add or update evidence document entry with real hash, size, and mime
+      const existingDoc = await tx.confirmationDocument.findUnique({
+        where: {
+          assignmentId_fileHash: {
+            assignmentId: a.id,
+            fileHash,
+          },
         },
       });
 
-      // 2. Safe ServiceConfirmation handling
+      const doc = existingDoc
+        ? await tx.confirmationDocument.update({
+            where: { id: existingDoc.id },
+            data: {
+              sourceType,
+              storagePath: path,
+              fileName: path.split("/").pop() || null,
+              mimeType,
+              fileSizeBytes,
+              signerName: cleanSignerName,
+              signerIp: ip,
+              uploadedById: user.id,
+              uploaderRole: "admin",
+              metadata: { clientNotes: cleanNotes, requestGroupId: cleanGroupId, ...metadataExtra },
+            },
+          })
+        : await tx.confirmationDocument.create({
+            data: {
+              assignmentId: a.id,
+              sourceType,
+              storagePath: path,
+              fileName: path.split("/").pop() || null,
+              fileHash,
+              mimeType,
+              fileSizeBytes,
+              signerName: cleanSignerName,
+              signerIp: ip,
+              uploadedById: user.id,
+              uploaderRole: "admin",
+              metadata: { clientNotes: cleanNotes, requestGroupId: cleanGroupId, ...metadataExtra },
+              createdAt: now,
+            },
+          });
+
+      // 2. Dynamic ServiceConfirmation handling
       if (a.serviceConfirmation) {
+        // Update the existing confirmation with the newly uploaded proof
+        await tx.serviceConfirmation.update({
+          where: { id: a.serviceConfirmation.id },
+          data: {
+            documentUrl: path,
+            confirmedById: user.id,
+            ...(cleanSignerName ? { signerName: cleanSignerName } : {}),
+            ...(proposedHours !== undefined ? { hoursWorked: proposedHours } : {}),
+            confirmedAt: now,
+          },
+        });
+
         if (
           proposedHours !== undefined &&
           Number(a.serviceConfirmation.hoursWorked) !== proposedHours
@@ -261,12 +298,15 @@ async function executeConfirmationPersistence({
             data: {
               assignmentId: a.id,
               documentId: doc.id,
-              status: "proposed",
+              status: "approved",
               previousHoursWorked: a.serviceConfirmation.hoursWorked as number,
               proposedHoursWorked: proposedHours,
-              reason: cleanNotes,
+              reason: cleanNotes || "Manuelle Aktualisierung durch Administrator",
               requestedById: user.id,
               requestedAt: now,
+              decidedById: user.id,
+              decidedAt: now,
+              decisionNote: "Automatisch angewendet durch Admin-Upload",
             },
           });
         }

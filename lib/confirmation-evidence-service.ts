@@ -1879,28 +1879,56 @@ export async function uploadWorkerMultiShiftEvidence(
       const createdDocs = [];
 
       for (const a of assignments) {
-        // Create ConfirmationDocument record without mutating ServiceConfirmation
-        const doc = await tx.confirmationDocument.create({
-          data: {
-            assignmentId: a.id,
-            sourceType: a.serviceConfirmation ? "manual_correction" : "manual_upload",
-            storagePath,
-            fileHash,
-            fileName: safeName,
-            mimeType: cleanMime,
-            fileSizeBytes: params.file.sizeBytes,
-            signerName: params.signerName || null,
-            uploadedById: params.currentUser.id,
-            uploaderRole: params.currentUser.role,
-            metadata: {
-              notes: params.notes || null,
-              multiShiftBatchCount: uniqueAssignmentIds.length,
-              workerId: worker.id,
-              clientFacilityName: a.order.client.facilityName,
+        // Create or update ConfirmationDocument record without mutating ServiceConfirmation
+        const existingDoc = await tx.confirmationDocument.findUnique({
+          where: {
+            assignmentId_fileHash: {
+              assignmentId: a.id,
+              fileHash,
             },
-            createdAt: now,
           },
         });
+
+        const doc = existingDoc
+          ? await tx.confirmationDocument.update({
+              where: { id: existingDoc.id },
+              data: {
+                storagePath,
+                fileName: safeName,
+                mimeType: cleanMime,
+                fileSizeBytes: params.file.sizeBytes,
+                signerName: params.signerName || null,
+                uploadedById: params.currentUser.id,
+                uploaderRole: params.currentUser.role,
+                metadata: {
+                  notes: params.notes || null,
+                  multiShiftBatchCount: uniqueAssignmentIds.length,
+                  workerId: worker.id,
+                  clientFacilityName: a.order.client.facilityName,
+                },
+              },
+            })
+          : await tx.confirmationDocument.create({
+              data: {
+                assignmentId: a.id,
+                sourceType: a.serviceConfirmation ? "manual_correction" : "manual_upload",
+                storagePath,
+                fileHash,
+                fileName: safeName,
+                mimeType: cleanMime,
+                fileSizeBytes: params.file.sizeBytes,
+                signerName: params.signerName || null,
+                uploadedById: params.currentUser.id,
+                uploaderRole: params.currentUser.role,
+                metadata: {
+                  notes: params.notes || null,
+                  multiShiftBatchCount: uniqueAssignmentIds.length,
+                  workerId: worker.id,
+                  clientFacilityName: a.order.client.facilityName,
+                },
+                createdAt: now,
+              },
+            });
         createdDocs.push(doc);
       }
 

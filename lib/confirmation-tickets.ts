@@ -6,10 +6,14 @@ import crypto from "node:crypto";
  * Never falls back to a public or hardcoded key in production.
  */
 export function getTicketSecret(): string {
-  const secret = process.env.CONFIRMATION_TICKET_SECRET || process.env.NEXTAUTH_SECRET;
+  const secret =
+    process.env.CONFIRMATION_TICKET_SECRET ||
+    process.env.LOCAL_STORAGE_SECRET ||
+    process.env.ENCRYPTION_KEY ||
+    process.env.NEXTAUTH_SECRET;
   if (!secret || secret.trim().length < 16) {
     throw new Error(
-      "CONFIRMATION_TICKET_SECRET oder NEXTAUTH_SECRET ist nicht oder unzureichend konfiguriert."
+      "CONFIRMATION_TICKET_SECRET, LOCAL_STORAGE_SECRET oder ENCRYPTION_KEY ist nicht oder unzureichend konfiguriert."
     );
   }
   return secret.trim();

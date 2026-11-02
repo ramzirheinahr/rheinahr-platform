@@ -13,6 +13,6 @@ rsync -avz \
   --exclude='*.mp4' \
   ./ rheinahr:/home/rheinahr/releases/local-storage-current/
 
-ssh rheinahr "cd /home/rheinahr/releases/local-storage-current && npx prisma migrate deploy && npm run build && pm2 restart rheinahr-platform"
+ssh rheinahr "cd /home/rheinahr/releases/local-storage-current && npx prisma migrate deploy && npx prisma generate && npm run build && pm2 restart rheinahr-platform"
 
 echo "Deployment complete."

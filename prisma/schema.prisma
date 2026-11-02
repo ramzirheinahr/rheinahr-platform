@@ -833,7 +833,7 @@ model ConfirmationDocument {
   metadata      Json?
   createdAt     DateTime                       @default(now()) @map("created_at")
 
-  assignment       Assignment                    @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  assignment       Assignment                    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   uploadedBy       User?                         @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
   hoursCorrections WorkHoursCorrectionRequest[]
 
@@ -862,8 +862,8 @@ model WorkHoursCorrectionRequest {
   decidedAt            DateTime?             @map("decided_at")
   decisionNote         String?               @map("decision_note")
 
-  assignment  Assignment            @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
-  document    ConfirmationDocument? @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  assignment  Assignment            @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  document    ConfirmationDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
   requestedBy User?                 @relation("CorrectionRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   decidedBy   User?                 @relation("CorrectionDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
 
