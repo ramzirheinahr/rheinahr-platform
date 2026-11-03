@@ -388,7 +388,7 @@ export async function updateOrderRequestAsAdmin(
           });
 
           if (timeOrBreakChanged) {
-            const newNet = Number(netShiftHours(u.startTime, u.endTime, u.breakMinutes).toFixed(2));
+            const newNet = Number(netShiftHours(u.startTime, u.endTime, u.breakMinutes, u.date).toFixed(2));
             const assignments = await tx.assignment.findMany({
               where: { orderId: u.id },
               include: { serviceConfirmation: true },
@@ -1111,7 +1111,7 @@ export async function approveTimeChange(input: {
   const newEnd = sc.requestedEnd;
 
   const { netShiftHours } = await import("@/lib/pricing");
-  const newHours = netShiftHours(newStart, newEnd, assignment.order.breakMinutes);
+  const newHours = netShiftHours(newStart, newEnd, assignment.order.breakMinutes, assignment.order.shiftDate);
 
   const { headers } = await import("next/headers");
   const h = await headers();

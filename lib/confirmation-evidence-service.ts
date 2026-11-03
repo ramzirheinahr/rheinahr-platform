@@ -759,8 +759,10 @@ export function computeAssignmentEffectiveVersion(
     return `sc:${serviceConfirmation.id}:${hash}`;
   }
 
+  const orderShiftDate =
+    typeof orderOrOrderId === "object" ? (orderOrOrderId as any).shiftDate : undefined;
   const scheduledNet = (orderStart && orderEnd)
-    ? netShiftHours(orderStart, orderEnd, orderBreak).toFixed(2)
+    ? netShiftHours(orderStart, orderEnd, orderBreak, orderShiftDate).toFixed(2)
     : "0.00";
   const payload = `sched|${orderId}|${orderStart}|${orderEnd}|${orderBreak}|${scheduledNet}`;
   const hash = crypto.createHash("sha256").update(payload).digest("hex").slice(0, 16);

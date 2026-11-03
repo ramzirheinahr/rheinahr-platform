@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getEffectiveSollHours } from "./worker-soll-hours";
+import { netShiftHours } from "@/lib/pricing";
 export type MonthlyHoursAccount = {
   month: string; // YYYY-MM
   requiredHours: number; // Soll
@@ -159,12 +160,12 @@ export async function getWorkerHoursAccount(
       } else if (a.serviceConfirmation?.hoursWorked != null) {
         hours = Number(a.serviceConfirmation.hoursWorked);
       } else {
-        const st = new Date(`1970-01-01T${a.order.startTime}Z`).getTime();
-        const et = new Date(`1970-01-01T${a.order.endTime}Z`).getTime();
-        let diffMins = (et - st) / 60000;
-        if (diffMins < 0) diffMins += 24 * 60;
-        const netMins = diffMins - (a.order.breakMinutes || 0);
-        hours = netMins / 60;
+        hours = netShiftHours(
+          a.order.startTime,
+          a.order.endTime,
+          a.order.breakMinutes || 0,
+          a.order.shiftDate
+        );
       }
       return sum + hours;
     }, 0) * 100) / 100;
@@ -366,12 +367,12 @@ export async function getMultipleWorkersHoursAccount(
         } else if (a.serviceConfirmation?.hoursWorked != null) {
           hours = Number(a.serviceConfirmation.hoursWorked);
         } else {
-          const st = new Date(`1970-01-01T${a.order.startTime}Z`).getTime();
-          const et = new Date(`1970-01-01T${a.order.endTime}Z`).getTime();
-          let diffMins = (et - st) / 60000;
-          if (diffMins < 0) diffMins += 24 * 60;
-          const netMins = diffMins - (a.order.breakMinutes || 0);
-          hours = netMins / 60;
+          hours = netShiftHours(
+            a.order.startTime,
+            a.order.endTime,
+            a.order.breakMinutes || 0,
+            a.order.shiftDate
+          );
         }
         return sum + hours;
       }, 0) * 100) / 100;

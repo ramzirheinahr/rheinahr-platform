@@ -526,6 +526,7 @@ export function AvailabilityBuilder({
                 initialStartTime={a.startTime}
                 initialEndTime={a.endTime}
                 initialBreakMinutes={a.breakMinutes}
+                shiftDate={a.date}
                 triggerBtn={
                   <Button size="sm" variant="outline" className="h-6 px-2 text-xs border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100">
                     {t("confirmShift")}
@@ -917,6 +918,7 @@ export function AvailabilityBuilder({
                                     initialStartTime={a.startTime}
                                     initialEndTime={a.endTime}
                                     initialBreakMinutes={a.breakMinutes}
+                                    shiftDate={a.date}
                                     triggerBtn={
                                       <Button size="sm" variant="outline" className="h-6.5 px-2 text-xs font-bold border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-300">
                                         {t("confirmShift")}

@@ -60,7 +60,7 @@ export async function GET(req: Request, props: { params: Promise<{ assignmentId:
   const hours =
     Number.isFinite(parsedHours) && parsedHours >= 0 && parsedHours <= 24
       ? parsedHours
-      : netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes);
+      : netShiftHours(a.order.startTime, a.order.endTime, a.order.breakMinutes, a.order.shiftDate);
 
   const pdf = await renderLeistungsnachweisPdf({
     facilityName: a.order.client.facilityName,

@@ -26,12 +26,14 @@ export function WorkerShiftConfirmDialog({
   initialStartTime,
   initialEndTime,
   initialBreakMinutes,
+  shiftDate,
   triggerBtn
 }: {
   assignmentId: string;
   initialStartTime: string;
   initialEndTime: string;
   initialBreakMinutes: number;
+  shiftDate?: string;
   triggerBtn: React.ReactElement;
 }) {
   const [open, setOpen] = useState(false);
@@ -50,8 +52,8 @@ export function WorkerShiftConfirmDialog({
 
   // Dynamic net hours for display
   const hoursWorked = React.useMemo(() => {
-    return netShiftHours(startTime, endTime, breakMinutes);
-  }, [startTime, endTime, breakMinutes]);
+    return netShiftHours(startTime, endTime, breakMinutes, shiftDate);
+  }, [startTime, endTime, breakMinutes, shiftDate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

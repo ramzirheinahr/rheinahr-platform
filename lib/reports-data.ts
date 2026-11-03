@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { getWorkerHoursAccount, getMultipleWorkersHoursAccount } from "@/lib/hours-account";
 import { getOrFreezeTravelLine } from "@/lib/travel-allowance-snapshot";
 import { dailyMealAllowanceAssignmentIds, normalizeMealAllowancePolicy } from "@/lib/meal-allowance";
+import { netShiftHours, getShiftPhysicalMinutes } from "@/lib/pricing";
 
 // Helper to format Date to YYYY-MM-DD
 export function formatDate(d: Date | null | undefined): string {
@@ -161,12 +162,15 @@ export async function getStundennachweisData(params: {
     ).padStart(2, "0")}.${shiftD.getUTCFullYear()}`;
 
     // Scheduled gross and net hours
-    const st = new Date(`1970-01-01T${order.startTime}Z`).getTime();
-    const et = new Date(`1970-01-01T${order.endTime}Z`).getTime();
-    let diffMins = (et - st) / 60000;
-    if (diffMins < 0) diffMins += 24 * 60;
-    const scheduledGrossHours = Math.round((diffMins / 60) * 100) / 100;
-    const scheduledNetHours = Math.max(0, Math.round(((diffMins - order.breakMinutes) / 60) * 100) / 100);
+    const [sh, sm] = order.startTime.split(":").map(Number);
+    const [eh, em] = order.endTime.split(":").map(Number);
+    let wallClock = (eh * 60 + em - (sh * 60 + sm) + 1440) % 1440;
+    if (wallClock === 0) wallClock = 1440;
+    const physMins = getShiftPhysicalMinutes(order.shiftDate, order.startTime, order.endTime, wallClock);
+    const scheduledGrossHours = Math.round((physMins / 60) * 100) / 100;
+    const scheduledNetHours = Math.round(
+      netShiftHours(order.startTime, order.endTime, order.breakMinutes, order.shiftDate) * 100
+    ) / 100;
 
     if (order.assignments.length === 0) {
       // Unassigned shift in period: always scheduled/planned
@@ -229,11 +233,12 @@ export async function getStundennachweisData(params: {
           if (latestApprovedCorrection.proposedEndTime) {
             shiftEndTime = latestApprovedCorrection.proposedEndTime;
           }
-          const cSt = new Date(`1970-01-01T${shiftStartTime}Z`).getTime();
-          const cEt = new Date(`1970-01-01T${shiftEndTime}Z`).getTime();
-          let cDiffMins = (cEt - cSt) / 60000;
-          if (cDiffMins < 0) cDiffMins += 24 * 60;
-          grossHours = Math.round((cDiffMins / 60) * 100) / 100;
+          const [csh, csm] = shiftStartTime.split(":").map(Number);
+          const [ceh, cem] = shiftEndTime.split(":").map(Number);
+          let cWallClock = (ceh * 60 + cem - (csh * 60 + csm) + 1440) % 1440;
+          if (cWallClock === 0) cWallClock = 1440;
+          const cPhysMins = getShiftPhysicalMinutes(order.shiftDate, shiftStartTime, shiftEndTime, cWallClock);
+          grossHours = Math.round((cPhysMins / 60) * 100) / 100;
           statusType = "approved_correction";
           statusLabel = "Korrigiert (Freigegeben)";
           isCorrected = true;
@@ -419,11 +424,12 @@ export async function getMonatslisteData(params: {
       } else if (assign.serviceConfirmation?.hoursWorked != null) {
         net = Number(assign.serviceConfirmation.hoursWorked);
       } else {
-        const st = new Date(`1970-01-01T${assign.order.startTime}Z`).getTime();
-        const et = new Date(`1970-01-01T${assign.order.endTime}Z`).getTime();
-        let diffMins = (et - st) / 60000;
-        if (diffMins < 0) diffMins += 24 * 60;
-        net = Math.max(0, (diffMins - assign.order.breakMinutes) / 60);
+        net = netShiftHours(
+          assign.order.startTime,
+          assign.order.endTime,
+          assign.order.breakMinutes,
+          assign.order.shiftDate
+        );
       }
 
       const totalHours = Math.round(net * 100) / 100;

@@ -190,7 +190,7 @@ async function getStats(monthStr?: string) {
             },
             select: {
               bonusHours: true,
-              order: { select: { startTime: true, endTime: true, breakMinutes: true } },
+              order: { select: { shiftDate: true, startTime: true, endTime: true, breakMinutes: true } },
               serviceConfirmation: { select: { hoursWorked: true } },
             },
           },
@@ -306,7 +306,7 @@ async function getStats(monthStr?: string) {
     const confirmedMonthHours = Number(hoursResult._sum.hoursWorked || 0);
     const awaitingConfirmationHours = monthAssignments.reduce((sum, assignment) => {
       if (assignment.status !== "confirmed" || assignment.serviceConfirmation || assignment.order.shiftDate > currentTime) return sum;
-      return sum + netShiftHours(assignment.order.startTime, assignment.order.endTime, assignment.order.breakMinutes);
+      return sum + netShiftHours(assignment.order.startTime, assignment.order.endTime, assignment.order.breakMinutes, assignment.order.shiftDate);
     }, 0);
 
     const monthKey = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
@@ -325,7 +325,7 @@ async function getStats(monthStr?: string) {
       const credited = worker.assignments.reduce((sum, assignment) => {
         const hours = assignment.serviceConfirmation?.hoursWorked != null
           ? Number(assignment.serviceConfirmation.hoursWorked)
-          : netShiftHours(assignment.order.startTime, assignment.order.endTime, assignment.order.breakMinutes);
+          : netShiftHours(assignment.order.startTime, assignment.order.endTime, assignment.order.breakMinutes, assignment.order.shiftDate);
         return sum + hours + assignment.bonusHours;
       }, 0) + worker.leaveRequests.flatMap((request) => request.days).reduce((sum, day) => sum + day.hours, 0);
       return { required, credited };

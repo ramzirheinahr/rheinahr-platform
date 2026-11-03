@@ -95,7 +95,8 @@ export async function confirmServiceByWorkerOnDevice(
   const finalizedHours = netShiftHours(
     timeModified ? data.startTime : assignment.order.startTime,
     timeModified ? data.endTime : assignment.order.endTime,
-    timeModified ? data.breakMinutes : assignment.order.breakMinutes
+    timeModified ? data.breakMinutes : assignment.order.breakMinutes,
+    assignment.order.shiftDate
   );
 
   const documentData = {

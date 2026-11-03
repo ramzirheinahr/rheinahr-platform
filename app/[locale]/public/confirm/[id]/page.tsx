@@ -5,6 +5,7 @@ import { PublicConfirmDialog } from "@/components/public/public-confirm-dialog";
 import { ShieldCheck, Calendar, Clock, MapPin, CheckCircle2 } from "lucide-react";
 import { qualLabel } from "@/lib/invoicing";
 import { getCompanyConfig } from "@/lib/config/company";
+import { netShiftHours } from "@/lib/pricing";
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -116,11 +117,7 @@ export default async function PublicConfirmPage(props: {
             </div>
           ) : (
             unconfirmedShifts.map(shift => {
-              const startMin = timeToMinutes(shift.startTime);
-              const endMin = timeToMinutes(shift.endTime);
-              const grossMin = endMin < startMin ? (endMin + 24 * 60) - startMin : endMin - startMin;
-              const netMin = Math.max(0, grossMin - shift.breakMinutes);
-              const hours = netMin / 60;
+              const hours = netShiftHours(shift.startTime, shift.endTime, shift.breakMinutes, shift.shiftDate);
 
               return (
                 <div key={shift.assignmentId} className="bg-white rounded-xl shadow-sm border p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">

@@ -57,7 +57,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ requestI
 
   const rows: ClientScheduleRow[] = orders.flatMap((o) => {
     const isoDate = o.shiftDate.toISOString().slice(0, 10);
-    const rawNet = netShiftHours(o.startTime, o.endTime, o.breakMinutes);
+    const rawNet = netShiftHours(o.startTime, o.endTime, o.breakMinutes, o.shiftDate);
     
     if (o.assignments.length === 0) {
       // Empty shift without assignment

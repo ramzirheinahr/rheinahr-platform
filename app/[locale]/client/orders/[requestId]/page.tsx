@@ -165,7 +165,7 @@ export default async function ClientRequestDetail({
     // Future shifts that have not started cannot be signed yet.
     // eslint-disable-next-line react-hooks/purity
     const isPast = Date.now() >= startDateTime.getTime();
-    const scheduledHours = netShiftHours(o.startTime, o.endTime, o.breakMinutes);
+    const scheduledHours = netShiftHours(o.startTime, o.endTime, o.breakMinutes, o.shiftDate);
 
     shiftMeta[`${date}:${slot}`] = {
       orderId: o.id,

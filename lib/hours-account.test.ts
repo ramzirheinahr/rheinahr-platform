@@ -156,4 +156,34 @@ describe("hours-account - current month asOfDate filtering", () => {
     expect(workerAcc).toBeDefined();
     expect(workerAcc.months[0].workedHours).toBe(7.5); // Only Oct 10, not Oct 20
   });
+
+  it("accurately accounts for DST transition night shift (+1 hour in October)", async () => {
+    (prisma.worker.findUnique as any).mockResolvedValue(mockWorker);
+    (prisma.leaveDay.findMany as any).mockResolvedValue([]);
+    (prisma.workerHoursAdjustment.findMany as any).mockResolvedValue([]);
+
+    const mockAssignments = [
+      {
+        workerId: "w-1",
+        bonusHours: 0,
+        order: {
+          shiftDate: new Date("2026-10-24T00:00:00Z"),
+          startTime: "20:45",
+          endTime: "06:45",
+          breakMinutes: 45,
+        },
+        serviceConfirmation: null,
+        hoursCorrections: [],
+      },
+    ];
+
+    (prisma.assignment.findMany as any).mockResolvedValue(mockAssignments);
+
+    const res = await getWorkerHoursAccount("w-1", "2026-10", "2026-10", "2026-10-31");
+    const oct = res.months.find((m) => m.month === "2026-10");
+    expect(oct).toBeDefined();
+    // 20:45 to 06:45 normally 10h - 45m = 9.25h.
+    // On 2026-10-24 to 2026-10-25 DST transition: 11h - 45m = 10.25h.
+    expect(oct?.workedHours).toBe(10.25);
+  });
 });

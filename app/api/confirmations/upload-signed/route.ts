@@ -175,6 +175,7 @@ export async function POST(req: Request) {
             a.order.startTime,
             a.order.endTime,
             a.order.breakMinutes,
+            a.order.shiftDate,
           );
 
           const hasExisting = Boolean(a.serviceConfirmation);

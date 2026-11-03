@@ -1511,7 +1511,7 @@ function CellEditor({
                   <div className="flex justify-end border-t pt-1.5">
                     <ConfirmServiceDialog
                       assignmentId={j.assignmentId}
-                      scheduledHours={netShiftHours(j.startTime, j.endTime, j.breakMinutes)}
+                      scheduledHours={netShiftHours(j.startTime, j.endTime, j.breakMinutes, date)}
                       scheduledStart={j.startTime}
                       scheduledEnd={j.endTime}
                       isAdmin={true}
