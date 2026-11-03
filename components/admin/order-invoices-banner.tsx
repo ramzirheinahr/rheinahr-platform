@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Receipt, FileText, CheckCircle2, Mail, Ban, RotateCw } from "lucide-react";
+import { Receipt, FileText, CheckCircle2, Mail, Ban, RotateCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { generateOrderInvoices, sendInvoiceEmail, cancelInvoice } from "@/app/[locale]/admin/orders/[id]/invoice-actions";
@@ -68,10 +68,10 @@ export function OrderInvoicesBanner({
   };
 
   const handleCancel = async (invoiceId: string) => {
-    if (!confirm("Rechnung stornieren? Die alte Rechnungsnummer bleibt dauerhaft vergeben und kann nicht erneut verwendet werden. Die Schichten werden freigegeben; eine Ersatzrechnung erhält eine neue Nummer.")) return;
+    if (!confirm("Rechnung wirklich stornieren bzw. löschen? Die zugehörigen Schichten werden wieder freigegeben (es wird keine neue Rechnung erstellt).")) return;
     try {
       await cancelInvoice(invoiceId);
-      toast.success("Rechnung storniert. Die Schichten können mit neuer Rechnungsnummer erneut fakturiert werden.");
+      toast.success("Rechnung erfolgreich storniert/gelöscht. Die Schichten wurden wieder freigegeben.");
       router.refresh();
     } catch (e: unknown) {
       const raw = (e as Error)?.message || "";
@@ -180,10 +180,16 @@ export function OrderInvoicesBanner({
                   </DropdownMenuItem>
                 )}
                 {inv.status !== "cancelled" && (
-                  <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleCancel(inv.id)}>
-                    <Ban className="size-4 mr-2" />
-                    {t("cancelInvoice")} – Ersatzrechnung mit neuer Nummer
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleCancel(inv.id)}>
+                      <Ban className="size-4 mr-2" />
+                      {t("cancelInvoice")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50" onClick={() => handleCancel(inv.id)}>
+                      <Trash2 className="size-4 mr-2" />
+                      {t("deleteInvoice")}
+                    </DropdownMenuItem>
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
