@@ -34,7 +34,7 @@ export default async function AccessPage({
   const t = await getTranslations("access");
   const companyConfig = await getCompanyConfig();
 
-  // The link is valid only if it maps to an active account with a PIN set.
+  // The link is valid only while unused and mapped to an active account.
   const account = await prisma.user
     .findUnique({
       where: { loginToken: token },

@@ -1,15 +1,13 @@
 import "server-only";
 import { randomInt, randomBytes } from "crypto";
 
-// Passwordless "access link + PIN" login helpers (client/worker convenience).
-// The admin generates a link + PIN, shares them (ideally over two channels), and
-// the user signs in on a device once; the persistent session then skips the PIN.
-// The link token alone is NOT a credential — it must be paired with the PIN.
+// Passwordless "access link" login helpers (client/worker convenience; no PIN, at
+// the companies' request). The admin generates a personal link and shares it; the
+// user signs in once on a device and keeps a long-lived session there.
+// The link is SINGLE-USE: loginWithToken consumes it, so a forwarded or leaked
+// link is worthless after the first sign-in. Another device needs a new link.
 
-// and the user signs in on a device once; the persistent session skips logins.
-// The link token is sufficient to access the platform.
-
-// URL-safe, unguessable slug for the shared /access/<token> link (~192 bits).
+// URL-safe, unguessable slug for the shared /access/<token> link (128 bits).
 export function generateLoginToken(): string {
   // Use hex instead of base64url so double-clicking to copy selects the entire token
   return randomBytes(16).toString("hex");

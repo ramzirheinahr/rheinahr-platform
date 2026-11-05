@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 
 export function TokenLoginButton({ token }: { token: string }) {
   const c = useTranslations("common");
+  const t = useTranslations("access");
   const locale = useLocale();
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +23,7 @@ export function TokenLoginButton({ token }: { token: string }) {
         return;
       }
       
-      toast.error(c("error"));
+      toast.error(result.error === "invalid" ? t("invalidTitle") : c("error"));
       setLoading(false);
     } catch {
       toast.error(c("error"));
@@ -32,7 +33,7 @@ export function TokenLoginButton({ token }: { token: string }) {
 
   return (
     <Button onClick={onLogin} className="w-full" size="lg" disabled={loading}>
-      {loading ? c("loading") : "Anmelden"}
+      {loading ? c("loading") : t("submit")}
     </Button>
   );
 }

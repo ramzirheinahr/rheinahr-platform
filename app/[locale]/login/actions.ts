@@ -70,25 +70,47 @@ export async function logoutUser() {
 }
 
 import { portalPath } from "@/lib/auth";
+import { roleUsesAccessLink } from "@/lib/access";
 import { audit } from "@/lib/audit";
 
 export async function loginWithToken(token: string) {
   try {
-    const user = await prisma.user.findUnique({
-      where: { loginToken: token },
-      select: { 
-        id: true, 
-        active: true, 
-        role: true
-      },
-    });
-
-    if (!user || !user.active) {
-      return { ok: false, error: "invalid" };
-    }
+    if (!token) return { ok: false, error: "invalid" };
 
     const headerList = await headers();
     const ipAddress = headerList.get("x-forwarded-for") || headerList.get("x-real-ip") || "Unknown IP";
+    const userAgent = headerList.get("user-agent") || "Unknown Device";
+    const sessionToken = randomBytes(32).toString("hex");
+
+    // Single-use link: consuming the token and creating the session happen in
+    // one transaction. The conditional update only matches while the token is
+    // still unused, so two simultaneous clicks (or a forwarded link) cannot both
+    // sign in. The resulting session stays valid long-term; the link is spent.
+    const user = await prisma.$transaction(async (tx) => {
+      const candidate = await tx.user.findUnique({
+        where: { loginToken: token },
+        select: { id: true, active: true, role: true },
+      });
+      if (!candidate || !candidate.active || !roleUsesAccessLink(candidate.role)) return null;
+
+      const consumed = await tx.user.updateMany({
+        where: { id: candidate.id, loginToken: token },
+        data: { loginToken: null },
+      });
+      if (consumed.count !== 1) return null;
+
+      await tx.userSession.create({
+        data: {
+          userId: candidate.id,
+          token: sessionToken,
+          device: userAgent.substring(0, 255),
+          ipAddress: ipAddress.substring(0, 255),
+        },
+      });
+      return candidate;
+    });
+
+    if (!user) return { ok: false, error: "invalid" };
 
     await audit({
       userId: user.id,
@@ -96,21 +118,6 @@ export async function loginWithToken(token: string) {
       entity: "User",
       entityId: user.id,
       ipAddress: ipAddress.substring(0, 255),
-    });
-
-    // Generate a secure session token
-    const sessionToken = randomBytes(32).toString("hex");
-
-    const userAgent = headerList.get("user-agent") || "Unknown Device";
-
-    // Create session in DB
-    await prisma.userSession.create({
-      data: {
-        userId: user.id,
-        token: sessionToken,
-        device: userAgent.substring(0, 255),
-        ipAddress: ipAddress.substring(0, 255),
-      },
     });
 
     // Set cookie with 10 years expiration
@@ -129,5 +136,3 @@ export async function loginWithToken(token: string) {
     return { ok: false, error: "serverError" };
   }
 }
-
-
