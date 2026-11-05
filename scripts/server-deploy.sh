@@ -118,4 +118,4 @@ cd "$HOME_DIR/releases"
 in_use="$(readlink -f "$HOME_DIR"/apps/* 2>/dev/null | xargs -r -n1 dirname | sort -u)"
 ls -1d 20[0-9][0-9][0-9][0-9][0-9][0-9]-* 2>/dev/null | sort -r | tail -n +$((KEEP_RELEASES + 1)) | while read -r old; do
   grep -qxF "$HOME_DIR/releases/$old" <<<"$in_use" || { rm -rf "$old"; echo "pruned release $old"; }
-done
+done || true
