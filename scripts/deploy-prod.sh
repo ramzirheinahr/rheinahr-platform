@@ -1,18 +1,6 @@
-#!/bin/bash
-set -e
-
-echo "Deploying to production server rheinahr..."
-
-rsync -avz \
-  --exclude='.git' \
-  --exclude='node_modules' \
-  --exclude='.next' \
-  --exclude='.env*' \
-  --exclude='backups' \
-  --exclude='video_sample' \
-  --exclude='*.mp4' \
-  ./ rheinahr:/home/rheinahr/releases/local-storage-current/
-
-ssh rheinahr "cd /home/rheinahr/releases/local-storage-current && npx prisma migrate deploy && npx prisma generate && npm run build && pm2 restart rheinahr-platform"
-
-echo "Deployment complete."
+#!/usr/bin/env bash
+# Retired: it rebuilt the live RheinAhr directory in place (breaking the running app
+# mid-build) and never updated RheinLand. Use scripts/deploy.sh (both companies,
+# separate release dirs, smoke test, auto-rollback) instead.
+echo "deploy-prod.sh is retired — use: scripts/deploy.sh" >&2
+exit 1

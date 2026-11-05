@@ -43,6 +43,9 @@ else
   rsync -a --delete "$STORAGE_DIR/" "$temporary/"
 fi
 mv "$temporary" "$snapshot"
+# rsync -a copies the storage root's old mtime onto the snapshot; reset it so the
+# -mtime +14 retention below does not delete the snapshot it just created.
+touch "$snapshot"
 trap - EXIT
 
 find "$BACKUP_DIR" -maxdepth 1 -type f -name 'db_backup_*.dump' -mtime +14 -delete
