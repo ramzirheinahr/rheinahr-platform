@@ -39,7 +39,9 @@ health() { # port, seconds
 }
 
 stop_port() { # kills whatever listens on 127.0.0.1:<port> (smoke-test server only)
-  local pids; pids="$(ss -tlnpH "sport = :$1" | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u)"
+  # `|| true`: grep finds nothing when the port is free, which pipefail + set -e
+  # would otherwise turn into a silent exit of the whole deploy.
+  local pids; pids="$(ss -tlnpH "sport = :$1" | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true)"
   [[ -n "$pids" ]] && kill $pids 2>/dev/null || true
 }
 
