@@ -5,6 +5,13 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export async function getSystemSettings() {
+  // Exported from a "use server" file → callable as a public endpoint, so it
+  // must authorize itself (holds SMTP credentials, IBAN and worker notes).
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "super_admin" && user.role !== "admin")) {
+    throw new Error("Unauthorized");
+  }
+
   const settings = await prisma.systemSetting.findMany();
   return settings.reduce((acc, setting) => {
     acc[setting.key] = setting.value;

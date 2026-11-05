@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getWorkerHoursAccount } from "@/lib/hours-account";
 import { renderToStream } from "@react-pdf/renderer";
@@ -40,7 +40,8 @@ export async function GET(
     return NextResponse.json({ error: "Worker not found" }, { status: 404 });
   }
 
-  if (user.role === "worker" && worker.userId !== user.id) {
+  // Staff, or the worker themself — never other workers or client facilities.
+  if (!roleSatisfies(user.role, ["admin"]) && worker.userId !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

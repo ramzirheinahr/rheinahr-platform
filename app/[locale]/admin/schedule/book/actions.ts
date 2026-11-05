@@ -8,7 +8,7 @@ import { z } from "zod";
 import { orderLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { formatDateDE } from "@/lib/utils";
-import { getCertificatesForWorkers } from "@/app/[locale]/worker/assignments/actions";
+import { getCertificatesForWorkers } from "@/lib/worker-certificates";
 import { formatWorkerSalutation, formatWorkerDisplayName, formatWorkerEmailIntro, formatWorkerBirthDate } from "@/lib/worker-utils";
 
 async function assertAdmin() {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildWorkerDienstplanPdfData } from "@/lib/worker-dienstplan-builder";
 import { generateWorkerDienstplanPdf } from "@/lib/pdf/worker-dienstplan";
@@ -23,8 +23,8 @@ export async function GET(
     return new NextResponse("Worker not found", { status: 404 });
   }
 
-  // Workers may only export their own Dienstplan; admins and dispatchers may export any
-  if (user.role === "worker" && worker.userId !== user.id) {
+  // Staff may export any Dienstplan; a worker only their own; client facilities none.
+  if (!roleSatisfies(user.role, ["admin"]) && worker.userId !== user.id) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 

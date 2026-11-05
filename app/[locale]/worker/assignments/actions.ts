@@ -9,31 +9,8 @@ import { audit } from "@/lib/audit";
 import { orderLink, inboxLink, workerShiftLink, buildShiftHtmlTable, getFacilityClientUserIds } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
 import { formatDateDE } from "@/lib/utils";
-import { createLocalStorageClient } from "@/lib/local-storage";
-import { WORKER_FILES_BUCKET } from "@/lib/worker-files";
+import { getCertificatesForWorkers } from "@/lib/worker-certificates";
 import { formatWorkerSalutation, formatWorkerDisplayName, formatWorkerEmailIntro, formatWorkerBirthDate } from "@/lib/worker-utils";
-
-export async function getCertificatesForWorkers(workerIds: string[]) {
-  if (workerIds.length === 0) return undefined;
-  const uniqueWorkerIds = [...new Set(workerIds)];
-  const docs = await prisma.workerDocument.findMany({
-    where: { workerId: { in: uniqueWorkerIds }, category: "certification", verified: true },
-  });
-  if (docs.length === 0) return undefined;
-  
-  const supabase = createLocalStorageClient();
-  const loaded = await Promise.all(
-    docs.map(async (doc) => {
-      const { data, error } = await supabase.storage.from(WORKER_FILES_BUCKET).download(doc.filePath);
-      if (data && !error) {
-        const buffer = Buffer.from(await data.arrayBuffer());
-        return { filename: doc.fileName, content: buffer };
-      }
-      return null;
-    })
-  );
-  return loaded.filter(Boolean) as { filename: string; content: Buffer }[];
-}
 
 export type ActionState = { ok: boolean; error?: string };
 
