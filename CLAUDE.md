@@ -5,6 +5,63 @@
 
 ---
 
+## ⚠️ Production Operations — read first (binding)
+
+### Two companies, ONE codebase
+The platform serves **two companies owned by the same owner, with the same business
+model** — every change must apply to **both**:
+
+| Company | Domain | DB (same Postgres) | pm2 / port | Env file on server |
+|---|---|---|---|---|
+| **RheinAhr** Dienstleistungen GmbH | platform.rheinahr-gmbh.de | `postgres` | `rheinahr-platform` / 3000 | `~/shared/rheinahr.env` |
+| **RheinLand** Personalmanagement und Fahrdienst GmbH | platform.rheinland-gmbh.de | `rheinland_db` | `rheinland-platform` / 3001 | `~/shared/rheinland.env` |
+
+- Company identity (name, logo, stamp, bank data…) comes from env (`NEXT_PUBLIC_COMPANY_*`)
+  and DB settings (`company.*`) via `lib/config/company.ts` — **never hardcode one company**.
+  Branching on the company, when unavoidable, goes through `companyConfig` (see the
+  RheinLand stamp in `lib/pdf/contract.tsx`).
+- Never create a separate copy/branch of the code per company.
+
+### Server
+- Self-hosted Ubuntu box, reached as `ssh rheinahr` (Tailscale, key-only SSH). Public
+  traffic only via a Cloudflare named tunnel. Firewall (ufw) is on.
+- `sudo` requires the account password, which only the owner types — **never** try to
+  bypass this; ask the owner to run the one command that needs it.
+- Releases: `~/releases/<timestamp>-<commit>/<company>`; live links `~/apps/<company>`
+  (+ `.previous` for rollback).
+
+### Deploying (the only allowed way)
+1. Commit the change (repo-local git email `paypalalmnar@gmail.com`).
+2. `scripts/deploy.sh` — deploys git HEAD to **RheinLand first (canary), then RheinAhr**:
+   pre-migration backup → `prisma migrate deploy` on each company DB → build → smoke test
+   on a private port → pm2 switch with auto-rollback. `scripts/deploy.sh rheinahr` = one only.
+3. Rollback: `scripts/rollback.sh <company>`.
+- Never edit code directly on the server, never build inside a live release dir, never
+  use the retired `scripts/deploy-prod.sh`.
+- Migrations must be **additive / backward compatible** (they run while the previous
+  release still serves, and rollback keeps the new schema). Never `prisma db push` in prod.
+- Server npm is v10: if `npm ci` rejects the lockfile the deploy falls back to `npm install`.
+
+### Backups
+- Local nightly 03:00 (`scripts/backup-server.sh` → server `~/scripts/backup-db.sh`), and
+  03:30 encrypted offsite copy of **both** companies to Cloudflare R2
+  (`scripts/offsite-backup.sh`, EU bucket with 30-day lock). Restore guide:
+  `scripts/RESTORE-OFFSITE.md`. Log: `~/backups/logs/offsite-backup.log`.
+- Any one-off data change in production: take a fresh backup first, dry-run, then apply,
+  and audit-log it (example: `scripts/revoke-used-access-links.mjs`).
+
+### Security decisions already made (do not undo)
+- Access links (`/access/<token>`) are **single-use**, no PIN (company decision); sessions
+  last 10 years.
+- Client IP for audit/signatures: `lib/client-ip.ts` (Cloudflare `CF-Connecting-IP`) —
+  never read `X-Forwarded-For` directly.
+- Brute-force limits: `lib/rate-limit.ts`. Security headers: `next.config.mjs`.
+- Every exported function in a `"use server"` file is a public endpoint: it must check
+  auth itself; put internal helpers in `lib/` (server-only) instead.
+- Links in emails use `NEXT_PUBLIC_APP_URL`, never request Host headers.
+
+---
+
 ## 0. Company Identity
 
 **RheinAhr Dienstleistungen GmbH** — Personaldienstleister / Zeitarbeitsfirma (medical & care staffing) based in Bonn, Germany.
@@ -109,6 +166,11 @@ For doctors/nurses/care workers. View assigned shifts (location, contact, durati
 ## 5. Technical Architecture
 
 ### Stack (locked unless a decision below overrides it)
+> **Current reality (2026-11) overrides the original plan below:** Supabase and Vercel are
+> no longer used. Production is self-hosted — local PostgreSQL 16 (Docker), local file
+> storage (`lib/local-storage.ts`), custom session auth (`lib/auth.ts`, `app_session`
+> cookie), SMTP email, Next.js 16. See **Production Operations** at the top of this file.
+
 - **Frontend**: Next.js 14 (App Router, React, TypeScript) — SSR/SSG, built-in i18n routing
 - **UI**: Tailwind CSS + shadcn/ui — RTL via logical properties / tailwindcss-rtl
 - **i18n / RTL**: next-intl — Arabic RTL layout, per-user locale
