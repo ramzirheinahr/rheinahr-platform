@@ -185,7 +185,9 @@
     "invalidTokenTitle": "Ungültiger oder abgelaufener Link",
     "invalidOrExpiredToken": "Der Link zum Zurücksetzen des Passworts ist ungültig oder abgelaufen.",
     "requestNewLink": "Neuen Link anfordern",
-    "resetPasswordButton": "Passwort speichern"
+    "resetPasswordButton": "Passwort speichern",
+    "tooManyAttempts": "Zu viele fehlgeschlagene Anmeldeversuche. Bitte warten Sie 15 Minuten und versuchen Sie es erneut.",
+    "serverError": "Anmeldung derzeit nicht möglich. Bitte später erneut versuchen."
   },
   "access": {
     "welcome": "Willkommen, {name}",
@@ -216,7 +218,8 @@
     "copyLink": "Link kopieren",
     "linkCopied": "Link kopiert.",
     "copyPin": "PIN kopieren",
-    "pinCopied": "PIN kopiert."
+    "pinCopied": "PIN kopiert.",
+    "tooManyAttempts": "Zu viele Versuche. Bitte warten Sie 15 Minuten."
   },
   "pwa": {
     "bannerTitle": "App auf dem Startbildschirm installieren",

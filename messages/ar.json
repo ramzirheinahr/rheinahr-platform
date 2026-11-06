@@ -187,7 +187,9 @@
     "invalidTokenTitle": "الرابط غير صالح أو منتهي الصلاحية",
     "invalidOrExpiredToken": "رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته.",
     "requestNewLink": "طلب رابط جديد",
-    "resetPasswordButton": "حفظ كلمة المرور"
+    "resetPasswordButton": "حفظ كلمة المرور",
+    "tooManyAttempts": "محاولات دخول فاشلة كثيرة. يرجى الانتظار 15 دقيقة ثم المحاولة مجدداً.",
+    "serverError": "تسجيل الدخول غير ممكن حالياً. يرجى المحاولة لاحقاً."
   },
   "access": {
     "welcome": "مرحباً، {name}",
@@ -218,7 +220,8 @@
     "copyLink": "نسخ الرابط",
     "linkCopied": "تم نسخ الرابط.",
     "copyPin": "نسخ رمز PIN",
-    "pinCopied": "تم نسخ رمز PIN."
+    "pinCopied": "تم نسخ رمز PIN.",
+    "tooManyAttempts": "محاولات كثيرة. يرجى الانتظار 15 دقيقة."
   },
   "pwa": {
     "bannerTitle": "تثبيت التطبيق على الشاشة الرئيسية",

@@ -6,6 +6,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { buildShiftHtmlTable } from "@/lib/notify";
 import { pushToUsers } from "@/lib/push";
+import { clientIp } from "@/lib/client-ip";
 
 export async function deleteContract(contractId: string) {
   const user = await getCurrentUser();
@@ -195,7 +196,7 @@ export async function uploadSignedContract(formData: FormData) {
 
   const { headers } = await import("next/headers");
   const headersList = await headers();
-  const ip = headersList.get("x-forwarded-for") || "unknown";
+  const ip = clientIp(headersList) || "unknown";
 
   await prisma.clientContract.update({
     where: { id: contractId },
@@ -306,7 +307,7 @@ export async function finalizeDirectSignedContract({
 
   const { headers } = await import("next/headers");
   const headersList = await headers();
-  const ip = headersList.get("x-forwarded-for") || "unknown";
+  const ip = clientIp(headersList) || "unknown";
 
   const contract = await prisma.clientContract.create({
     data: {
@@ -439,7 +440,7 @@ export async function uploadDirectSignedContract(formData: FormData) {
 
   const { headers } = await import("next/headers");
   const headersList = await headers();
-  const ip = headersList.get("x-forwarded-for") || "unknown";
+  const ip = clientIp(headersList) || "unknown";
 
   // Update contract with document URL
   await prisma.clientContract.update({

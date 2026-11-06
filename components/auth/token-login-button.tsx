@@ -23,7 +23,11 @@ export function TokenLoginButton({ token }: { token: string }) {
         return;
       }
       
-      toast.error(result.error === "invalid" ? t("invalidTitle") : c("error"));
+      toast.error(
+        result.error === "invalid" ? t("invalidTitle")
+          : result.error === "tooManyAttempts" ? t("tooManyAttempts")
+          : c("error"),
+      );
       setLoading(false);
     } catch {
       toast.error(c("error"));

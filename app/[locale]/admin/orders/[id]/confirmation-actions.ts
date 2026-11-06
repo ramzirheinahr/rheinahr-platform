@@ -18,6 +18,7 @@ import {
   normalizeMimeType,
   detectMimeTypeFromBuffer,
 } from "@/lib/confirmation-tickets";
+import { clientIp } from "@/lib/client-ip";
 
 export type UploadTicket =
   | { ok: true; path: string; token: string; ticket: string }
@@ -205,7 +206,7 @@ async function executeConfirmationPersistence({
   metadataExtra?: Record<string, unknown>;
 }) {
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(h) || "unknown";
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
@@ -972,7 +973,7 @@ export async function deleteServiceConfirmation(
   // Audit log
   try {
     const h = await headers();
-    const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(h) || "unknown";
     await audit({
       userId: user.id,
       action: "service_confirmation.deleted",

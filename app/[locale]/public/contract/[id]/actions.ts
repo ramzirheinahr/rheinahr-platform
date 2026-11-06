@@ -11,6 +11,7 @@ import { qualLabel } from "@/lib/invoicing";
 import { format } from "@/lib/date-utils";
 import { formatWorkerSalutation } from "@/lib/worker-utils";
 import { catalogRateMap, getQualificationCatalog } from "@/lib/qualification-catalog";
+import { clientIp } from "@/lib/client-ip";
 
 export async function signContractPublic({
   requestGroupId,
@@ -49,7 +50,7 @@ export async function signContractPublic({
   }
 
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(h) || "unknown";
   const signedAtDate = new Date();
   const signedAtFormatted = format(signedAtDate, "dd.MM.yyyy HH:mm");
 

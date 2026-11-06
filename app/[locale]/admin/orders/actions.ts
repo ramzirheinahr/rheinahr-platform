@@ -32,6 +32,7 @@ import {
 } from "@/lib/invoicing";
 import { netShiftHours } from "@/lib/pricing";
 import { respondAssignmentsBulk } from "@/app/[locale]/worker/assignments/actions";
+import { clientIp } from "@/lib/client-ip";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -1115,7 +1116,7 @@ export async function approveTimeChange(input: {
 
   const { headers } = await import("next/headers");
   const h = await headers();
-  const adminIp = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  const adminIp = clientIp(h);
 
   // Prefer original client signature/name and IP if available. Fallback to admin info.
   const originalSignerName = sc.signerName || sc.confirmedBy?.fullName || "Unbekannt";

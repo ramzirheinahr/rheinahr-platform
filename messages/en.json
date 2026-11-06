@@ -185,7 +185,9 @@
     "invalidTokenTitle": "Invalid or expired link",
     "invalidOrExpiredToken": "The password reset link is invalid or has expired.",
     "requestNewLink": "Request a new link",
-    "resetPasswordButton": "Save password"
+    "resetPasswordButton": "Save password",
+    "tooManyAttempts": "Too many failed sign-in attempts. Please wait 15 minutes and try again.",
+    "serverError": "Sign-in is not possible right now. Please try again later."
   },
   "access": {
     "welcome": "Welcome, {name}",
@@ -216,7 +218,8 @@
     "copyLink": "Copy link",
     "linkCopied": "Link copied.",
     "copyPin": "Copy PIN",
-    "pinCopied": "PIN copied."
+    "pinCopied": "PIN copied.",
+    "tooManyAttempts": "Too many attempts. Please wait 15 minutes."
   },
   "pwa": {
     "bannerTitle": "Install app on your home screen",

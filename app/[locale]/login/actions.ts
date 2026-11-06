@@ -7,27 +7,39 @@ import { randomBytes } from "crypto";
 
 export async function loginUser(email: string, password: string) {
   try {
+    const headerList = await headers();
+    const userAgent = headerList.get("user-agent") || "Unknown Device";
+    const ipAddress = clientIp(headerList) || "Unknown IP";
+
+    // Brute-force protection: per account and per IP. The same answer is given
+    // whether or not the account exists, so it does not reveal valid emails.
+    const emailKey = `login:email:${email.trim().toLowerCase()}`;
+    const ipKey = `login:ip:${ipAddress}`;
+    if (
+      isRateLimited(emailKey, LIMITS.loginPerEmail.limit) ||
+      isRateLimited(ipKey, LIMITS.loginPerIp.limit)
+    ) {
+      return { ok: false, error: "tooManyAttempts" };
+    }
+    const failed = () => {
+      recordAttempt(emailKey, LIMITS.loginPerEmail.windowMs);
+      recordAttempt(ipKey, LIMITS.loginPerIp.windowMs);
+      return { ok: false, error: "invalidCredentials" };
+    };
+
     const user = await prisma.user.findUnique({
       where: { email },
       select: { id: true, passwordHash: true, active: true, role: true },
     });
 
-    if (!user || !user.active) {
-      return { ok: false, error: "invalidCredentials" };
-    }
+    if (!user || !user.active) return failed();
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) {
-      return { ok: false, error: "invalidCredentials" };
-    }
+    if (!isValid) return failed();
+    clearAttempts(emailKey);
 
     // Generate a secure session token
     const token = randomBytes(32).toString("hex");
-
-    const headerList = await headers();
-    const userAgent = headerList.get("user-agent") || "Unknown Device";
-    const ipAddress =
-      headerList.get("x-forwarded-for") || headerList.get("x-real-ip") || "Unknown IP";
 
     // Create session in DB
     await prisma.userSession.create({
@@ -72,13 +84,16 @@ export async function logoutUser() {
 import { portalPath } from "@/lib/auth";
 import { roleUsesAccessLink } from "@/lib/access";
 import { audit } from "@/lib/audit";
+import { clientIp } from "@/lib/client-ip";
+import { LIMITS, clearAttempts, isRateLimited, recordAttempt } from "@/lib/rate-limit";
 
 export async function loginWithToken(token: string) {
   try {
-    if (!token) return { ok: false, error: "invalid" };
-
     const headerList = await headers();
-    const ipAddress = headerList.get("x-forwarded-for") || headerList.get("x-real-ip") || "Unknown IP";
+    const ipAddress = clientIp(headerList) || "Unknown IP";
+    const ipKey = `access:ip:${ipAddress}`;
+    if (isRateLimited(ipKey, LIMITS.accessLinkPerIp.limit)) return { ok: false, error: "tooManyAttempts" };
+    if (!token) return { ok: false, error: "invalid" };
     const userAgent = headerList.get("user-agent") || "Unknown Device";
     const sessionToken = randomBytes(32).toString("hex");
 
@@ -110,7 +125,10 @@ export async function loginWithToken(token: string) {
       return candidate;
     });
 
-    if (!user) return { ok: false, error: "invalid" };
+    if (!user) {
+      recordAttempt(ipKey, LIMITS.accessLinkPerIp.windowMs);
+      return { ok: false, error: "invalid" };
+    }
 
     await audit({
       userId: user.id,

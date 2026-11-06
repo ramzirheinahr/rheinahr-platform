@@ -11,6 +11,7 @@ import { pushToUsers } from "@/lib/push";
 import { sendEmail } from "@/lib/email";
 import { formatDateDE, formatDateTimeDE } from "@/lib/utils";
 import { createLocalStorageClient } from "@/lib/local-storage";
+import { clientIp } from "@/lib/client-ip";
 
 export type ActionState = { ok: boolean; error?: string; documentUrl?: string };
 
@@ -66,7 +67,7 @@ export async function confirmServiceByWorkerOnDevice(
   if (assignment.serviceConfirmation) return { ok: false, error: "alreadyConfirmed" };
 
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  const ip = clientIp(h);
 
   const [{ renderLeistungsnachweisPdf }, { qualLabel, methodLabel }] = await Promise.all([
     import("@/lib/pdf/leistungsnachweis"),

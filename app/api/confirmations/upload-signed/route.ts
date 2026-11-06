@@ -6,6 +6,7 @@ import { getCurrentUser, roleSatisfies } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { netShiftHours } from "@/lib/pricing";
 import { createLocalStorageClient } from "@/lib/local-storage";
+import { clientIp } from "@/lib/client-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -165,7 +166,7 @@ export async function POST(req: Request) {
     }
 
     const h = await headers();
-    const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(h) || "unknown";
     const now = new Date();
 
     try {

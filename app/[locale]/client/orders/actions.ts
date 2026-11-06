@@ -14,6 +14,7 @@ import { pushToUsers } from "@/lib/push";
 import { sendEmailToUsers } from "@/lib/email";
 import { hasHistoricalInvoiceRecordForAssignment } from "@/lib/invoicing";
 import { requestQualificationsAreSelectable } from "@/lib/qualification-catalog";
+import { clientIp } from "@/lib/client-ip";
 
 export type ActionState = { ok: boolean; error?: string };
 
@@ -850,7 +851,7 @@ export async function confirmService(formData: FormData): Promise<ActionState> {
   if (assignment.serviceConfirmation) return { ok: false, error: "alreadyConfirmed" };
 
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  const ip = clientIp(h);
 
   // The finalized artifact path: the generated signed PDF (electronic) or the
   // uploaded signed scan (upload). Both archive as tamper-proof `documentUrl`.
@@ -1291,7 +1292,7 @@ export async function confirmHoursCorrection(input: {
 
   const newHours = Number(sc.correctionHours);
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  const ip = clientIp(h);
 
   // Regenerate the signed Leistungsnachweis with the corrected hours.
   const [{ renderLeistungsnachweisPdf }, { qualLabel, methodLabel }] = await Promise.all([
